@@ -1,147 +1,20 @@
-import { useEffect, useRef, useState } from "react";
+import { useState } from "react";
 import { useTranslation } from "react-i18next";
 import { invoke } from "@tauri-apps/api/core";
 import { open } from "@tauri-apps/plugin-dialog";
-import * as THREE from "three";
-import { OrbitControls } from "three/addons/controls/OrbitControls.js";
 import { Button } from "@/components/ui/button";
 import { FolderOpen } from "lucide-react";
-
-interface Gr2Mesh {
-  name: string;
-  vertices: number[];
-  normals: number[];
-  uvs: number[];
-  indices: number[];
-}
-
-interface Gr2ModelInfo {
-  name: string;
-  bone_count: number;
-  meshes: Gr2Mesh[];
-  skipped_skinned_meshes: number;
-}
-
-interface SceneRefs {
-  scene: THREE.Scene;
-  camera: THREE.PerspectiveCamera;
-  renderer: THREE.WebGLRenderer;
-  controls: OrbitControls;
-  meshGroup: THREE.Group;
-}
+import { Gr2Canvas } from "./Gr2Canvas";
+import type { Gr2ModelInfo } from "./types";
 
 export function ModelViewer() {
   const { t } = useTranslation();
-  const containerRef = useRef<HTMLDivElement>(null);
-  const sceneRef = useRef<SceneRefs | null>(null);
 
   const [dllPath, setDllPath] = useState("");
   const [gr2Path, setGr2Path] = useState("");
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [info, setInfo] = useState<Gr2ModelInfo | null>(null);
-
-  useEffect(() => {
-    const container = containerRef.current;
-    if (!container) return;
-
-    const scene = new THREE.Scene();
-    scene.background = new THREE.Color(0x1e1e1e);
-
-    const camera = new THREE.PerspectiveCamera(
-      50,
-      container.clientWidth / container.clientHeight,
-      0.1,
-      10000,
-    );
-    camera.position.set(100, 100, 200);
-
-    const renderer = new THREE.WebGLRenderer({ antialias: true });
-    renderer.setSize(container.clientWidth, container.clientHeight);
-    container.appendChild(renderer.domElement);
-
-    const controls = new OrbitControls(camera, renderer.domElement);
-    controls.enableDamping = true;
-
-    scene.add(new THREE.AmbientLight(0xffffff, 0.6));
-    const directional = new THREE.DirectionalLight(0xffffff, 1.2);
-    directional.position.set(200, 300, 200);
-    scene.add(directional);
-    scene.add(new THREE.GridHelper(200, 20, 0x444444, 0x2a2a2a));
-
-    const meshGroup = new THREE.Group();
-    scene.add(meshGroup);
-
-    sceneRef.current = { scene, camera, renderer, controls, meshGroup };
-
-    let frameId = 0;
-    const animate = () => {
-      frameId = requestAnimationFrame(animate);
-      controls.update();
-      renderer.render(scene, camera);
-    };
-    animate();
-
-    const handleResize = () => {
-      camera.aspect = container.clientWidth / container.clientHeight;
-      camera.updateProjectionMatrix();
-      renderer.setSize(container.clientWidth, container.clientHeight);
-    };
-    window.addEventListener("resize", handleResize);
-
-    return () => {
-      cancelAnimationFrame(frameId);
-      window.removeEventListener("resize", handleResize);
-      controls.dispose();
-      renderer.dispose();
-      container.removeChild(renderer.domElement);
-    };
-  }, []);
-
-  function renderModel(model: Gr2ModelInfo) {
-    const refs = sceneRef.current;
-    if (!refs) return;
-    const { camera, controls, meshGroup } = refs;
-
-    for (const child of [...meshGroup.children]) {
-      meshGroup.remove(child);
-      if (child instanceof THREE.Mesh) {
-        child.geometry.dispose();
-        (child.material as THREE.Material).dispose();
-      }
-    }
-
-    for (const mesh of model.meshes) {
-      const geometry = new THREE.BufferGeometry();
-      geometry.setAttribute(
-        "position",
-        new THREE.Float32BufferAttribute(mesh.vertices, 3),
-      );
-      geometry.setAttribute(
-        "normal",
-        new THREE.Float32BufferAttribute(mesh.normals, 3),
-      );
-      geometry.setAttribute("uv", new THREE.Float32BufferAttribute(mesh.uvs, 2));
-      geometry.setIndex(new THREE.Uint32BufferAttribute(mesh.indices, 1));
-
-      const material = new THREE.MeshPhongMaterial({
-        color: 0xcfcfcf,
-        side: THREE.DoubleSide,
-      });
-      meshGroup.add(new THREE.Mesh(geometry, material));
-    }
-
-    const box = new THREE.Box3().setFromObject(meshGroup);
-    const center = box.getCenter(new THREE.Vector3());
-    const size = Math.max(box.getSize(new THREE.Vector3()).length(), 1);
-    meshGroup.position.sub(center);
-    camera.position.set(size * 0.5, size * 0.5, size * 0.8);
-    camera.near = size / 100;
-    camera.far = size * 100;
-    camera.updateProjectionMatrix();
-    controls.target.set(0, 0, 0);
-    controls.update();
-  }
 
   async function pickDllPath() {
     const selected = await open({
@@ -174,7 +47,6 @@ export function ModelViewer() {
         gr2Path,
       });
       setInfo(result);
-      renderModel(result);
     } catch (e) {
       setError(String(e));
       setInfo(null);
@@ -229,8 +101,8 @@ export function ModelViewer() {
         </p>
       )}
 
-      <div
-        ref={containerRef}
+      <Gr2Canvas
+        model={info}
         className="min-h-0 flex-1 overflow-hidden rounded-lg border border-border"
       />
     </div>

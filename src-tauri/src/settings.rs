@@ -1,4 +1,4 @@
-use rusqlite::Connection;
+use rusqlite::{Connection, OptionalExtension};
 use std::path::Path;
 
 pub fn init_db(app_data_dir: &Path) -> Result<Connection, String> {
@@ -21,4 +21,22 @@ pub fn init_db(app_data_dir: &Path) -> Result<Connection, String> {
     )
     .map_err(|e| e.to_string())?;
     Ok(conn)
+}
+
+pub fn get_path(conn: &Connection, key: &str) -> Result<Option<String>, String> {
+    conn.query_row("SELECT value FROM paths WHERE key = ?1", [key], |row| {
+        row.get(0)
+    })
+    .optional()
+    .map_err(|e| e.to_string())
+}
+
+pub fn set_path(conn: &Connection, key: &str, value: &str) -> Result<(), String> {
+    conn.execute(
+        "INSERT INTO paths (key, value) VALUES (?1, ?2) \
+         ON CONFLICT(key) DO UPDATE SET value = excluded.value",
+        rusqlite::params![key, value],
+    )
+    .map_err(|e| e.to_string())?;
+    Ok(())
 }

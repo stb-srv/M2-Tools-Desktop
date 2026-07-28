@@ -7,6 +7,7 @@ pub struct ShopSummary {
     pub name: String,
     pub npc_vnum: i16,
     pub npc_name: String,
+    pub npc_folder: Option<String>,
     pub item_count: i64,
 }
 
@@ -37,7 +38,7 @@ fn decode_name(bytes: &[u8]) -> String {
 
 pub async fn list_shops(pool: &MySqlPool) -> Result<Vec<ShopSummary>, String> {
     let rows = sqlx::query(
-        "SELECT s.vnum, s.name, s.npc_vnum, m.locale_name AS npc_name_raw, \
+        "SELECT s.vnum, s.name, s.npc_vnum, m.locale_name AS npc_name_raw, m.folder AS npc_folder, \
          (SELECT COUNT(*) FROM player.shop_item si WHERE si.shop_vnum = s.vnum) AS item_count \
          FROM player.shop s \
          LEFT JOIN player.mob_proto m ON m.vnum = s.npc_vnum \
@@ -58,10 +59,39 @@ pub async fn list_shops(pool: &MySqlPool) -> Result<Vec<ShopSummary>, String> {
                 npc_name: npc_name_raw
                     .map(|b| decode_name(&b))
                     .unwrap_or_else(|| "?".to_string()),
+                npc_folder: row.try_get("npc_folder").ok(),
                 item_count: row.try_get("item_count").unwrap_or_default(),
             }
         })
         .collect())
+}
+
+pub async fn rename_shop(pool: &MySqlPool, shop_vnum: i32, name: &str) -> Result<(), String> {
+    sqlx::query("UPDATE player.shop SET name = ? WHERE vnum = ?")
+        .bind(name)
+        .bind(shop_vnum)
+        .execute(pool)
+        .await
+        .map_err(|e| e.to_string())?;
+    Ok(())
+}
+
+pub async fn create_shop(pool: &MySqlPool, name: &str, npc_vnum: i16) -> Result<i32, String> {
+    let next_vnum: Option<i32> = sqlx::query_scalar("SELECT MAX(vnum) + 1 FROM player.shop")
+        .fetch_one(pool)
+        .await
+        .map_err(|e| e.to_string())?;
+    let vnum = next_vnum.unwrap_or(1);
+
+    sqlx::query("INSERT INTO player.shop (vnum, name, npc_vnum) VALUES (?, ?, ?)")
+        .bind(vnum)
+        .bind(name)
+        .bind(npc_vnum)
+        .execute(pool)
+        .await
+        .map_err(|e| e.to_string())?;
+
+    Ok(vnum)
 }
 
 pub async fn get_shop_items(pool: &MySqlPool, shop_vnum: i32) -> Result<Vec<ShopItem>, String> {

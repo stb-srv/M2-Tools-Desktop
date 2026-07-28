@@ -73,6 +73,42 @@ pub fn parse(granny_dll_path: &str, gr2_path: &str) -> Result<ModelInfo, String>
     }
 }
 
+pub fn find_granny_dll(client_path: &str) -> Option<String> {
+    let candidate = std::path::Path::new(client_path).join("granny2.dll");
+    candidate.exists().then(|| candidate.to_string_lossy().into_owned())
+}
+
+/// Metin2 clients store each model under a folder named after the NPC/mob
+/// (mob_proto.folder), but the parent tree ("pack/npc/ymir work/npc/...",
+/// "pack/monster/ymir work/monster/...") isn't consistent across cores, so
+/// search by folder name instead of assuming a fixed path shape.
+pub fn find_npc_model(client_path: &str, folder: &str) -> Option<String> {
+    find_recursive(std::path::Path::new(client_path), folder, 10)
+}
+
+fn find_recursive(dir: &std::path::Path, folder: &str, max_depth: u32) -> Option<String> {
+    if max_depth == 0 {
+        return None;
+    }
+    let entries = std::fs::read_dir(dir).ok()?;
+    for entry in entries.flatten() {
+        let path = entry.path();
+        if !path.is_dir() {
+            continue;
+        }
+        if path.file_name().and_then(|n| n.to_str()) == Some(folder) {
+            let gr2 = path.join(format!("{folder}.gr2"));
+            if gr2.exists() {
+                return Some(gr2.to_string_lossy().into_owned());
+            }
+        }
+        if let Some(found) = find_recursive(&path, folder, max_depth - 1) {
+            return Some(found);
+        }
+    }
+    None
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
