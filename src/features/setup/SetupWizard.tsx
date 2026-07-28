@@ -2,7 +2,10 @@ import { useState } from "react";
 import { invoke } from "@tauri-apps/api/core";
 import { open } from "@tauri-apps/plugin-dialog";
 import { Button } from "@/components/ui/button";
+import { PasswordInput } from "@/components/ui/password-input";
 import { FolderOpen, CheckCircle2, XCircle } from "lucide-react";
+
+type SshAuthMode = "password" | "key";
 
 type Step = "client" | "ssh" | "mysql";
 type TestState = "idle" | "testing" | "ok" | "error";
@@ -25,7 +28,10 @@ export function SetupWizard({ onComplete }: { onComplete: () => void }) {
   const [sshHost, setSshHost] = useState("");
   const [sshPort, setSshPort] = useState("22");
   const [sshUser, setSshUser] = useState("");
+  const [sshAuthMode, setSshAuthMode] = useState<SshAuthMode>("password");
   const [sshPassword, setSshPassword] = useState("");
+  const [sshKeyPath, setSshKeyPath] = useState("");
+  const [sshKeyPassphrase, setSshKeyPassphrase] = useState("");
   const [sshTest, setSshTest] = useState<TestState>("idle");
   const [sshError, setSshError] = useState<string | null>(null);
 
@@ -62,18 +68,40 @@ export function SetupWizard({ onComplete }: { onComplete: () => void }) {
     }
   }
 
+  async function pickSshKey() {
+    const selected = await open({ multiple: false, title: "Privaten SSH-Schlüssel auswählen" });
+    if (typeof selected === "string") {
+      setSshKeyPath(selected);
+    }
+  }
+
   async function testSsh() {
     setSshTest("testing");
     setSshError(null);
     try {
+      const auth =
+        sshAuthMode === "password"
+          ? { type: "password", password: sshPassword }
+          : { type: "private_key", path: sshKeyPath, passphrase: sshKeyPassphrase || null };
       await invoke("test_ssh_connection", {
         config: { host: sshHost, port: Number(sshPort), username: sshUser },
-        password: sshPassword,
+        auth,
       });
       await invoke("set_setting", { key: "ssh_host", value: sshHost });
       await invoke("set_setting", { key: "ssh_port", value: sshPort });
       await invoke("set_setting", { key: "ssh_username", value: sshUser });
-      await invoke("store_credential", { account: "ssh_password", secret: sshPassword });
+      await invoke("set_setting", { key: "ssh_auth_mode", value: sshAuthMode });
+      if (sshAuthMode === "password") {
+        await invoke("store_credential", { account: "ssh_password", secret: sshPassword });
+      } else {
+        await invoke("set_setting", { key: "ssh_key_path", value: sshKeyPath });
+        if (sshKeyPassphrase) {
+          await invoke("store_credential", {
+            account: "ssh_key_passphrase",
+            secret: sshKeyPassphrase,
+          });
+        }
+      }
       setSshTest("ok");
     } catch (e) {
       setSshTest("error");
@@ -191,18 +219,57 @@ export function SetupWizard({ onComplete }: { onComplete: () => void }) {
               placeholder="Benutzername"
               className="w-full rounded-md border border-border bg-background px-2 py-1 text-sm"
             />
-            <input
-              type="password"
-              value={sshPassword}
-              onChange={(e) => setSshPassword(e.target.value)}
-              placeholder="Passwort"
-              className="w-full rounded-md border border-border bg-background px-2 py-1 text-sm"
-            />
+
+            <div className="flex overflow-hidden rounded-md border border-border text-sm">
+              <button
+                onClick={() => setSshAuthMode("password")}
+                className={`flex-1 px-3 py-1 ${sshAuthMode === "password" ? "bg-primary text-primary-foreground" : ""}`}
+              >
+                Passwort
+              </button>
+              <button
+                onClick={() => setSshAuthMode("key")}
+                className={`flex-1 px-3 py-1 ${sshAuthMode === "key" ? "bg-primary text-primary-foreground" : ""}`}
+              >
+                SSH-Key
+              </button>
+            </div>
+
+            {sshAuthMode === "password" ? (
+              <PasswordInput
+                value={sshPassword}
+                onChange={setSshPassword}
+                placeholder="Passwort"
+              />
+            ) : (
+              <>
+                <div className="flex items-center gap-2">
+                  <Button variant="outline" onClick={pickSshKey} className="shrink-0">
+                    <FolderOpen className="size-4" />
+                    Schlüsseldatei auswählen
+                  </Button>
+                  <span className="truncate text-sm text-muted-foreground">
+                    {sshKeyPath || "Keine Datei ausgewählt"}
+                  </span>
+                </div>
+                <PasswordInput
+                  value={sshKeyPassphrase}
+                  onChange={setSshKeyPassphrase}
+                  placeholder="Passphrase (falls vorhanden)"
+                />
+              </>
+            )}
+
             <div className="flex items-center gap-2">
               <Button
                 variant="outline"
                 onClick={testSsh}
-                disabled={!sshHost || !sshUser || sshTest === "testing"}
+                disabled={
+                  !sshHost ||
+                  !sshUser ||
+                  sshTest === "testing" ||
+                  (sshAuthMode === "key" && !sshKeyPath)
+                }
               >
                 {sshTest === "testing" ? "Verbinde…" : "Testen"}
               </Button>
@@ -236,12 +303,10 @@ export function SetupWizard({ onComplete }: { onComplete: () => void }) {
               placeholder="Benutzername"
               className="w-full rounded-md border border-border bg-background px-2 py-1 text-sm"
             />
-            <input
-              type="password"
+            <PasswordInput
               value={mysqlPassword}
-              onChange={(e) => setMysqlPassword(e.target.value)}
+              onChange={setMysqlPassword}
               placeholder="Passwort"
-              className="w-full rounded-md border border-border bg-background px-2 py-1 text-sm"
             />
             <div className="flex items-center gap-2">
               <Button

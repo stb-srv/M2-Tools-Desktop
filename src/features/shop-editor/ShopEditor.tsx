@@ -2,6 +2,7 @@ import { useEffect, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { invoke } from "@tauri-apps/api/core";
 import { Button } from "@/components/ui/button";
+import { PasswordInput } from "@/components/ui/password-input";
 import { Gr2Canvas } from "@/features/model-viewer/Gr2Canvas";
 import type { Gr2ModelInfo } from "@/features/model-viewer/types";
 import { Minus, Plus, Search, Trash2, AlertTriangle, X } from "lucide-react";
@@ -353,13 +354,7 @@ export function ShopEditor() {
             placeholder="Benutzername"
             className="w-full rounded-md border border-border bg-background px-2 py-1 text-sm"
           />
-          <input
-            type="password"
-            value={password}
-            onChange={(e) => setPassword(e.target.value)}
-            placeholder="Passwort"
-            className="w-full rounded-md border border-border bg-background px-2 py-1 text-sm"
-          />
+          <PasswordInput value={password} onChange={setPassword} placeholder="Passwort" />
         </div>
         {connError && <p className="text-sm text-destructive">{connError}</p>}
         <Button onClick={handleConnect} disabled={connecting || !host || !username}>

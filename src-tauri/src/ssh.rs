@@ -1,5 +1,5 @@
-use russh::client::{connect, Config, Handle, Handler};
-use russh::keys::PublicKey;
+use russh::client::{connect, Config, Handle, Handler, KeyboardInteractiveAuthResponse};
+use russh::keys::{load_secret_key, PrivateKeyWithHashAlg, PublicKey};
 use serde::{Deserialize, Serialize};
 use std::sync::Arc;
 
@@ -8,6 +8,18 @@ pub struct SshConfig {
     pub host: String,
     pub port: u16,
     pub username: String,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(tag = "type")]
+pub enum SshAuth {
+    #[serde(rename = "password")]
+    Password { password: String },
+    #[serde(rename = "private_key")]
+    PrivateKey {
+        path: String,
+        passphrase: Option<String>,
+    },
 }
 
 struct AcceptAllHandler;
@@ -31,13 +43,68 @@ async fn open_session(config: &SshConfig) -> Result<Handle<AcceptAllHandler>, St
     .map_err(|e| e.to_string())
 }
 
-pub async fn test_connection(config: &SshConfig, password: &str) -> Result<(), String> {
-    let mut session = open_session(config).await?;
-    let authenticated = session
-        .authenticate_password(&config.username, password)
+// Some servers (this FreeBSD/PAM setup among them) only advertise
+// "publickey,keyboard-interactive" and reject the plain SSH "password"
+// method outright, even though the login is conceptually just a password.
+// Fall back to keyboard-interactive, answering every text prompt with the
+// given password (matches how ssh/plink behave against the same server).
+async fn authenticate_with_password(
+    session: &mut Handle<AcceptAllHandler>,
+    username: &str,
+    password: &str,
+) -> Result<bool, String> {
+    let direct = session
+        .authenticate_password(username, password)
         .await
         .map_err(|e| e.to_string())?;
-    if authenticated.success() {
+    if direct.success() {
+        return Ok(true);
+    }
+
+    let mut response = session
+        .authenticate_keyboard_interactive_start(username, None)
+        .await
+        .map_err(|e| e.to_string())?;
+
+    loop {
+        match response {
+            KeyboardInteractiveAuthResponse::Success => return Ok(true),
+            KeyboardInteractiveAuthResponse::Failure { .. } => return Ok(false),
+            KeyboardInteractiveAuthResponse::InfoRequest { prompts, .. } => {
+                let answers = vec![password.to_string(); prompts.len()];
+                response = session
+                    .authenticate_keyboard_interactive_respond(answers)
+                    .await
+                    .map_err(|e| e.to_string())?;
+            }
+        }
+    }
+}
+
+async fn authenticate(
+    session: &mut Handle<AcceptAllHandler>,
+    username: &str,
+    auth: &SshAuth,
+) -> Result<bool, String> {
+    match auth {
+        SshAuth::Password { password } => {
+            authenticate_with_password(session, username, password).await
+        }
+        SshAuth::PrivateKey { path, passphrase } => {
+            let key = load_secret_key(path, passphrase.as_deref())
+                .map_err(|e| format!("Privater Schlüssel konnte nicht geladen werden: {e}"))?;
+            let result = session
+                .authenticate_publickey(username, PrivateKeyWithHashAlg::new(Arc::new(key), None))
+                .await
+                .map_err(|e| e.to_string())?;
+            Ok(result.success())
+        }
+    }
+}
+
+pub async fn test_connection(config: &SshConfig, auth: &SshAuth) -> Result<(), String> {
+    let mut session = open_session(config).await?;
+    if authenticate(&mut session, &config.username, auth).await? {
         Ok(())
     } else {
         Err("Authentifizierung fehlgeschlagen".into())
@@ -46,15 +113,11 @@ pub async fn test_connection(config: &SshConfig, password: &str) -> Result<(), S
 
 pub async fn run_command(
     config: &SshConfig,
-    password: &str,
+    auth: &SshAuth,
     command: &str,
 ) -> Result<String, String> {
     let mut session = open_session(config).await?;
-    let authenticated = session
-        .authenticate_password(&config.username, password)
-        .await
-        .map_err(|e| e.to_string())?;
-    if !authenticated.success() {
+    if !authenticate(&mut session, &config.username, auth).await? {
         return Err("Authentifizierung fehlgeschlagen".into());
     }
 

@@ -3,13 +3,13 @@ use crate::db::mysql::{self, MysqlConfig};
 use crate::db::shop::{self, ItemSearchResult, ShopItem, ShopSummary};
 use crate::gr2::{self, ModelInfo};
 use crate::settings;
-use crate::ssh::{self, SshConfig};
+use crate::ssh::{self, SshAuth, SshConfig};
 use crate::state::AppState;
 use tauri::State;
 
 #[tauri::command]
-pub async fn test_ssh_connection(config: SshConfig, password: String) -> Result<(), String> {
-    ssh::test_connection(&config, &password).await
+pub async fn test_ssh_connection(config: SshConfig, auth: SshAuth) -> Result<(), String> {
+    ssh::test_connection(&config, &auth).await
 }
 
 #[tauri::command]
