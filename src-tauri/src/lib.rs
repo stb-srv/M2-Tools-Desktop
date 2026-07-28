@@ -6,6 +6,7 @@ mod icons;
 mod settings;
 mod ssh;
 mod state;
+mod textures;
 
 use state::AppState;
 use tauri::Manager;

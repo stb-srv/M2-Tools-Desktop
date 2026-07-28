@@ -1,6 +1,9 @@
 export interface Gr2Mesh {
   name: string;
   is_rigid: boolean;
+  texture_name: string | null;
+  /** Decoded texture as a PNG data URL, or null if none could be resolved. */
+  texture: string | null;
   vertices: number[];
   normals: number[];
   uvs: number[];

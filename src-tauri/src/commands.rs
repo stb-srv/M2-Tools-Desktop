@@ -185,11 +185,16 @@ pub fn locate_npc_model(
     npc_vnum: i32,
     folder: Option<String>,
 ) -> Result<(String, String), String> {
-    let client_path = {
+    let (client_path, npclist_override) = {
         let conn = state.settings_db.lock().map_err(|e| e.to_string())?;
-        settings::get_path(&conn, "client_path")?
-    }
-    .ok_or_else(|| "Kein Client-Pfad konfiguriert. Bitte in den Einstellungen setzen.".to_string())?;
+        (
+            settings::get_path(&conn, "client_path")?,
+            settings::get_path(&conn, "npclist_path")?,
+        )
+    };
+    let client_path = client_path.ok_or_else(|| {
+        "Kein Client-Pfad konfiguriert. Bitte in den Einstellungen setzen.".to_string()
+    })?;
 
     let dll = gr2::find_granny_dll(&client_path)
         .ok_or_else(|| format!("granny2.dll nicht gefunden unter {client_path}"))?;
@@ -197,10 +202,19 @@ pub fn locate_npc_model(
     // npclist.txt is the client's own mapping and covers shop NPCs, whose
     // mob_proto.folder is typically empty - fall back to the DB value only if
     // the client list has no entry.
-    let resolved = gr2::lookup_npc_folder(&client_path, npc_vnum)
+    let from_list = gr2::find_npclist(&client_path, npclist_override.as_deref())
+        .and_then(|list| gr2::lookup_npc_folder(&list, npc_vnum));
+
+    let resolved = from_list
         .or(folder)
         .filter(|f| !f.is_empty())
-        .ok_or_else(|| format!("Kein Modell-Ordner für NPC {npc_vnum} gefunden"))?;
+        .ok_or_else(|| {
+            format!(
+                "Kein Modell-Ordner für NPC {npc_vnum} gefunden. \
+                 npclist.txt wurde nicht gefunden oder enthält keinen Eintrag - \
+                 Pfad ggf. in den Einstellungen setzen."
+            )
+        })?;
 
     let model = gr2::find_npc_model(&client_path, &resolved).ok_or_else(|| {
         format!("Kein .gr2-Modell für '{resolved}' im Client-Ordner gefunden")

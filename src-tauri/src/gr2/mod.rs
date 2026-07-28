@@ -16,6 +16,13 @@ pub struct Mesh {
     pub normals: Vec<f32>,
     pub uvs: Vec<f32>,
     pub indices: Vec<u32>,
+    /// Texture path as recorded by the exporter (usually an absolute artist
+    /// path), only meaningful for resolving the file name.
+    #[serde(default)]
+    pub texture_name: Option<String>,
+    /// Decoded texture as a PNG data URL, filled in by `parse`.
+    #[serde(default)]
+    pub texture: Option<String>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, Default)]
@@ -63,26 +70,73 @@ pub fn parse(granny_dll_path: &str, gr2_path: &str) -> Result<ModelInfo, String>
     let parsed: SidecarOutput = serde_json::from_str(stdout.trim())
         .map_err(|e| format!("Ungültige Antwort vom GR2-Sidecar: {e} (stdout: {stdout})"))?;
 
-    if parsed.ok {
-        parsed
-            .data
-            .ok_or_else(|| "GR2-Sidecar meldete Erfolg ohne Daten".to_string())
-    } else {
-        Err(parsed
+    if !parsed.ok {
+        return Err(parsed
             .error
-            .unwrap_or_else(|| "Unbekannter Fehler im GR2-Sidecar".to_string()))
+            .unwrap_or_else(|| "Unbekannter Fehler im GR2-Sidecar".to_string()));
     }
+
+    let mut model = parsed
+        .data
+        .ok_or_else(|| "GR2-Sidecar meldete Erfolg ohne Daten".to_string())?;
+
+    // Textures live next to the .gr2 as .dds; a model without one still renders
+    // untextured, so a failed lookup must not fail the whole load.
+    for mesh in &mut model.meshes {
+        mesh.texture =
+            crate::textures::load_texture_data_url(gr2_path, mesh.texture_name.as_deref())
+                .unwrap_or(None);
+    }
+
+    Ok(model)
+}
+
+/// Locates the client's NPC list. Not every client keeps it at the usual
+/// `root/npclist.txt`, so fall back to scanning, and let the user point at it
+/// explicitly if even that fails (some clients rename or relocate it).
+pub fn find_npclist(client_path: &str, override_path: Option<&str>) -> Option<PathBuf> {
+    if let Some(p) = override_path.filter(|p| !p.is_empty()) {
+        let path = PathBuf::from(p);
+        if path.is_file() {
+            return Some(path);
+        }
+    }
+
+    let default = std::path::Path::new(client_path)
+        .join("root")
+        .join("npclist.txt");
+    if default.is_file() {
+        return Some(default);
+    }
+
+    find_file_recursive(std::path::Path::new(client_path), "npclist.txt", 10)
+}
+
+fn find_file_recursive(dir: &std::path::Path, filename: &str, max_depth: u32) -> Option<PathBuf> {
+    if max_depth == 0 {
+        return None;
+    }
+    let entries = std::fs::read_dir(dir).ok()?;
+    let mut subdirs = Vec::new();
+    for entry in entries.flatten() {
+        let path = entry.path();
+        if path.is_dir() {
+            subdirs.push(path);
+        } else if path.file_name().and_then(|n| n.to_str()) == Some(filename) {
+            return Some(path);
+        }
+    }
+    subdirs
+        .into_iter()
+        .find_map(|d| find_file_recursive(&d, filename, max_depth - 1))
 }
 
 /// Shop NPCs generally have an empty `mob_proto.folder`; the client resolves
-/// their models through `root/npclist.txt` instead, which maps NPC vnum to a
-/// model folder name. Lines are tab-separated and either `vnum<TAB>folder` or
+/// their models through npclist.txt instead, which maps NPC vnum to a model
+/// folder name. Lines are tab-separated and either `vnum<TAB>folder` or
 /// `vnum<TAB>name<TAB>folder`, so the folder is always the last field.
-pub fn lookup_npc_folder(client_path: &str, npc_vnum: i32) -> Option<String> {
-    let list = std::path::Path::new(client_path)
-        .join("root")
-        .join("npclist.txt");
-    let contents = std::fs::read_to_string(list).ok()?;
+pub fn lookup_npc_folder(list_path: &std::path::Path, npc_vnum: i32) -> Option<String> {
+    let contents = std::fs::read_to_string(list_path).ok()?;
 
     for line in contents.lines() {
         let fields: Vec<&str> = line.split('\t').map(|f| f.trim()).collect();
@@ -156,7 +210,9 @@ mod tests {
         let client = r"C:\Users\DevSteven\Desktop\Client";
         // 9001 = Waffenhaendler's NPC; its mob_proto.folder is empty in the DB,
         // so this must come from the client's own npclist.txt.
-        let folder = lookup_npc_folder(client, 9001).expect("npclist lookup failed for 9001");
+        let list = find_npclist(client, None).expect("npclist.txt not found");
+        println!("npclist: {}", list.display());
+        let folder = lookup_npc_folder(&list, 9001).expect("npclist lookup failed for 9001");
         println!("npc 9001 -> folder {folder:?}");
         assert_eq!(folder, "arms");
 

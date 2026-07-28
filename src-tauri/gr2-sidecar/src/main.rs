@@ -10,6 +10,7 @@ use std::ptr;
 struct Mesh {
     name: String,
     is_rigid: bool,
+    texture_name: Option<String>,
     vertices: Vec<f32>,
     normals: Vec<f32>,
     uvs: Vec<f32>,
@@ -115,6 +116,49 @@ fn rigid_vertex_type() -> [granny_data_type_definition; 4] {
     ]
 }
 
+/// Granny exposes a mesh's texture either directly on the bound material or
+/// nested one level down in its material maps (Metin2 assets use both), so
+/// check the direct texture first and fall back to walking the maps.
+unsafe fn texture_name_for(mesh_ptr: *mut granny_mesh) -> Option<String> {
+    let mesh = &*mesh_ptr;
+    if mesh.MaterialBindingCount <= 0 || mesh.MaterialBindings.is_null() {
+        return None;
+    }
+    let bindings =
+        std::slice::from_raw_parts(mesh.MaterialBindings, mesh.MaterialBindingCount as usize);
+
+    for binding in bindings {
+        if binding.Material.is_null() {
+            continue;
+        }
+        let material = &*binding.Material;
+
+        if !material.Texture.is_null() {
+            let name = cstr_to_string((*material.Texture).FromFileName);
+            if !name.is_empty() {
+                return Some(name);
+            }
+        }
+
+        if material.MapCount > 0 && !material.Maps.is_null() {
+            let maps = std::slice::from_raw_parts(material.Maps, material.MapCount as usize);
+            for map in maps {
+                if map.Material.is_null() {
+                    continue;
+                }
+                let sub = &*map.Material;
+                if !sub.Texture.is_null() {
+                    let name = cstr_to_string((*sub.Texture).FromFileName);
+                    if !name.is_empty() {
+                        return Some(name);
+                    }
+                }
+            }
+        }
+    }
+    None
+}
+
 unsafe fn extract_mesh(api: &GrannyApi, mesh_ptr: *mut granny_mesh) -> Option<Mesh> {
     if mesh_ptr.is_null() {
         return None;
@@ -152,6 +196,7 @@ unsafe fn extract_mesh(api: &GrannyApi, mesh_ptr: *mut granny_mesh) -> Option<Me
     Some(Mesh {
         name,
         is_rigid,
+        texture_name: texture_name_for(mesh_ptr),
         vertices,
         normals,
         uvs,

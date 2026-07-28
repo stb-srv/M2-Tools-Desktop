@@ -31,6 +31,8 @@ tauri-plugin-dialog = "2.7.2"
 encoding_rs = "0.8.35"
 image = { version = "0.25.10", default-features = false, features = ["tga", "png"] }
 base64 = "0.23.0"
+image_dds = { version = "0.7.2", default-features = false, features = ["ddsfile", "image"] }
+ddsfile = "0.5"
 
 [dependencies.sqlx]
 version = "0.8"

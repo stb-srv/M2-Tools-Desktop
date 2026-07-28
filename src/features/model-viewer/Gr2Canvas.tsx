@@ -91,11 +91,15 @@ export function Gr2Canvas({ model, className }: Gr2CanvasProps) {
       meshGroup.remove(child);
       if (child instanceof THREE.Mesh) {
         child.geometry.dispose();
-        (child.material as THREE.Material).dispose();
+        const material = child.material as THREE.MeshPhongMaterial;
+        material.map?.dispose();
+        material.dispose();
       }
     }
 
     if (!model || model.meshes.length === 0) return;
+
+    const loader = new THREE.TextureLoader();
 
     for (const mesh of model.meshes) {
       const geometry = new THREE.BufferGeometry();
@@ -111,9 +115,22 @@ export function Gr2Canvas({ model, className }: Gr2CanvasProps) {
       geometry.setIndex(new THREE.Uint32BufferAttribute(mesh.indices, 1));
 
       const material = new THREE.MeshPhongMaterial({
-        color: 0xcfcfcf,
+        // Textured meshes need a white base or the texture gets tinted.
+        color: mesh.texture ? 0xffffff : 0xcfcfcf,
         side: THREE.DoubleSide,
       });
+
+      if (mesh.texture) {
+        const texture = loader.load(mesh.texture);
+        texture.colorSpace = THREE.SRGBColorSpace;
+        texture.flipY = false;
+        material.map = texture;
+        // Metin2 textures use alpha for cutouts (hair, capes, straps).
+        material.transparent = true;
+        material.alphaTest = 0.5;
+        material.needsUpdate = true;
+      }
+
       meshGroup.add(new THREE.Mesh(geometry, material));
     }
 
