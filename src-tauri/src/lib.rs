@@ -2,6 +2,7 @@ mod commands;
 mod credentials;
 mod db;
 mod gr2;
+mod icons;
 mod settings;
 mod ssh;
 mod state;
@@ -51,6 +52,7 @@ pub fn run() {
             commands::locate_npc_model,
             commands::get_shop_default_max,
             commands::set_shop_default_max,
+            commands::get_item_icon,
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");

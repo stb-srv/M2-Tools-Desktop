@@ -51,10 +51,14 @@ export function ShopEditor() {
   const [renaming, setRenaming] = useState(false);
   const [nameDraft, setNameDraft] = useState("");
 
+  // Metin2 shop windows hold at most 40 slots - columns/rows are cosmetic
+  // grid layout, but their product must never exceed that hard game limit.
+  const MAX_SLOTS = 40;
   const [columns, setColumns] = useState(5);
   const [rows, setRows] = useState(8);
   const [mode, setMode] = useState<"global" | "pro-shop">("global");
   const [maxValue, setMaxValue] = useState(200);
+  const [icons, setIcons] = useState<Record<number, string | null>>({});
 
   const [npcModel, setNpcModel] = useState<Gr2ModelInfo | null>(null);
   const [npcModelError, setNpcModelError] = useState<string | null>(null);
@@ -157,6 +161,39 @@ export function ShopEditor() {
       .then(setMaxValue)
       .catch(() => {});
   }, [mode, selectedShop?.vnum]);
+
+  function ensureIcons(vnums: number[]) {
+    const missing = [...new Set(vnums)].filter((v) => !(v in icons));
+    if (missing.length === 0) return;
+    missing.forEach((vnum) => {
+      invoke<string | null>("get_item_icon", { vnum })
+        .then((dataUrl) => setIcons((prev) => ({ ...prev, [vnum]: dataUrl })))
+        .catch(() => setIcons((prev) => ({ ...prev, [vnum]: null })));
+    });
+  }
+
+  useEffect(() => {
+    ensureIcons(shopItems.map((i) => i.item_vnum));
+  }, [shopItems]);
+
+  useEffect(() => {
+    ensureIcons(searchResults.map((r) => r.vnum));
+  }, [searchResults]);
+
+  function updateColumns(next: number) {
+    const clamped = Math.max(1, Math.min(MAX_SLOTS, next));
+    const newRows = clamped * rows > MAX_SLOTS ? Math.max(1, Math.floor(MAX_SLOTS / clamped)) : rows;
+    setColumns(clamped);
+    setRows(newRows);
+  }
+
+  function updateRows(next: number) {
+    const clamped = Math.max(1, Math.min(MAX_SLOTS, next));
+    const newCols =
+      columns * clamped > MAX_SLOTS ? Math.max(1, Math.floor(MAX_SLOTS / clamped)) : columns;
+    setRows(clamped);
+    setColumns(newCols);
+  }
 
   async function handleConnect() {
     setConnecting(true);
@@ -459,15 +496,18 @@ export function ShopEditor() {
                   Pro Shop
                 </button>
               </div>
-              <Stepper label="Spalten" value={columns} onChange={setColumns} min={1} max={10} />
-              <Stepper label="Zeilen" value={rows} onChange={setRows} min={1} max={20} />
+              <Stepper label="Spalten" value={columns} onChange={updateColumns} min={1} max={MAX_SLOTS} />
+              <Stepper label="Zeilen" value={rows} onChange={updateRows} min={1} max={MAX_SLOTS} />
               <Stepper label="Max" value={maxValue} onChange={saveMaxValue} min={1} max={9999} step={10} />
+              <span className="text-xs text-muted-foreground">
+                {columns * rows}/{MAX_SLOTS} Slots
+              </span>
             </div>
 
             <div className="flex min-h-0 flex-1 gap-3">
               <div
-                className="grid flex-1 content-start gap-2 overflow-y-auto"
-                style={{ gridTemplateColumns: `repeat(${columns}, minmax(0, 1fr))` }}
+                className="grid content-start gap-1.5 overflow-y-auto"
+                style={{ gridTemplateColumns: `repeat(${columns}, 48px)` }}
               >
                 {gridCells.map((item, i) =>
                   item ? (
@@ -479,10 +519,18 @@ export function ShopEditor() {
                         e.preventDefault();
                         removeItem(item);
                       }}
-                      className="relative flex aspect-square flex-col items-center justify-center rounded-md border border-border bg-muted/40 p-1 text-xs hover:bg-muted"
+                      className="relative flex size-12 flex-col items-center justify-center rounded-md border border-border bg-muted/40 hover:bg-muted"
                     >
-                      <span className="font-medium">{item.item_vnum}</span>
-                      <span className="absolute bottom-0.5 right-1 text-[10px] text-muted-foreground">
+                      {icons[item.item_vnum] ? (
+                        <img
+                          src={icons[item.item_vnum]!}
+                          alt={item.item_name}
+                          className="size-8 object-contain [image-rendering:pixelated]"
+                        />
+                      ) : (
+                        <span className="text-xs font-medium">{item.item_vnum}</span>
+                      )}
+                      <span className="absolute bottom-0 right-0.5 text-[9px] leading-none text-muted-foreground">
                         {item.count}
                       </span>
                     </button>
@@ -490,7 +538,7 @@ export function ShopEditor() {
                     <button
                       key={i}
                       onClick={() => setCell({ kind: "empty", index: i })}
-                      className="flex aspect-square items-center justify-center rounded-md border border-dashed border-border text-muted-foreground hover:bg-muted/40"
+                      className="flex size-12 items-center justify-center rounded-md border border-dashed border-border text-muted-foreground hover:bg-muted/40"
                     >
                       <Plus className="size-4" />
                     </button>
@@ -531,9 +579,19 @@ export function ShopEditor() {
         <Modal onClose={() => setCell(null)}>
           {cell.kind === "filled" ? (
             <div className="space-y-3">
-              <p className="text-sm font-medium">
-                {cell.item.item_name} <span className="text-muted-foreground">#{cell.item.item_vnum}</span>
-              </p>
+              <div className="flex items-center gap-2">
+                {icons[cell.item.item_vnum] && (
+                  <img
+                    src={icons[cell.item.item_vnum]!}
+                    alt={cell.item.item_name}
+                    className="size-8 object-contain [image-rendering:pixelated]"
+                  />
+                )}
+                <p className="text-sm font-medium">
+                  {cell.item.item_name}{" "}
+                  <span className="text-muted-foreground">#{cell.item.item_vnum}</span>
+                </p>
+              </div>
               <div className="flex items-center gap-2">
                 <Button variant="outline" size="icon-sm" onClick={() => changeCount(cell.item, -1)}>
                   <Minus className="size-3.5" />
@@ -568,7 +626,14 @@ export function ShopEditor() {
                     key={item.vnum}
                     className="flex items-center justify-between rounded-md px-2 py-1 text-sm hover:bg-muted"
                   >
-                    <span>
+                    <span className="flex items-center gap-2">
+                      {icons[item.vnum] && (
+                        <img
+                          src={icons[item.vnum]!}
+                          alt={item.name}
+                          className="size-6 object-contain [image-rendering:pixelated]"
+                        />
+                      )}
                       {item.name} <span className="text-muted-foreground">#{item.vnum}</span>
                     </span>
                     <Button size="sm" onClick={() => addItem(item)}>

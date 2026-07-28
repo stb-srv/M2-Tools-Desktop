@@ -2,6 +2,7 @@ use crate::credentials;
 use crate::db::mysql::{self, MysqlConfig};
 use crate::db::shop::{self, ItemSearchResult, ShopItem, ShopSummary};
 use crate::gr2::{self, ModelInfo};
+use crate::icons;
 use crate::settings;
 use crate::ssh::{self, SshAuth, SshConfig};
 use crate::state::AppState;
@@ -163,6 +164,19 @@ pub fn set_setting(
 #[tauri::command]
 pub fn check_client_path(path: String) -> bool {
     gr2::find_granny_dll(&path).is_some()
+}
+
+#[tauri::command]
+pub fn get_item_icon(
+    state: State<'_, AppState>,
+    vnum: u32,
+) -> Result<Option<String>, String> {
+    let client_path = {
+        let conn = state.settings_db.lock().map_err(|e| e.to_string())?;
+        settings::get_path(&conn, "client_path")?
+    }
+    .ok_or_else(|| "Kein Client-Pfad konfiguriert.".to_string())?;
+    icons::load_item_icon_data_url(&client_path, vnum)
 }
 
 #[tauri::command]
