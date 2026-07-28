@@ -1,6 +1,6 @@
 {
   "$schema": "https://schema.tauri.app/config/2",
-  "productName": "tauri-app",
+  "productName": "M2Manager",
   "version": "0.1.0",
   "identifier": "com.m2manager.app",
   "build": {
@@ -12,9 +12,9 @@
   "app": {
     "windows": [
       {
-        "title": "tauri-app",
-        "width": 800,
-        "height": 600
+        "title": "M2Manager",
+        "width": 1200,
+        "height": 800
       }
     ],
     "security": {

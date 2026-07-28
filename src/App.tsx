@@ -1,50 +1,30 @@
-import { useState } from "react";
-import reactLogo from "./assets/react.svg";
-import { invoke } from "@tauri-apps/api/core";
-import "./App.css";
+import "@/i18n";
+import { Sidebar } from "@/components/layout/Sidebar";
+import { useNavigationStore } from "@/store/navigation";
+import { Dashboard } from "@/features/dashboard/Dashboard";
+import { Connections } from "@/features/connections/Connections";
+import { ServerControl } from "@/features/server-control/ServerControl";
+import { DbExplorer } from "@/features/db-explorer/DbExplorer";
+import { ShopEditor } from "@/features/shop-editor/ShopEditor";
+import { ModelViewer } from "@/features/model-viewer/ModelViewer";
+import { Settings } from "@/features/settings/Settings";
 
 function App() {
-  const [greetMsg, setGreetMsg] = useState("");
-  const [name, setName] = useState("");
-
-  async function greet() {
-    // Learn more about Tauri commands at https://tauri.app/develop/calling-rust/
-    setGreetMsg(await invoke("greet", { name }));
-  }
+  const section = useNavigationStore((state) => state.section);
 
   return (
-    <main className="container">
-      <h1>Welcome to Tauri + React</h1>
-
-      <div className="row">
-        <a href="https://vite.dev" target="_blank">
-          <img src="/vite.svg" className="logo vite" alt="Vite logo" />
-        </a>
-        <a href="https://tauri.app" target="_blank">
-          <img src="/tauri.svg" className="logo tauri" alt="Tauri logo" />
-        </a>
-        <a href="https://react.dev" target="_blank">
-          <img src={reactLogo} className="logo react" alt="React logo" />
-        </a>
-      </div>
-      <p>Click on the Tauri, Vite, and React logos to learn more.</p>
-
-      <form
-        className="row"
-        onSubmit={(e) => {
-          e.preventDefault();
-          greet();
-        }}
-      >
-        <input
-          id="greet-input"
-          onChange={(e) => setName(e.currentTarget.value)}
-          placeholder="Enter a name..."
-        />
-        <button type="submit">Greet</button>
-      </form>
-      <p>{greetMsg}</p>
-    </main>
+    <div className="flex h-screen bg-background text-foreground">
+      <Sidebar />
+      <main className="flex-1 overflow-y-auto p-6">
+        {section === "dashboard" && <Dashboard />}
+        {section === "connections" && <Connections />}
+        {section === "server-control" && <ServerControl />}
+        {section === "db-explorer" && <DbExplorer />}
+        {section === "shop-editor" && <ShopEditor />}
+        {section === "model-viewer" && <ModelViewer />}
+        {section === "settings" && <Settings />}
+      </main>
+    </div>
   );
 }
 

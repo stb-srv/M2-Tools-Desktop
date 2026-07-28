@@ -1,0 +1,57 @@
+{
+  "nav": {
+    "dashboard": "Dashboard",
+    "connections": "Connections",
+    "serverControl": "Server Control",
+    "dbExplorer": "Database Explorer",
+    "shopEditor": "Shop Editor",
+    "modelViewer": "3D Model Viewer",
+    "settings": "Settings"
+  },
+  "dashboard": {
+    "title": "Dashboard",
+    "connectionStatus": "Connection Status",
+    "ssh": "SSH",
+    "mysql": "MySQL",
+    "connected": "Connected",
+    "disconnected": "Disconnected"
+  },
+  "connections": {
+    "title": "Connections",
+    "ssh": "SSH / SFTP",
+    "mysql": "MySQL",
+    "host": "Host",
+    "port": "Port",
+    "username": "Username",
+    "password": "Password",
+    "privateKey": "Private Key",
+    "testConnection": "Test Connection",
+    "save": "Save"
+  },
+  "serverControl": {
+    "title": "Server Control",
+    "startServer": "Start Server/Channel",
+    "stopServer": "Stop Server/Channel",
+    "clearLogs": "Clear Logs",
+    "reloadQuests": "Reload Quests"
+  },
+  "settings": {
+    "title": "Settings",
+    "theme": "Theme",
+    "language": "Language",
+    "light": "Light",
+    "dark": "Dark",
+    "system": "System",
+    "paths": "Paths",
+    "clientPath": "Game Client Path",
+    "serverPath": "Server Path",
+    "workingDirectory": "Working Directory"
+  },
+  "common": {
+    "cancel": "Cancel",
+    "confirm": "Confirm",
+    "delete": "Delete",
+    "edit": "Edit",
+    "search": "Search"
+  }
+}

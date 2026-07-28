@@ -1,0 +1,57 @@
+{
+  "nav": {
+    "dashboard": "Dashboard",
+    "connections": "Verbindungen",
+    "serverControl": "Server-Steuerung",
+    "dbExplorer": "Datenbank-Explorer",
+    "shopEditor": "Shop-Editor",
+    "modelViewer": "3D-Modell-Viewer",
+    "settings": "Einstellungen"
+  },
+  "dashboard": {
+    "title": "Dashboard",
+    "connectionStatus": "Verbindungsstatus",
+    "ssh": "SSH",
+    "mysql": "MySQL",
+    "connected": "Verbunden",
+    "disconnected": "Nicht verbunden"
+  },
+  "connections": {
+    "title": "Verbindungen",
+    "ssh": "SSH / SFTP",
+    "mysql": "MySQL",
+    "host": "Host",
+    "port": "Port",
+    "username": "Benutzername",
+    "password": "Passwort",
+    "privateKey": "Privater Schlüssel",
+    "testConnection": "Verbindung testen",
+    "save": "Speichern"
+  },
+  "serverControl": {
+    "title": "Server-Steuerung",
+    "startServer": "Server/Channel starten",
+    "stopServer": "Server/Channel schließen",
+    "clearLogs": "Logs löschen",
+    "reloadQuests": "Quests neu laden"
+  },
+  "settings": {
+    "title": "Einstellungen",
+    "theme": "Design",
+    "language": "Sprache",
+    "light": "Hell",
+    "dark": "Dunkel",
+    "system": "System",
+    "paths": "Pfade",
+    "clientPath": "Client-Pfad",
+    "serverPath": "Server-Pfad",
+    "workingDirectory": "Arbeitsverzeichnis"
+  },
+  "common": {
+    "cancel": "Abbrechen",
+    "confirm": "Bestätigen",
+    "delete": "Löschen",
+    "edit": "Bearbeiten",
+    "search": "Suchen"
+  }
+}
