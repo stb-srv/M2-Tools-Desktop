@@ -48,7 +48,10 @@ export function Gr2Canvas({ model, className }: Gr2CanvasProps) {
     scene.add(directional);
     scene.add(new THREE.GridHelper(200, 20, 0x444444, 0x2a2a2a));
 
+    // Granny/Metin2 models are Z-up, three.js is Y-up - without this every
+    // model shows up lying on its back.
     const meshGroup = new THREE.Group();
+    meshGroup.rotation.x = -Math.PI / 2;
     scene.add(meshGroup);
 
     sceneRef.current = { scene, camera, renderer, controls, meshGroup };

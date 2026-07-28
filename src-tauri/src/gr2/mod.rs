@@ -11,6 +11,7 @@ use std::process::Command;
 #[derive(Debug, Clone, Serialize, Deserialize, Default)]
 pub struct Mesh {
     pub name: String,
+    pub is_rigid: bool,
     pub vertices: Vec<f32>,
     pub normals: Vec<f32>,
     pub uvs: Vec<f32>,
@@ -22,7 +23,7 @@ pub struct ModelInfo {
     pub name: String,
     pub bone_count: i32,
     pub meshes: Vec<Mesh>,
-    pub skipped_skinned_meshes: usize,
+    pub skipped_meshes: usize,
 }
 
 #[derive(Deserialize)]
@@ -73,6 +74,31 @@ pub fn parse(granny_dll_path: &str, gr2_path: &str) -> Result<ModelInfo, String>
     }
 }
 
+/// Shop NPCs generally have an empty `mob_proto.folder`; the client resolves
+/// their models through `root/npclist.txt` instead, which maps NPC vnum to a
+/// model folder name. Lines are tab-separated and either `vnum<TAB>folder` or
+/// `vnum<TAB>name<TAB>folder`, so the folder is always the last field.
+pub fn lookup_npc_folder(client_path: &str, npc_vnum: i32) -> Option<String> {
+    let list = std::path::Path::new(client_path)
+        .join("root")
+        .join("npclist.txt");
+    let contents = std::fs::read_to_string(list).ok()?;
+
+    for line in contents.lines() {
+        let fields: Vec<&str> = line.split('\t').map(|f| f.trim()).collect();
+        if fields.len() < 2 {
+            continue;
+        }
+        if fields[0].parse::<i32>().ok() == Some(npc_vnum) {
+            let folder = fields[fields.len() - 1];
+            if !folder.is_empty() {
+                return Some(folder.to_string());
+            }
+        }
+    }
+    None
+}
+
 pub fn find_granny_dll(client_path: &str) -> Option<String> {
     let candidate = std::path::Path::new(client_path).join("granny2.dll");
     candidate.exists().then(|| candidate.to_string_lossy().into_owned())
@@ -121,7 +147,31 @@ mod tests {
         println!("model name: {:?}", result.name);
         println!("bone_count: {}", result.bone_count);
         println!("mesh count: {}", result.meshes.len());
-        println!("skipped skinned meshes: {}", result.skipped_skinned_meshes);
-        assert!(result.meshes.len() + result.skipped_skinned_meshes > 0);
+        println!("skipped meshes: {}", result.skipped_meshes);
+        assert!(result.meshes.len() + result.skipped_meshes > 0);
+    }
+
+    #[test]
+    fn resolves_shop_npc_model_via_npclist() {
+        let client = r"C:\Users\DevSteven\Desktop\Client";
+        // 9001 = Waffenhaendler's NPC; its mob_proto.folder is empty in the DB,
+        // so this must come from the client's own npclist.txt.
+        let folder = lookup_npc_folder(client, 9001).expect("npclist lookup failed for 9001");
+        println!("npc 9001 -> folder {folder:?}");
+        assert_eq!(folder, "arms");
+
+        let model = find_npc_model(client, &folder).expect("model file not found");
+        println!("model path: {model}");
+
+        let dll = find_granny_dll(client).expect("granny2.dll not found");
+        let parsed = parse(&dll, &model).expect("failed to parse shop NPC model");
+        println!(
+            "meshes: {}, skipped: {}, bones: {}",
+            parsed.meshes.len(),
+            parsed.skipped_meshes,
+            parsed.bone_count
+        );
+        assert!(!parsed.meshes.is_empty(), "shop NPC should yield geometry");
+        assert!(parsed.meshes.iter().all(|m| !m.vertices.is_empty()));
     }
 }

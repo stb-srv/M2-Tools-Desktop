@@ -166,11 +166,6 @@ export function ShopEditor() {
       setNpcModelError(null);
       return;
     }
-    if (!selectedShop.npc_folder) {
-      setNpcModel(null);
-      setNpcModelError("Kein Modell-Ordner für diesen NPC hinterlegt.");
-      return;
-    }
     let cancelled = false;
     setNpcModelLoading(true);
     setNpcModelError(null);
@@ -178,6 +173,7 @@ export function ShopEditor() {
     (async () => {
       try {
         const [dllPath, gr2Path] = await invoke<[string, string]>("locate_npc_model", {
+          npcVnum: selectedShop.npc_vnum,
           folder: selectedShop.npc_folder,
         });
         const model = await invoke<Gr2ModelInfo>("load_gr2_model", {
@@ -194,7 +190,7 @@ export function ShopEditor() {
     return () => {
       cancelled = true;
     };
-  }, [selectedShop?.vnum, selectedShop?.npc_folder]);
+  }, [selectedShop?.vnum, selectedShop?.npc_vnum, selectedShop?.npc_folder]);
 
   useEffect(() => {
     if (!selectedShop && mode === "pro-shop") return;

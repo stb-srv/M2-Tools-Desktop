@@ -96,8 +96,7 @@ export function ModelViewer() {
       {info && (
         <p className="text-sm text-muted-foreground">
           {info.name} — {info.bone_count} Bones, {info.meshes.length} Mesh(es)
-          {info.skipped_skinned_meshes > 0 &&
-            ` (${info.skipped_skinned_meshes} skinned, noch nicht unterstützt)`}
+          {info.skipped_meshes > 0 && ` (${info.skipped_meshes} übersprungen)`}
         </p>
       )}
 

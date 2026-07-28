@@ -182,7 +182,8 @@ pub fn get_item_icon(
 #[tauri::command]
 pub fn locate_npc_model(
     state: State<'_, AppState>,
-    folder: String,
+    npc_vnum: i32,
+    folder: Option<String>,
 ) -> Result<(String, String), String> {
     let client_path = {
         let conn = state.settings_db.lock().map_err(|e| e.to_string())?;
@@ -192,8 +193,17 @@ pub fn locate_npc_model(
 
     let dll = gr2::find_granny_dll(&client_path)
         .ok_or_else(|| format!("granny2.dll nicht gefunden unter {client_path}"))?;
-    let model = gr2::find_npc_model(&client_path, &folder).ok_or_else(|| {
-        format!("Kein .gr2-Modell für '{folder}' im Client-Ordner gefunden")
+
+    // npclist.txt is the client's own mapping and covers shop NPCs, whose
+    // mob_proto.folder is typically empty - fall back to the DB value only if
+    // the client list has no entry.
+    let resolved = gr2::lookup_npc_folder(&client_path, npc_vnum)
+        .or(folder)
+        .filter(|f| !f.is_empty())
+        .ok_or_else(|| format!("Kein Modell-Ordner für NPC {npc_vnum} gefunden"))?;
+
+    let model = gr2::find_npc_model(&client_path, &resolved).ok_or_else(|| {
+        format!("Kein .gr2-Modell für '{resolved}' im Client-Ordner gefunden")
     })?;
     Ok((dll, model))
 }

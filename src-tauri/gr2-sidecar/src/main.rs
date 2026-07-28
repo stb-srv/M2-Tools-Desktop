@@ -9,6 +9,7 @@ use std::ptr;
 #[derive(Debug, Clone, Serialize, Default)]
 struct Mesh {
     name: String,
+    is_rigid: bool,
     vertices: Vec<f32>,
     normals: Vec<f32>,
     uvs: Vec<f32>,
@@ -20,7 +21,7 @@ struct ModelInfo {
     name: String,
     bone_count: i32,
     meshes: Vec<Mesh>,
-    skipped_skinned_meshes: usize,
+    skipped_meshes: usize,
 }
 
 #[derive(Serialize)]
@@ -115,9 +116,14 @@ fn rigid_vertex_type() -> [granny_data_type_definition; 4] {
 }
 
 unsafe fn extract_mesh(api: &GrannyApi, mesh_ptr: *mut granny_mesh) -> Option<Mesh> {
-    if mesh_ptr.is_null() || !(api.mesh_is_rigid)(mesh_ptr) {
+    if mesh_ptr.is_null() {
         return None;
     }
+    // NPC/character models are made entirely of skinned (bone-bound) meshes, so
+    // skipping them left nothing to render. For a static preview we only need
+    // the bind pose - asking Granny for just Position/Normal/UV converts skinned
+    // vertex data into bind-pose model space, no bone matrices required.
+    let is_rigid = (api.mesh_is_rigid)(mesh_ptr);
     let name = cstr_to_string((*mesh_ptr).Name);
 
     let vertex_count = (api.get_mesh_vertex_count)(mesh_ptr) as usize;
@@ -145,6 +151,7 @@ unsafe fn extract_mesh(api: &GrannyApi, mesh_ptr: *mut granny_mesh) -> Option<Me
 
     Some(Mesh {
         name,
+        is_rigid,
         vertices,
         normals,
         uvs,
@@ -199,7 +206,7 @@ unsafe fn parse_model(api: &GrannyApi, path: &str) -> Result<ModelInfo, String> 
         name,
         bone_count,
         meshes,
-        skipped_skinned_meshes: skipped,
+        skipped_meshes: skipped,
     })
 }
 
