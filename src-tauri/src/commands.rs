@@ -1,12 +1,12 @@
 use crate::credentials;
 use crate::db::mysql::{self, MysqlConfig};
-use crate::db::shop::{self, ItemSearchResult, ShopItem, ShopSummary};
+use crate::db::shop::{self, DatabaseStats, ItemSearchResult, ShopItem, ShopSummary};
 use crate::gr2::{self, ModelInfo};
 use crate::icons;
 use crate::settings;
 use crate::ssh::{self, SshAuth, SshConfig};
 use crate::state::AppState;
-use tauri::State;
+use tauri::{Emitter, State};
 
 #[tauri::command]
 pub async fn test_ssh_connection(config: SshConfig, auth: SshAuth) -> Result<(), String> {
@@ -16,6 +16,81 @@ pub async fn test_ssh_connection(config: SshConfig, auth: SshAuth) -> Result<(),
 #[tauri::command]
 pub async fn test_mysql_connection(config: MysqlConfig, password: String) -> Result<(), String> {
     mysql::test_connection(&config, &password).await
+}
+
+/// Reassembles the SSH connection from what the setup wizard stored: metadata
+/// in the local settings DB, secrets in the Windows Credential Manager.
+fn stored_ssh_auth(state: &State<'_, AppState>) -> Result<(SshConfig, SshAuth), String> {
+    let (host, port, username, auth_mode, key_path) = {
+        let conn = state.settings_db.lock().map_err(|e| e.to_string())?;
+        (
+            settings::get_path(&conn, "ssh_host")?,
+            settings::get_path(&conn, "ssh_port")?,
+            settings::get_path(&conn, "ssh_username")?,
+            settings::get_path(&conn, "ssh_auth_mode")?,
+            settings::get_path(&conn, "ssh_key_path")?,
+        )
+    };
+
+    let host = host.filter(|h| !h.is_empty()).ok_or_else(|| {
+        "Keine SSH-Verbindung konfiguriert. Bitte unter Verbindungen einrichten.".to_string()
+    })?;
+    let username = username
+        .filter(|u| !u.is_empty())
+        .ok_or_else(|| "Kein SSH-Benutzername konfiguriert.".to_string())?;
+
+    let config = SshConfig {
+        host,
+        port: port.and_then(|p| p.parse().ok()).unwrap_or(22),
+        username,
+    };
+
+    let auth = if auth_mode.as_deref() == Some("key") {
+        SshAuth::PrivateKey {
+            path: key_path
+                .filter(|p| !p.is_empty())
+                .ok_or_else(|| "Kein SSH-Schlüsselpfad konfiguriert.".to_string())?,
+            passphrase: credentials::get_secret("ssh_key_passphrase").ok(),
+        }
+    } else {
+        SshAuth::Password {
+            password: credentials::get_secret("ssh_password")
+                .map_err(|_| "Kein gespeichertes SSH-Passwort gefunden.".to_string())?,
+        }
+    };
+
+    Ok((config, auth))
+}
+
+#[derive(serde::Serialize, Clone)]
+pub struct ServerCommandResult {
+    pub output: String,
+    pub exit_status: Option<u32>,
+}
+
+#[tauri::command]
+pub async fn run_server_command(
+    app: tauri::AppHandle,
+    state: State<'_, AppState>,
+    command: String,
+) -> Result<ServerCommandResult, String> {
+    let (config, auth) = stored_ssh_auth(&state)?;
+
+    let result = ssh::run_command_streaming(&config, &auth, &command, |chunk| {
+        let _ = app.emit("server-output", chunk);
+    })
+    .await?;
+
+    Ok(ServerCommandResult {
+        output: result.output,
+        exit_status: result.exit_status,
+    })
+}
+
+#[tauri::command]
+pub async fn test_stored_ssh(state: State<'_, AppState>) -> Result<(), String> {
+    let (config, auth) = stored_ssh_auth(&state)?;
+    ssh::test_connection(&config, &auth).await
 }
 
 #[tauri::command]
@@ -61,6 +136,12 @@ async fn require_pool(state: &State<'_, AppState>) -> Result<sqlx::MySqlPool, St
         .await
         .clone()
         .ok_or_else(|| "Keine aktive MySQL-Verbindung. Bitte zuerst verbinden.".to_string())
+}
+
+#[tauri::command]
+pub async fn get_database_stats(state: State<'_, AppState>) -> Result<DatabaseStats, String> {
+    let pool = require_pool(&state).await?;
+    shop::get_stats(&pool).await
 }
 
 #[tauri::command]

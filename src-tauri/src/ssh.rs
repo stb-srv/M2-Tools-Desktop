@@ -111,25 +111,54 @@ pub async fn test_connection(config: &SshConfig, auth: &SshAuth) -> Result<(), S
     }
 }
 
-pub async fn run_command(
+pub struct CommandResult {
+    pub output: String,
+    pub exit_status: Option<u32>,
+}
+
+/// Runs a command and reports output as it arrives. Server scripts print
+/// progress over several seconds (the start action sleeps between channels),
+/// so collecting everything first would leave the UI blank until it finished.
+pub async fn run_command_streaming<F>(
     config: &SshConfig,
     auth: &SshAuth,
     command: &str,
-) -> Result<String, String> {
+    mut on_output: F,
+) -> Result<CommandResult, String>
+where
+    F: FnMut(&str),
+{
     let mut session = open_session(config).await?;
     if !authenticate(&mut session, &config.username, auth).await? {
         return Err("Authentifizierung fehlgeschlagen".into());
     }
 
-    let mut channel = session.channel_open_session().await.map_err(|e| e.to_string())?;
+    let mut channel = session
+        .channel_open_session()
+        .await
+        .map_err(|e| e.to_string())?;
     channel.exec(true, command).await.map_err(|e| e.to_string())?;
 
-    let mut output = Vec::new();
+    let mut output = String::new();
+    let mut exit_status = None;
+
     while let Some(msg) = channel.wait().await {
-        if let russh::ChannelMsg::Data { ref data } = msg {
-            output.extend_from_slice(data);
+        match msg {
+            russh::ChannelMsg::Data { ref data }
+            | russh::ChannelMsg::ExtendedData { ref data, .. } => {
+                let chunk = String::from_utf8_lossy(data);
+                on_output(&chunk);
+                output.push_str(&chunk);
+            }
+            russh::ChannelMsg::ExitStatus { exit_status: code } => {
+                exit_status = Some(code);
+            }
+            _ => {}
         }
     }
 
-    Ok(String::from_utf8_lossy(&output).to_string())
+    Ok(CommandResult {
+        output,
+        exit_status,
+    })
 }

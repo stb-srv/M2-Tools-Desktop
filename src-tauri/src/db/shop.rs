@@ -39,6 +39,37 @@ fn decode_name(bytes: &[u8]) -> String {
     text.trim().to_string()
 }
 
+#[derive(Debug, Clone, Serialize, Default)]
+pub struct DatabaseStats {
+    pub accounts: i64,
+    pub players: i64,
+    pub items: i64,
+    pub shops: i64,
+    pub mobs: i64,
+}
+
+pub async fn get_stats(pool: &MySqlPool) -> Result<DatabaseStats, String> {
+    let row = sqlx::query(
+        "SELECT \
+         (SELECT COUNT(*) FROM account.account) AS accounts, \
+         (SELECT COUNT(*) FROM player.player) AS players, \
+         (SELECT COUNT(*) FROM player.item_proto) AS items, \
+         (SELECT COUNT(*) FROM player.shop) AS shops, \
+         (SELECT COUNT(*) FROM player.mob_proto) AS mobs",
+    )
+    .fetch_one(pool)
+    .await
+    .map_err(|e| e.to_string())?;
+
+    Ok(DatabaseStats {
+        accounts: row.try_get("accounts").unwrap_or_default(),
+        players: row.try_get("players").unwrap_or_default(),
+        items: row.try_get("items").unwrap_or_default(),
+        shops: row.try_get("shops").unwrap_or_default(),
+        mobs: row.try_get("mobs").unwrap_or_default(),
+    })
+}
+
 pub async fn list_shops(pool: &MySqlPool) -> Result<Vec<ShopSummary>, String> {
     let rows = sqlx::query(
         "SELECT s.vnum, s.name, s.npc_vnum, m.locale_name AS npc_name_raw, m.folder AS npc_folder, \

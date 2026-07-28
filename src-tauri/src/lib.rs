@@ -31,6 +31,8 @@ pub fn run() {
         })
         .invoke_handler(tauri::generate_handler![
             commands::test_ssh_connection,
+            commands::test_stored_ssh,
+            commands::run_server_command,
             commands::test_mysql_connection,
             commands::store_credential,
             commands::get_credential,
@@ -38,6 +40,7 @@ pub fn run() {
             commands::load_gr2_model,
             commands::connect_mysql,
             commands::is_mysql_connected,
+            commands::get_database_stats,
             commands::list_shops,
             commands::get_shop_items,
             commands::search_items,
