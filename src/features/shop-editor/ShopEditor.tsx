@@ -32,6 +32,48 @@ type CellSelection =
   | { kind: "empty"; index: number }
   | { kind: "filled"; index: number; item: ShopItem };
 
+interface PlacedItem extends ShopItem {
+  col: number;
+  row: number;
+  span: number;
+}
+
+// Items are 1 slot wide but `size` slots TALL (item_proto.size, 1-3), so a
+// size-3 item blocks the two cells below it - same as the in-game grid.
+// Place them top-left first, then expose whatever cells stay free as the
+// clickable "add item here" slots.
+function placeItems(items: ShopItem[], columns: number, rows: number) {
+  const occupied = new Set<string>();
+  const placedItems: PlacedItem[] = [];
+  const overflowItems: ShopItem[] = [];
+
+  for (const item of items) {
+    const span = Math.min(Math.max(item.size, 1), rows);
+    let placed = false;
+
+    for (let row = 1; row <= rows - span + 1 && !placed; row++) {
+      for (let col = 1; col <= columns && !placed; col++) {
+        const cells = Array.from({ length: span }, (_, i) => `${row + i},${col}`);
+        if (cells.some((c) => occupied.has(c))) continue;
+        cells.forEach((c) => occupied.add(c));
+        placedItems.push({ ...item, col, row, span });
+        placed = true;
+      }
+    }
+
+    if (!placed) overflowItems.push(item);
+  }
+
+  const emptyCells: { row: number; col: number }[] = [];
+  for (let row = 1; row <= rows; row++) {
+    for (let col = 1; col <= columns; col++) {
+      if (!occupied.has(`${row},${col}`)) emptyCells.push({ row, col });
+    }
+  }
+
+  return { placedItems, emptyCells, overflowItems, usedSlots: occupied.size };
+}
+
 export function ShopEditor() {
   const { t } = useTranslation();
 
@@ -405,14 +447,11 @@ export function ShopEditor() {
   const filteredShops = shops.filter((s) =>
     s.name.toLowerCase().includes(shopSearch.toLowerCase()),
   );
-  // Items occupy `size` consecutive grid columns (1-3, item_proto.size) in a
-  // single row, same as the in-game inventory/shop grid - not always 1 slot.
-  const itemsWithSpan = shopItems.map((item) => ({
-    ...item,
-    span: Math.min(Math.max(item.size, 1), columns),
-  }));
-  const usedSlots = itemsWithSpan.reduce((sum, item) => sum + item.span, 0);
-  const emptySlotCount = Math.max(0, columns * rows - usedSlots);
+  const { placedItems, emptyCells, overflowItems, usedSlots } = placeItems(
+    shopItems,
+    columns,
+    rows,
+  );
 
   return (
     <div className="flex h-full gap-4">
@@ -510,30 +549,42 @@ export function ShopEditor() {
               <span className="text-xs text-muted-foreground">
                 {usedSlots}/{columns * rows} Slots (max. {MAX_SLOTS})
               </span>
+              {overflowItems.length > 0 && (
+                <span className="flex items-center gap-1 text-xs text-destructive">
+                  <AlertTriangle className="size-3.5" />
+                  {overflowItems.length} Gegenstand/Gegenstände passen nicht ins Raster
+                </span>
+              )}
             </div>
 
             <div className="flex min-h-0 flex-1 gap-3">
               <div
                 className="grid content-start gap-1.5 overflow-y-auto"
-                style={{ gridTemplateColumns: `repeat(${columns}, 48px)` }}
+                style={{
+                  gridTemplateColumns: `repeat(${columns}, 48px)`,
+                  gridTemplateRows: `repeat(${rows}, 48px)`,
+                }}
               >
-                {itemsWithSpan.map((item) => (
+                {placedItems.map((item) => (
                   <button
                     key={item.item_vnum}
-                    title={`${item.item_name} #${item.item_vnum} (${item.size}x1)`}
+                    title={`${item.item_name} #${item.item_vnum} (1x${item.size})`}
                     onClick={() => setCell({ kind: "filled", index: item.item_vnum, item })}
                     onContextMenu={(e) => {
                       e.preventDefault();
                       removeItem(item);
                     }}
-                    style={{ gridColumn: `span ${item.span}` }}
-                    className="relative flex h-12 flex-col items-center justify-center rounded-md border border-border bg-muted/40 hover:bg-muted"
+                    style={{
+                      gridColumn: item.col,
+                      gridRow: `${item.row} / span ${item.span}`,
+                    }}
+                    className="relative flex w-12 flex-col items-center justify-center rounded-md border border-border bg-muted/40 hover:bg-muted"
                   >
                     {icons[item.item_vnum] ? (
                       <img
                         src={icons[item.item_vnum]!}
                         alt={item.item_name}
-                        className="size-8 object-contain [image-rendering:pixelated]"
+                        className="max-h-full w-8 object-contain [image-rendering:pixelated]"
                       />
                     ) : (
                       <span className="text-xs font-medium">{item.item_vnum}</span>
@@ -543,10 +594,11 @@ export function ShopEditor() {
                     </span>
                   </button>
                 ))}
-                {Array.from({ length: emptySlotCount }, (_, i) => (
+                {emptyCells.map(({ row, col }) => (
                   <button
-                    key={`empty-${i}`}
-                    onClick={() => setCell({ kind: "empty", index: i })}
+                    key={`empty-${row}-${col}`}
+                    onClick={() => setCell({ kind: "empty", index: row * columns + col })}
+                    style={{ gridColumn: col, gridRow: row }}
                     className="flex size-12 items-center justify-center rounded-md border border-dashed border-border text-muted-foreground hover:bg-muted/40"
                   >
                     <Plus className="size-4" />
