@@ -25,6 +25,7 @@ pub fn run() {
             commands::store_credential,
             commands::get_credential,
             commands::delete_credential,
+            commands::load_gr2_model,
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");
