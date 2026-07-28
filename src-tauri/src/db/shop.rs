@@ -15,7 +15,10 @@ pub struct ShopSummary {
 pub struct ShopItem {
     pub item_vnum: i32,
     pub item_name: String,
-    pub count: i32,
+    pub count: u16,
+    // Grid footprint in shop/inventory slots (1, 2, or 3 wide) - item_proto.size,
+    // not .subtype (which is a type-dependent classification, e.g. weapon class).
+    pub size: i8,
 }
 
 #[derive(Debug, Clone, Serialize)]
@@ -96,7 +99,7 @@ pub async fn create_shop(pool: &MySqlPool, name: &str, npc_vnum: i16) -> Result<
 
 pub async fn get_shop_items(pool: &MySqlPool, shop_vnum: i32) -> Result<Vec<ShopItem>, String> {
     let rows = sqlx::query(
-        "SELECT si.item_vnum, si.count, ip.locale_name AS item_name_raw \
+        "SELECT si.item_vnum, si.count, ip.locale_name AS item_name_raw, ip.size \
          FROM player.shop_item si \
          JOIN player.item_proto ip ON ip.vnum = si.item_vnum \
          WHERE si.shop_vnum = ? ORDER BY si.item_vnum",
@@ -110,10 +113,12 @@ pub async fn get_shop_items(pool: &MySqlPool, shop_vnum: i32) -> Result<Vec<Shop
         .into_iter()
         .map(|row| {
             let name_raw: Vec<u8> = row.try_get("item_name_raw").unwrap_or_default();
+            let size: i8 = row.try_get("size").unwrap_or(1);
             ShopItem {
                 item_vnum: row.try_get("item_vnum").unwrap_or_default(),
                 item_name: decode_name(&name_raw),
                 count: row.try_get("count").unwrap_or_default(),
+                size: size.max(1),
             }
         })
         .collect())

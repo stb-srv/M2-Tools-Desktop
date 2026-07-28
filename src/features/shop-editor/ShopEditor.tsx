@@ -20,6 +20,7 @@ interface ShopItem {
   item_vnum: number;
   item_name: string;
   count: number;
+  size: number;
 }
 
 interface ItemSearchResult {
@@ -404,7 +405,14 @@ export function ShopEditor() {
   const filteredShops = shops.filter((s) =>
     s.name.toLowerCase().includes(shopSearch.toLowerCase()),
   );
-  const gridCells = Array.from({ length: columns * rows }, (_, i) => shopItems[i] ?? null);
+  // Items occupy `size` consecutive grid columns (1-3, item_proto.size) in a
+  // single row, same as the in-game inventory/shop grid - not always 1 slot.
+  const itemsWithSpan = shopItems.map((item) => ({
+    ...item,
+    span: Math.min(Math.max(item.size, 1), columns),
+  }));
+  const usedSlots = itemsWithSpan.reduce((sum, item) => sum + item.span, 0);
+  const emptySlotCount = Math.max(0, columns * rows - usedSlots);
 
   return (
     <div className="flex h-full gap-4">
@@ -500,7 +508,7 @@ export function ShopEditor() {
               <Stepper label="Zeilen" value={rows} onChange={updateRows} min={1} max={MAX_SLOTS} />
               <Stepper label="Max" value={maxValue} onChange={saveMaxValue} min={1} max={9999} step={10} />
               <span className="text-xs text-muted-foreground">
-                {columns * rows}/{MAX_SLOTS} Slots
+                {usedSlots}/{columns * rows} Slots (max. {MAX_SLOTS})
               </span>
             </div>
 
@@ -509,41 +517,41 @@ export function ShopEditor() {
                 className="grid content-start gap-1.5 overflow-y-auto"
                 style={{ gridTemplateColumns: `repeat(${columns}, 48px)` }}
               >
-                {gridCells.map((item, i) =>
-                  item ? (
-                    <button
-                      key={i}
-                      title={`${item.item_name} #${item.item_vnum}`}
-                      onClick={() => setCell({ kind: "filled", index: i, item })}
-                      onContextMenu={(e) => {
-                        e.preventDefault();
-                        removeItem(item);
-                      }}
-                      className="relative flex size-12 flex-col items-center justify-center rounded-md border border-border bg-muted/40 hover:bg-muted"
-                    >
-                      {icons[item.item_vnum] ? (
-                        <img
-                          src={icons[item.item_vnum]!}
-                          alt={item.item_name}
-                          className="size-8 object-contain [image-rendering:pixelated]"
-                        />
-                      ) : (
-                        <span className="text-xs font-medium">{item.item_vnum}</span>
-                      )}
-                      <span className="absolute bottom-0 right-0.5 text-[9px] leading-none text-muted-foreground">
-                        {item.count}
-                      </span>
-                    </button>
-                  ) : (
-                    <button
-                      key={i}
-                      onClick={() => setCell({ kind: "empty", index: i })}
-                      className="flex size-12 items-center justify-center rounded-md border border-dashed border-border text-muted-foreground hover:bg-muted/40"
-                    >
-                      <Plus className="size-4" />
-                    </button>
-                  ),
-                )}
+                {itemsWithSpan.map((item) => (
+                  <button
+                    key={item.item_vnum}
+                    title={`${item.item_name} #${item.item_vnum} (${item.size}x1)`}
+                    onClick={() => setCell({ kind: "filled", index: item.item_vnum, item })}
+                    onContextMenu={(e) => {
+                      e.preventDefault();
+                      removeItem(item);
+                    }}
+                    style={{ gridColumn: `span ${item.span}` }}
+                    className="relative flex h-12 flex-col items-center justify-center rounded-md border border-border bg-muted/40 hover:bg-muted"
+                  >
+                    {icons[item.item_vnum] ? (
+                      <img
+                        src={icons[item.item_vnum]!}
+                        alt={item.item_name}
+                        className="size-8 object-contain [image-rendering:pixelated]"
+                      />
+                    ) : (
+                      <span className="text-xs font-medium">{item.item_vnum}</span>
+                    )}
+                    <span className="absolute bottom-0 right-0.5 text-[9px] leading-none text-muted-foreground">
+                      {item.count}
+                    </span>
+                  </button>
+                ))}
+                {Array.from({ length: emptySlotCount }, (_, i) => (
+                  <button
+                    key={`empty-${i}`}
+                    onClick={() => setCell({ kind: "empty", index: i })}
+                    className="flex size-12 items-center justify-center rounded-md border border-dashed border-border text-muted-foreground hover:bg-muted/40"
+                  >
+                    <Plus className="size-4" />
+                  </button>
+                ))}
               </div>
 
               <div className="w-64 shrink-0 overflow-hidden rounded-lg border border-border">
