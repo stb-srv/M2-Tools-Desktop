@@ -33,8 +33,9 @@ image = { version = "0.25.10", default-features = false, features = ["tga", "png
 base64 = "0.23.0"
 image_dds = { version = "0.7.2", default-features = false, features = ["ddsfile", "image"] }
 ddsfile = "0.5"
+chrono = "0.4.45"
 
 [dependencies.sqlx]
 version = "0.8"
-features = ["runtime-tokio", "mysql"]
+features = ["runtime-tokio", "mysql", "chrono"]
 

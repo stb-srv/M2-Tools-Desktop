@@ -1,5 +1,6 @@
 use crate::credentials;
 use crate::db::mysql::{self, MysqlConfig};
+use crate::db::explorer::{self, ColumnInfo, TableInfo, TableRows};
 use crate::db::shop::{self, DatabaseStats, ItemSearchResult, ShopItem, ShopSummary};
 use crate::gr2::{self, ModelInfo};
 use crate::icons;
@@ -142,6 +143,55 @@ async fn require_pool(state: &State<'_, AppState>) -> Result<sqlx::MySqlPool, St
 pub async fn get_database_stats(state: State<'_, AppState>) -> Result<DatabaseStats, String> {
     let pool = require_pool(&state).await?;
     shop::get_stats(&pool).await
+}
+
+#[tauri::command]
+pub async fn list_databases(state: State<'_, AppState>) -> Result<Vec<String>, String> {
+    let pool = require_pool(&state).await?;
+    explorer::list_databases(&pool).await
+}
+
+#[tauri::command]
+pub async fn list_tables(
+    state: State<'_, AppState>,
+    database: String,
+) -> Result<Vec<TableInfo>, String> {
+    let pool = require_pool(&state).await?;
+    explorer::list_tables(&pool, &database).await
+}
+
+#[tauri::command]
+pub async fn get_table_columns(
+    state: State<'_, AppState>,
+    database: String,
+    table: String,
+) -> Result<Vec<ColumnInfo>, String> {
+    let pool = require_pool(&state).await?;
+    explorer::get_columns(&pool, &database, &table).await
+}
+
+#[tauri::command]
+pub async fn get_table_rows(
+    state: State<'_, AppState>,
+    database: String,
+    table: String,
+    limit: i64,
+    offset: i64,
+) -> Result<TableRows, String> {
+    let pool = require_pool(&state).await?;
+    explorer::get_rows(&pool, &database, &table, limit, offset).await
+}
+
+#[tauri::command]
+pub async fn search_table_rows(
+    state: State<'_, AppState>,
+    database: String,
+    table: String,
+    column: String,
+    query: String,
+) -> Result<TableRows, String> {
+    let pool = require_pool(&state).await?;
+    explorer::search_rows(&pool, &database, &table, &column, &query, 200).await
 }
 
 #[tauri::command]
