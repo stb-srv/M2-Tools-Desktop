@@ -16,7 +16,20 @@
     "iconBrowser": "Icon-Browser",
     "modelViewer": "3D-Modell-Viewer",
     "accountManager": "Account-Verwaltung",
-    "settings": "Einstellungen"
+    "settings": "Einstellungen",
+    "unsavedChanges": "Ungespeicherte Änderungen",
+    "pin": "Anheften",
+    "unpin": "Lösen",
+    "groups": {
+      "overview": "Übersicht",
+      "editors": "Datenbank-Editoren",
+      "backups": "Backups",
+      "assets": "Client-Assets",
+      "settings": "Einstellungen",
+      "favorites": "Favoriten",
+      "recent": "Zuletzt benutzt",
+      "results": "Ergebnisse"
+    }
   },
   "dashboard": {
     "title": "Dashboard",

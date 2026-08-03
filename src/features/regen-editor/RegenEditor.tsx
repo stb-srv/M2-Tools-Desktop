@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { invoke } from "@tauri-apps/api/core";
 import { runAsyncAction } from "@/lib/asyncAction";
+import { reportSectionDirty } from "@/store/navigation";
 import { Button } from "@/components/ui/button";
 import { RegenMapView, type MapFolderInfo, type RegenMapImage } from "./RegenMapView";
 import {
@@ -100,6 +101,10 @@ export function RegenEditor() {
   const [contentLoading, setContentLoading] = useState(false);
   const [contentError, setContentError] = useState<string | null>(null);
   const [dirty, setDirty] = useState(false);
+  useEffect(() => {
+    reportSectionDirty("regen-editor", dirty);
+    return () => reportSectionDirty("regen-editor", false);
+  }, [dirty]);
 
   const [saving, setSaving] = useState(false);
   const [saveOk, setSaveOk] = useState<string | null>(null);

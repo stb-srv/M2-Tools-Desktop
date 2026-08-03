@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 import { invoke } from "@tauri-apps/api/core";
 import { runAsyncAction } from "@/lib/asyncAction";
+import { reportSectionDirty } from "@/store/navigation";
 import { Button } from "@/components/ui/button";
 import { Search, Plus, Trash2, X, RefreshCw, CheckCircle2, AlertTriangle } from "lucide-react";
 
@@ -30,6 +31,10 @@ export function LocaleEditor() {
   const [entriesLoading, setEntriesLoading] = useState(false);
   const [entriesError, setEntriesError] = useState<string | null>(null);
   const [dirty, setDirty] = useState(false);
+  useEffect(() => {
+    reportSectionDirty("locale-editor", dirty);
+    return () => reportSectionDirty("locale-editor", false);
+  }, [dirty]);
 
   const [saving, setSaving] = useState(false);
   const [saveOk, setSaveOk] = useState<string | null>(null);

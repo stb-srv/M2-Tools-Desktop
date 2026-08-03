@@ -16,7 +16,20 @@
     "iconBrowser": "Icon Browser",
     "modelViewer": "3D Model Viewer",
     "accountManager": "Account Manager",
-    "settings": "Settings"
+    "settings": "Settings",
+    "unsavedChanges": "Unsaved changes",
+    "pin": "Pin",
+    "unpin": "Unpin",
+    "groups": {
+      "overview": "Overview",
+      "editors": "Database Editors",
+      "backups": "Backups",
+      "assets": "Client Assets",
+      "settings": "Settings",
+      "favorites": "Favorites",
+      "recent": "Recently Used",
+      "results": "Results"
+    }
   },
   "dashboard": {
     "title": "Dashboard",

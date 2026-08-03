@@ -5,6 +5,7 @@ import CodeMirror, { type ReactCodeMirrorRef } from "@uiw/react-codemirror";
 import { StreamLanguage } from "@codemirror/language";
 import { lua } from "@codemirror/legacy-modes/mode/lua";
 import { runAsyncAction } from "@/lib/asyncAction";
+import { reportSectionDirty } from "@/store/navigation";
 import { Button } from "@/components/ui/button";
 import {
   Search,
@@ -100,6 +101,10 @@ export function QuestBuilder() {
   const [contentLoading, setContentLoading] = useState(false);
   const [contentError, setContentError] = useState<string | null>(null);
   const [dirty, setDirty] = useState(false);
+  useEffect(() => {
+    reportSectionDirty("quest-builder", dirty);
+    return () => reportSectionDirty("quest-builder", false);
+  }, [dirty]);
 
   const [saving, setSaving] = useState(false);
   const [saveOk, setSaveOk] = useState<string | null>(null);
