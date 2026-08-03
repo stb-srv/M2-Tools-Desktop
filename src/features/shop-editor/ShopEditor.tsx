@@ -3,9 +3,10 @@ import { useTranslation } from "react-i18next";
 import { invoke } from "@tauri-apps/api/core";
 import { Button } from "@/components/ui/button";
 import { PasswordInput } from "@/components/ui/password-input";
+import { autoConnectMysql } from "@/lib/mysqlConnect";
 import { Gr2Canvas } from "@/features/model-viewer/Gr2Canvas";
 import type { Gr2ModelInfo } from "@/features/model-viewer/types";
-import { Minus, Plus, Search, Trash2, AlertTriangle, X } from "lucide-react";
+import { Minus, Plus, Search, Trash2, AlertTriangle, X, RefreshCw } from "lucide-react";
 
 interface ShopSummary {
   vnum: number;
@@ -112,6 +113,10 @@ export function ShopEditor() {
   const [searchResults, setSearchResults] = useState<ItemSearchResult[]>([]);
   const [searching, setSearching] = useState(false);
 
+  const [syncConfirm, setSyncConfirm] = useState(false);
+  const [syncing, setSyncing] = useState(false);
+  const [syncResult, setSyncResult] = useState<number | null>(null);
+
   const [deleteConfirm, setDeleteConfirm] = useState<ShopSummary | null>(null);
   const [creating, setCreating] = useState(false);
   const [newShopName, setNewShopName] = useState("");
@@ -120,8 +125,12 @@ export function ShopEditor() {
   useEffect(() => {
     (async () => {
       try {
-        const already = await invoke<boolean>("is_mysql_connected");
-        if (already) {
+        // Usually already connected by the time this mounts - App.tsx
+        // auto-connects at startup. This just covers the case where that
+        // failed (e.g. no stored credentials yet) by prefilling the manual
+        // form, and re-checks in case a connection was made since.
+        const connected = await autoConnectMysql();
+        if (connected) {
           setConnected(true);
           await refreshShops();
           return;
@@ -134,24 +143,6 @@ export function ShopEditor() {
         if (savedHost) setHost(savedHost);
         if (savedPort) setPort(savedPort);
         if (savedUser) setUsername(savedUser);
-        if (savedHost && savedUser) {
-          const savedPassword = await invoke<string>("get_credential", {
-            account: "mysql_password",
-          }).catch(() => null);
-          if (savedPassword) {
-            await invoke("connect_mysql", {
-              config: {
-                host: savedHost,
-                port: Number(savedPort ?? 3306),
-                username: savedUser,
-                database: null,
-              },
-              password: savedPassword,
-            });
-            setConnected(true);
-            await refreshShops();
-          }
-        }
       } catch {
         // fall through to manual connect form
       } finally {
@@ -369,6 +360,25 @@ export function ShopEditor() {
     }
   }
 
+  async function confirmSync() {
+    setSyncing(true);
+    setSyncResult(null);
+    try {
+      const affected = await invoke<number>("sync_shop_stack_sizes", {
+        shopVnum: mode === "pro-shop" ? (selectedShop?.vnum ?? null) : null,
+        count: maxValue,
+      });
+      setSyncResult(affected);
+      await refreshShops();
+      if (selectedShop) await selectShop(selectedShop);
+    } catch (e) {
+      setError(String(e));
+    } finally {
+      setSyncing(false);
+      setSyncConfirm(false);
+    }
+  }
+
   async function saveRename() {
     if (!selectedShop || !nameDraft.trim() || nameDraft === selectedShop.name) {
       setRenaming(false);
@@ -542,6 +552,22 @@ export function ShopEditor() {
               <Stepper label="Spalten" value={columns} onChange={updateColumns} min={1} max={MAX_SLOTS} />
               <Stepper label="Zeilen" value={rows} onChange={updateRows} min={1} max={MAX_SLOTS} />
               <Stepper label="Max" value={maxValue} onChange={saveMaxValue} min={1} max={9999} step={10} />
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => {
+                  setSyncResult(null);
+                  setSyncConfirm(true);
+                }}
+              >
+                <RefreshCw className="size-3.5" />
+                Bestandsware synchronisieren
+              </Button>
+              {syncResult !== null && (
+                <span className="text-xs text-muted-foreground">
+                  {syncResult} Gegenstände aktualisiert
+                </span>
+              )}
               <span className="text-xs text-muted-foreground">
                 {usedSlots}/{columns * rows} Slots (max. {MAX_SLOTS})
               </span>
@@ -724,6 +750,33 @@ export function ShopEditor() {
             </Button>
           </div>
         </Modal>
+      )}
+
+      {syncConfirm && (
+        <div className="fixed inset-0 flex items-center justify-center bg-black/50">
+          <div className="w-96 space-y-3 rounded-lg border border-border bg-card p-4">
+            <p className="text-sm">
+              Alle vorhandenen Gegenstände{" "}
+              {mode === "pro-shop" ? (
+                <>
+                  in <strong>{selectedShop?.name}</strong>
+                </>
+              ) : (
+                <>in allen Shops</>
+              )}{" "}
+              auf Stapelgröße <strong>{maxValue}</strong> setzen? Das überschreibt die
+              aktuellen Mengen und kann nicht rückgängig gemacht werden.
+            </p>
+            <div className="flex justify-end gap-2">
+              <Button variant="outline" onClick={() => setSyncConfirm(false)} disabled={syncing}>
+                {t("common.cancel")}
+              </Button>
+              <Button onClick={confirmSync} disabled={syncing}>
+                {syncing ? "Synchronisiere…" : "Synchronisieren"}
+              </Button>
+            </div>
+          </div>
+        </div>
       )}
 
       {deleteConfirm && (

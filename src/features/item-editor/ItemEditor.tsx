@@ -1,0 +1,1050 @@
+import { useEffect, useRef, useState } from "react";
+import { invoke } from "@tauri-apps/api/core";
+import { listen } from "@tauri-apps/api/event";
+import { open } from "@tauri-apps/plugin-dialog";
+import { Button } from "@/components/ui/button";
+import { Search, Image as ImageIcon, AlertTriangle, CheckCircle2, Copy, Images } from "lucide-react";
+import { IconBrowserModal } from "@/features/icon-browser/IconBrowser";
+import {
+  ITEM_TYPES,
+  SUBTYPES_BY_TYPE,
+  ITEM_FLAGS,
+  WEAR_FLAGS,
+  ANTI_FLAGS,
+  IMMUNE_FLAGS,
+  LIMIT_TYPES,
+  APPLY_TYPES,
+  VALUE_HINTS,
+  VALUE_LABELS_BY_TYPE,
+  weaponDisplayDamage,
+  weaponAttackSpeedLabel,
+  weaponEffectiveAttackSpeed,
+  WEAPON_SUBTYPE_TWO_HANDED,
+} from "./itemFlags";
+
+interface ItemProtoInput {
+  vnum: number;
+  vnum_range: number;
+  name: string;
+  locale_name: string;
+  type: number;
+  subtype: number;
+  weight: number;
+  size: number;
+  antiflag: number;
+  flag: number;
+  wearflag: number;
+  immuneflag: number;
+  gold: number;
+  shop_buy_price: number;
+  refined_vnum: number;
+  refine_set: number;
+  magic_pct: number;
+  limittype0: number;
+  limitvalue0: number;
+  limittype1: number;
+  limitvalue1: number;
+  applytype0: number;
+  applyvalue0: number;
+  applytype1: number;
+  applyvalue1: number;
+  applytype2: number;
+  applyvalue2: number;
+  applytype3: number;
+  applyvalue3: number;
+  value0: number;
+  value1: number;
+  value2: number;
+  value3: number;
+  value4: number;
+  value5: number;
+  socket0: number;
+  socket1: number;
+  socket2: number;
+  socket3: number;
+  socket4: number;
+  socket5: number;
+  specular: number;
+  socket_pct: number;
+  addon_type: number;
+}
+
+interface ItemSearchResult {
+  vnum: number;
+  name: string;
+}
+
+function emptyItem(vnum: number): ItemProtoInput {
+  return {
+    vnum,
+    vnum_range: 0,
+    name: "",
+    locale_name: "",
+    type: 3,
+    subtype: 0,
+    weight: 0,
+    size: 1,
+    antiflag: 0,
+    flag: 0,
+    wearflag: 0,
+    immuneflag: 0,
+    gold: 0,
+    shop_buy_price: 0,
+    refined_vnum: 0,
+    refine_set: 0,
+    magic_pct: 0,
+    limittype0: 0,
+    limitvalue0: 0,
+    limittype1: 0,
+    limitvalue1: 0,
+    applytype0: 0,
+    applyvalue0: 0,
+    applytype1: 0,
+    applyvalue1: 0,
+    applytype2: 0,
+    applyvalue2: 0,
+    applytype3: 0,
+    applyvalue3: 0,
+    value0: 0,
+    value1: 0,
+    value2: 0,
+    value3: 0,
+    value4: 0,
+    value5: 0,
+    socket0: 0,
+    socket1: 0,
+    socket2: 0,
+    socket3: 0,
+    socket4: 0,
+    socket5: 0,
+    specular: 0,
+    socket_pct: 0,
+    addon_type: 0,
+  };
+}
+
+type StepStatus = "pending" | "running" | "done" | "error";
+type Mode = "create" | "edit";
+
+export function ItemEditor() {
+  const [mode, setMode] = useState<Mode>("create");
+  const [item, setItem] = useState<ItemProtoInput>(emptyItem(0));
+  const [originalItem, setOriginalItem] = useState<ItemProtoInput | null>(null);
+  const [vnumTaken, setVnumTaken] = useState<boolean | null>(null);
+  const [checkingVnum, setCheckingVnum] = useState(false);
+
+  const [iconSourcePath, setIconSourcePath] = useState("");
+  const [iconPreview, setIconPreview] = useState<string | null>(null);
+
+  const [editSearch, setEditSearch] = useState("");
+  const [editResults, setEditResults] = useState<ItemSearchResult[]>([]);
+  const [editSearching, setEditSearching] = useState(false);
+
+  const [refSearch, setRefSearch] = useState("");
+  const [refResults, setRefResults] = useState<ItemSearchResult[]>([]);
+  const [refSearching, setRefSearching] = useState(false);
+
+  const [advancedOpen, setAdvancedOpen] = useState(false);
+  const [iconBrowserOpen, setIconBrowserOpen] = useState(false);
+
+  const [confirmPipeline, setConfirmPipeline] = useState(false);
+  const [steps, setSteps] = useState<Record<string, StepStatus>>({});
+  const [log, setLog] = useState<string[]>([]);
+  const [pipelineError, setPipelineError] = useState<string | null>(null);
+  const [createdInDb, setCreatedInDb] = useState(false);
+  const [updatedInDb, setUpdatedInDb] = useState(false);
+  const [done, setDone] = useState(false);
+
+  const logRef = useRef<HTMLPreElement>(null);
+
+  useEffect(() => {
+    if (mode !== "create") return;
+    invoke<string | null>("get_setting", { key: "item_vnum_range_start" })
+      .then((v) => {
+        const start = Number(v ?? "500000");
+        invoke<number>("next_free_item_vnum", { rangeStart: start })
+          .then((vnum) => setItem((prev) => ({ ...prev, vnum })))
+          .catch(() => {});
+      })
+      .catch(() => {});
+    // Only intended to run once for the initial suggested vnum on first
+    // mount in create mode, not every time the user switches back to it.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  useEffect(() => {
+    const unlisten = listen<string>("item-editor-output", (event) => {
+      setLog((prev) => [...prev, event.payload]);
+    });
+    return () => {
+      unlisten.then((fn) => fn());
+    };
+  }, []);
+
+  useEffect(() => {
+    logRef.current?.scrollTo({ top: logRef.current.scrollHeight });
+  }, [log]);
+
+  function set<K extends keyof ItemProtoInput>(key: K, value: ItemProtoInput[K]) {
+    setItem((prev) => ({ ...prev, [key]: value }));
+  }
+
+  function num(value: string) {
+    const n = Number(value);
+    return Number.isFinite(n) ? n : 0;
+  }
+
+  async function suggestNextVnum() {
+    const start = Number(
+      (await invoke<string | null>("get_setting", { key: "item_vnum_range_start" }).catch(
+        () => null,
+      )) ?? "500000",
+    );
+    const vnum = await invoke<number>("next_free_item_vnum", { rangeStart: start });
+    set("vnum", vnum);
+    setVnumTaken(false);
+  }
+
+  async function checkVnum(vnum: number) {
+    setCheckingVnum(true);
+    try {
+      const exists = await invoke<boolean>("item_vnum_exists", { vnum });
+      setVnumTaken(exists);
+    } catch {
+      setVnumTaken(null);
+    } finally {
+      setCheckingVnum(false);
+    }
+  }
+
+  async function startCreateMode() {
+    setMode("create");
+    setOriginalItem(null);
+    setIconSourcePath("");
+    setIconPreview(null);
+    setEditResults([]);
+    setEditSearch("");
+    setDone(false);
+    setPipelineError(null);
+    setSteps({});
+    const start = Number(
+      (await invoke<string | null>("get_setting", { key: "item_vnum_range_start" }).catch(
+        () => null,
+      )) ?? "500000",
+    );
+    const vnum = await invoke<number>("next_free_item_vnum", { rangeStart: start }).catch(
+      () => 0,
+    );
+    setItem(emptyItem(vnum));
+    setVnumTaken(vnum > 0 ? false : null);
+  }
+
+  async function runEditSearch() {
+    if (!editSearch.trim()) return;
+    setEditSearching(true);
+    try {
+      const results = await invoke<ItemSearchResult[]>("search_items", {
+        query: editSearch.trim(),
+      });
+      setEditResults(results);
+    } finally {
+      setEditSearching(false);
+    }
+  }
+
+  async function loadForEdit(vnum: number) {
+    const full = await invoke<ItemProtoInput | null>("get_item_proto", { vnum });
+    if (!full) return;
+    setMode("edit");
+    setItem(full);
+    setOriginalItem(full);
+    setVnumTaken(null);
+    setIconSourcePath("");
+    setEditResults([]);
+    setEditSearch("");
+    setDone(false);
+    setPipelineError(null);
+    setSteps({});
+    const preview = await invoke<string | null>("get_item_icon", { vnum }).catch(() => null);
+    setIconPreview(preview);
+  }
+
+  async function pickIcon() {
+    const selected = await open({
+      multiple: false,
+      title: "Icon auswählen",
+      filters: [{ name: "Bild", extensions: ["tga", "png", "jpg", "jpeg", "bmp"] }],
+    });
+    if (typeof selected === "string") {
+      setIconSourcePath(selected);
+      setIconPreview(null);
+    }
+  }
+
+  async function runRefSearch() {
+    if (!refSearch.trim()) return;
+    setRefSearching(true);
+    try {
+      const results = await invoke<ItemSearchResult[]>("search_items", {
+        query: refSearch.trim(),
+      });
+      setRefResults(results);
+    } finally {
+      setRefSearching(false);
+    }
+  }
+
+  async function duplicateAsNew() {
+    const start = Number(
+      (await invoke<string | null>("get_setting", { key: "item_vnum_range_start" }).catch(
+        () => null,
+      )) ?? "500000",
+    );
+    const vnum = await invoke<number>("next_free_item_vnum", { rangeStart: start }).catch(
+      () => 0,
+    );
+    setItem((prev) => ({ ...prev, vnum }));
+    setMode("create");
+    setOriginalItem(null);
+    setIconSourcePath("");
+    setIconPreview(null);
+    setEditResults([]);
+    setEditSearch("");
+    setDone(false);
+    setPipelineError(null);
+    setSteps({});
+    setVnumTaken(vnum > 0 ? false : null);
+  }
+
+  async function loadReference(vnum: number) {
+    const full = await invoke<ItemProtoInput | null>("get_item_proto", { vnum });
+    if (full) {
+      setItem((prev) => ({ ...full, vnum: prev.vnum }));
+    }
+    setRefResults([]);
+    setRefSearch("");
+  }
+
+  function toggleFlag(key: "wearflag" | "antiflag" | "immuneflag" | "flag", bit: number) {
+    set(key, (item[key] & bit) !== 0 ? item[key] & ~bit : item[key] | bit);
+  }
+
+  const hasNewIcon = !!iconSourcePath;
+
+  const canCreate =
+    item.vnum > 0 &&
+    item.name.trim().length > 0 &&
+    item.locale_name.trim().length > 0 &&
+    (mode === "edit" || (hasNewIcon && vnumTaken !== true));
+
+  async function runStep(key: string, fn: () => Promise<void>) {
+    setSteps((prev) => ({ ...prev, [key]: "running" }));
+    try {
+      await fn();
+      setSteps((prev) => ({ ...prev, [key]: "done" }));
+    } catch (e) {
+      setSteps((prev) => ({ ...prev, [key]: "error" }));
+      throw e;
+    }
+  }
+
+  async function runPipeline() {
+    setConfirmPipeline(false);
+    setPipelineError(null);
+    setLog([]);
+    setSteps({});
+    setDone(false);
+
+    let dbCreated = false;
+    let dbUpdated = false;
+    try {
+      // Checked first, before anything destructive (including the DB
+      // write): a wrong tool path must fail loudly here, not leave a
+      // half-finished item behind after the DB step already ran.
+      await runStep("setup", async () => {
+        await invoke("validate_item_editor_setup", { requireIconTool: hasNewIcon });
+      });
+      await runStep("db", async () => {
+        if (mode === "create") {
+          await invoke("create_item_proto", { item });
+          dbCreated = true;
+          setCreatedInDb(true);
+        } else {
+          await invoke("update_item_proto", { item });
+          dbUpdated = true;
+          setUpdatedInDb(true);
+        }
+      });
+      if (hasNewIcon) {
+        await runStep("icon", async () => {
+          await invoke("write_item_icon", { vnum: item.vnum, sourcePath: iconSourcePath });
+          const preview = await invoke<string | null>("get_item_icon", {
+            vnum: item.vnum,
+          }).catch(() => null);
+          setIconPreview(preview);
+        });
+        await runStep("pack", async () => {
+          await invoke("pack_item_icons");
+        });
+      }
+      await runStep("proto", async () => {
+        const generated = await invoke<string>("regenerate_item_proto");
+        await invoke("deploy_item_proto", { generatedProtoPath: generated });
+      });
+      setDone(true);
+      if (mode === "edit") setOriginalItem(item);
+    } catch (e) {
+      let message = String(e);
+      // A failure after the DB write would otherwise leave a half-finished
+      // item behind (create: occupies the vnum forever; edit: DB and client
+      // proto disagree) - undo it automatically rather than relying on the
+      // user noticing a button.
+      if (dbCreated) {
+        try {
+          await invoke("delete_item_proto", { vnum: item.vnum });
+          setCreatedInDb(false);
+          message += "\n\nDatenbankeintrag wurde automatisch zurückgenommen.";
+        } catch (rollbackError) {
+          message += `\n\nDatenbankeintrag konnte NICHT automatisch zurückgenommen werden: ${String(rollbackError)}. Bitte manuell prüfen (vnum ${item.vnum}).`;
+        }
+      } else if (dbUpdated && originalItem) {
+        try {
+          await invoke("update_item_proto", { item: originalItem });
+          setUpdatedInDb(false);
+          message += "\n\nÄnderungen wurden automatisch zurückgenommen (alter Stand wiederhergestellt).";
+        } catch (rollbackError) {
+          message += `\n\nÄnderungen konnten NICHT automatisch zurückgenommen werden: ${String(rollbackError)}. Bitte vnum ${item.vnum} manuell im DB Explorer prüfen.`;
+        }
+      }
+      setPipelineError(message);
+    }
+  }
+
+  async function rollbackDb() {
+    try {
+      if (mode === "create") {
+        await invoke("delete_item_proto", { vnum: item.vnum });
+        setCreatedInDb(false);
+      } else if (originalItem) {
+        await invoke("update_item_proto", { item: originalItem });
+        setUpdatedInDb(false);
+      }
+      setSteps((prev) => ({ ...prev, db: "pending" }));
+    } catch (e) {
+      setPipelineError(String(e));
+    }
+  }
+
+  return (
+    <div className="max-w-3xl space-y-6 pb-10">
+      <h1 className="text-2xl font-semibold">Item Editor</h1>
+      <p className="text-sm text-muted-foreground">
+        Legt neue Items ohne eigenes 3D-Modell an oder bearbeitet bestehende (Verbrauchsgegenstände,
+        Schmuck, Rüstungsteile mit vorhandenem Modell). Waffen/Rüstungen mit neuem Modell sind noch
+        nicht unterstützt.
+      </p>
+
+      {/* Modus */}
+      <section className="space-y-2 rounded-lg border border-border p-4">
+        <div className="flex overflow-hidden rounded-md border border-border text-sm w-fit">
+          <button
+            onClick={startCreateMode}
+            className={`px-3 py-1 ${mode === "create" ? "bg-primary text-primary-foreground" : ""}`}
+          >
+            Neues Item
+          </button>
+          <button
+            onClick={() => setMode("edit")}
+            className={`px-3 py-1 ${mode === "edit" ? "bg-primary text-primary-foreground" : ""}`}
+          >
+            Bestehendes Item bearbeiten
+          </button>
+        </div>
+
+        {mode === "edit" && !originalItem && (
+          <div className="space-y-2">
+            <div className="flex gap-2">
+              <input
+                value={editSearch}
+                onChange={(e) => setEditSearch(e.target.value)}
+                onKeyDown={(e) => e.key === "Enter" && runEditSearch()}
+                placeholder="Item nach Name oder VNUM suchen…"
+                className="flex-1 rounded-md border border-border bg-background px-2 py-1 text-sm"
+              />
+              <Button variant="outline" onClick={runEditSearch} disabled={editSearching}>
+                <Search className="size-4" />
+              </Button>
+            </div>
+            {editResults.length > 0 && (
+              <div className="max-h-40 space-y-1 overflow-y-auto">
+                {editResults.map((r) => (
+                  <div
+                    key={r.vnum}
+                    className="flex items-center justify-between rounded-md px-2 py-1 text-sm hover:bg-muted"
+                  >
+                    <span>
+                      {r.name} <span className="text-muted-foreground">#{r.vnum}</span>
+                    </span>
+                    <Button size="sm" variant="outline" onClick={() => loadForEdit(r.vnum)}>
+                      Laden
+                    </Button>
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+        )}
+
+        {mode === "edit" && originalItem && (
+          <div className="flex items-center justify-between gap-2">
+            <p className="text-sm text-muted-foreground">
+              Bearbeite <strong>{item.locale_name || item.name}</strong> (vnum {item.vnum}).{" "}
+              <button className="underline" onClick={() => setOriginalItem(null)}>
+                Anderes Item wählen
+              </button>
+            </p>
+            <Button variant="outline" size="sm" onClick={duplicateAsNew}>
+              <Copy className="size-3.5" />
+              Als neues Item duplizieren
+            </Button>
+          </div>
+        )}
+      </section>
+
+      {mode === "create" || originalItem ? (
+        <>
+      {/* Basisdaten */}
+      <section className="space-y-3 rounded-lg border border-border p-4">
+        <h2 className="text-sm font-medium text-muted-foreground">Basisdaten</h2>
+
+        <div className="flex flex-wrap gap-3">
+          <Field label="VNUM">
+            <div className="flex items-center gap-1">
+              <input
+                type="number"
+                value={item.vnum || ""}
+                disabled={mode === "edit"}
+                onChange={(e) => {
+                  set("vnum", num(e.target.value));
+                  setVnumTaken(null);
+                }}
+                onBlur={() => item.vnum > 0 && checkVnum(item.vnum)}
+                className="w-28 rounded-md border border-border bg-background px-2 py-1 text-sm disabled:opacity-60"
+              />
+              {mode === "create" && (
+                <Button variant="outline" size="sm" onClick={suggestNextVnum}>
+                  Nächste freie
+                </Button>
+              )}
+            </div>
+            {mode === "create" && checkingVnum && (
+              <p className="text-xs text-muted-foreground">Prüfe…</p>
+            )}
+            {mode === "create" && vnumTaken === true && (
+              <p className="flex items-center gap-1 text-xs text-destructive">
+                <AlertTriangle className="size-3.5" /> VNUM bereits vergeben
+              </p>
+            )}
+            {mode === "create" && vnumTaken === false && (
+              <p className="flex items-center gap-1 text-xs text-green-600">
+                <CheckCircle2 className="size-3.5" /> frei
+              </p>
+            )}
+          </Field>
+
+          <Field label="Typ">
+            <select
+              value={item.type}
+              onChange={(e) => set("type", num(e.target.value))}
+              className="rounded-md border border-border bg-background px-2 py-1 text-sm"
+            >
+              {ITEM_TYPES.map((t) => (
+                <option key={t.value} value={t.value}>
+                  {t.label} ({t.value})
+                </option>
+              ))}
+            </select>
+          </Field>
+
+          <Field label="Subtyp">
+            {SUBTYPES_BY_TYPE[item.type] ? (
+              <select
+                value={item.subtype}
+                onChange={(e) => set("subtype", num(e.target.value))}
+                className="w-40 rounded-md border border-border bg-background px-2 py-1 text-sm"
+              >
+                {SUBTYPES_BY_TYPE[item.type].map((t) => (
+                  <option key={t.value} value={t.value}>
+                    {t.label} ({t.value})
+                  </option>
+                ))}
+              </select>
+            ) : (
+              <input
+                type="number"
+                value={item.subtype}
+                onChange={(e) => set("subtype", num(e.target.value))}
+                className="w-20 rounded-md border border-border bg-background px-2 py-1 text-sm"
+              />
+            )}
+          </Field>
+
+          <Field label="Größe (1-3)">
+            <input
+              type="number"
+              min={1}
+              max={3}
+              value={item.size}
+              onChange={(e) => set("size", num(e.target.value))}
+              className="w-20 rounded-md border border-border bg-background px-2 py-1 text-sm"
+            />
+          </Field>
+
+          <Field label="Gewicht">
+            <input
+              type="number"
+              value={item.weight}
+              onChange={(e) => set("weight", num(e.target.value))}
+              className="w-20 rounded-md border border-border bg-background px-2 py-1 text-sm"
+            />
+          </Field>
+        </div>
+
+        <div className="flex flex-wrap gap-3">
+          <Field label="Name (intern, ASCII)">
+            <input
+              value={item.name}
+              onChange={(e) => set("name", e.target.value)}
+              className="w-56 rounded-md border border-border bg-background px-2 py-1 text-sm"
+            />
+          </Field>
+          <Field label="Anzeigename">
+            <input
+              value={item.locale_name}
+              onChange={(e) => set("locale_name", e.target.value)}
+              className="w-56 rounded-md border border-border bg-background px-2 py-1 text-sm"
+            />
+          </Field>
+        </div>
+
+        <div className="flex flex-wrap gap-3">
+          <Field label="Kaufpreis (NPC → Spieler)">
+            <input
+              type="number"
+              value={item.gold}
+              onChange={(e) => set("gold", num(e.target.value))}
+              className="w-28 rounded-md border border-border bg-background px-2 py-1 text-sm"
+            />
+          </Field>
+          <Field label="Verkaufspreis (Spieler → NPC)">
+            <input
+              type="number"
+              value={item.shop_buy_price}
+              onChange={(e) => set("shop_buy_price", num(e.target.value))}
+              className="w-28 rounded-md border border-border bg-background px-2 py-1 text-sm"
+            />
+          </Field>
+        </div>
+      </section>
+
+      {/* Icon */}
+      <section className="space-y-2 rounded-lg border border-border p-4">
+        <h2 className="text-sm font-medium text-muted-foreground">Icon</h2>
+        <div className="flex items-center gap-3">
+          <div className="flex size-12 items-center justify-center rounded-md border border-border bg-muted/40">
+            {iconPreview ? (
+              <img src={iconPreview} alt="" className="size-10 object-contain [image-rendering:pixelated]" />
+            ) : (
+              <ImageIcon className="size-5 text-muted-foreground" />
+            )}
+          </div>
+          <Button variant="outline" onClick={pickIcon}>
+            Bilddatei wählen…
+          </Button>
+          <Button variant="outline" onClick={() => setIconBrowserOpen(true)}>
+            <Images className="size-4" />
+            Aus Icon-Browser wählen…
+          </Button>
+          <span className="truncate text-sm text-muted-foreground">
+            {iconSourcePath || (mode === "edit" ? "Unverändert" : "Keine Datei gewählt")}
+          </span>
+        </div>
+        {mode === "edit" && !iconSourcePath && (
+          <p className="text-xs text-green-600">
+            {iconPreview
+              ? "Vorhandenes Icon wird beibehalten - nichts wird beim Speichern neu geschrieben oder gepackt."
+              : "Kein Icon gefunden. Nur auswählen, falls du wirklich ein neues setzen willst."}
+          </p>
+        )}
+        {(mode === "create" || iconSourcePath) && (
+          <p className="text-xs text-muted-foreground">
+            Wird als <code>{`${String(item.vnum).padStart(5, "0")}.tga`}</code> in{" "}
+            <code>pack/icon/icon/item</code> gespeichert und <code>icon.epk</code> neu gepackt.
+          </p>
+        )}
+      </section>
+
+      {/* Referenz-Item */}
+      {mode === "create" && (
+        <section className="space-y-2 rounded-lg border border-border p-4">
+          <h2 className="text-sm font-medium text-muted-foreground">
+            Referenz-Item übernehmen (optional)
+          </h2>
+          <p className="text-xs text-muted-foreground">
+            Übernimmt alle Werte (Typ, Flags, Werte) eines bestehenden Items als Ausgangsbasis — die
+            VNUM bleibt unverändert.
+          </p>
+          <div className="flex gap-2">
+            <input
+              value={refSearch}
+              onChange={(e) => setRefSearch(e.target.value)}
+              onKeyDown={(e) => e.key === "Enter" && runRefSearch()}
+              placeholder="Item nach Name oder VNUM suchen…"
+              className="flex-1 rounded-md border border-border bg-background px-2 py-1 text-sm"
+            />
+            <Button variant="outline" onClick={runRefSearch} disabled={refSearching}>
+              <Search className="size-4" />
+            </Button>
+          </div>
+          {refResults.length > 0 && (
+            <div className="max-h-40 space-y-1 overflow-y-auto">
+              {refResults.map((r) => (
+                <div
+                  key={r.vnum}
+                  className="flex items-center justify-between rounded-md px-2 py-1 text-sm hover:bg-muted"
+                >
+                  <span>
+                    {r.name} <span className="text-muted-foreground">#{r.vnum}</span>
+                  </span>
+                  <Button size="sm" variant="outline" onClick={() => loadReference(r.vnum)}>
+                    Übernehmen
+                  </Button>
+                </div>
+              ))}
+            </div>
+          )}
+        </section>
+      )}
+
+      {/* Flags & Werte */}
+      <section className="space-y-3 rounded-lg border border-border p-4">
+        <button
+          className="text-sm font-medium text-muted-foreground"
+          onClick={() => setAdvancedOpen((v) => !v)}
+        >
+          Flags & Werte (erweitert) {advancedOpen ? "▲" : "▼"}
+        </button>
+        {advancedOpen && (
+          <div className="space-y-4">
+            <p className="text-xs text-muted-foreground">
+              Bits aus dem echten Server-Quellcode verifiziert (length.h/item_length.h). Rohwerte
+              (Hex/Dezimal) bleiben trotzdem immer verfügbar.
+            </p>
+
+            <FlagGroup
+              title={`Trageort (wearflag = ${item.wearflag})`}
+              options={WEAR_FLAGS}
+              value={item.wearflag}
+              onToggle={(bit) => toggleFlag("wearflag", bit)}
+              onRaw={(v) => set("wearflag", v)}
+            />
+            <FlagGroup
+              title={`Klassen-/Geschlechtssperre (antiflag = ${item.antiflag})`}
+              options={ANTI_FLAGS}
+              value={item.antiflag}
+              onToggle={(bit) => toggleFlag("antiflag", bit)}
+              onRaw={(v) => set("antiflag", v)}
+            />
+            <FlagGroup
+              title={`Immunität (immuneflag = ${item.immuneflag})`}
+              options={IMMUNE_FLAGS}
+              value={item.immuneflag}
+              onToggle={(bit) => toggleFlag("immuneflag", bit)}
+              onRaw={(v) => set("immuneflag", v)}
+            />
+
+            <FlagGroup
+              title={`Item-Eigenschaften (flag = ${item.flag})`}
+              options={ITEM_FLAGS}
+              value={item.flag}
+              onToggle={(bit) => toggleFlag("flag", bit)}
+              onRaw={(v) => set("flag", v)}
+            />
+
+            <div className="flex flex-wrap gap-3">
+              <Field label="Limit-Typ 0">
+                <select
+                  value={item.limittype0}
+                  onChange={(e) => set("limittype0", num(e.target.value))}
+                  className="rounded-md border border-border bg-background px-2 py-1 text-sm"
+                >
+                  <option value={0}>—</option>
+                  {LIMIT_TYPES.map((t) => (
+                    <option key={t.value} value={t.value}>
+                      {t.label} ({t.value})
+                    </option>
+                  ))}
+                </select>
+              </Field>
+              <Field label="Wert">
+                <input
+                  type="number"
+                  value={item.limitvalue0}
+                  onChange={(e) => set("limitvalue0", num(e.target.value))}
+                  className="w-20 rounded-md border border-border bg-background px-2 py-1 text-sm"
+                />
+              </Field>
+            </div>
+
+            <p className="text-xs text-muted-foreground">
+              {VALUE_HINTS[item.type] ??
+                "value0-5 (Effektwerte) hängen vom Typ/Subtyp ab und wurden für diesen Typ noch nicht im Quellcode nachgeschlagen."}{" "}
+              Am zuverlässigsten über "Referenz-Item übernehmen" oben befüllen und dann anpassen.
+            </p>
+            <div className="grid grid-cols-3 gap-2 sm:grid-cols-6">
+              {(["value0", "value1", "value2", "value3", "value4", "value5"] as const).map(
+                (k, i) => (
+                  <Field key={k} label={VALUE_LABELS_BY_TYPE[item.type]?.[i] ?? k}>
+                    <input
+                      type="number"
+                      value={item[k]}
+                      onChange={(e) => set(k, num(e.target.value))}
+                      className="w-full rounded-md border border-border bg-background px-2 py-1 text-sm"
+                    />
+                  </Field>
+                ),
+              )}
+            </div>
+
+            {item.type === 1 && (
+              <div className="rounded-md border border-border bg-muted/40 p-2 text-xs">
+                <p className="font-medium">Anzeige im Client (Tooltip-Vorschau):</p>
+                {(() => {
+                  const { min, max } = weaponDisplayDamage(item.value3, item.value4, item.value5);
+                  const effectiveSpeed = weaponEffectiveAttackSpeed(item.value0, item.subtype);
+                  return (
+                    <p>
+                      Angriffskraft: {max > min ? `${min} ~ ${max}` : `${min}`} · Angriffstempo:{" "}
+                      {weaponAttackSpeedLabel(effectiveSpeed)}
+                      {item.subtype === WEAPON_SUBTYPE_TWO_HANDED && (
+                        <> ({item.value0} - 10 Zweihand-Malus = {effectiveSpeed})</>
+                      )}
+                      {(item.value1 > 0 || item.value2 > 0) && (
+                        <> · Magie-Angriff: {item.value1} ~ {item.value2}</>
+                      )}
+                    </p>
+                  );
+                })()}
+              </div>
+            )}
+            {item.type === 2 && (
+              <div className="rounded-md border border-border bg-muted/40 p-2 text-xs">
+                <p className="font-medium">Anzeige im Client (Tooltip-Vorschau):</p>
+                <p>
+                  Verteidigung: {item.value1 + item.value5 * 2}
+                  {item.value0 > 0 && <> · Magie-Verteidigung: {item.value0}</>}
+                </p>
+              </div>
+            )}
+
+            <p className="text-xs text-muted-foreground">
+              Stat-Boni (applytype/applyvalue) — Typen aus dem echten Server-Quellcode verifiziert
+              (<code>enum EApplyTypes</code>).
+            </p>
+            <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
+              {(
+                [
+                  ["applytype0", "applyvalue0"],
+                  ["applytype1", "applyvalue1"],
+                  ["applytype2", "applyvalue2"],
+                  ["applytype3", "applyvalue3"],
+                ] as const
+              ).map(([tKey, vKey]) => (
+                <div key={tKey} className="flex items-end gap-2">
+                  <Field label="Typ">
+                    <select
+                      value={item[tKey]}
+                      onChange={(e) => set(tKey, num(e.target.value))}
+                      className="w-56 rounded-md border border-border bg-background px-2 py-1 text-sm"
+                    >
+                      {APPLY_TYPES.map((t) => (
+                        <option key={t.value} value={t.value}>
+                          {t.label} ({t.value})
+                        </option>
+                      ))}
+                    </select>
+                  </Field>
+                  <Field label="Wert">
+                    <input
+                      type="number"
+                      value={item[vKey]}
+                      onChange={(e) => set(vKey, num(e.target.value))}
+                      className="w-20 rounded-md border border-border bg-background px-2 py-1 text-sm"
+                    />
+                  </Field>
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
+      </section>
+
+      {/* Zusammenfassung / Ausführen */}
+      <section className="space-y-3 rounded-lg border border-border p-4">
+        <h2 className="text-sm font-medium text-muted-foreground">
+          {mode === "create" ? "Anlegen" : "Speichern"}
+        </h2>
+        <Button disabled={!canCreate || Object.keys(steps).length > 0} onClick={() => setConfirmPipeline(true)}>
+          {mode === "create" ? "Item anlegen" : "Änderungen speichern"}
+        </Button>
+
+        {Object.keys(steps).length > 0 && (
+          <div className="space-y-1 text-sm">
+            <StepRow label="Voraussetzungen prüfen (Tool-Pfade)" status={steps.setup} />
+            <StepRow label="Datenbankeintrag" status={steps.db} />
+            {hasNewIcon && <StepRow label="Icon schreiben" status={steps.icon} />}
+            {hasNewIcon && <StepRow label="icon.epk neu packen" status={steps.pack} />}
+            <StepRow label="item_proto aus DB erzeugen & in Client einspielen" status={steps.proto} />
+          </div>
+        )}
+
+        {pipelineError && (
+          <div className="space-y-2">
+            <p className="whitespace-pre-wrap text-sm text-destructive">{pipelineError}</p>
+            {((mode === "create" && createdInDb) || (mode === "edit" && updatedInDb)) && !done && (
+              <Button variant="destructive" size="sm" onClick={rollbackDb}>
+                {mode === "create" ? "Datenbankeintrag zurücknehmen" : "Änderungen zurücknehmen"}
+              </Button>
+            )}
+          </div>
+        )}
+
+        {done && (
+          <p className="flex items-center gap-1 text-sm text-green-600">
+            <CheckCircle2 className="size-4" />{" "}
+            {mode === "create"
+              ? `Item ${item.vnum} wurde vollständig angelegt.`
+              : `Item ${item.vnum} wurde gespeichert.`}
+          </p>
+        )}
+
+        {log.length > 0 && (
+          <pre
+            ref={logRef}
+            className="max-h-48 overflow-y-auto rounded-md bg-muted/40 p-2 text-xs"
+          >
+            {log.join("\n")}
+          </pre>
+        )}
+      </section>
+
+      {confirmPipeline && (
+        <div className="fixed inset-0 flex items-center justify-center bg-black/50">
+          <div className="w-[28rem] space-y-3 rounded-lg border border-border bg-card p-4">
+            <p className="text-sm font-medium">
+              Item {item.vnum} jetzt {mode === "create" ? "anlegen" : "speichern"}?
+            </p>
+            <ul className="list-disc space-y-1 pl-5 text-sm text-muted-foreground">
+              <li>
+                Datenbankeintrag wird {mode === "create" ? "erstellt" : "aktualisiert"}
+              </li>
+              {hasNewIcon && (
+                <>
+                  <li>Icon wird nach pack/icon/icon/item geschrieben</li>
+                  <li>
+                    <code>icon.epk</code> wird neu gepackt (Backup wird vorher angelegt)
+                  </li>
+                </>
+              )}
+              <li>
+                <code>item_proto</code> wird aus der DB neu erzeugt und im Client ersetzt (Backup
+                wird vorher angelegt)
+              </li>
+            </ul>
+            <div className="flex justify-end gap-2">
+              <Button variant="outline" onClick={() => setConfirmPipeline(false)}>
+                Abbrechen
+              </Button>
+              <Button onClick={runPipeline}>Ausführen</Button>
+            </div>
+          </div>
+        </div>
+      )}
+      </>
+      ) : null}
+
+      {iconBrowserOpen && (
+        <IconBrowserModal
+          onPick={(path) => {
+            setIconSourcePath(path);
+            setIconPreview(null);
+          }}
+          onClose={() => setIconBrowserOpen(false)}
+        />
+      )}
+    </div>
+  );
+}
+
+function Field({ label, children }: { label: string; children: React.ReactNode }) {
+  return (
+    <label className="flex flex-col gap-1 text-xs text-muted-foreground">
+      {label}
+      {children}
+    </label>
+  );
+}
+
+function FlagGroup({
+  title,
+  options,
+  value,
+  onToggle,
+  onRaw,
+}: {
+  title: string;
+  options: { value: number; label: string }[];
+  value: number;
+  onToggle: (bit: number) => void;
+  onRaw: (value: number) => void;
+}) {
+  return (
+    <div className="space-y-1">
+      <div className="flex items-center gap-2">
+        <p className="text-xs font-medium text-muted-foreground">{title}</p>
+        <input
+          type="number"
+          value={value}
+          onChange={(e) => onRaw(Number(e.target.value) || 0)}
+          className="w-24 rounded-md border border-border bg-background px-1.5 py-0.5 text-xs"
+        />
+      </div>
+      <div className="flex flex-wrap gap-2">
+        {options.map((opt) => (
+          <label key={opt.value} className="flex items-center gap-1 text-xs">
+            <input
+              type="checkbox"
+              checked={(value & opt.value) !== 0}
+              onChange={() => onToggle(opt.value)}
+            />
+            {opt.label}
+          </label>
+        ))}
+      </div>
+    </div>
+  );
+}
+
+function StepRow({ label, status }: { label: string; status?: StepStatus }) {
+  return (
+    <div className="flex items-center gap-2">
+      {status === "done" && <CheckCircle2 className="size-4 text-green-600" />}
+      {status === "error" && <AlertTriangle className="size-4 text-destructive" />}
+      {status === "running" && (
+        <span className="size-4 animate-spin rounded-full border-2 border-muted-foreground border-t-transparent" />
+      )}
+      {(!status || status === "pending") && <span className="size-4" />}
+      <span className={status === "error" ? "text-destructive" : ""}>{label}</span>
+    </div>
+  );
+}

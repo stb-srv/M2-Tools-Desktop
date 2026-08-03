@@ -168,8 +168,57 @@ pub async fn search_items(
             .await
     } else {
         let like = format!("%{}%", query.replace('%', "\\%").replace('_', "\\_"));
+        // `locale_name` is `varbinary` (raw bytes, no charset/collation - see
+        // decode_name above), so a plain LIKE is byte-for-byte case-sensitive:
+        // searching "wild" against stored "Wildhund" returns nothing, which
+        // looked like "name search doesn't work" to the user. `CONVERT(...
+        // USING latin1)` gives both sides an actual charset so LOWER() can
+        // fold case - latin1 covers cp1252's printable German range (äöüß)
+        // closely enough for this. Verified against the real DB: exact/upper/
+        // lower-case and umlaut queries all match correctly with this.
         sqlx::query(
-            "SELECT vnum, locale_name FROM player.item_proto WHERE locale_name LIKE ? LIMIT ?",
+            "SELECT vnum, locale_name FROM player.item_proto \
+             WHERE LOWER(CONVERT(locale_name USING latin1)) LIKE LOWER(CONVERT(? USING latin1)) \
+             LIMIT ?",
+        )
+        .bind(like)
+        .bind(limit)
+        .fetch_all(pool)
+        .await
+    }
+    .map_err(|e| e.to_string())?;
+
+    Ok(rows
+        .into_iter()
+        .map(|row| {
+            let name_raw: Vec<u8> = row.try_get("locale_name").unwrap_or_default();
+            ItemSearchResult {
+                vnum: row.try_get("vnum").unwrap_or_default(),
+                name: decode_name(&name_raw),
+            }
+        })
+        .collect())
+}
+
+/// Same lookup as `search_items` but against `mob_proto` - used by the Quest
+/// Builder's kill-quest template to pick a monster vnum by name.
+pub async fn search_mobs(
+    pool: &MySqlPool,
+    query: &str,
+    limit: i64,
+) -> Result<Vec<ItemSearchResult>, String> {
+    let rows = if let Ok(vnum) = query.trim().parse::<i32>() {
+        sqlx::query("SELECT vnum, locale_name FROM player.mob_proto WHERE vnum = ? LIMIT ?")
+            .bind(vnum)
+            .bind(limit)
+            .fetch_all(pool)
+            .await
+    } else {
+        let like = format!("%{}%", query.replace('%', "\\%").replace('_', "\\_"));
+        sqlx::query(
+            "SELECT vnum, locale_name FROM player.mob_proto \
+             WHERE LOWER(CONVERT(locale_name USING latin1)) LIKE LOWER(CONVERT(? USING latin1)) \
+             LIMIT ?",
         )
         .bind(like)
         .bind(limit)
@@ -237,6 +286,34 @@ pub async fn remove_shop_item(
         .await
         .map_err(|e| e.to_string())?;
     Ok(())
+}
+
+/// Bulk-overwrites shop_item.count so existing entries pick up a new stack
+/// limit retroactively (the per-shop/global "max" setting only affects items
+/// added afterwards otherwise). `shop_vnum: None` applies to every shop.
+pub async fn sync_stack_sizes(
+    pool: &MySqlPool,
+    shop_vnum: Option<i32>,
+    count: i32,
+) -> Result<u64, String> {
+    let count = count.max(1);
+    let result = match shop_vnum {
+        Some(vnum) => {
+            sqlx::query("UPDATE player.shop_item SET count = ? WHERE shop_vnum = ?")
+                .bind(count)
+                .bind(vnum)
+                .execute(pool)
+                .await
+        }
+        None => {
+            sqlx::query("UPDATE player.shop_item SET count = ?")
+                .bind(count)
+                .execute(pool)
+                .await
+        }
+    }
+    .map_err(|e| e.to_string())?;
+    Ok(result.rows_affected())
 }
 
 pub async fn delete_shop(pool: &MySqlPool, shop_vnum: i32) -> Result<(), String> {

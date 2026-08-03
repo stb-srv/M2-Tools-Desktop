@@ -40,6 +40,16 @@ fn resolve_texture_path(model_path: &str, texture_name: Option<&str>) -> Option<
     found
 }
 
+/// Decodes a `.dds` file (any format `image_dds` supports, e.g. the DXT1
+/// minimap tiles under a map's grid folders) into an RGBA image. Shared by
+/// NPC/model texture loading here and by `mapdata`'s minimap compositing.
+pub fn decode_dds_file(path: &Path) -> Result<image::RgbaImage, String> {
+    let bytes = std::fs::read(path).map_err(|e| format!("DDS nicht lesbar: {e}"))?;
+    let dds = ddsfile::Dds::read(&mut std::io::Cursor::new(bytes))
+        .map_err(|e| format!("DDS konnte nicht gelesen werden: {e}"))?;
+    image_dds::image_from_dds(&dds, 0).map_err(|e| format!("DDS konnte nicht dekodiert werden: {e}"))
+}
+
 pub fn load_texture_data_url(
     model_path: &str,
     texture_name: Option<&str>,
@@ -48,11 +58,7 @@ pub fn load_texture_data_url(
         return Ok(None);
     };
 
-    let bytes = std::fs::read(&path).map_err(|e| format!("Textur nicht lesbar: {e}"))?;
-    let dds = ddsfile::Dds::read(&mut std::io::Cursor::new(bytes))
-        .map_err(|e| format!("DDS konnte nicht gelesen werden: {e}"))?;
-    let rgba = image_dds::image_from_dds(&dds, 0)
-        .map_err(|e| format!("DDS konnte nicht dekodiert werden: {e}"))?;
+    let rgba = decode_dds_file(&path)?;
 
     let mut png_bytes = Vec::new();
     rgba.write_to(

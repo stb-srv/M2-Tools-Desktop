@@ -3,7 +3,7 @@ import { useTranslation } from "react-i18next";
 import { invoke } from "@tauri-apps/api/core";
 import { listen } from "@tauri-apps/api/event";
 import { Button } from "@/components/ui/button";
-import { Play, Square, Trash2, RefreshCw, Settings2, Eraser } from "lucide-react";
+import { Play, Square, Trash2, RefreshCw, RotateCcw, Settings2, Eraser } from "lucide-react";
 
 type ActionId = "start" | "stop" | "clearLogs" | "reloadQuests";
 
@@ -74,10 +74,12 @@ export function ServerControl() {
   });
   const [workdir, setWorkdir] = useState(DEFAULT_WORKDIR);
   const [editing, setEditing] = useState(false);
-  const [running, setRunning] = useState<ActionId | null>(null);
+  const [running, setRunning] = useState<ActionId | "restart" | null>(null);
   const [log, setLog] = useState<string[]>([]);
   const [error, setError] = useState<string | null>(null);
   const [confirmAction, setConfirmAction] = useState<ServerAction | null>(null);
+  const [restartConfirm, setRestartConfirm] = useState(false);
+  const [restartDelay, setRestartDelay] = useState("5");
 
   const logRef = useRef<HTMLPreElement>(null);
 
@@ -98,6 +100,11 @@ export function ServerControl() {
           saved || defaultCommand(savedWorkdir, DEFAULT_CHOICE[action.id]);
       }
       setCommands(loaded as Record<ActionId, string>);
+
+      const savedDelay = await invoke<string | null>("get_setting", {
+        key: "server_restart_delay_seconds",
+      }).catch(() => null);
+      if (savedDelay) setRestartDelay(savedDelay);
     })();
   }, []);
 
@@ -122,22 +129,46 @@ export function ServerControl() {
     }
   }
 
+  async function runCommand(command: string) {
+    setLog((prev) => [...prev, `\n$ ${command}\n`]);
+    const result = await invoke<{ output: string; exit_status: number | null }>(
+      "run_server_command",
+      { command },
+    );
+    if (result.exit_status !== null && result.exit_status !== 0) {
+      setLog((prev) => [...prev, `\n[Beendet mit Code ${result.exit_status}]\n`]);
+    }
+  }
+
   async function execute(action: ServerAction) {
     setConfirmAction(null);
     setRunning(action.id);
     setError(null);
-    setLog((prev) => [
-      ...prev,
-      `\n$ ${commands[action.id]}\n`,
-    ]);
     try {
-      const result = await invoke<{ output: string; exit_status: number | null }>(
-        "run_server_command",
-        { command: commands[action.id] },
-      );
-      if (result.exit_status !== null && result.exit_status !== 0) {
-        setLog((prev) => [...prev, `\n[Beendet mit Code ${result.exit_status}]\n`]);
+      await runCommand(commands[action.id]);
+    } catch (e) {
+      setError(String(e));
+    } finally {
+      setRunning(null);
+    }
+  }
+
+  function sleep(ms: number) {
+    return new Promise((resolve) => setTimeout(resolve, ms));
+  }
+
+  async function executeRestart() {
+    setRestartConfirm(false);
+    setRunning("restart");
+    setError(null);
+    try {
+      await runCommand(commands.stop);
+      const delaySeconds = Number(restartDelay) || 0;
+      if (delaySeconds > 0) {
+        setLog((prev) => [...prev, `\n[Warte ${delaySeconds}s vor dem Start…]\n`]);
+        await sleep(delaySeconds * 1000);
       }
+      await runCommand(commands.start);
     } catch (e) {
       setError(String(e));
     } finally {
@@ -153,6 +184,13 @@ export function ServerControl() {
   async function saveWorkdir(value: string) {
     setWorkdir(value);
     await invoke("set_setting", { key: "server_workdir", value }).catch(() => {});
+  }
+
+  async function saveRestartDelay(value: string) {
+    setRestartDelay(value);
+    if (/^\d+$/.test(value)) {
+      await invoke("set_setting", { key: "server_restart_delay_seconds", value }).catch(() => {});
+    }
   }
 
   async function resetToDefaults() {
@@ -186,6 +224,14 @@ export function ServerControl() {
             </Button>
           );
         })}
+        <Button
+          variant="destructive"
+          disabled={running !== null || !commands.start || !commands.stop}
+          onClick={() => setRestartConfirm(true)}
+        >
+          <RotateCcw className="size-4" />
+          {running === "restart" ? "Startet neu…" : "Neustarten"}
+        </Button>
       </div>
 
       {editing && (
@@ -212,6 +258,20 @@ export function ServerControl() {
               />
             </div>
           ))}
+          <div className="space-y-1">
+            <label className="text-xs font-medium text-muted-foreground">
+              Wartezeit vor Neustart (Sekunden)
+            </label>
+            <input
+              value={restartDelay}
+              onChange={(e) => saveRestartDelay(e.target.value)}
+              className="w-20 rounded-md border border-border bg-background px-2 py-1 font-mono text-sm"
+            />
+            <p className="text-xs text-muted-foreground">
+              Zeit zwischen "Server/Channel schließen" und "Server/Channel starten" beim
+              Neustarten, damit die Prozesse sauber beendet sind.
+            </p>
+          </div>
           <div className="flex items-center justify-between">
             <p className="text-xs text-muted-foreground">
               Voreingestellt für ein Menü-Skript, das die Auswahl von stdin liest.
@@ -254,6 +314,31 @@ export function ServerControl() {
                 {t("common.cancel")}
               </Button>
               <Button variant="destructive" onClick={() => execute(confirmAction)}>
+                Ausführen
+              </Button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {restartConfirm && (
+        <div className="fixed inset-0 flex items-center justify-center bg-black/50">
+          <div className="w-96 space-y-3 rounded-lg border border-border bg-card p-4">
+            <p className="text-sm font-medium">Neustarten</p>
+            <p className="text-sm text-muted-foreground">
+              Der Server wird heruntergefahren, alle Spieler werden getrennt, und nach{" "}
+              {restartDelay || 0}s wieder gestartet.
+            </p>
+            <pre className="overflow-x-auto rounded-md bg-muted/50 p-2 font-mono text-xs">
+              {commands.stop}
+              {"\n"}
+              {commands.start}
+            </pre>
+            <div className="flex justify-end gap-2">
+              <Button variant="outline" onClick={() => setRestartConfirm(false)}>
+                {t("common.cancel")}
+              </Button>
+              <Button variant="destructive" onClick={executeRestart}>
                 Ausführen
               </Button>
             </div>

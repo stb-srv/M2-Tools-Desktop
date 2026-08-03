@@ -1,5 +1,10 @@
 use serde::{Deserialize, Serialize};
 
+// Deliberately not wired into any query yet - every table name is still
+// hardcoded inline in db/shop.rs, db/item.rs etc. This struct exists as a
+// placeholder so that supporting a differently-laid-out core fork later
+// means threading a TableMapping through, not rewriting every query string.
+#[allow(dead_code)]
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct TableMapping {
     pub item_proto_table: String,

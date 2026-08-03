@@ -1,11 +1,21 @@
 {
   "nav": {
     "dashboard": "Dashboard",
-    "connections": "Verbindungen",
     "serverControl": "Server-Steuerung",
     "dbExplorer": "Datenbank-Explorer",
     "shopEditor": "Shop-Editor",
+    "itemEditor": "Item Editor",
+    "mobProtoEditor": "Mob-Proto-Editor",
+    "mobDropEditor": "Mob Drop Editor",
+    "questBuilder": "Quest Builder",
+    "regenEditor": "Regen-Datei-Editor",
+    "localeEditor": "Locale-Verwaltung",
+    "backupBrowser": "Backup-Browser",
+    "dbBackups": "Datenbank-Backups",
+    "tgaConverter": "TGA Konverter",
+    "iconBrowser": "Icon-Browser",
     "modelViewer": "3D-Modell-Viewer",
+    "accountManager": "Account-Verwaltung",
     "settings": "Einstellungen"
   },
   "dashboard": {
@@ -17,7 +27,6 @@
     "disconnected": "Nicht verbunden"
   },
   "connections": {
-    "title": "Verbindungen",
     "ssh": "SSH / SFTP",
     "mysql": "MySQL",
     "host": "Host",

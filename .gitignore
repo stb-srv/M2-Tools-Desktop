@@ -22,3 +22,6 @@ dist-ssr
 *.njsproj
 *.sln
 *.sw?
+
+# External reference tools (large binaries, not project source)
+RegenEditor/*.exe
