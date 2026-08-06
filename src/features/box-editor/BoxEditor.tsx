@@ -3,6 +3,73 @@ import { invoke } from "@tauri-apps/api/core";
 import { runAsyncAction } from "@/lib/asyncAction";
 import { Button } from "@/components/ui/button";
 import { Search, Plus, Trash2, RefreshCw, CheckCircle2, AlertTriangle, Info, Package } from "lucide-react";
+import { useNavigationStore } from "@/store/navigation";
+
+const GIFTBOX_TYPE = 23;
+const ANTIFLAG_NOT_STACKABLE = 1 << 15;
+
+interface ItemProtoFullLite {
+  vnum: number;
+  locale_name: string;
+  name: string;
+  type: number;
+  antiflag: number;
+}
+
+// Resolves a "Kisten-Item-VNUM" input against the real item_proto row, so a
+// typo'd or mismatched vnum is caught immediately instead of only showing up
+// as a silent "du hast nichts erhalten" in-game later - GiveItemFromSpecialItemGroup
+// (char_item.cpp) looks the group up purely by the box item's own vnum, with
+// no cross-check, so a group whose Vnum doesn't match a real GIFTBOX item's
+// vnum fails invisibly (logged server-side only, never shown to the player).
+function BoxVnumHint({ vnum }: { vnum: number }) {
+  const [proto, setProto] = useState<ItemProtoFullLite | null | undefined>(undefined);
+
+  useEffect(() => {
+    if (!vnum) {
+      setProto(undefined);
+      return;
+    }
+    let cancelled = false;
+    invoke<ItemProtoFullLite | null>("get_item_proto", { vnum })
+      .then((p) => !cancelled && setProto(p))
+      .catch(() => !cancelled && setProto(null));
+    return () => {
+      cancelled = true;
+    };
+  }, [vnum]);
+
+  if (!vnum || proto === undefined) return null;
+
+  if (proto === null) {
+    return (
+      <p className="flex items-center gap-1 text-xs text-destructive">
+        <AlertTriangle className="size-3.5 shrink-0" /> Kein Item mit dieser VNUM gefunden.
+      </p>
+    );
+  }
+
+  const displayName = proto.locale_name || proto.name;
+
+  if (proto.type !== GIFTBOX_TYPE) {
+    return (
+      <p className="flex items-center gap-1 text-xs text-destructive">
+        <AlertTriangle className="size-3.5 shrink-0" />
+        "{displayName}" hat nicht den Typ GIFTBOX (23) - diese Kisten-Gruppe wird beim Öffnen nie gezogen.
+      </p>
+    );
+  }
+
+  const notStackable = (proto.antiflag & ANTIFLAG_NOT_STACKABLE) !== 0;
+
+  return (
+    <p className="flex items-center gap-1 text-xs text-muted-foreground">
+      <CheckCircle2 className="size-3.5 shrink-0 text-green-600" />
+      "{displayName}" (GIFTBOX)
+      {notStackable && " - Achtung: Nicht stapelbar gesetzt, jede Kiste zeigt daher keine gemeinsame Restanzahl."}
+    </p>
+  );
+}
 
 interface SpecialItemGroupEntry {
   item_ref: string;
@@ -176,6 +243,7 @@ function ItemRefEditor({
 }
 
 export function BoxEditor() {
+  const setSection = useNavigationStore((s) => s.setSection);
   const [groups, setGroups] = useState<SpecialItemGroup[] | null>(null);
   const [loading, setLoading] = useState(false);
   const [loadError, setLoadError] = useState<string | null>(null);
@@ -303,6 +371,19 @@ export function BoxEditor() {
         <strong>GIFTBOX (23)</strong> stehen und „Stapelbar" gesetzt sein (im Item-Editor einstellbar) - das
         legt dieser Editor hier nicht selbst an, nur die Beute-Tabelle.
       </p>
+      <div className="flex items-start gap-2 rounded-lg border border-amber-500/40 bg-amber-500/10 p-3 text-sm text-amber-700 dark:text-amber-400">
+        <Info className="mt-0.5 size-4 shrink-0" />
+        <span>
+          Änderungen wirken erst nach einem <strong>Server-Neustart</strong> - <code>special_item_group.txt</code>{" "}
+          wird nur beim Start des Game-Prozesses eingelesen (kein Client-Repack, kein <code>/reload</code>-Sub-Befehl
+          dafür verfügbar - im echten Quellcode geprüft). Eine neu angelegte oder geänderte Kisten-Gruppe zeigt sich
+          also erst nach einem Neustart; bis dahin meldet das Öffnen der Kiste „Du hast nichts erhalten." und die
+          Kiste wird dabei nicht verbraucht.{" "}
+          <button className="underline" onClick={() => setSection("server-control")}>
+            Zur Server-Steuerung
+          </button>
+        </span>
+      </div>
 
       <div className="flex items-center gap-2">
         <Button variant="outline" onClick={load} disabled={loading}>
@@ -348,6 +429,7 @@ export function BoxEditor() {
                 className="rounded-md border border-border bg-background px-2 py-1 text-sm"
               />
             </Field>
+            <BoxVnumHint vnum={Number(newVnum) || 0} />
             <div className="flex justify-end gap-2">
               <Button variant="outline" onClick={() => setCreating(false)}>
                 Abbrechen
@@ -398,6 +480,7 @@ export function BoxEditor() {
                       onChange={(e) => updateGroup(selectedIndex, { vnum: Number(e.target.value) || 0 })}
                       className="w-28 rounded-md border border-border bg-background px-2 py-1 text-sm"
                     />
+                    <BoxVnumHint vnum={selected.vnum} />
                   </Field>
                   <Field label="Typ">
                     <select

@@ -6,6 +6,22 @@ nach [SemVer](https://semver.org/) (`MAJOR.MINOR.PATCH`, solange < 1.0 gilt
 `MINOR` für neue Features, `PATCH` für reine Fixes). Für die vollständige
 Feature-Historie mit allen Details siehe `STATUS.md`.
 
+## [0.5.3] - 2026-08-06
+
+### Geändert
+
+- Kisten-Editor: fehlender Hinweis nachgetragen, dass Änderungen an
+  `special_item_group.txt` erst nach einem Server-Neustart wirken (der
+  Game-Prozess liest die Datei nur beim Start ein, es gibt dafür keinen
+  `/reload`-Unterbefehl - im echten Quellcode geprüft). Bis dahin meldet
+  die Kiste beim Öffnen „Du hast nichts erhalten." und wird dabei nicht
+  verbraucht, was sonst wie ein Bug aussieht. Zusätzlich wird die
+  eingetragene Kisten-Item-VNUM jetzt sofort gegen den echten
+  `item_proto`-Eintrag geprüft (Name/Typ-Anzeige, Warnung bei falschem
+  Typ oder unbekannter VNUM) - vorher konnte eine falsche VNUM (Tippfehler,
+  oder das Item hat gar nicht Typ GIFTBOX) genau denselben stillen
+  Fehlschlag auslösen, ohne dass der Editor das anzeigte.
+
 ## [0.5.2] - 2026-08-06
 
 ### Geändert
