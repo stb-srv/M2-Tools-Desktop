@@ -15,6 +15,19 @@ export default defineConfig(async () => ({
     },
   },
 
+  build: {
+    // Every route in App.tsx (besides the default Dashboard) is
+    // React.lazy()-loaded, so each already gets its own chunk, fetched only
+    // when that section is opened - the one exception is the three.js-based
+    // GR2 viewer (Gr2Canvas, shared by the Model Viewer and the Shop
+    // Editor's NPC preview): three.js's renderer/scene-graph/math core is
+    // legitimately ~530kB minified on its own, no further splitting reduces
+    // that. Raise the warning limit past it rather than chase an
+    // unreachable number for a dependency that's already isolated into its
+    // own lazy chunk.
+    chunkSizeWarningLimit: 600,
+  },
+
   // Vite options tailored for Tauri development and only applied in `tauri dev` or `tauri build`
   //
   // 1. prevent Vite from obscuring rust errors

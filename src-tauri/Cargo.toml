@@ -45,5 +45,12 @@ features = ["runtime-tokio", "mysql", "chrono"]
 # stop reverse engineering (nothing can), but removes the easy on-ramp of
 # readable symbol names for anyone poking at the binary with a disassembler.
 strip = true
-lto = true
+# "Fat" LTO (`lto = true`) forces the whole dependency graph through a
+# single-threaded codegen unit at link time - by far the biggest cost in
+# `npm run release` for this project (minutes, not the ~9s the Vite side
+# takes). Thin LTO cross-optimizes each crate in parallel and only does a
+# lighter global pass, cutting release build time substantially for a
+# GUI app like this where the last few % of codegen optimization doesn't
+# matter, while keeping the exe close in size/speed to fat LTO.
+lto = "thin"
 
