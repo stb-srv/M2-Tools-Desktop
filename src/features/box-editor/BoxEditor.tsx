@@ -41,6 +41,19 @@ const KEYWORD_LABELS: Record<string, string> = {
   group: "Verschachtelte Gruppe (group)",
 };
 
+// The "count" column means something different depending on item_ref - for
+// "gold"/"exp" it's the actual amount given (verified against the real
+// entries this was built against: "1 gold 10 1" = 10 Yang), not a literal
+// item count. Labeling it "Anzahl" regardless was confusing enough that a
+// user reported not being able to find where to enter a gold amount at
+// all, even though the field was already there.
+function countLabelFor(itemRef: string): string {
+  if (itemRef === "gold") return "Betrag (Yang)";
+  if (itemRef === "exp") return "Betrag (EXP)";
+  if (SPECIAL_KEYWORDS.includes(itemRef)) return "Wert";
+  return "Anzahl";
+}
+
 const GROUP_TYPES: { value: string | null; label: string }[] = [
   { value: null, label: "Normal (Standard-Drop)" },
   { value: "pct", label: "pct (Wahrscheinlichkeit anders gewichtet)" },
@@ -416,12 +429,12 @@ export function BoxEditor() {
                         icon={icons[Number(entry.item_ref)]}
                         ensureIcon={ensureIcon}
                       />
-                      <Field label="Anzahl">
+                      <Field label={countLabelFor(entry.item_ref)}>
                         <input
                           type="number"
                           value={entry.count}
                           onChange={(e) => updateEntry(selectedIndex, ei, { count: Number(e.target.value) || 0 })}
-                          className="w-20 rounded-md border border-border bg-background px-2 py-1 text-xs"
+                          className="w-24 rounded-md border border-border bg-background px-2 py-1 text-xs"
                         />
                       </Field>
                       <Field label="Gewicht/Chance">

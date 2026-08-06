@@ -6,6 +6,15 @@ nach [SemVer](https://semver.org/) (`MAJOR.MINOR.PATCH`, solange < 1.0 gilt
 `MINOR` für neue Features, `PATCH` für reine Fixes). Für die vollständige
 Feature-Historie mit allen Details siehe `STATUS.md`.
 
+## [0.5.2] - 2026-08-06
+
+### Geändert
+
+- Kisten-Editor: das Betrags-Feld eines Beute-Eintrags hieß bei jedem
+  Eintrag „Anzahl" — bei „Gold" (Yang) oder „EXP" liest sich das nicht
+  wie ein Betrag, obwohl das Feld dort genau dafür gedacht ist. Heißt
+  jetzt kontextabhängig „Betrag (Yang)" / „Betrag (EXP)" / „Wert".
+
 ## [0.5.1] - 2026-08-06
 
 ### Geändert
