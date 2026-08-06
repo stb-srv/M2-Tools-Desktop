@@ -113,6 +113,7 @@ pub fn run() {
             commands::record_import_batch,
             commands::list_import_batches,
             commands::remove_single_item,
+            commands::rollback_created_item,
             commands::undo_import_batch,
             commands::search_mobs,
             commands::list_quest_files,

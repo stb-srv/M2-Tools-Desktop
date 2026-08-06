@@ -1392,6 +1392,22 @@ async fn teardown_item(pool: &sqlx::MySqlPool, client_path: &str, vnum: u32) -> 
     Ok(())
 }
 
+/// Rolls back one item created earlier in an import batch that then failed
+/// (e.g. the repack step erroring out after several items were already
+/// created). Deliberately skips `pack_item_icons`/`regenerate_item_proto` -
+/// unlike `remove_single_item`, this runs *from inside* a failure handler,
+/// so repacking again here would only add another risky operation on top
+/// of whatever already went wrong; the next successful import's own repack
+/// step naturally cleans up the icon.epk/item_proto inconsistency this
+/// leaves behind in the meantime (harmless: nothing references vnum
+/// without a DB row or item_list.txt entry, both removed here).
+#[tauri::command]
+pub async fn rollback_created_item(state: State<'_, AppState>, vnum: u32) -> Result<(), String> {
+    let pool = require_pool(&state).await?;
+    let client_path = item_editor_setting(&state, "client_path")?;
+    teardown_item(&pool, &client_path, vnum).await
+}
+
 #[tauri::command]
 pub async fn remove_single_item(app: AppHandle, state: State<'_, AppState>, vnum: u32) -> Result<(), String> {
     let pool = require_pool(&state).await?;

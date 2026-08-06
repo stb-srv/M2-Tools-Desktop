@@ -6,6 +6,19 @@ nach [SemVer](https://semver.org/) (`MAJOR.MINOR.PATCH`, solange < 1.0 gilt
 `MINOR` für neue Features, `PATCH` für reine Fixes). Für die vollständige
 Feature-Historie mit allen Details siehe `STATUS.md`.
 
+## [0.2.4] - 2026-08-06
+
+### Behoben
+
+- Modul-Import brach mit `stream did not contain valid UTF-8` ab und nahm
+  alle bereits angelegten Items zurück, sobald irgendein Dateiname im
+  `item`-Ordner (auch aus einem früheren, unabhängigen Import) einen
+  Umlaut enthielt — die Ausgabe der Pack-Tools wird jetzt korrekt als
+  Windows-1252 statt strikt als UTF-8 gelesen.
+- Rückgängig-machen nach einem fehlgeschlagenen Import entfernte bisher
+  nur den Datenbank-Eintrag, nicht Icon und `item_list.txt`-Zeile — blieb
+  als Datenmüll liegen. Der Rollback räumt jetzt vollständig auf.
+
 ## [0.2.3] - 2026-08-06
 
 ### Behoben

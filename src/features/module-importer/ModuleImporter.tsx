@@ -691,14 +691,14 @@ function PackageImporter({ onImported }: { onImported: () => void }) {
         const failed: number[] = [];
         for (const vnum of createdVnumsRef.current) {
           try {
-            await invoke("delete_item_proto", { vnum });
+            await invoke("rollback_created_item", { vnum });
           } catch {
             failed.push(vnum);
           }
         }
         message +=
           failed.length === 0
-            ? `\n\nAlle ${createdVnumsRef.current.length} bereits angelegten Datenbankeinträge wurden automatisch zurückgenommen.`
+            ? `\n\nAlle ${createdVnumsRef.current.length} bereits angelegten Einträge (Datenbank, Icon, item_list.txt) wurden automatisch zurückgenommen.`
             : `\n\nRollback teilweise fehlgeschlagen - bitte vnums ${failed.join(", ")} manuell im DB Explorer prüfen.`;
       }
       setBatchError(message);

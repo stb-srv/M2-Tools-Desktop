@@ -349,6 +349,31 @@ pub fn backup_file(path: &Path) -> Result<Option<PathBuf>, String> {
     Ok(Some(dest))
 }
 
+/// Reads one line of raw bytes (up to and including `\n`, or EOF) and
+/// decodes it as Windows-1252 rather than requiring valid UTF-8. Console
+/// tools like `EterPackConsoleLz4.exe` print filenames in the OS's ANSI
+/// codepage, not UTF-8 - `tokio::io::AsyncBufReadExt::lines()` (UTF-8-only)
+/// hard-errors with "stream did not contain valid UTF-8" the moment any
+/// filename anywhere in the scanned tree contains a German umlaut or other
+/// accented character, which aborted the entire import pipeline (including
+/// rolling back every already-created item) partway through a repack -
+/// live-verified 2026-08-06 packing the full `item`/`icon` folders (tens of
+/// thousands of stock filenames, not just the newly imported ones).
+/// Windows-1252 has no invalid byte sequences, so this can never fail the
+/// way the UTF-8 path did.
+async fn read_decoded_line(
+    reader: &mut (impl tokio::io::AsyncBufRead + Unpin),
+    buf: &mut Vec<u8>,
+) -> std::io::Result<Option<String>> {
+    buf.clear();
+    let n = AsyncBufReadExt::read_until(reader, b'\n', buf).await?;
+    if n == 0 {
+        return Ok(None);
+    }
+    let (text, _, _) = encoding_rs::WINDOWS_1252.decode(buf);
+    Ok(Some(text.trim_end_matches(['\r', '\n']).to_string()))
+}
+
 async fn run_streamed(
     app: &AppHandle,
     event: &str,
@@ -367,13 +392,15 @@ async fn run_streamed(
     let stdout = child.stdout.take().ok_or("Kein stdout-Handle")?;
     let stderr = child.stderr.take().ok_or("Kein stderr-Handle")?;
 
-    let mut out_lines = BufReader::new(stdout).lines();
-    let mut err_lines = BufReader::new(stderr).lines();
+    let mut out_reader = BufReader::new(stdout);
+    let mut err_reader = BufReader::new(stderr);
+    let mut out_buf = Vec::new();
+    let mut err_buf = Vec::new();
     let mut output = String::new();
 
     loop {
         tokio::select! {
-            line = out_lines.next_line() => {
+            line = read_decoded_line(&mut out_reader, &mut out_buf) => {
                 match line.map_err(|e| e.to_string())? {
                     Some(l) => {
                         let _ = app.emit(event, &l);
@@ -383,7 +410,7 @@ async fn run_streamed(
                     None => break,
                 }
             }
-            line = err_lines.next_line() => {
+            line = read_decoded_line(&mut err_reader, &mut err_buf) => {
                 if let Some(l) = line.map_err(|e| e.to_string())? {
                     let _ = app.emit(event, &l);
                     output.push_str(&l);
@@ -647,6 +674,39 @@ pub fn upsert_item_list_entries(
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    // Regression test for a live bug (2026-08-06): EterPackConsoleLz4.exe
+    // prints filenames in the OS's Windows-1252 codepage, not UTF-8 - the
+    // old `tokio::io::AsyncBufReadExt::lines()`-based reader required valid
+    // UTF-8 and hard-errored ("stream did not contain valid UTF-8") the
+    // moment a repack touched any file with a German umlaut anywhere in
+    // the tree, aborting the whole import (including rolling back every
+    // already-created item). 0xFC/0xF6/0xE4/0xDF (ü/ö/ä/ß in Windows-1252)
+    // are each, on their own, an invalid UTF-8 byte sequence - exactly
+    // what would have made `String::from_utf8` (which `.lines()` uses
+    // internally) fail.
+    #[tokio::test]
+    async fn read_decoded_line_handles_windows_1252_bytes_invalid_as_utf8() {
+        let mut line = Vec::from(*b"Adding: Stra\xdfe_gr\xfcn.dds");
+        line.push(b'\n');
+        line.extend_from_slice(b"second line\n");
+        let mut reader = tokio::io::BufReader::new(&line[..]);
+        let mut buf = Vec::new();
+
+        let first = read_decoded_line(&mut reader, &mut buf)
+            .await
+            .expect("must not error on non-UTF-8 bytes")
+            .expect("line present");
+        assert_eq!(first, "Adding: Straße_grün.dds");
+
+        let second = read_decoded_line(&mut reader, &mut buf)
+            .await
+            .unwrap()
+            .unwrap();
+        assert_eq!(second, "second line");
+
+        assert!(read_decoded_line(&mut reader, &mut buf).await.unwrap().is_none());
+    }
 
     // Uses a scratch temp dir standing in for the client folder - never
     // touches the real client, unlike the icon *read* tests in icons.rs
