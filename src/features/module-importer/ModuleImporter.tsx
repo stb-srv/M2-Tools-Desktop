@@ -202,6 +202,57 @@ function fitToByteLimit(s: string, maxBytes = ITEM_NAME_MAX_BYTES): string {
   return truncated;
 }
 
+// Aufwertungs-Kette (Refine): verified against this server's real stock
+// chains (Schwert 10-19, Mönchsplattenpanzer 11200-11209) - both use this
+// *exact* cost/prob progression per step, suggesting it's this core's
+// standard template rather than a per-item choice. Index i = cost/chance
+// for the recipe that takes level i to level i+1. Beyond the 9 defined
+// steps, the last step's values repeat flat rather than extrapolating
+// further growth - per explicit user instruction (entering e.g. max level
+// 15 should just keep reusing the values already established at +9).
+const STOCK_REFINE_COST = [600, 1200, 2500, 5000, 10000, 20000, 30000, 45000, 75000];
+const STOCK_REFINE_PROB = [90, 90, 90, 90, 80, 60, 60, 60, 60];
+
+function refineCostForStep(step: number): number {
+  return STOCK_REFINE_COST[Math.min(step, STOCK_REFINE_COST.length - 1)];
+}
+function refineProbForStep(step: number): number {
+  return STOCK_REFINE_PROB[Math.min(step, STOCK_REFINE_PROB.length - 1)];
+}
+
+/** Linear-to-base growth for a "combat" stat column: level 0 keeps the
+ * reference item's exact value, level N is `base * (1 + growthPercent/100 * N)`.
+ * A base of 0 stays 0 - nothing to grow if the reference never set that
+ * column in the first place. */
+function scaledValue(base: number, level: number, growthPercent: number): number {
+  if (level === 0 || base === 0) return base;
+  return Math.round(base * (1 + (growthPercent / 100) * level));
+}
+
+/** Finds `count` *consecutive* free vnums starting at/after `rangeStart` -
+ * a whole refine chain needs a contiguous block (matching how stock chains
+ * are always contiguous, e.g. 10-19), which a single `next_free_item_vnum`
+ * call can't guarantee on its own. Normally resolves in one round-trip per
+ * slot (a freshly reserved custom vnum range has nothing in the way); only
+ * loops further if something unexpected already occupies part of the
+ * range. */
+async function findConsecutiveFreeVnums(rangeStart: number, count: number): Promise<number> {
+  let candidate = rangeStart;
+  for (;;) {
+    const base = await invoke<number>("next_free_item_vnum", { rangeStart: candidate });
+    let ok = true;
+    for (let i = 1; i < count; i++) {
+      const next = await invoke<number>("next_free_item_vnum", { rangeStart: base + i });
+      if (next !== base + i) {
+        candidate = next;
+        ok = false;
+        break;
+      }
+    }
+    if (ok) return base;
+  }
+}
+
 type StepStatus = "pending" | "running" | "done" | "error";
 const WEAPON_WEARFLAG = 1 << 4; // "Waffe" bit, see itemFlags.ts WEAR_FLAGS
 
@@ -425,6 +476,10 @@ function PackageImporter({ onImported }: { onImported: () => void }) {
   const [includeEffects, setIncludeEffects] = useState(true);
   const [refItem, setRefItem] = useState<ItemProtoInput | null>(null);
 
+  const [chainEnabled, setChainEnabled] = useState(false);
+  const [chainMaxLevel, setChainMaxLevel] = useState(9);
+  const [chainGrowthPercent, setChainGrowthPercent] = useState(10);
+
   const [running, setRunning] = useState(false);
   const [weaponStatus, setWeaponStatus] = useState<Record<string, StepStatus>>({});
   const [armorStatus, setArmorStatus] = useState<Record<string, StepStatus>>({});
@@ -500,29 +555,44 @@ function PackageImporter({ onImported }: { onImported: () => void }) {
     }
   }
 
-  function buildWeaponItem(vnum: number, variant: WeaponVariant, row: WeaponRowState): ItemProtoInput {
+  function buildWeaponItem(vnum: number, variant: WeaponVariant, row: WeaponRowState, level: number): ItemProtoInput {
     const template = refItem ?? emptyItem(vnum, 1);
     // Class restriction always comes from the variant's own subtype/model,
     // never from the reference item - a reference sword's antiflag would
     // otherwise silently make a Bell Warrior-equippable too. Non-class bits
     // (gender/empire/GET/DROP/SELL/...) from the reference item are kept.
     const antiflag = (template.antiflag & ~CLASS_ANTIFLAG_MASK) | classAntiflagForWeapon(row.subtype, row.isSura);
+    const suffix = level > 0 ? `+${level}` : "";
+    const grow = (base: number) => scaledValue(base, level, chainGrowthPercent);
     return {
       ...template,
       vnum,
       vnum_range: 0,
-      name: fitToByteLimit(`${baseName || "item"}_${variant.key}`),
-      locale_name: fitToByteLimit(`${baseLocaleName || baseName} (${labelForVariant(variant)})`),
+      name: fitToByteLimit(`${baseName || "item"}_${variant.key}${suffix}`),
+      locale_name: fitToByteLimit(`${baseLocaleName || baseName} (${labelForVariant(variant)}) ${suffix}`.trim()),
       type: 1,
       subtype: row.subtype,
       antiflag,
       size: sizeForSubtype(row.subtype),
       wearflag: template.wearflag || WEAPON_WEARFLAG,
+      // Schaden min/max + Zusatz-Angriffskraft - die "Kampfwerte" laut
+      // itemFlags.ts VALUE_HINTS. Alle drei fließen in die im Client
+      // angezeigte/berechnete Schadensspanne ein (weaponDisplayDamage),
+      // deshalb wachsen alle drei gleichmäßig statt nur einer davon.
+      value3: grow(template.value3),
+      value4: grow(template.value4),
+      value5: grow(template.value5),
+      // Jede Stufe startet ohne Aufwertungs-Verknüpfung - runImport
+      // verdrahtet die Kette danach explizit über set_item_refine_link,
+      // statt hier versehentlich die Verknüpfung eines evtl. bereits
+      // aufgewerteten Referenz-Items mit zu übernehmen (die Ziel-Vnum
+      // würde sonst ins Leere zeigen, "No advancement possible").
+      refine_set: 0,
       refined_vnum: 0,
     };
   }
 
-  function buildArmorItem(vnum: number, shapeIndex: number, selectedRaceKeys: string[]): ItemProtoInput {
+  function buildArmorItem(vnum: number, shapeIndex: number, selectedRaceKeys: string[], level: number): ItemProtoInput {
     const template = refItem ?? emptyItem(vnum, 2);
     const blockedMask = selectedRaceKeys.length
       ? Object.entries(RACE_ANTIFLAG)
@@ -530,17 +600,30 @@ function PackageImporter({ onImported }: { onImported: () => void }) {
           .reduce((acc, [, bit]) => acc | bit, 0)
       : 0;
     const antiflag = (template.antiflag & ~CLASS_ANTIFLAG_MASK) | blockedMask;
+    const suffix = level > 0 ? ` +${level}` : "";
+    const grow = (base: number) => scaledValue(base, level, chainGrowthPercent);
     return {
       ...template,
       vnum,
       vnum_range: 0,
-      name: fitToByteLimit(`${baseName || "item"}_armor`),
-      locale_name: fitToByteLimit(baseLocaleName || baseName),
+      name: fitToByteLimit(`${baseName || "item"}_armor${level > 0 ? `+${level}` : ""}`),
+      locale_name: fitToByteLimit(`${baseLocaleName || baseName}${suffix}`),
       type: 2,
       subtype: armorSubtype,
       antiflag,
       wearflag: armorWearflag || template.wearflag,
+      // Magie-Verteidigung + Verteidigung (Grade) + Zusatz-Verteidigung -
+      // die "Kampfwerte" für Rüstung laut VALUE_HINTS. value3 ist hier
+      // NICHT dabei: das ist bei Rüstung der 3D-Modell-Shape-Index
+      // (siehe msm.rs/[[m2manager_module_importer]]), live verifiziert
+      // dass er über eine ganze echte Stock-Kette (11200-11209) konstant
+      // bleibt - würde er hier mitwachsen, würde jede Stufe ein anderes
+      // (meist nicht existierendes) 3D-Modell erwarten.
+      value0: grow(template.value0),
+      value1: grow(template.value1),
+      value5: grow(template.value5),
       value3: shapeIndex,
+      refine_set: 0,
       refined_vnum: 0,
     };
   }
@@ -580,62 +663,101 @@ function PackageImporter({ onImported }: { onImported: () => void }) {
       setOtherSteps((prev) => ({ ...prev, setup: "done" }));
 
       let rangeStart = vnumRangeStart;
+      const levels = chainEnabled ? chainMaxLevel + 1 : 1;
 
       for (const variant of selectedWeapons) {
         const row = weaponRows[variant.key];
         setWeaponStatus((prev) => ({ ...prev, [variant.key]: "running" }));
-        const vnum = await invoke<number>("next_free_item_vnum", { rangeStart });
-        rangeStart = vnum + 1;
 
-        const item = buildWeaponItem(vnum, variant, row);
-        await invoke("create_item_proto", { item });
-        createdVnumsRef.current.push(vnum);
+        // A whole chain needs a *contiguous* vnum block (matching stock
+        // chains, e.g. 10-19) - the base vnum's own icon/model are shared
+        // by every level via item_list.txt, exactly like stock does, so
+        // they're only written once here, not once per level.
+        const baseVnum = await findConsecutiveFreeVnums(rangeStart, levels);
+        rangeStart = baseVnum + levels;
 
         if (row.icon) {
-          await invoke("write_item_icon", { vnum, sourcePath: row.icon });
+          await invoke("write_item_icon", { vnum: baseVnum, sourcePath: row.icon });
         }
         const [, virtualModelPath] = await invoke<[string, string]>("import_weapon_model", {
           moduleName: scanResult!.module_name,
-          vnum,
+          vnum: baseVnum,
           sourceAbs: variant.model_source_abs,
           textureSources: variant.texture_sources_abs,
         });
-        await invoke("write_item_list_entry", {
-          vnum,
-          itemType: 1,
-          iconRelPath: `icon/item/${pad5(vnum)}.tga`,
-          modelRelPath: virtualModelPath,
-        });
+        const iconRelPath = `icon/item/${pad5(baseVnum)}.tga`;
+
+        const levelVnums: number[] = [];
+        for (let level = 0; level < levels; level++) {
+          const vnum = baseVnum + level;
+          levelVnums.push(vnum);
+          const item = buildWeaponItem(vnum, variant, row, level);
+          await invoke("create_item_proto", { item });
+          createdVnumsRef.current.push(vnum);
+          await invoke("write_item_list_entry", { vnum, itemType: 1, iconRelPath, modelRelPath: virtualModelPath });
+        }
+
+        for (let level = 0; level < levels - 1; level++) {
+          const recipeId = await invoke<number>("save_refine_recipe", {
+            id: null,
+            cost: refineCostForStep(level),
+            prob: refineProbForStep(level),
+            materials: [],
+          });
+          await invoke("set_item_refine_link", {
+            vnum: levelVnums[level],
+            refineSet: recipeId,
+            refinedVnum: levelVnums[level + 1],
+          });
+        }
+
         setWeaponStatus((prev) => ({ ...prev, [variant.key]: "done" }));
       }
 
       if (selectedArmorRaces.length > 0) {
         setArmorStatus({ armor: "running" });
-        const vnum = await invoke<number>("next_free_item_vnum", { rangeStart });
-        rangeStart = vnum + 1;
+
+        const baseVnum = await findConsecutiveFreeVnums(rangeStart, levels);
+        rangeStart = baseVnum + levels;
 
         const shapeIndex =
           armorFemaleRaces.length > 0 ? await invoke<number>("next_free_shape_index") : refItem?.value3 ?? 0;
 
-        const item = buildArmorItem(
-          vnum,
-          shapeIndex,
-          selectedArmorRaces.map((a) => a.race),
-        );
-        await invoke("create_item_proto", { item });
-        createdVnumsRef.current.push(vnum);
-
         const icon = armorRows[selectedArmorRaces[0].race]?.icon;
         if (icon) {
-          await invoke("write_item_icon", { vnum, sourcePath: icon });
+          await invoke("write_item_icon", { vnum: baseVnum, sourcePath: icon });
         }
-        await invoke("write_item_list_entry", {
-          vnum,
-          itemType: 2,
-          iconRelPath: `icon/item/${pad5(vnum)}.tga`,
-          modelRelPath: null,
-        });
+        const iconRelPath = `icon/item/${pad5(baseVnum)}.tga`;
+        const raceKeys = selectedArmorRaces.map((a) => a.race);
 
+        const levelVnums: number[] = [];
+        for (let level = 0; level < levels; level++) {
+          const vnum = baseVnum + level;
+          levelVnums.push(vnum);
+          const item = buildArmorItem(vnum, shapeIndex, raceKeys, level);
+          await invoke("create_item_proto", { item });
+          createdVnumsRef.current.push(vnum);
+          await invoke("write_item_list_entry", { vnum, itemType: 2, iconRelPath, modelRelPath: null });
+        }
+
+        for (let level = 0; level < levels - 1; level++) {
+          const recipeId = await invoke<number>("save_refine_recipe", {
+            id: null,
+            cost: refineCostForStep(level),
+            prob: refineProbForStep(level),
+            materials: [],
+          });
+          await invoke("set_item_refine_link", {
+            vnum: levelVnums[level],
+            refineSet: recipeId,
+            refinedVnum: levelVnums[level + 1],
+          });
+        }
+
+        // The 3D-Modell is wired to the *base* vnum's shapeIndex only -
+        // every other level shares the same ShapeData entry (see
+        // buildArmorItem's own comment: value3 stays constant across the
+        // whole chain, matching the real stock convention).
         for (const armor of armorFemaleRaces) {
           await invoke("import_armor_model", {
             moduleName: scanResult!.module_name,
@@ -969,11 +1091,55 @@ function PackageImporter({ onImported }: { onImported: () => void }) {
           </section>
 
           <section className="space-y-3 rounded-lg border border-border p-4">
+            <h2 className="text-sm font-medium text-muted-foreground">Aufwertungs-Kette (optional)</h2>
+            <label className="flex items-center gap-2 text-sm">
+              <input type="checkbox" checked={chainEnabled} onChange={(e) => setChainEnabled(e.target.checked)} />
+              Jedes Item bekommt eine eigene Aufwertungs-Kette (+0 bis +N), aufrüstbar wie bei Stock-Items
+            </label>
+            {chainEnabled && (
+              <>
+                <div className="flex flex-wrap gap-3">
+                  <Field label="Maximale Stufe (+N)">
+                    <input
+                      type="number"
+                      min={1}
+                      max={30}
+                      value={chainMaxLevel}
+                      onChange={(e) => setChainMaxLevel(Math.max(1, Number(e.target.value) || 1))}
+                      className="w-24 rounded-md border border-border bg-background px-2 py-1 text-sm"
+                    />
+                  </Field>
+                  <Field label="Werte-Wachstum pro Stufe (%)">
+                    <input
+                      type="number"
+                      min={0}
+                      value={chainGrowthPercent}
+                      onChange={(e) => setChainGrowthPercent(Math.max(0, Number(e.target.value) || 0))}
+                      className="w-24 rounded-md border border-border bg-background px-2 py-1 text-sm"
+                    />
+                  </Field>
+                </div>
+                <p className="text-xs text-muted-foreground">
+                  Waffe: Schaden min/max + Zusatz-Angriffskraft wachsen. Rüstung: Magie-/Verteidigung + Zusatz-
+                  Verteidigung wachsen (das 3D-Modell bleibt über die ganze Kette gleich). Ohne gewähltes
+                  Referenz-Item bleibt die Basis 0 - dann wächst auch nichts.{" "}
+                  {!refItem && <span className="text-amber-600">Aktuell kein Referenz-Item gewählt.</span>}
+                </p>
+                <p className="text-xs text-muted-foreground">
+                  Aufwertungs-Kosten/-Chance je Stufe folgen der echten Stock-Vorlage dieses Servers (600 Gold/90%
+                  für Stufe 1, steigend bis 75.000 Gold/60% ab Stufe 9 - danach bleiben Kosten/Chance von +9
+                  gleich). Keine Materialien nötig - lässt sich danach jederzeit im Aufwertungs-Editor ergänzen.
+                </p>
+              </>
+            )}
+          </section>
+
+          <section className="space-y-3 rounded-lg border border-border p-4">
             <h2 className="text-sm font-medium text-muted-foreground">Importieren</h2>
             <Button disabled={!canImport || running} onClick={() => setConfirm(true)}>
               {running
                 ? "Importiere…"
-                : `${selectedWeapons.length + (selectedArmorRaces.length > 0 ? 1 : 0)} Item(s) importieren`}
+                : `${(selectedWeapons.length + (selectedArmorRaces.length > 0 ? 1 : 0)) * (chainEnabled ? chainMaxLevel + 1 : 1)} Item(s) importieren`}
             </Button>
 
             {(Object.keys(weaponStatus).length > 0 || Object.keys(armorStatus).length > 0) && (
@@ -1013,8 +1179,8 @@ function PackageImporter({ onImported }: { onImported: () => void }) {
         <div className="fixed inset-0 flex items-center justify-center bg-black/50">
           <div className="w-[28rem] space-y-3 rounded-lg border border-border bg-card p-4">
             <p className="text-sm font-medium">
-              {selectedWeapons.length + (selectedArmorRaces.length > 0 ? 1 : 0)} Item(s) für „{baseLocaleName}" jetzt
-              anlegen?
+              {(selectedWeapons.length + (selectedArmorRaces.length > 0 ? 1 : 0)) * (chainEnabled ? chainMaxLevel + 1 : 1)}{" "}
+              Item(s) für „{baseLocaleName}" jetzt anlegen?
             </p>
             <ul className="list-disc space-y-1 pl-5 text-sm text-muted-foreground">
               {selectedWeapons.length > 0 && (
@@ -1025,6 +1191,13 @@ function PackageImporter({ onImported }: { onImported: () => void }) {
                   1 Rüstungs-Item für {selectedArmorRaces.map((a) => RACE_LABELS[a.race] ?? a.race).join(", ")}
                   {armorFemaleRaces.length > 0 &&
                     ` (3D-Modell für ${armorFemaleRaces.map((a) => RACE_LABELS[a.race] ?? a.race).join(", ")} verknüpft)`}
+                </li>
+              )}
+              {chainEnabled && (
+                <li>
+                  Jedes Item bekommt eine Aufwertungs-Kette bis +{chainMaxLevel} ({chainGrowthPercent}% Werte-
+                  Wachstum pro Stufe) - wirkt erst nach einem Server-Neustart, da <code>refine_proto</code> nur
+                  beim Serverstart aus der DB geladen wird
                 </li>
               )}
               <li className={refItem ? "" : "text-amber-600"}>

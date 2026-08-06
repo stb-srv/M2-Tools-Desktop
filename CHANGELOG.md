@@ -6,6 +6,21 @@ nach [SemVer](https://semver.org/) (`MAJOR.MINOR.PATCH`, solange < 1.0 gilt
 `MINOR` für neue Features, `PATCH` für reine Fixes). Für die vollständige
 Feature-Historie mit allen Details siehe `STATUS.md`.
 
+## [0.4.0] - 2026-08-06
+
+### Hinzugefügt
+
+- **Modul-Importer: automatische Aufwertungs-Kette** — importierte Waffen
+  und Rüstungen können jetzt optional direkt eine vollständige `+0` bis
+  `+N`-Kette bekommen (einstellbare Maximalstufe, einstellbares
+  prozentuales Werte-Wachstum pro Stufe), statt nur einer einzelnen,
+  nicht aufwertbaren Stufe. Icon und 3D-Modell werden dabei nur einmal
+  angelegt und über die ganze Kette geteilt (wie bei Stock-Items).
+  Gold-Kosten/Erfolgschance pro Stufe folgen der echten Stock-Vorlage
+  dieses Servers; Materialien lassen sich danach jederzeit im
+  Aufwertungs-Editor ergänzen. Rückgängig-machen entfernt jetzt auch
+  nicht mehr benötigte Aufwertungs-Rezepte mit.
+
 ## [0.3.0] - 2026-08-06
 
 ### Hinzugefügt
