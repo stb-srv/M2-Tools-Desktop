@@ -6,6 +6,23 @@ nach [SemVer](https://semver.org/) (`MAJOR.MINOR.PATCH`, solange < 1.0 gilt
 `MINOR` für neue Features, `PATCH` für reine Fixes). Für die vollständige
 Feature-Historie mit allen Details siehe `STATUS.md`.
 
+## [0.2.3] - 2026-08-06
+
+### Behoben
+
+- Importierte Waffen mit einem Modell, dessen Textur-Referenz vom
+  Grafiker als **absoluter** Pfad exportiert wurde (z. B.
+  `D:\ymir work\...\skin.dds` statt eines relativen Pfads), zeigten im
+  Client keine Textur (Waffe erscheint weiß) — betraf tatsächlich
+  **beide** bereits importierten Waffen-Sets (FrostEdge, FireDragon), nur
+  eines wurde gemeldet. Ursache im echten Client-Quellcode verifiziert:
+  bei einer absoluten Referenz sucht der Client exakt diesen Pfad und
+  nur in gepackten `.epk`-Dateien, nie in losen Dateien. Der
+  Modul-Importer platziert die Textur jetzt zusätzlich am exakten
+  virtuellen Pfad, den das Modell erwartet (per GR2-Parser zur
+  Import-Zeit ermittelt). Beide bereits live importierten Waffen-Sets
+  wurden nachträglich repariert.
+
 ## [0.2.2] - 2026-08-06
 
 ### Geändert

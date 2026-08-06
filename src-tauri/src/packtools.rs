@@ -98,6 +98,71 @@ fn copy_sibling_textures(dest_dir: &Path, sources: &[String], skip_name: &str) -
     Ok(copied)
 }
 
+/// If `source_gr2`'s own material bakes an **absolute** artist path for a
+/// texture (e.g. `D:\ymir work\some_artist_folder\weapon\skin.dds` - the
+/// exporter's original working path, never reconfigured for the client's
+/// own folder layout), the real client's texture resolver
+/// (`CGrannyMaterial::__GetImagePointer` in the client source) uses that
+/// exact string as-is and never falls back to the model's own folder -
+/// and for an absolute-looking path, `CEterPackManager::Get` additionally
+/// only searches *packed* (`.epk`) content, never loose files. Copying the
+/// texture next to the renamed model (as `copy_sibling_textures` does,
+/// correct for the common *relative*-reference case) is then invisible to
+/// the client: the mesh loads but nothing textures it - live-verified
+/// 2026-08-06 against a real imported weapon (FireDragon, vnum 800000)
+/// that rendered pure white in-game despite the texture file existing
+/// right next to its model.
+///
+/// This reads the model via the same GR2 sidecar the Model Viewer uses to
+/// find every mesh's baked texture reference, and for each one that's
+/// absolute, additionally copies the matching source texture (matched by
+/// filename against `texture_sources`) to the *exact* virtual path the
+/// client will look up - normalized under `pack/item/...` since that's the
+/// pack this project already repacks after every weapon import
+/// (`pack_item_models`). Best-effort only: if the model can't be parsed
+/// (no `granny2.dll` configured, sidecar failure, ...), this silently does
+/// nothing extra - the plain same-folder copy `copy_sibling_textures`
+/// already did stays the fallback, so a parse failure never blocks an
+/// otherwise-working import.
+fn place_absolute_reference_textures(client_path: &str, source_gr2: &Path, texture_sources: &[String]) {
+    let Some(dll) = crate::gr2::find_granny_dll(client_path) else {
+        return;
+    };
+    let Ok(info) = crate::gr2::parse(&dll, &source_gr2.display().to_string()) else {
+        return;
+    };
+
+    for mesh in &info.meshes {
+        let Some(texture_name) = &mesh.texture_name else { continue };
+        // An artist-local absolute path always has a drive letter at index
+        // 1 (`D:\...`) - anything else (a bare filename, a relative
+        // `./skin.dds`, or a `d:/ymir work/...`-style *virtual* client path
+        // some exporters do use correctly) is left to the same-folder copy.
+        if texture_name.as_bytes().get(1) != Some(&b':') {
+            continue;
+        }
+        let Some(basename) = texture_name.rsplit(['\\', '/']).next() else { continue };
+        let Some(matching_source) = texture_sources.iter().find(|s| {
+            Path::new(s)
+                .file_name()
+                .and_then(|f| f.to_str())
+                .map(|f| f.eq_ignore_ascii_case(basename))
+                .unwrap_or(false)
+        }) else {
+            continue;
+        };
+
+        let relative = texture_name[2..].trim_start_matches(['\\', '/']).replace('\\', "/");
+        let dest = Path::new(client_path).join("pack").join("item").join(&relative);
+        let Some(parent) = dest.parent() else { continue };
+        if std::fs::create_dir_all(parent).is_err() {
+            continue;
+        }
+        let _ = backup_file(&dest);
+        let _ = std::fs::copy(matching_source, &dest);
+    }
+}
+
 /// Imports a brand-new (not vnum-cloned) weapon `.gr2` model shipped inside
 /// a dropped-in asset module (see `modulescan.rs`) into the client's own
 /// `pack/item/ymir work/item/weapon/` tree, namespaced under
@@ -154,6 +219,11 @@ pub fn import_custom_weapon_model(
     // seen so far, but keeps the guard meaningful now that dest/source
     // filenames differ.
     copy_sibling_textures(&dest_dir, texture_sources, source_file_name)?;
+    // Covers the case above's assumption doesn't hold - a texture the
+    // model references by an absolute artist path instead of a relative
+    // one. See that function's doc comment for why the same-folder copy
+    // alone isn't enough for those.
+    place_absolute_reference_textures(client_path, source_abs, texture_sources);
 
     let virtual_path = format!("d:/ymir work/item/weapon/custom/{safe_module}/{dest_file_name}");
     Ok((dest, virtual_path))
@@ -693,6 +763,62 @@ mod tests {
         assert!(!text.contains("500001.gr2"));
 
         std::fs::remove_dir_all(&scratch).ok();
+    }
+
+    // Regression test for a live bug (2026-08-06): a weapon whose model
+    // bakes an ABSOLUTE artist texture path (`D:\ymir work\...`, common
+    // when an exporter wasn't reconfigured for the client's own folder
+    // layout) rendered pure white in-game - the same-folder texture copy
+    // `copy_sibling_textures` does is invisible to the client for that
+    // case (see `place_absolute_reference_textures`'s doc comment for the
+    // client-source citation). Runs against the real client + the real
+    // FireDragon weapon set this was actually reported against, not a
+    // synthetic fixture - skips if this machine doesn't have that module.
+    #[test]
+    fn places_texture_at_absolute_reference_path_for_real_weapon() {
+        let client_path = r"C:\Users\DevSteven\Desktop\Client";
+        if !Path::new(client_path).join("granny2.dll").exists() {
+            eprintln!("skipping: granny2.dll not present on this machine");
+            return;
+        }
+        let source_gr2 = Path::new(
+            r"C:\Users\DevSteven\Downloads\newitemswaffen\M2mesh_FireDragon_Weapon_set_by_zrye\Gr2+Texture+Effect\free_firedragon_zrye_weapon\1h.gr2",
+        );
+        if !source_gr2.exists() {
+            eprintln!("skipping: FireDragon fixture package not present on this machine");
+            return;
+        }
+        let texture_source = source_gr2
+            .parent()
+            .unwrap()
+            .join("free_firedragon_zrye_weapon.dds");
+        assert!(texture_source.exists(), "fixture's own texture must exist");
+
+        let expected_dest = Path::new(client_path)
+            .join("pack")
+            .join("item")
+            .join("ymir work")
+            .join("zrye_m2mesh_work")
+            .join("weapon")
+            .join("free_firedragon_zrye_weapon")
+            .join("free_firedragon_zrye_weapon.dds");
+        // Clean slate so this test proves the function creates it, not that
+        // a previous run already had.
+        std::fs::remove_file(&expected_dest).ok();
+        assert!(!expected_dest.exists());
+
+        place_absolute_reference_textures(
+            client_path,
+            source_gr2,
+            &[texture_source.display().to_string()],
+        );
+
+        assert!(
+            expected_dest.exists(),
+            "texture must land at the exact virtual path {expected_dest:?} baked into the model's material"
+        );
+
+        std::fs::remove_file(&expected_dest).ok();
     }
 
     #[test]
