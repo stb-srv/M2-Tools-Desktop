@@ -5,6 +5,7 @@ import {
   Database,
   Store,
   PackagePlus,
+  PackageSearch,
   Skull,
   ScrollText,
   Sprout,
@@ -25,6 +26,7 @@ export type Section =
   | "db-explorer"
   | "shop-editor"
   | "item-editor"
+  | "module-importer"
   | "mob-proto-editor"
   | "mob-drop-editor"
   | "quest-builder"
@@ -61,6 +63,7 @@ export const NAV_ITEMS: { section: Section; icon: typeof LayoutDashboard; labelK
   { section: "db-explorer", icon: Database, labelKey: "nav.dbExplorer", category: "editors" },
   { section: "shop-editor", icon: Store, labelKey: "nav.shopEditor", category: "editors" },
   { section: "item-editor", icon: PackagePlus, labelKey: "nav.itemEditor", category: "editors" },
+  { section: "module-importer", icon: PackageSearch, labelKey: "nav.moduleImporter", category: "editors" },
   { section: "mob-proto-editor", icon: PawPrint, labelKey: "nav.mobProtoEditor", category: "editors" },
   { section: "mob-drop-editor", icon: Skull, labelKey: "nav.mobDropEditor", category: "editors" },
   { section: "quest-builder", icon: ScrollText, labelKey: "nav.questBuilder", category: "editors" },

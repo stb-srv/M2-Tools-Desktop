@@ -17,6 +17,14 @@ pub fn init_db(app_data_dir: &Path) -> Result<Connection, String> {
         CREATE TABLE IF NOT EXISTS paths (
             key TEXT PRIMARY KEY,
             value TEXT NOT NULL
+        );
+        CREATE TABLE IF NOT EXISTS module_import_batches (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            module_name TEXT NOT NULL,
+            item_type INTEGER NOT NULL,
+            created_at TEXT NOT NULL,
+            vnums_json TEXT NOT NULL,
+            had_effects INTEGER NOT NULL DEFAULT 0
         );",
     )
     .map_err(|e| e.to_string())?;

@@ -11,6 +11,7 @@ import { ServerControl } from "@/features/server-control/ServerControl";
 import { DbExplorer } from "@/features/db-explorer/DbExplorer";
 import { ShopEditor } from "@/features/shop-editor/ShopEditor";
 import { ItemEditor } from "@/features/item-editor/ItemEditor";
+import { ModuleImporter } from "@/features/module-importer/ModuleImporter";
 import { MobProtoEditor } from "@/features/mob-proto-editor/MobProtoEditor";
 import { MobDropEditor } from "@/features/mob-drop-editor/MobDropEditor";
 import { QuestBuilder } from "@/features/quest-builder/QuestBuilder";
@@ -65,6 +66,7 @@ function App() {
         {section === "db-explorer" && <DbExplorer />}
         {section === "shop-editor" && <ShopEditor />}
         {section === "item-editor" && <ItemEditor />}
+        {section === "module-importer" && <ModuleImporter />}
         {section === "mob-proto-editor" && <MobProtoEditor />}
         {section === "mob-drop-editor" && <MobDropEditor />}
         {section === "quest-builder" && <QuestBuilder />}

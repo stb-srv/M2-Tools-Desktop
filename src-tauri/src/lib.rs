@@ -9,9 +9,12 @@ mod db;
 mod gr2;
 mod icons;
 mod imageconv;
+mod import_history;
 mod locale;
 mod mapdata;
 mod mobdrop;
+mod modulescan;
+mod msm;
 mod packtools;
 mod quest;
 mod regen;
@@ -95,8 +98,22 @@ pub fn run() {
             commands::delete_item_proto,
             commands::write_item_icon,
             commands::pack_item_icons,
+            commands::write_item_model,
+            commands::pack_item_models,
+            commands::write_item_list_entry,
             commands::regenerate_item_proto,
             commands::deploy_item_proto,
+            commands::scan_module,
+            commands::import_weapon_model,
+            commands::next_free_shape_index,
+            commands::import_armor_model,
+            commands::pack_folder,
+            commands::import_effect_bundle,
+            commands::pack_item_effects,
+            commands::record_import_batch,
+            commands::list_import_batches,
+            commands::remove_single_item,
+            commands::undo_import_batch,
             commands::search_mobs,
             commands::list_quest_files,
             commands::read_quest_file,

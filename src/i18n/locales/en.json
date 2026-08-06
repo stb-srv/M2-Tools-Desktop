@@ -5,6 +5,7 @@
     "dbExplorer": "Database Explorer",
     "shopEditor": "Shop Editor",
     "itemEditor": "Item Editor",
+    "moduleImporter": "Module Importer",
     "mobProtoEditor": "Mob Proto Editor",
     "mobDropEditor": "Mob Drop Editor",
     "questBuilder": "Quest Builder",

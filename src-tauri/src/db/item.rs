@@ -285,6 +285,19 @@ pub async fn update_item_proto(pool: &MySqlPool, item: &ItemProtoInput) -> Resul
     Ok(())
 }
 
+/// Highest `value3` used by any armor row - `value3` doubles as the
+/// female-race `.msm` `ShapeIndex` for body armor (see `msm.rs`), so a
+/// newly imported armor piece must pick an index above this to avoid
+/// silently reusing (and thus visually colliding with) an existing item's
+/// body shape.
+pub async fn max_armor_value3(pool: &MySqlPool) -> Result<u32, String> {
+    let row = sqlx::query("SELECT MAX(value3) AS m FROM player.item_proto WHERE type = 2")
+        .fetch_one(pool)
+        .await
+        .map_err(|e| e.to_string())?;
+    Ok(row.try_get::<Option<u32>, _>("m").unwrap_or_default().unwrap_or(0))
+}
+
 pub async fn delete_item_proto(pool: &MySqlPool, vnum: u32) -> Result<(), String> {
     sqlx::query("DELETE FROM player.item_proto WHERE vnum = ?")
         .bind(vnum)

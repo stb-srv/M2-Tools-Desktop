@@ -143,6 +143,8 @@ export function ItemEditor() {
   const [refSearch, setRefSearch] = useState("");
   const [refResults, setRefResults] = useState<ItemSearchResult[]>([]);
   const [refSearching, setRefSearching] = useState(false);
+  const [refModelVnum, setRefModelVnum] = useState<number | null>(null);
+  const [copyModel, setCopyModel] = useState(false);
 
   const [advancedOpen, setAdvancedOpen] = useState(false);
   const [iconBrowserOpen, setIconBrowserOpen] = useState(false);
@@ -224,6 +226,8 @@ export function ItemEditor() {
     setIconPreview(null);
     setEditResults([]);
     setEditSearch("");
+    setRefModelVnum(null);
+    setCopyModel(false);
     setDone(false);
     setPipelineError(null);
     setSteps({});
@@ -310,6 +314,8 @@ export function ItemEditor() {
     setIconPreview(null);
     setEditResults([]);
     setEditSearch("");
+    setRefModelVnum(null);
+    setCopyModel(false);
     setDone(false);
     setPipelineError(null);
     setSteps({});
@@ -321,6 +327,12 @@ export function ItemEditor() {
     if (full) {
       setItem((prev) => ({ ...full, vnum: prev.vnum }));
     }
+    // Weapon 3D models are plain vnum-named files client-side (not anything
+    // in item_proto), so "reuse this item's model" only makes sense for
+    // type 1 (weapon) - armor models live in the much larger per-race
+    // pc_* character trees and aren't supported here.
+    setRefModelVnum(full && full.type === 1 ? vnum : null);
+    setCopyModel(false);
     setRefResults([]);
     setRefSearch("");
   }
@@ -330,6 +342,7 @@ export function ItemEditor() {
   }
 
   const hasNewIcon = !!iconSourcePath;
+  const hasModelCopy = copyModel && refModelVnum !== null && item.type === 1;
 
   const canCreate =
     item.vnum > 0 &&
@@ -362,7 +375,9 @@ export function ItemEditor() {
       // write): a wrong tool path must fail loudly here, not leave a
       // half-finished item behind after the DB step already ran.
       await runStep("setup", async () => {
-        await invoke("validate_item_editor_setup", { requireIconTool: hasNewIcon });
+        await invoke("validate_item_editor_setup", {
+          requireIconTool: hasNewIcon || hasModelCopy,
+        });
       });
       await runStep("db", async () => {
         if (mode === "create") {
@@ -385,6 +400,30 @@ export function ItemEditor() {
         });
         await runStep("pack", async () => {
           await invoke("pack_item_icons");
+        });
+      }
+      if (hasModelCopy) {
+        await runStep("model", async () => {
+          await invoke("write_item_model", { vnum: item.vnum, sourceVnum: refModelVnum });
+        });
+        await runStep("packModel", async () => {
+          await invoke("pack_item_models");
+        });
+      }
+      if (hasNewIcon) {
+        // The client doesn't guess icon/model filenames from the vnum like
+        // this tool's own preview does - it needs an explicit row in every
+        // locale/<lang>/item_list.txt or the icon (and model) silently
+        // fail to render even though the .tga/.gr2/.epk files are correct.
+        await runStep("itemList", async () => {
+          await invoke("write_item_list_entry", {
+            vnum: item.vnum,
+            itemType: item.type,
+            iconRelPath: `icon/item/${String(item.vnum).padStart(5, "0")}.tga`,
+            modelRelPath: hasModelCopy
+              ? `d:/ymir work/item/weapon/${String(item.vnum).padStart(5, "0")}.gr2`
+              : null,
+          });
         });
       }
       await runStep("proto", async () => {
@@ -439,9 +478,10 @@ export function ItemEditor() {
     <div className="max-w-3xl space-y-6 pb-10">
       <h1 className="text-2xl font-semibold">Item Editor</h1>
       <p className="text-sm text-muted-foreground">
-        Legt neue Items ohne eigenes 3D-Modell an oder bearbeitet bestehende (Verbrauchsgegenstände,
-        Schmuck, Rüstungsteile mit vorhandenem Modell). Waffen/Rüstungen mit neuem Modell sind noch
-        nicht unterstützt.
+        Legt neue Items an oder bearbeitet bestehende. Waffen können beim Anlegen das 3D-Modell eines
+        bestehenden Waffen-Items übernehmen (Referenz-Item übernehmen unten). Komplett neue,
+        selbst erstellte 3D-Modelle sowie Rüstungen mit übernommenem Modell werden noch nicht
+        unterstützt.
       </p>
 
       {/* Modus */}
@@ -723,6 +763,16 @@ export function ItemEditor() {
               ))}
             </div>
           )}
+          {refModelVnum !== null && item.type === 1 && (
+            <label className="flex items-center gap-2 text-sm">
+              <input
+                type="checkbox"
+                checked={copyModel}
+                onChange={(e) => setCopyModel(e.target.checked)}
+              />
+              3D-Modell von vnum {refModelVnum} übernehmen (Waffe sieht dann identisch aus)
+            </label>
+          )}
         </section>
       )}
 
@@ -904,6 +954,11 @@ export function ItemEditor() {
             <StepRow label="Datenbankeintrag" status={steps.db} />
             {hasNewIcon && <StepRow label="Icon schreiben" status={steps.icon} />}
             {hasNewIcon && <StepRow label="icon.epk neu packen" status={steps.pack} />}
+            {hasModelCopy && <StepRow label="3D-Modell kopieren" status={steps.model} />}
+            {hasModelCopy && <StepRow label="item.epk neu packen" status={steps.packModel} />}
+            {hasNewIcon && (
+              <StepRow label="item_list.txt aktualisieren (Icon-/Modell-Zuordnung)" status={steps.itemList} />
+            )}
             <StepRow label="item_proto aus DB erzeugen & in Client einspielen" status={steps.proto} />
           </div>
         )}
@@ -955,6 +1010,20 @@ export function ItemEditor() {
                     <code>icon.epk</code> wird neu gepackt (Backup wird vorher angelegt)
                   </li>
                 </>
+              )}
+              {hasModelCopy && (
+                <>
+                  <li>3D-Modell von vnum {refModelVnum} wird für vnum {item.vnum} kopiert</li>
+                  <li>
+                    <code>item.epk</code> wird neu gepackt (Backup wird vorher angelegt)
+                  </li>
+                </>
+              )}
+              {hasNewIcon && (
+                <li>
+                  <code>item_list.txt</code> wird um vnum {item.vnum} ergänzt/aktualisiert
+                  (Backup wird vorher angelegt)
+                </li>
               )}
               <li>
                 <code>item_proto</code> wird aus der DB neu erzeugt und im Client ersetzt (Backup

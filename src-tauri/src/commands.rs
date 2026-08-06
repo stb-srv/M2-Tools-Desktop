@@ -5,7 +5,10 @@ use crate::db::item::{self, ItemProtoFull, ItemProtoInput};
 use crate::db::shop::{self, DatabaseStats, ItemSearchResult, ShopItem, ShopSummary};
 use crate::gr2::{self, ModelInfo};
 use crate::icons;
+use crate::import_history;
 use crate::mobdrop;
+use crate::modulescan::{self, ScannedModule};
+use crate::msm;
 use crate::packtools;
 use crate::backups;
 use crate::locale;
@@ -1208,6 +1211,41 @@ pub async fn pack_item_icons(app: AppHandle, state: State<'_, AppState>) -> Resu
 }
 
 #[tauri::command]
+pub fn write_item_model(
+    state: State<'_, AppState>,
+    vnum: u32,
+    source_vnum: u32,
+) -> Result<String, String> {
+    let client_path = item_editor_setting(&state, "client_path")?;
+    let path = packtools::copy_weapon_model(&client_path, vnum, source_vnum)?;
+    Ok(path.display().to_string())
+}
+
+#[tauri::command]
+pub async fn pack_item_models(app: AppHandle, state: State<'_, AppState>) -> Result<(), String> {
+    let tool_path = item_editor_setting(&state, "eterpack_tool_path")?;
+    packtools::run_eterpack_pack(&app, &tool_path, "item").await
+}
+
+#[tauri::command]
+pub fn write_item_list_entry(
+    state: State<'_, AppState>,
+    vnum: u32,
+    item_type: u32,
+    icon_rel_path: String,
+    model_rel_path: Option<String>,
+) -> Result<Vec<String>, String> {
+    let client_path = item_editor_setting(&state, "client_path")?;
+    packtools::upsert_item_list_entries(
+        &client_path,
+        vnum,
+        item_type,
+        &icon_rel_path,
+        model_rel_path.as_deref(),
+    )
+}
+
+#[tauri::command]
 pub async fn regenerate_item_proto(
     app: AppHandle,
     state: State<'_, AppState>,
@@ -1224,5 +1262,170 @@ pub fn deploy_item_proto(
 ) -> Result<Vec<String>, String> {
     let client_path = item_editor_setting(&state, "client_path")?;
     packtools::replace_client_item_proto(&client_path, &generated_proto_path)
+}
+
+// ---- Modul-Importer (beliebige Ausrüstungs-Pakete: Waffen + Rüstung) ----
+
+#[tauri::command]
+pub fn scan_module(path: String) -> Result<ScannedModule, String> {
+    modulescan::scan_module(std::path::Path::new(&path))
+}
+
+#[tauri::command]
+pub fn import_weapon_model(
+    state: State<'_, AppState>,
+    module_name: String,
+    source_abs: String,
+    texture_sources: Vec<String>,
+) -> Result<(String, String), String> {
+    let client_path = item_editor_setting(&state, "client_path")?;
+    let (dest, virtual_path) = packtools::import_custom_weapon_model(
+        &client_path,
+        &module_name,
+        std::path::Path::new(&source_abs),
+        &texture_sources,
+    )?;
+    Ok((dest.display().to_string(), virtual_path))
+}
+
+/// Allocates a single fresh `value3`/`ShapeIndex` for a whole armor piece -
+/// call **once per item**, before looping `import_armor_model` over that
+/// item's selected races. It must not be re-derived per race: the same
+/// numeric index has to end up in every involved race's `.msm` (each
+/// pointing at that race's own model) so the one `item_proto` row renders
+/// consistently everywhere it's equippable; calling this per-race would
+/// hand out a different, incompatible index each time since every previous
+/// `.msm` write raises the observed maximum.
+#[tauri::command]
+pub async fn next_free_shape_index(state: State<'_, AppState>) -> Result<u32, String> {
+    let client_path = item_editor_setting(&state, "client_path")?;
+    let pool = require_pool(&state).await?;
+    let max_db_value3 = item::max_armor_value3(&pool).await?;
+    Ok(msm::next_free_shape_index(&client_path, max_db_value3))
+}
+
+/// Imports a female armor body model and wires it into that race's `.msm`
+/// under the given (already-allocated, see `next_free_shape_index`)
+/// `shape_index` - see `msm.rs`'s module doc for why there is no male
+/// equivalent.
+#[tauri::command]
+pub fn import_armor_model(
+    state: State<'_, AppState>,
+    module_name: String,
+    race: String,
+    source_abs: String,
+    texture_sources: Vec<String>,
+    shape_index: u32,
+) -> Result<(), String> {
+    let client_path = item_editor_setting(&state, "client_path")?;
+    let (_, model_rel, skin_rel) = packtools::import_custom_armor_model(
+        &client_path,
+        &module_name,
+        &race,
+        std::path::Path::new(&source_abs),
+        &texture_sources,
+    )?;
+    msm::add_shape_data(&client_path, &race, shape_index, &model_rel, &skin_rel)
+}
+
+/// Repacks `<client>/pack/<folder_name>.epk` - a generic counterpart to
+/// `pack_item_icons`/`pack_item_models`/`pack_item_effects` for the
+/// module importer's other pack folders (e.g. `pc_warrior`, `pc_sura`).
+#[tauri::command]
+pub async fn pack_folder(app: AppHandle, state: State<'_, AppState>, folder_name: String) -> Result<(), String> {
+    let tool_path = item_editor_setting(&state, "eterpack_tool_path")?;
+    packtools::run_eterpack_pack(&app, &tool_path, &folder_name).await
+}
+
+#[tauri::command]
+pub fn import_effect_bundle(
+    state: State<'_, AppState>,
+    module_name: String,
+    source_dir: String,
+) -> Result<Vec<String>, String> {
+    let client_path = item_editor_setting(&state, "client_path")?;
+    let copied =
+        packtools::import_effect_bundle(&client_path, &module_name, std::path::Path::new(&source_dir))?;
+    Ok(copied.into_iter().map(|p| p.display().to_string()).collect())
+}
+
+#[tauri::command]
+pub async fn pack_item_effects(app: AppHandle, state: State<'_, AppState>) -> Result<(), String> {
+    let tool_path = item_editor_setting(&state, "eterpack_tool_path")?;
+    packtools::run_eterpack_pack(&app, &tool_path, "effect").await
+}
+
+// ---- Modul-Importer: Verlauf & Rückgängig-machen ----
+
+#[tauri::command]
+pub fn record_import_batch(
+    state: State<'_, AppState>,
+    module_name: String,
+    item_type: i32,
+    vnums: Vec<u32>,
+    had_effects: bool,
+) -> Result<i64, String> {
+    let conn = state.settings_db.lock().map_err(|e| e.to_string())?;
+    import_history::record_batch(&conn, &module_name, item_type, &vnums, had_effects)
+}
+
+#[tauri::command]
+pub fn list_import_batches(state: State<'_, AppState>) -> Result<Vec<import_history::ImportBatch>, String> {
+    let conn = state.settings_db.lock().map_err(|e| e.to_string())?;
+    import_history::list_batches(&conn)
+}
+
+/// Fully undoes a single imported item: removes its `item_proto` row, its
+/// `item_list.txt` entry (in every locale) and its icon file. Does *not*
+/// touch the copied `.gr2`/effect files under `pack/.../custom/<module>/` -
+/// those can be shared by other vnums imported from the same module run
+/// (e.g. re-running an import overwrites the same destination path), so
+/// deleting them per-vnum would risk breaking a sibling item. Leaving them
+/// behind is harmless: without a DB row or `item_list.txt` entry, nothing
+/// references them anymore.
+async fn teardown_item(pool: &sqlx::MySqlPool, client_path: &str, vnum: u32) -> Result<(), String> {
+    item::delete_item_proto(pool, vnum).await?;
+    packtools::remove_item_list_entries(client_path, vnum)?;
+    packtools::delete_item_icon(client_path, vnum)?;
+    Ok(())
+}
+
+#[tauri::command]
+pub async fn remove_single_item(app: AppHandle, state: State<'_, AppState>, vnum: u32) -> Result<(), String> {
+    let pool = require_pool(&state).await?;
+    let client_path = item_editor_setting(&state, "client_path")?;
+
+    teardown_item(&pool, &client_path, vnum).await?;
+
+    let tool_path = item_editor_setting(&state, "eterpack_tool_path")?;
+    packtools::run_eterpack_pack(&app, &tool_path, "icon").await?;
+    let generated = packtools::run_mysql2proto(&app, &item_editor_setting(&state, "mysql2proto_dir")?).await?;
+    packtools::replace_client_item_proto(&client_path, &generated.display().to_string())?;
+    Ok(())
+}
+
+#[tauri::command]
+pub async fn undo_import_batch(app: AppHandle, state: State<'_, AppState>, id: i64) -> Result<(), String> {
+    let batch = {
+        let conn = state.settings_db.lock().map_err(|e| e.to_string())?;
+        import_history::get_batch(&conn, id)?
+            .ok_or_else(|| format!("Import-Batch {id} nicht gefunden (bereits entfernt?)"))?
+    };
+
+    let pool = require_pool(&state).await?;
+    let client_path = item_editor_setting(&state, "client_path")?;
+
+    for vnum in &batch.vnums {
+        teardown_item(&pool, &client_path, *vnum).await?;
+    }
+
+    let tool_path = item_editor_setting(&state, "eterpack_tool_path")?;
+    packtools::run_eterpack_pack(&app, &tool_path, "icon").await?;
+    let generated = packtools::run_mysql2proto(&app, &item_editor_setting(&state, "mysql2proto_dir")?).await?;
+    packtools::replace_client_item_proto(&client_path, &generated.display().to_string())?;
+
+    let conn = state.settings_db.lock().map_err(|e| e.to_string())?;
+    import_history::delete_batch_record(&conn, id)?;
+    Ok(())
 }
 
