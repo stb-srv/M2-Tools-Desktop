@@ -6,6 +6,17 @@ nach [SemVer](https://semver.org/) (`MAJOR.MINOR.PATCH`, solange < 1.0 gilt
 `MINOR` für neue Features, `PATCH` für reine Fixes). Für die vollständige
 Feature-Historie mit allen Details siehe `STATUS.md`.
 
+## [0.5.1] - 2026-08-06
+
+### Geändert
+
+- Icon-Item-Importer: die Werte-Felder (`value0`–`value5`) zeigen jetzt,
+  wenn bekannt (Waffe/Rüstung), ihre echte Bedeutung statt nur der
+  rohen Spaltennamen, plus einen Hinweistext dazu. Außerdem steht jetzt
+  explizit dabei, dass ein Wert sich nur pro Aufwertungs-Stufe ändert,
+  wenn „wächst mit Stufe" angehakt ist — unangehakte Werte bleiben über
+  die ganze Kette konstant.
+
 ## [0.5.0] - 2026-08-06
 
 ### Hinzugefügt

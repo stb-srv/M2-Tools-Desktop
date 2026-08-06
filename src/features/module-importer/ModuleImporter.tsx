@@ -4,7 +4,7 @@ import { listen } from "@tauri-apps/api/event";
 import { open } from "@tauri-apps/plugin-dialog";
 import { Button } from "@/components/ui/button";
 import { Search, CheckCircle2, AlertTriangle, Info, FolderOpen, Image as ImageIcon, Trash2 } from "lucide-react";
-import { SUBTYPES_BY_TYPE, WEAR_FLAGS, ITEM_TYPES } from "@/features/item-editor/itemFlags";
+import { SUBTYPES_BY_TYPE, WEAR_FLAGS, ITEM_TYPES, VALUE_LABELS_BY_TYPE, VALUE_HINTS } from "@/features/item-editor/itemFlags";
 
 // Same shape as the local (unexported) ItemProtoInput in ItemEditor.tsx -
 // duplicated rather than imported, matching that file's own convention of
@@ -1630,13 +1630,30 @@ function IconItemImporter({ onImported }: { onImported: () => void }) {
 
                         <div className="space-y-1">
                           <p className="text-xs text-muted-foreground">
-                            Werte (value0-5) - Basis manuell anpassbar, „wächst" bedeutet: wächst mit der
-                            Aufwertungs-Stufe (siehe unten) linear zur Basis.
+                            <strong>Wichtig:</strong> Ein Wert ändert sich pro Aufwertungs-Stufe nur, wenn
+                            „wächst mit Stufe" angehakt ist - ungehakte Werte bleiben für die komplette Kette
+                            exakt so, wie hier eingetragen (auch wenn unten eine Kette aktiviert ist).
                           </p>
+                          {VALUE_HINTS[row.type] ? (
+                            <p className="flex items-start gap-2 rounded-md bg-muted/40 p-2 text-xs text-muted-foreground">
+                              <Info className="mt-0.5 size-3.5 shrink-0" />
+                              {VALUE_HINTS[row.type]}
+                            </p>
+                          ) : (
+                            <p className="flex items-start gap-2 rounded-md bg-amber-500/10 p-2 text-xs text-amber-700 dark:text-amber-400">
+                              <AlertTriangle className="mt-0.5 size-3.5 shrink-0" />
+                              Für diesen Item-Typ ist die Bedeutung von value0-5 (noch) nicht verifiziert -
+                              hängt vom Typ und Subtyp ab. Am zuverlässigsten: Werte über „Referenz-Item
+                              übernehmen" oben von einem existierenden Item desselben Typs holen, statt zu
+                              raten.
+                            </p>
+                          )}
                           <div className="flex flex-wrap gap-3">
                             {VALUE_KEYS.map((key, i) => (
                               <div key={key} className="flex flex-col gap-1">
-                                <label className="text-xs text-muted-foreground">{key}</label>
+                                <label className="text-xs text-muted-foreground" title={key}>
+                                  {VALUE_LABELS_BY_TYPE[row.type]?.[i] ?? key}
+                                </label>
                                 <div className="flex items-center gap-1">
                                   <input
                                     type="number"
@@ -1658,7 +1675,7 @@ function IconItemImporter({ onImported }: { onImported: () => void }) {
                                         updateRow(path, { growFlags });
                                       }}
                                     />
-                                    wächst
+                                    wächst mit Stufe
                                   </label>
                                 </div>
                               </div>
