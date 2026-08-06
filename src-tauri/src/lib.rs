@@ -17,6 +17,7 @@ mod modulescan;
 mod msm;
 mod packtools;
 mod quest;
+mod refine;
 mod regen;
 mod db_backup;
 mod resources;
@@ -115,6 +116,12 @@ pub fn run() {
             commands::remove_single_item,
             commands::rollback_created_item,
             commands::undo_import_batch,
+            commands::get_refine_chain,
+            commands::get_refine_recipe,
+            commands::save_refine_recipe,
+            commands::delete_refine_recipe,
+            commands::set_item_refine_link,
+            commands::find_refine_shop_sources,
             commands::search_mobs,
             commands::list_quest_files,
             commands::read_quest_file,

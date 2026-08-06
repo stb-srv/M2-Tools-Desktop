@@ -6,6 +6,22 @@ nach [SemVer](https://semver.org/) (`MAJOR.MINOR.PATCH`, solange < 1.0 gilt
 `MINOR` für neue Features, `PATCH` für reine Fixes). Für die vollständige
 Feature-Historie mit allen Details siehe `STATUS.md`.
 
+## [0.3.0] - 2026-08-06
+
+### Hinzugefügt
+
+- **Aufwertungs-Editor (Refine)**: neuer Bereich, der die komplette
+  Aufwertungs-Kette eines Items visualisiert (alle Stufen, benötigte
+  Materialien, Gold-Kosten, Erfolgschance) statt roher
+  `refine_proto`-Zeilen im Datenbank-Explorer. Rezepte lassen sich direkt
+  anlegen, bearbeiten oder wiederverwenden (inkl. Warnung, wenn ein
+  Rezept von mehreren Items gemeinsam genutzt wird), und zu jedem
+  Material gibt es einen „Woher bekomme ich das?"-Hinweis (Mob-Drops und
+  NPC-Shops). Wichtig: Änderungen an Aufwertungs-Rezepten wirken erst
+  nach einem Server-Neustart, da der Server `refine_proto` nur beim
+  Start aus der Datenbank lädt (kein Client-Repack wie bei anderen
+  Editoren) — im Bereich entsprechend markiert.
+
 ## [0.2.4] - 2026-08-06
 
 ### Behoben

@@ -22,6 +22,7 @@ const ItemEditor = lazy(() => import("@/features/item-editor/ItemEditor").then((
 const ModuleImporter = lazy(() => import("@/features/module-importer/ModuleImporter").then((m) => ({ default: m.ModuleImporter })));
 const MobProtoEditor = lazy(() => import("@/features/mob-proto-editor/MobProtoEditor").then((m) => ({ default: m.MobProtoEditor })));
 const MobDropEditor = lazy(() => import("@/features/mob-drop-editor/MobDropEditor").then((m) => ({ default: m.MobDropEditor })));
+const RefineEditor = lazy(() => import("@/features/refine-editor/RefineEditor").then((m) => ({ default: m.RefineEditor })));
 const QuestBuilder = lazy(() => import("@/features/quest-builder/QuestBuilder").then((m) => ({ default: m.QuestBuilder })));
 const RegenEditor = lazy(() => import("@/features/regen-editor/RegenEditor").then((m) => ({ default: m.RegenEditor })));
 const LocaleEditor = lazy(() => import("@/features/locale-editor/LocaleEditor").then((m) => ({ default: m.LocaleEditor })));
@@ -85,6 +86,7 @@ function App() {
           {section === "module-importer" && <ModuleImporter />}
           {section === "mob-proto-editor" && <MobProtoEditor />}
           {section === "mob-drop-editor" && <MobDropEditor />}
+          {section === "refine-editor" && <RefineEditor />}
           {section === "quest-builder" && <QuestBuilder />}
           {section === "regen-editor" && <RegenEditor />}
           {section === "locale-editor" && <LocaleEditor />}

@@ -18,6 +18,7 @@ import {
   DatabaseBackup,
   Images,
   Settings as SettingsIcon,
+  Hammer,
 } from "lucide-react";
 
 export type Section =
@@ -29,6 +30,7 @@ export type Section =
   | "module-importer"
   | "mob-proto-editor"
   | "mob-drop-editor"
+  | "refine-editor"
   | "quest-builder"
   | "regen-editor"
   | "locale-editor"
@@ -66,6 +68,7 @@ export const NAV_ITEMS: { section: Section; icon: typeof LayoutDashboard; labelK
   { section: "module-importer", icon: PackageSearch, labelKey: "nav.moduleImporter", category: "editors" },
   { section: "mob-proto-editor", icon: PawPrint, labelKey: "nav.mobProtoEditor", category: "editors" },
   { section: "mob-drop-editor", icon: Skull, labelKey: "nav.mobDropEditor", category: "editors" },
+  { section: "refine-editor", icon: Hammer, labelKey: "nav.refineEditor", category: "editors" },
   { section: "quest-builder", icon: ScrollText, labelKey: "nav.questBuilder", category: "editors" },
   { section: "regen-editor", icon: Sprout, labelKey: "nav.regenEditor", category: "editors" },
   { section: "locale-editor", icon: Languages, labelKey: "nav.localeEditor", category: "editors" },
