@@ -6,6 +6,19 @@ nach [SemVer](https://semver.org/) (`MAJOR.MINOR.PATCH`, solange < 1.0 gilt
 `MINOR` für neue Features, `PATCH` für reine Fixes). Für die vollständige
 Feature-Historie mit allen Details siehe `STATUS.md`.
 
+## [0.2.1] - 2026-08-06
+
+### Geändert
+
+- Frontend-Build gibt keine „chunks larger than 500 kB"-Warnung mehr aus:
+  alle Sidebar-Bereiche außer dem Dashboard laden jetzt erst bei Aufruf
+  nach (`React.lazy`), statt alle 18 Panels in ein einziges 1,5-MB-Bundle
+  zu packen. Haupt-Bundle jetzt 327 kB.
+- Release-Builds (`npm run release`) sind spürbar schneller: das Rust-
+  Release-Profil nutzt jetzt Thin- statt Fat-LTO (gemessen auf diesem
+  Rechner: 7:55 Min → 4:01 Min bei einem inkrementellen Rebuild), bei
+  praktisch gleicher Programmgröße/-geschwindigkeit.
+
 ## [0.2.0] - 2026-08-06
 
 ### Hinzugefügt
