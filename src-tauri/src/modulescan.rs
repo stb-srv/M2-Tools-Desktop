@@ -189,6 +189,32 @@ fn weapon_icon_score(icon_stem: &str, variant_stem: &str, subtype: i8, is_sura: 
     }
 }
 
+/// Recursively lists every image file under `root` - the whole scan a
+/// pure-icon item package needs (shoes, necklaces, shields, earrings,
+/// bracelets, ... - anything with no `.gr2` at all, unlike
+/// `scan_module`'s weapon/armor handling). Sorted for a stable, predictable
+/// order in the UI regardless of filesystem enumeration order.
+pub fn scan_icon_folder(root: &Path) -> Result<Vec<String>, String> {
+    if !root.is_dir() {
+        return Err(format!("Ordner nicht gefunden: {}", root.display()));
+    }
+    let mut all_files = Vec::new();
+    walk(root, &mut all_files);
+
+    let mut icons: Vec<String> = all_files
+        .into_iter()
+        .filter(|p| {
+            p.extension()
+                .and_then(|e| e.to_str())
+                .map(|e| IMAGE_EXTS.contains(&e.to_lowercase().as_str()))
+                .unwrap_or(false)
+        })
+        .map(|p| p.display().to_string())
+        .collect();
+    icons.sort();
+    Ok(icons)
+}
+
 pub fn scan_module(root: &Path) -> Result<ScannedModule, String> {
     if !root.is_dir() {
         return Err(format!("Ordner nicht gefunden: {}", root.display()));
@@ -350,6 +376,22 @@ pub fn scan_module(root: &Path) -> Result<ScannedModule, String> {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn scan_icon_folder_finds_images_recursively_and_sorted() {
+        let scratch = std::env::temp_dir().join(format!("m2manager_iconfolder_test_{}", std::process::id()));
+        std::fs::create_dir_all(scratch.join("sub")).unwrap();
+        std::fs::write(scratch.join("shoe.tga"), b"x").unwrap();
+        std::fs::write(scratch.join("sub").join("necklace.png"), b"x").unwrap();
+        std::fs::write(scratch.join("readme.txt"), b"x").unwrap();
+
+        let found = scan_icon_folder(&scratch).expect("scan failed");
+        assert_eq!(found.len(), 2, "must find both images, skip the .txt file");
+        assert!(found.iter().any(|p| p.ends_with("shoe.tga")));
+        assert!(found.iter().any(|p| p.ends_with("necklace.png")));
+
+        std::fs::remove_dir_all(&scratch).ok();
+    }
 
     #[test]
     fn weapon_alias_matching_covers_real_pack_names() {

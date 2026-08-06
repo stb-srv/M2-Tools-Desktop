@@ -23,6 +23,7 @@ mod db_backup;
 mod resources;
 mod webhook;
 mod settings;
+mod special_item_group;
 mod ssh;
 mod state;
 mod textures;
@@ -54,6 +55,9 @@ pub fn run() {
             commands::read_mob_drop_file,
             commands::write_mob_drop_file,
             commands::sanitize_mob_drop_group_name,
+            commands::read_special_item_group_file,
+            commands::write_special_item_group_file,
+            commands::sanitize_special_item_group_name,
             commands::read_local_text_file,
             commands::parse_mob_drop_text,
             commands::write_local_mob_drop_file,
@@ -105,6 +109,7 @@ pub fn run() {
             commands::regenerate_item_proto,
             commands::deploy_item_proto,
             commands::scan_module,
+            commands::scan_icon_folder,
             commands::import_weapon_model,
             commands::next_free_shape_index,
             commands::import_armor_model,

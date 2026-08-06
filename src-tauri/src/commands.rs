@@ -20,6 +20,7 @@ use crate::regen;
 use crate::resources;
 use crate::webhook;
 use crate::settings;
+use crate::special_item_group;
 use crate::ssh::{self, SshAuth, SshConfig};
 use crate::state::AppState;
 use tauri::{AppHandle, Emitter, Manager, State};
@@ -346,6 +347,44 @@ pub async fn write_mob_drop_file(
 #[tauri::command]
 pub fn sanitize_mob_drop_group_name(name: String) -> String {
     mobdrop::sanitize_group_name(&name)
+}
+
+// ---- Kisten-Editor (special_item_group.txt - GIFTBOX-Beutetabellen) ----
+
+fn special_item_group_file_path(state: &State<'_, AppState>) -> Result<String, String> {
+    let conn = state.settings_db.lock().map_err(|e| e.to_string())?;
+    Ok(settings::get_path(&conn, "special_item_group_file_path")?
+        .filter(|v| !v.is_empty())
+        .unwrap_or_else(|| "/usr/home/game/share/special_item_group.txt".to_string()))
+}
+
+#[tauri::command]
+pub async fn read_special_item_group_file(
+    state: State<'_, AppState>,
+) -> Result<Vec<special_item_group::SpecialItemGroup>, String> {
+    let (config, auth) = stored_ssh_auth(&state)?;
+    let path = special_item_group_file_path(&state)?;
+    let content = ssh::read_remote_file(&config, &auth, &path).await?;
+    special_item_group::parse(&content)
+}
+
+#[tauri::command]
+pub async fn write_special_item_group_file(
+    state: State<'_, AppState>,
+    groups: Vec<special_item_group::SpecialItemGroup>,
+) -> Result<Option<String>, String> {
+    let (config, auth) = stored_ssh_auth(&state)?;
+    let path = special_item_group_file_path(&state)?;
+    let content = special_item_group::serialize(&groups);
+    // Round-trip-check what we're about to write before touching the
+    // server - refuse to upload something we couldn't parse back ourselves.
+    special_item_group::parse(&content)?;
+    ssh::write_remote_file_with_backup(&config, &auth, &path, &content).await
+}
+
+#[tauri::command]
+pub fn sanitize_special_item_group_name(name: String) -> String {
+    special_item_group::sanitize_group_name(&name)
 }
 
 // ---- Mob Drop Editor: local file variant (syntax check/repair tab) ----
@@ -1270,6 +1309,14 @@ pub fn deploy_item_proto(
 #[tauri::command]
 pub fn scan_module(path: String) -> Result<ScannedModule, String> {
     modulescan::scan_module(std::path::Path::new(&path))
+}
+
+/// Scan for the icon-only importer (accessories with no 3D model at all -
+/// shoes, necklaces, shields, earrings, bracelets, ...): just every image
+/// file under the folder, no weapon/armor detection.
+#[tauri::command]
+pub fn scan_icon_folder(path: String) -> Result<Vec<String>, String> {
+    modulescan::scan_icon_folder(std::path::Path::new(&path))
 }
 
 #[tauri::command]

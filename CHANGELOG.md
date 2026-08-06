@@ -6,6 +6,23 @@ nach [SemVer](https://semver.org/) (`MAJOR.MINOR.PATCH`, solange < 1.0 gilt
 `MINOR` für neue Features, `PATCH` für reine Fixes). Für die vollständige
 Feature-Historie mit allen Details siehe `STATUS.md`.
 
+## [0.5.0] - 2026-08-06
+
+### Hinzugefügt
+
+- **Modul-Importer: Icon-Item-Modus** — neuer zweiter Modus für Items ganz
+  ohne 3D-Modell (Schuhe, Ketten, Schilder, Ohrringe, Armbänder,
+  Verbrauchsgegenstände, …): Ordner mit Bilddateien wählen, pro Bild ein
+  Item mit frei wählbarem Typ/Subtyp/Trageort und einzeln einstellbaren
+  Basiswerten anlegen. Jedes Item kann optional seine eigene
+  Aufwertungs-Kette bekommen (eigene Maximalstufe, eigenes Wachstum pro
+  Wert einzeln markierbar).
+- **Kisten-Editor** — neuer Bereich zum Bearbeiten der Beute-Tabelle einer
+  mehrfach öffenbaren Kiste (`special_item_group.txt`). Die „verbleibende
+  Anzahl“ beim Öffnen ist dabei keine Extra-Funktion, sondern einfach die
+  Stapelanzahl des Kisten-Items selbst — dafür ist keine Server-Änderung
+  nötig, nur der Item-Typ „GIFTBOX“.
+
 ## [0.4.0] - 2026-08-06
 
 ### Hinzugefügt
