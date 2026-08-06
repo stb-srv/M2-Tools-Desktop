@@ -102,24 +102,36 @@ fn copy_sibling_textures(dest_dir: &Path, sources: &[String], skip_name: &str) -
 /// a dropped-in asset module (see `modulescan.rs`) into the client's own
 /// `pack/item/ymir work/item/weapon/` tree, namespaced under
 /// `custom/<module_name>/` so multiple imported modules can't collide with
-/// each other or with stock vnum-named files. `texture_sources` are sibling
-/// `.dds` files the model references by same-directory relative filename -
-/// without copying them too, the weapon renders with missing/pink
-/// textures in-client even though the model itself loads fine. Returns the
-/// physical model destination path and the virtual `d:/ymir work/...` path
-/// string that `upsert_item_list_entries` needs for its model-path column -
-/// this is the only thing that actually makes the client render the model
-/// (see that function's doc comment).
+/// each other or with stock vnum-named files. The `.gr2` itself is renamed
+/// to `{vnum}.gr2` on copy - matching the stock naming convention (see
+/// `find_weapon_model`) instead of keeping the module author's own
+/// filename (`fe_sword.gr2`, `2h.gr2`, ...), which is what a user actually
+/// browsing the folder expects to see and is consistent with icons already
+/// being written as `{vnum}.tga`. This is safe: `textures.rs`'s texture
+/// resolver looks up a `.dds` by filename in the *model's own folder*, not
+/// by any path baked into the `.gr2` itself, so renaming the model file
+/// doesn't affect texture lookup - confirmed against this project's own
+/// GR2 parser, and empirically true for the real modules this was tested
+/// against (2026-08-06). `texture_sources` are sibling `.dds` files the
+/// model references by same-directory filename - copied unrenamed
+/// alongside, since their exact original filename is what both the
+/// model's material and `textures.rs`'s resolver expect. Returns the
+/// physical model destination path and the virtual `d:/ymir work/...`
+/// path string that `upsert_item_list_entries` needs for its model-path
+/// column - this is the only thing that actually makes the client render
+/// the model (see that function's doc comment).
 pub fn import_custom_weapon_model(
     client_path: &str,
     module_name: &str,
+    vnum: u32,
     source_abs: &Path,
     texture_sources: &[String],
 ) -> Result<(PathBuf, String), String> {
-    let file_name = source_abs
+    let source_file_name = source_abs
         .file_name()
         .and_then(|f| f.to_str())
         .ok_or("Ungültiger Modell-Dateiname")?;
+    let dest_file_name = format!("{vnum}.gr2");
     let safe_module = sanitize_path_segment(module_name);
 
     let dest_dir = Path::new(client_path)
@@ -132,12 +144,18 @@ pub fn import_custom_weapon_model(
         .join(&safe_module);
     std::fs::create_dir_all(&dest_dir).map_err(|e| e.to_string())?;
 
-    let dest = dest_dir.join(file_name);
+    let dest = dest_dir.join(&dest_file_name);
     backup_file(&dest)?;
     std::fs::copy(source_abs, &dest).map_err(|e| e.to_string())?;
-    copy_sibling_textures(&dest_dir, texture_sources, file_name)?;
+    // Skip a texture whose name collides with the *source* model's own
+    // filename (already copied above under its new name) - relevant only
+    // for the rare module that ships a texture literally named e.g.
+    // `sword.gr2.dds`-style after its own model, not a real-world case
+    // seen so far, but keeps the guard meaningful now that dest/source
+    // filenames differ.
+    copy_sibling_textures(&dest_dir, texture_sources, source_file_name)?;
 
-    let virtual_path = format!("d:/ymir work/item/weapon/custom/{safe_module}/{file_name}");
+    let virtual_path = format!("d:/ymir work/item/weapon/custom/{safe_module}/{dest_file_name}");
     Ok((dest, virtual_path))
 }
 
@@ -678,7 +696,7 @@ mod tests {
     }
 
     #[test]
-    fn imports_custom_weapon_model_namespaced_by_module() {
+    fn imports_custom_weapon_model_renamed_by_vnum() {
         let scratch = std::env::temp_dir().join(format!(
             "m2manager_packtools_custommodel_test_{}",
             std::time::SystemTime::now()
@@ -698,22 +716,31 @@ mod tests {
         let textures = vec![texture_file.display().to_string()];
 
         let (dest, virtual_path) =
-            import_custom_weapon_model(client_path, "FrostEdge", &source_file, &textures).expect("import failed");
+            import_custom_weapon_model(client_path, "FrostEdge", 700000, &source_file, &textures)
+                .expect("import failed");
         assert!(dest.exists());
+        // Renamed to {vnum}.gr2 - not the module author's own filename - so
+        // browsing the folder shows what item it belongs to at a glance,
+        // consistent with icons already being named {vnum}.tga.
         assert_eq!(
             virtual_path,
-            "d:/ymir work/item/weapon/custom/FrostEdge/fe_sword.gr2"
+            "d:/ymir work/item/weapon/custom/FrostEdge/700000.gr2"
         );
-        assert!(dest.ends_with("pack/item/ymir work/item/weapon/custom/FrostEdge/fe_sword.gr2")
-            || dest.to_string_lossy().replace('\\', "/").ends_with(
-                "pack/item/ymir work/item/weapon/custom/FrostEdge/fe_sword.gr2"
-            ));
+        assert!(dest.to_string_lossy().replace('\\', "/").ends_with(
+            "pack/item/ymir work/item/weapon/custom/FrostEdge/700000.gr2"
+        ));
+        // The texture must still be copied under its OWN original filename
+        // (fe_sword.dds, not 700000.dds) - textures.rs resolves it by exact
+        // filename in the model's folder, and the .gr2's internal material
+        // reference still points at that original name regardless of what
+        // the .gr2 file itself was renamed to.
         let copied_texture = dest.parent().unwrap().join("fe_sword.dds");
-        assert!(copied_texture.exists(), "sibling texture must be copied alongside the model");
+        assert!(copied_texture.exists(), "sibling texture must keep its original filename");
 
         // Re-importing (e.g. re-running the pipeline) must back up, not fail.
         let (dest2, _) =
-            import_custom_weapon_model(client_path, "FrostEdge", &source_file, &textures).expect("re-import failed");
+            import_custom_weapon_model(client_path, "FrostEdge", 700000, &source_file, &textures)
+                .expect("re-import failed");
         assert_eq!(dest, dest2);
 
         std::fs::remove_dir_all(&scratch).ok();

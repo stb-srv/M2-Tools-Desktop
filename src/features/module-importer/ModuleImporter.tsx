@@ -596,6 +596,7 @@ function PackageImporter({ onImported }: { onImported: () => void }) {
         }
         const [, virtualModelPath] = await invoke<[string, string]>("import_weapon_model", {
           moduleName: scanResult!.module_name,
+          vnum,
           sourceAbs: variant.model_source_abs,
           textureSources: variant.texture_sources_abs,
         });

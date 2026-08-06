@@ -1275,6 +1275,7 @@ pub fn scan_module(path: String) -> Result<ScannedModule, String> {
 pub fn import_weapon_model(
     state: State<'_, AppState>,
     module_name: String,
+    vnum: u32,
     source_abs: String,
     texture_sources: Vec<String>,
 ) -> Result<(String, String), String> {
@@ -1282,6 +1283,7 @@ pub fn import_weapon_model(
     let (dest, virtual_path) = packtools::import_custom_weapon_model(
         &client_path,
         &module_name,
+        vnum,
         std::path::Path::new(&source_abs),
         &texture_sources,
     )?;

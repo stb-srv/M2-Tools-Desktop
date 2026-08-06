@@ -6,6 +6,24 @@ nach [SemVer](https://semver.org/) (`MAJOR.MINOR.PATCH`, solange < 1.0 gilt
 `MINOR` für neue Features, `PATCH` für reine Fixes). Für die vollständige
 Feature-Historie mit allen Details siehe `STATUS.md`.
 
+## [0.2.2] - 2026-08-06
+
+### Geändert
+
+- Modul-Importer: importierte Waffen-Modelle heißen jetzt `<vnum>.gr2`
+  statt beim Original-Dateinamen des Pakets (z. B. `2h.gr2`) zu bleiben —
+  konsistent mit der bereits vnum-basierten Icon-Benennung. Zugehörige
+  Texturen behalten weiterhin ihren Original-Dateinamen (wird sowohl vom
+  Modell selbst als auch vom Textur-Lookup so erwartet).
+
+### Geklärt
+
+- Die per-Item `.msm`-Dateien unter `pack/item/ymir work/item/*.msm`
+  (z. B. `00010.msm`) werden von diesem Client **nicht** gelesen — im
+  echten Client-Quellcode verifiziert. Für Waffen reicht der bereits vom
+  Modul-Importer geschriebene `item_list.txt`-Eintrag vollständig aus,
+  eigene `.msm`-Dateien müssen dafür nicht angelegt werden.
+
 ## [0.2.1] - 2026-08-06
 
 ### Geändert
