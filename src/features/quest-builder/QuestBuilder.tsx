@@ -21,6 +21,7 @@ import {
   Code2,
   Wand2,
   BookOpen,
+  Sparkles,
 } from "lucide-react";
 import {
   DEFAULT_FORM,
@@ -41,6 +42,12 @@ import {
   type StepKind,
   type TemplateType,
 } from "./questTemplates";
+import {
+  resolveDescription,
+  pickBestMatch,
+  type LookupKind,
+  type NameCandidate,
+} from "./questDescriptionParser";
 import QUEST_FUNCTIONS from "./questFunctions.json";
 import { APPLY_TYPES } from "@/features/item-editor/itemFlags";
 
@@ -129,6 +136,9 @@ export function QuestBuilder() {
   const [form, setForm] = useState<QuestFormState>(DEFAULT_FORM);
   const [dungeonForm, setDungeonForm] = useState<DungeonFormState>(DEFAULT_DUNGEON_FORM);
   const [multiStepForm, setMultiStepForm] = useState<MultiStepFormState>(DEFAULT_MULTI_STEP_FORM);
+  const [descriptionText, setDescriptionText] = useState("");
+  const [descriptionBusy, setDescriptionBusy] = useState(false);
+  const [descriptionNotes, setDescriptionNotes] = useState<string[] | null>(null);
   const [createError, setCreateError] = useState<string | null>(null);
   const [creatingBusy, setCreatingBusy] = useState(false);
 
@@ -337,6 +347,31 @@ export function QuestBuilder() {
     }));
   }
 
+  // "Semi-KI"-Freitext-Assistent: reine Mustererkennung
+  // (questDescriptionParser.ts), keine echte KI-Anbindung. Löst erkannte
+  // NPC-/Item-/Mob-Namen über dieselben search_items/search_mobs-Befehle
+  // wie der VNUM-Picker auf und übernimmt das Ergebnis in den bereits
+  // vorhandenen Mehrschritt-Baukasten zur Prüfung - erzeugt selbst nichts,
+  // "Anlegen" bleibt der einzige Weg, wirklich eine Quest zu erstellen.
+  async function analyzeDescription() {
+    if (!descriptionText.trim()) return;
+    setDescriptionBusy(true);
+    setDescriptionNotes(null);
+    try {
+      const lookup = async (phrase: string, kind: LookupKind): Promise<NameCandidate | null> => {
+        const command = kind === "item" ? "search_items" : "search_mobs";
+        const results = await invoke<PickResult[]>(command, { query: phrase });
+        return pickBestMatch(phrase, results);
+      };
+      const { steps, notes } = await resolveDescription(descriptionText, lookup);
+      setTemplateType("multi_step");
+      setMultiStepForm({ steps: steps.length > 0 ? steps : [{ ...DEFAULT_STEP }] });
+      setDescriptionNotes(notes);
+    } finally {
+      setDescriptionBusy(false);
+    }
+  }
+
   const preview = useMemo(() => {
     const name = newNamePreview || "neue_quest";
     try {
@@ -365,6 +400,8 @@ export function QuestBuilder() {
       setForm(DEFAULT_FORM);
       setDungeonForm(DEFAULT_DUNGEON_FORM);
       setMultiStepForm(DEFAULT_MULTI_STEP_FORM);
+      setDescriptionText("");
+      setDescriptionNotes(null);
       await loadFiles();
       await openFile(path);
     } catch (e) {
@@ -739,6 +776,45 @@ export function QuestBuilder() {
                   </code>
                 </p>
               )}
+
+              <div className="space-y-2 rounded-md border border-border p-2">
+                <div className="flex items-center gap-1.5 text-xs font-medium text-muted-foreground">
+                  <Sparkles className="size-3.5" />
+                  Freitext-Assistent (optional)
+                </div>
+                <p className="text-xs text-muted-foreground">
+                  Mustererkennung, keine echte KI - einfache, klare Sätze funktionieren am besten
+                  (z.B. "Rede mit Hans, sammle 10 Wolfsfelle, dann bekommt man 100 Yang."). Füllt den
+                  Mehrschritt-Baukasten unten vor - Ergebnis vor dem Anlegen prüfen!
+                </p>
+                <textarea
+                  value={descriptionText}
+                  onChange={(e) => setDescriptionText(e.target.value)}
+                  placeholder="Rede mit Hans, sammle 10 Wolfsfelle, dann bekommt man 100 Yang."
+                  className="h-16 w-full rounded-md border border-border bg-background px-2 py-1 text-sm"
+                />
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={analyzeDescription}
+                  disabled={!descriptionText.trim() || descriptionBusy}
+                >
+                  <Sparkles className="size-3.5" />
+                  {descriptionBusy ? "Analysiere…" : "Analysieren"}
+                </Button>
+                {descriptionNotes && descriptionNotes.length > 0 && (
+                  <div className="space-y-1 rounded-md border border-amber-500/40 bg-amber-500/10 p-2 text-xs text-amber-700 dark:text-amber-400">
+                    {descriptionNotes.map((note, i) => (
+                      <p key={i}>{note}</p>
+                    ))}
+                  </div>
+                )}
+                {descriptionNotes && descriptionNotes.length === 0 && (
+                  <p className="text-xs text-muted-foreground">
+                    Alles erkannt - Ergebnis im Mehrschritt-Baukasten unten geprüft übernehmen.
+                  </p>
+                )}
+              </div>
 
               <Field label="Vorlage">
                 <select

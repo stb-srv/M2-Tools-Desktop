@@ -6,6 +6,23 @@ nach [SemVer](https://semver.org/) (`MAJOR.MINOR.PATCH`, solange < 1.0 gilt
 `MINOR` für neue Features, `PATCH` für reine Fixes). Für die vollständige
 Feature-Historie mit allen Details siehe `STATUS.md`.
 
+## [0.11.0] - 2026-08-07
+
+### Hinzugefügt
+
+- **Quest Builder: Freitext-Assistent ("semi-KI")** — im "Neue Quest"-Dialog
+  kann jetzt eine Freitext-Beschreibung ("Rede mit Hans, sammle 10
+  Wolfsfelle, dann bekommt man 100 Yang.") automatisch in den Mehrschritt-
+  Baukasten übersetzt werden, per Klick auf "Analysieren". Ausdrücklich
+  **keine echte KI-Anbindung** — reine Mustererkennung (Schlüsselwörter/
+  Regex-Klauseln + Fuzzy-Abgleich der genannten Namen gegen die echte
+  Item-/Mob-/NPC-Datenbank über die bereits vorhandenen `search_items`/
+  `search_mobs`-Befehle). Unsichere/nicht erkannte Teile werden als
+  Hinweise angezeigt statt stillschweigend geraten zu werden — das Ergebnis
+  landet immer im normalen, bereits bekannten Baukasten zur Prüfung, "Anlegen"
+  bleibt der einzige Weg, wirklich eine Quest zu erstellen. Kein neuer
+  Backend-Code nötig.
+
 ## [0.10.1] - 2026-08-07
 
 ### Geändert
