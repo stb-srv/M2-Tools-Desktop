@@ -6,6 +6,20 @@ nach [SemVer](https://semver.org/) (`MAJOR.MINOR.PATCH`, solange < 1.0 gilt
 `MINOR` für neue Features, `PATCH` für reine Fixes). Für die vollständige
 Feature-Historie mit allen Details siehe `STATUS.md`.
 
+## [0.8.1] - 2026-08-07
+
+### Behoben
+
+- **Bauen & Einspielen: `libsql` brach mit `'mysql/mysql.h' file not found`
+  ab** — jedes Makefile bindet Drittanbieter-Bibliotheken über einen
+  relativen Pfad ein (`-I../../../extern/FreeBSD/...`), der voraussetzt,
+  dass `extern/` neben `server/` liegt, genau wie im Live-Baum. Die
+  Arbeitskopie hatte bisher nur `server/` synchronisiert, ohne dass ihr
+  Elternordner ein `extern/` besäße. Fix: zusätzlich ein Symlink
+  `extern -> <Live-extern>` neben der Arbeitskopie (kein Kopieren nötig,
+  wird nie verändert). Live gegen den echten Server verifiziert: `game`
+  und `db` bauen jetzt beide sauber in der Arbeitskopie durch.
+
 ## [0.8.0] - 2026-08-07
 
 ### Hinzugefügt

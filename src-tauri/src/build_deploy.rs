@@ -68,14 +68,40 @@ pub fn build_script(opts: &BuildOptions) -> String {
     lines.join("\n")
 }
 
+fn parent_dir(path: &str) -> &str {
+    match path.rfind('/') {
+        Some(idx) => &path[..idx],
+        None => ".",
+    }
+}
+
 /// Synchronisiert den Live-Quellbaum in die Arbeitskopie (einseitig, Live ->
 /// Arbeitskopie, nie umgekehrt), damit manuelle SSH-Änderungen (wie der
 /// char_item.cpp-Patch für generische Aufwertungs-Schriftrollen) vor dem
 /// nächsten Bauen übernommen werden. `rsync` ist auf dem echten Server
 /// bestätigt vorhanden (`/usr/local/bin/rsync`).
+///
+/// **Bugfix (2026-08-07, live gefunden):** jedes Makefile bindet die
+/// Drittanbieter-Bibliotheken (mysql/lua/boost/...) über einen relativen
+/// Pfad `-I../../../extern/FreeBSD/...` ein - das setzt voraus, dass
+/// `extern/` als GESCHWISTER-Ordner neben `server/` liegt, genau wie beim
+/// echten Live-Baum (`/usr/home/source/{server,extern}`). Diese Funktion
+/// synchronisierte bisher nur `server/` in die Arbeitskopie, ohne dass
+/// deren Elternordner ein `extern/` besäße - jeder Build brach deshalb bei
+/// `libsql` mit `'mysql/mysql.h' file not found` ab, sobald der relative
+/// Pfad ins Leere zeigte. Fix: zusätzlich einen Symlink
+/// `<Arbeitskopie-Elternordner>/extern -> <Live-Elternordner>/extern`
+/// anlegen (nie kopieren - die Drittanbieter-Bibliotheken sind groß,
+/// bereits fertig gebaut und werden von diesem Tool nie verändert, ein
+/// Symlink reicht und spart Platz/Zeit). `ln -sfn` ist idempotent - ein
+/// wiederholter Aufruf ersetzt einen vorherigen Symlink, statt sich
+/// darunter zu verschachteln.
 pub fn sync_script(live_root: &str, scratch_root: &str) -> String {
+    let live_parent = parent_dir(live_root);
+    let scratch_parent = parent_dir(scratch_root);
     format!(
-        "mkdir -p '{scratch_root}' && rsync -a --delete '{live_root}/' '{scratch_root}/'",
+        "mkdir -p '{scratch_root}' && rsync -a --delete '{live_root}/' '{scratch_root}/' && \
+         mkdir -p '{scratch_parent}' && ln -sfn '{live_parent}/extern' '{scratch_parent}/extern'",
     )
 }
 
@@ -120,5 +146,17 @@ mod tests {
         // that aren't in the source - the live tree is always the source
         // here, so it can only ever be read from, never written/pruned.
         assert!(script.contains("rsync -a --delete '/usr/home/source/server/' '/usr/home/m2manager_build/server/'"));
+    }
+
+    #[test]
+    fn sync_script_symlinks_extern_as_a_sibling_of_the_scratch_copy() {
+        // Regression test for a real build failure (2026-08-07): every
+        // Makefile's `-I../../../extern/FreeBSD/...` include path assumes
+        // `extern/` sits next to `server/`, exactly like the live tree
+        // (`/usr/home/source/{server,extern}`) - without this symlink,
+        // `gmake libsql` fails with "'mysql/mysql.h' file not found" the
+        // moment the scratch copy's `server/` has no `extern/` sibling.
+        let script = sync_script("/usr/home/source/server", "/usr/home/m2manager_build/server");
+        assert!(script.contains("ln -sfn '/usr/home/source/extern' '/usr/home/m2manager_build/extern'"));
     }
 }
