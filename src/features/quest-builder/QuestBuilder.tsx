@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { invoke } from "@tauri-apps/api/core";
 import { listen } from "@tauri-apps/api/event";
+import { WebviewWindow } from "@tauri-apps/api/webviewWindow";
 import CodeMirror, { type ReactCodeMirrorRef } from "@uiw/react-codemirror";
 import { StreamLanguage } from "@codemirror/language";
 import { lua } from "@codemirror/legacy-modes/mode/lua";
@@ -375,6 +376,23 @@ export function QuestBuilder() {
     setPicker(null);
   }
 
+  // Eigenes Fenster statt eines Bereichs im Hauptfenster, damit die Wiki
+  // parallel zum Skript-Editor offen bleiben kann - `getByLabel` fokussiert
+  // ein bereits offenes Fenster erneut statt ein zweites zu öffnen.
+  async function openWiki() {
+    const existing = await WebviewWindow.getByLabel("wiki");
+    if (existing) {
+      await existing.setFocus();
+      return;
+    }
+    new WebviewWindow("wiki", {
+      url: "wiki.html",
+      title: "Quest-Wiki - M2Manager",
+      width: 1100,
+      height: 800,
+    });
+  }
+
   async function runDeploy() {
     setDeployOpen(true);
     setDeploying(true);
@@ -438,6 +456,10 @@ export function QuestBuilder() {
       <div className="flex items-center justify-between">
         <h1 className="text-2xl font-semibold">Quest Builder</h1>
         <div className="flex items-center gap-2">
+          <Button variant="outline" onClick={openWiki}>
+            <BookOpen className="size-4" />
+            Wiki öffnen
+          </Button>
           <Button variant="outline" onClick={loadFiles} disabled={loading}>
             <RefreshCw className={`size-4 ${loading ? "animate-spin" : ""}`} />
             Neu laden

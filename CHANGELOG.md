@@ -6,6 +6,21 @@ nach [SemVer](https://semver.org/) (`MAJOR.MINOR.PATCH`, solange < 1.0 gilt
 `MINOR` für neue Features, `PATCH` für reine Fixes). Für die vollständige
 Feature-Historie mit allen Details siehe `STATUS.md`.
 
+## [0.9.0] - 2026-08-07
+
+### Hinzugefügt
+
+- **Quest-Wiki** — neues, eigenständiges Fenster im Quest Builder (Knopf
+  "Wiki öffnen"), das die komplette Community-Dokumentation
+  [metin2-quest-docs von wielandino](https://github.com/wielandino/metin2-quest-docs)
+  1:1 mit Quellenangabe enthält (Einführung, Erste Schritte, Grundkonzepte,
+  8-teilige API-Referenz, Benutzeroberfläche, Fortgeschrittene Themen, Best
+  Practices, Kurzreferenz) — durchsuchbar (Titel + Volltext), mit
+  Sidebar-Navigation identisch zur Gliederung des Original-Repos. Läuft als
+  echtes zweites Tauri-Fenster (eigener Vite-Einstiegspunkt `wiki.html`,
+  eigene Capability), damit es parallel zum Schreiben eines Quests offen
+  bleiben kann, statt einen bestehenden Bereich zu ersetzen.
+
 ## [0.8.1] - 2026-08-07
 
 ### Behoben

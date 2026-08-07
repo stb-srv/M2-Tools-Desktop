@@ -26,6 +26,17 @@ export default defineConfig(async () => ({
     // unreachable number for a dependency that's already isolated into its
     // own lazy chunk.
     chunkSizeWarningLimit: 600,
+    // Second entry point for the Quest-Wiki, opened as its own native
+    // Tauri window (see QuestBuilder.tsx's "Wiki öffnen" button) rather
+    // than a lazy-loaded section within the main window's App.tsx router -
+    // it needs to stay open side-by-side with the main window while
+    // writing a quest, not replace whatever section is currently shown.
+    rollupOptions: {
+      input: {
+        main: path.resolve(__dirname, "index.html"),
+        wiki: path.resolve(__dirname, "wiki.html"),
+      },
+    },
   },
 
   // Vite options tailored for Tauri development and only applied in `tauri dev` or `tauri build`

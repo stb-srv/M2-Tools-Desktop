@@ -1,0 +1,10 @@
+{
+  "$schema": "../gen/schemas/desktop-schema.json",
+  "identifier": "wiki",
+  "description": "Capability for the separate Quest-Wiki window - only needs to render bundled static content and open the attribution link in the system browser.",
+  "windows": ["wiki"],
+  "permissions": [
+    "core:default",
+    "opener:default"
+  ]
+}
