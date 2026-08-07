@@ -1,5 +1,6 @@
 use crate::credentials;
 use crate::db::account;
+use crate::db::event_flags;
 use crate::db::mysql::{self, MysqlConfig};
 use crate::db::explorer::{self, ColumnInfo, TableInfo, TableRows};
 use crate::db::item::{self, ItemProtoFull, ItemProtoInput};
@@ -1077,6 +1078,26 @@ async fn require_pool(state: &State<'_, AppState>) -> Result<sqlx::MySqlPool, St
 pub async fn get_database_stats(state: State<'_, AppState>) -> Result<DatabaseStats, String> {
     let pool = require_pool(&state).await?;
     shop::get_stats(&pool).await
+}
+
+// ---- Server-Events (globale Event-Flags, siehe db/event_flags.rs) ----
+
+#[tauri::command]
+pub async fn list_event_flags(state: State<'_, AppState>) -> Result<Vec<event_flags::EventFlagRow>, String> {
+    let pool = require_pool(&state).await?;
+    event_flags::list_event_flags(&pool).await
+}
+
+#[tauri::command]
+pub async fn set_event_flag(state: State<'_, AppState>, name: String, value: i32) -> Result<(), String> {
+    let pool = require_pool(&state).await?;
+    event_flags::set_event_flag(&pool, &name, value).await
+}
+
+#[tauri::command]
+pub async fn delete_event_flag(state: State<'_, AppState>, name: String) -> Result<(), String> {
+    let pool = require_pool(&state).await?;
+    event_flags::delete_event_flag(&pool, &name).await
 }
 
 // ---- Account-Verwaltung ----

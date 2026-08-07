@@ -6,6 +6,30 @@ nach [SemVer](https://semver.org/) (`MAJOR.MINOR.PATCH`, solange < 1.0 gilt
 `MINOR` für neue Features, `PATCH` für reine Fixes). Für die vollständige
 Feature-Historie mit allen Details siehe `STATUS.md`.
 
+## [0.8.0] - 2026-08-07
+
+### Hinzugefügt
+
+- **Server-Events** — neuer Bereich zum An-/Ausschalten und Einstellen der
+  Server-Events (Doppel-Drop, Doppel-EXP, Doppel-Yang, Monster-/Spieler-
+  Schaden, 17 saisonale Sonder-Drops wie Halloween/Valentinstag/Ostern),
+  statt roher `eventflag`-GM-Befehle im Spiel. Alles gegen den echten
+  Server-Quellcode verifiziert (`questmanager.cpp`, `item_manager.cpp`,
+  `cmd_gm.cpp`): Raten-Multiplikatoren (100 = normal, ungesetzt = ebenfalls
+  100) und saisonale Sonder-Drops (ungesetzt = Event komplett aus, "je
+  kleiner der Wert desto häufiger"-Formel) haben grundverschiedene
+  Standardwert-Bedeutung — im Tab entsprechend unterschiedlich erklärt.
+  Änderungen wirken wie bei `refine_proto` erst nach einem
+  Server-Neustart (nur einmal beim DB-Start geladen); zu jedem Wert gibt
+  es deshalb zusätzlich einen kopierbaren `eventflag ...`-GM-Befehl für
+  sofortige Wirkung ohne Neustart. Plus ein Bereich für beliebige weitere/
+  eigene Flags, da das System vollständig offen ist (jeder Name geht).
+- **`EVENT.md`** — dokumentiert, wie neue (noch nicht existierende)
+  Server-Events erstellt werden können, wie schnell das jetzt dank des
+  Bauen-&-Einspielen-Werkzeugs geht, und eine ehrliche Einschätzung, ob
+  ein komplett generischer "Event-Ersteller" ohne jede Quellcode-Änderung
+  realistisch wäre.
+
 ## [0.7.0] - 2026-08-07
 
 ### Hinzugefügt

@@ -17,6 +17,7 @@ import { SetupWizard } from "@/features/setup/SetupWizard";
 // on first visit to that section.
 const ServerControl = lazy(() => import("@/features/server-control/ServerControl").then((m) => ({ default: m.ServerControl })));
 const BuildDeploy = lazy(() => import("@/features/build-deploy/BuildDeploy").then((m) => ({ default: m.BuildDeploy })));
+const ServerEvents = lazy(() => import("@/features/server-events/ServerEvents").then((m) => ({ default: m.ServerEvents })));
 const DbExplorer = lazy(() => import("@/features/db-explorer/DbExplorer").then((m) => ({ default: m.DbExplorer })));
 const ShopEditor = lazy(() => import("@/features/shop-editor/ShopEditor").then((m) => ({ default: m.ShopEditor })));
 const ItemEditor = lazy(() => import("@/features/item-editor/ItemEditor").then((m) => ({ default: m.ItemEditor })));
@@ -83,6 +84,7 @@ function App() {
         <Suspense fallback={<LoadingFallback />}>
           {section === "server-control" && <ServerControl />}
           {section === "build-deploy" && <BuildDeploy />}
+          {section === "server-events" && <ServerEvents />}
           {section === "db-explorer" && <DbExplorer />}
           {section === "shop-editor" && <ShopEditor />}
           {section === "item-editor" && <ItemEditor />}

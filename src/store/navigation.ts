@@ -21,12 +21,14 @@ import {
   Hammer,
   Package,
   Wrench,
+  Sparkles,
 } from "lucide-react";
 
 export type Section =
   | "dashboard"
   | "server-control"
   | "build-deploy"
+  | "server-events"
   | "db-explorer"
   | "shop-editor"
   | "item-editor"
@@ -67,6 +69,7 @@ export const NAV_ITEMS: { section: Section; icon: typeof LayoutDashboard; labelK
   { section: "dashboard", icon: LayoutDashboard, labelKey: "nav.dashboard", category: "overview" },
   { section: "server-control", icon: Terminal, labelKey: "nav.serverControl", category: "overview" },
   { section: "build-deploy", icon: Wrench, labelKey: "nav.buildDeploy", category: "overview" },
+  { section: "server-events", icon: Sparkles, labelKey: "nav.serverEvents", category: "editors" },
   { section: "db-explorer", icon: Database, labelKey: "nav.dbExplorer", category: "editors" },
   { section: "shop-editor", icon: Store, labelKey: "nav.shopEditor", category: "editors" },
   { section: "item-editor", icon: PackagePlus, labelKey: "nav.itemEditor", category: "editors" },

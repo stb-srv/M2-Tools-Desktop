@@ -3,6 +3,7 @@
     "dashboard": "Dashboard",
     "serverControl": "Server-Steuerung",
     "buildDeploy": "Quellcode Bauen & Einspielen",
+    "serverEvents": "Server-Events",
     "dbExplorer": "Datenbank-Explorer",
     "shopEditor": "Shop-Editor",
     "itemEditor": "Item Editor",
