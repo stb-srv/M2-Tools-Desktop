@@ -7,7 +7,15 @@
 // Metin2 documentation. Templates only cover the common single-state cases;
 // anything more complex is edited as raw code after creation.
 
-export type TemplateType = "dialog" | "collect" | "chance_collect" | "kill" | "use" | "buffed_item" | "dungeon";
+export type TemplateType =
+  | "dialog"
+  | "collect"
+  | "chance_collect"
+  | "kill"
+  | "use"
+  | "buffed_item"
+  | "dungeon"
+  | "multi_step";
 
 export interface QuestFormState {
   npcVnum: string;
@@ -294,7 +302,7 @@ function buffedItemTemplate(form: QuestFormState): string {
   ].join("\n");
 }
 
-type SimpleTemplateType = Exclude<TemplateType, "dungeon">;
+type SimpleTemplateType = Exclude<TemplateType, "dungeon" | "multi_step">;
 
 const TEMPLATE_BODIES: Record<SimpleTemplateType, (form: QuestFormState) => string> = {
   dialog: dialogTemplate,
@@ -329,6 +337,7 @@ export const TEMPLATE_LABELS: Record<TemplateType, string> = {
   use: "Item-Benutzung",
   buffed_item: "Item mit festen Boni verschenken",
   dungeon: "Run / Instanz-Dungeon (mehrere Etagen)",
+  multi_step: "Mehrschritt-Quest (mehrere Aufgaben nacheinander)",
 };
 
 export const TEMPLATE_HINTS: Record<TemplateType, string> = {
@@ -343,6 +352,8 @@ export const TEMPLATE_HINTS: Record<TemplateType, string> = {
     "Für vorgegebene Boni (z.B. \"Schwert+9 mit INT 500, STR 700\"), die über die Kisten-Loot-Tabelle nicht möglich sind (die kennt nur VNUM+Anzahl+Chance, keine Attribut-Werte). Spieler spricht den NPC an und bekommt ein konkretes Item (z.B. die bereits im Aufwertungs-Editor angelegte \"+9\"-Stufe) mit bis zu 4 fest eingestellten Bonus-Attributen - keine Server-Änderung nötig, item.set_value ist bereits im Quest-Lua vorhanden.",
   dungeon:
     "Grundgerüst für einen mehrstufigen Run wie Beran/Daemonenturm/Teufelskatakomben: NPC-Einstieg, pro Etage ein Boss-Kill schaltet die nächste Etage frei (d.regen_file/d.jump_all/d.setf), am Ende Belohnung + Rauswurf. Deckt bewusst nur das gemeinsame Grundmuster ab - Passwort-Systeme, Zeitlimits o.ä. wie beim echten Beran müssen danach im Code-Editor von Hand ergänzt werden.",
+  multi_step:
+    "Verkettet beliebig viele der bekannten Bausteine (Dialog, Sammeln, Töten, Item benutzen) zu einer echten Mehrschritt-Quest, ganz ohne Code - z.B. \"Rede mit NPC\" → \"sammle 10 Wolfsfelle\" → \"töte den Boss\" → \"rede nochmal für die Belohnung\". Nutzt bewusst denselben bewährten Fortschritts-Zähler-Trick wie die Kill-Quest- und Dungeon-Vorlage (ein unsichtbarer Zähler schaltet Schritt für Schritt frei) statt der im Wiki beschriebenen state/set_state-Syntax, die auf diesem Server noch nicht verifiziert ist.",
 };
 
 // ---- Dungeon-Run-Vorlage ----
@@ -517,6 +528,210 @@ export function generateDungeonQuest(questName: string, form: DungeonFormState):
   );
   lines.push(`\t\tend`);
 
+  lines.push(`\tend`);
+  lines.push(`end`);
+  lines.push("");
+  return lines.join("\n");
+}
+
+// ---- Mehrschritt-Vorlage ----
+//
+// Verkettet mehrere der bekannten Bausteine (Dialog/Sammeln/Töten/Item
+// benutzen) zu einer echten Mehrschritt-Quest. Bewusst KEINE mehreren
+// `state`-Blöcke / kein `set_state()` - diese Syntax ist nur aus dem 1:1
+// kopierten Community-Wiki bekannt (core-concepts.md), nicht gegen den
+// echten Server dieses Projekts verifiziert. Stattdessen bleibt alles in
+// einem einzigen `state start`, und ein unsichtbarer Fortschritts-Zähler
+// (`pc.getqf("step_index")`) plus eine zusätzliche `with`-Bedingung pro
+// `when`-Block schaltet die Schritte frei - exakt dasselbe Muster, das
+// killTemplate (zwei when-Blöcke mit unterschiedlicher with-Bedingung) und
+// generateDungeonQuest (d.getf("level")/d.setf("level", n) pro Etage) oben
+// bereits verwenden.
+
+export type StepKind = "dialog" | "collect" | "kill" | "use";
+
+export interface QuestStep {
+  kind: StepKind;
+  npcVnum: string;
+  chatLabel: string;
+  npcTitle: string;
+  dialogText: string; // dialog
+  requiredItemVnum: string;
+  requiredItemCount: string;
+  successText: string;
+  failText: string; // collect
+  mobVnum: string;
+  requiredKills: string;
+  progressText: string; // kill
+  useItemVnum: string;
+  useText: string; // use
+  // Optionale Zwischenbelohnung - bei jeder Step-Art nutzbar, nicht nur beim
+  // letzten Schritt (z.B. "hier schon mal etwas Yang, mach weiter").
+  rewardItemVnum: string;
+  rewardItemCount: string;
+  rewardMoney: string;
+}
+
+export const DEFAULT_STEP: QuestStep = {
+  kind: "dialog",
+  npcVnum: "",
+  chatLabel: "Quest",
+  npcTitle: "",
+  dialogText: "",
+  requiredItemVnum: "",
+  requiredItemCount: "1",
+  successText: "",
+  failText: "Das reicht noch nicht.",
+  mobVnum: "",
+  requiredKills: "10",
+  progressText: "Du hast %d von %d erledigt.",
+  useItemVnum: "",
+  useText: "",
+  rewardItemVnum: "",
+  rewardItemCount: "1",
+  rewardMoney: "",
+};
+
+export interface MultiStepFormState {
+  steps: QuestStep[];
+}
+
+export const DEFAULT_MULTI_STEP_FORM: MultiStepFormState = {
+  steps: [{ ...DEFAULT_STEP }],
+};
+
+export const STEP_LABELS: Record<StepKind, string> = {
+  dialog: "NPC-Dialog (mit optionaler Zwischenbelohnung)",
+  collect: "Items abgeben",
+  kill: "Monster töten",
+  use: "Item benutzen",
+};
+
+function stepGuard(index: number): string {
+  return `pc.getqf("step_index") == ${index}`;
+}
+
+function stepRewardLines(step: QuestStep): string[] {
+  const lines: string[] = [];
+  const itemVnum = Number(step.rewardItemVnum);
+  if (Number.isFinite(itemVnum) && itemVnum > 0) {
+    const count = Math.max(1, Number(step.rewardItemCount) || 1);
+    lines.push(`pc.give_item2(${itemVnum}, ${count})`);
+  }
+  const money = Number(step.rewardMoney);
+  if (Number.isFinite(money) && money !== 0) {
+    lines.push(`pc.changemoney(${money})`);
+  }
+  return lines;
+}
+
+function dialogStepLines(step: QuestStep, index: number, isLast: boolean): string[] {
+  const npcVnum = Number(step.npcVnum) || 0;
+  const body = [
+    `say_title(${luaString(step.npcTitle)})`,
+    `say(${luaString(step.dialogText)})`,
+    ...stepRewardLines(step),
+    ...(isLast ? [] : [`pc.setqf("step_index", ${index + 1})`]),
+  ];
+  return [
+    `when ${npcVnum}.chat.${luaString(step.chatLabel)} with ${stepGuard(index)} begin`,
+    indent(body, 1),
+    `end`,
+  ];
+}
+
+function collectStepLines(step: QuestStep, index: number, isLast: boolean): string[] {
+  const npcVnum = Number(step.npcVnum) || 0;
+  const requiredVnum = Number(step.requiredItemVnum) || 0;
+  const requiredCount = Math.max(1, Number(step.requiredItemCount) || 1);
+  const successBody = [
+    `say_title(${luaString(step.npcTitle)})`,
+    `say(${luaString(step.successText)})`,
+    `pc.remove_item(${requiredVnum}, ${requiredCount})`,
+    ...stepRewardLines(step),
+    ...(isLast ? [] : [`pc.setqf("step_index", ${index + 1})`]),
+  ];
+  const failBody = [
+    `say_title(${luaString(step.npcTitle)})`,
+    `say(${luaString(step.failText)})`,
+  ];
+  return [
+    `when ${npcVnum}.chat.${luaString(step.chatLabel)} with ${stepGuard(index)} begin`,
+    `\tif pc.count_item(${requiredVnum}) >= ${requiredCount} then`,
+    indent(successBody, 2),
+    `\telse`,
+    indent(failBody, 2),
+    `\tend`,
+    `end`,
+  ];
+}
+
+// Eigener, nach Schritt-Index benannter qf-Key (z.B. "kill_count_step2") -
+// sonst würden zwei Kill-Schritte in derselben Quest denselben Zähler
+// teilen und sich gegenseitig kaputt machen.
+function killStepLines(step: QuestStep, index: number, isLast: boolean): string[] {
+  const npcVnum = Number(step.npcVnum) || 0;
+  const mobVnum = Number(step.mobVnum) || 0;
+  const requiredKills = Math.max(1, Number(step.requiredKills) || 1);
+  const qfKey = `kill_count_step${index}`;
+  const progressBody = [
+    `say_title(${luaString(step.npcTitle)})`,
+    `say(string.format(${luaString(step.progressText)}, pc.getqf(${luaString(qfKey)}), ${requiredKills}))`,
+  ];
+  const successBody = [
+    `say_title(${luaString(step.npcTitle)})`,
+    `say(${luaString(step.successText)})`,
+    ...stepRewardLines(step),
+    ...(isLast ? [] : [`pc.setqf("step_index", ${index + 1})`]),
+  ];
+  return [
+    `when ${npcVnum}.chat.${luaString(step.chatLabel)} with ${stepGuard(index)} and pc.getqf(${luaString(qfKey)}) < ${requiredKills} begin`,
+    indent(progressBody, 1),
+    `end`,
+    `when ${npcVnum}.chat.${luaString(step.chatLabel)} with ${stepGuard(index)} and pc.getqf(${luaString(qfKey)}) >= ${requiredKills} begin`,
+    indent(successBody, 1),
+    `end`,
+    `when ${mobVnum}.kill with ${stepGuard(index)} begin`,
+    `\tif pc.getqf(${luaString(qfKey)}) < ${requiredKills} then`,
+    `\t\tpc.setqf(${luaString(qfKey)}, pc.getqf(${luaString(qfKey)}) + 1)`,
+    `\tend`,
+    `end`,
+  ];
+}
+
+function useStepLines(step: QuestStep, index: number, isLast: boolean): string[] {
+  const useItemVnum = Number(step.useItemVnum) || 0;
+  const body = [
+    `say(${luaString(step.useText)})`,
+    ...stepRewardLines(step),
+    ...(isLast ? [] : [`pc.setqf("step_index", ${index + 1})`]),
+  ];
+  return [
+    `when ${useItemVnum}.use with ${stepGuard(index)} begin`,
+    indent(body, 1),
+    `end`,
+  ];
+}
+
+const STEP_GENERATORS: Record<
+  StepKind,
+  (step: QuestStep, index: number, isLast: boolean) => string[]
+> = {
+  dialog: dialogStepLines,
+  collect: collectStepLines,
+  kill: killStepLines,
+  use: useStepLines,
+};
+
+export function generateMultiStepQuest(questName: string, form: MultiStepFormState): string {
+  const steps = form.steps.length > 0 ? form.steps : [DEFAULT_STEP];
+  const lines: string[] = [`quest ${questName} begin`, `\tstate start begin`];
+  steps.forEach((step, index) => {
+    const isLast = index === steps.length - 1;
+    lines.push(`\t\t-- Schritt ${index + 1}${isLast ? " (Abschluss)" : ""}`);
+    lines.push(indent(STEP_GENERATORS[step.kind](step, index, isLast), 2));
+    lines.push("");
+  });
   lines.push(`\tend`);
   lines.push(`end`);
   lines.push("");

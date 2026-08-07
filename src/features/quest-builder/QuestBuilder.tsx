@@ -26,12 +26,19 @@ import {
   DEFAULT_FORM,
   DEFAULT_DUNGEON_FORM,
   DEFAULT_FLOOR,
+  DEFAULT_MULTI_STEP_FORM,
+  DEFAULT_STEP,
   generateQuestLua,
   generateDungeonQuest,
+  generateMultiStepQuest,
   TEMPLATE_HINTS,
   TEMPLATE_LABELS,
+  STEP_LABELS,
   type QuestFormState,
   type DungeonFormState,
+  type MultiStepFormState,
+  type QuestStep,
+  type StepKind,
   type TemplateType,
 } from "./questTemplates";
 import QUEST_FUNCTIONS from "./questFunctions.json";
@@ -121,6 +128,7 @@ export function QuestBuilder() {
   const [templateType, setTemplateType] = useState<TemplateType>("dialog");
   const [form, setForm] = useState<QuestFormState>(DEFAULT_FORM);
   const [dungeonForm, setDungeonForm] = useState<DungeonFormState>(DEFAULT_DUNGEON_FORM);
+  const [multiStepForm, setMultiStepForm] = useState<MultiStepFormState>(DEFAULT_MULTI_STEP_FORM);
   const [createError, setCreateError] = useState<string | null>(null);
   const [creatingBusy, setCreatingBusy] = useState(false);
 
@@ -313,16 +321,32 @@ export function QuestBuilder() {
     }));
   }
 
+  function updateStep(index: number, patch: Partial<QuestStep>) {
+    setMultiStepForm((prev) => ({
+      steps: prev.steps.map((s, i) => (i === index ? { ...s, ...patch } : s)),
+    }));
+  }
+
+  function addStep() {
+    setMultiStepForm((prev) => ({ steps: [...prev.steps, { ...DEFAULT_STEP }] }));
+  }
+
+  function removeStep(index: number) {
+    setMultiStepForm((prev) => ({
+      steps: prev.steps.length > 1 ? prev.steps.filter((_, i) => i !== index) : prev.steps,
+    }));
+  }
+
   const preview = useMemo(() => {
     const name = newNamePreview || "neue_quest";
     try {
-      return templateType === "dungeon"
-        ? generateDungeonQuest(name, dungeonForm)
-        : generateQuestLua(name, templateType, form);
+      if (templateType === "dungeon") return generateDungeonQuest(name, dungeonForm);
+      if (templateType === "multi_step") return generateMultiStepQuest(name, multiStepForm);
+      return generateQuestLua(name, templateType, form);
     } catch {
       return "";
     }
-  }, [newNamePreview, templateType, form, dungeonForm]);
+  }, [newNamePreview, templateType, form, dungeonForm, multiStepForm]);
 
   async function submitCreate() {
     if (!newCategoryPreview || !newNamePreview) return;
@@ -340,6 +364,7 @@ export function QuestBuilder() {
       setNewName("");
       setForm(DEFAULT_FORM);
       setDungeonForm(DEFAULT_DUNGEON_FORM);
+      setMultiStepForm(DEFAULT_MULTI_STEP_FORM);
       await loadFiles();
       await openFile(path);
     } catch (e) {
@@ -730,7 +755,7 @@ export function QuestBuilder() {
               </Field>
               <p className="text-xs text-muted-foreground">{TEMPLATE_HINTS[templateType]}</p>
 
-              {templateType !== "dungeon" && (
+              {templateType !== "dungeon" && templateType !== "multi_step" && (
                 <>
                   <Field label="NPC-VNUM">
                     <VnumInput
@@ -1013,7 +1038,9 @@ export function QuestBuilder() {
                 </>
               )}
 
-              {templateType !== "dungeon" && templateType !== "buffed_item" && (
+              {templateType !== "dungeon" &&
+                templateType !== "buffed_item" &&
+                templateType !== "multi_step" && (
                 <>
                   <div className="flex gap-2">
                     <Field label="Belohnung Item-VNUM (optional)">
@@ -1238,6 +1265,233 @@ export function QuestBuilder() {
                     </Field>
                   </div>
                 </>
+              )}
+
+              {templateType === "multi_step" && (
+                <div className="space-y-2 rounded-md border border-border p-2">
+                  <div className="flex items-center justify-between">
+                    <span className="text-xs font-medium text-muted-foreground">
+                      Schritte ({multiStepForm.steps.length})
+                    </span>
+                    <Button variant="outline" size="sm" onClick={addStep}>
+                      <Plus className="size-3.5" />
+                      Schritt
+                    </Button>
+                  </div>
+                  {multiStepForm.steps.map((step, index) => (
+                    <div key={index} className="space-y-1 rounded-md border border-border p-2">
+                      <div className="flex items-center justify-between">
+                        <span className="text-xs font-medium">Schritt {index + 1}</span>
+                        {multiStepForm.steps.length > 1 && (
+                          <Button variant="ghost" size="icon-sm" onClick={() => removeStep(index)}>
+                            <X className="size-3.5" />
+                          </Button>
+                        )}
+                      </div>
+                      <Field label="Art">
+                        <select
+                          value={step.kind}
+                          onChange={(e) => updateStep(index, { kind: e.target.value as StepKind })}
+                          className="w-full rounded-md border border-border bg-background px-2 py-1 text-sm"
+                        >
+                          {Object.entries(STEP_LABELS).map(([value, label]) => (
+                            <option key={value} value={value}>
+                              {label}
+                            </option>
+                          ))}
+                        </select>
+                      </Field>
+
+                      {step.kind !== "use" && (
+                        <>
+                          <div className="flex gap-2">
+                            <Field label="NPC-VNUM">
+                              <VnumInput
+                                value={step.npcVnum}
+                                onChange={(v) => updateStep(index, { npcVnum: v })}
+                                onPick={() =>
+                                  openPicker("npc", (v) => updateStep(index, { npcVnum: String(v) }))
+                                }
+                              />
+                            </Field>
+                            <Field label="chat-Label">
+                              <input
+                                value={step.chatLabel}
+                                onChange={(e) => updateStep(index, { chatLabel: e.target.value })}
+                                className="w-28 rounded-md border border-border bg-background px-2 py-1 text-sm"
+                              />
+                            </Field>
+                          </div>
+                          <Field label="NPC-Titel (say_title)">
+                            <input
+                              value={step.npcTitle}
+                              onChange={(e) => updateStep(index, { npcTitle: e.target.value })}
+                              className="w-full rounded-md border border-border bg-background px-2 py-1 text-sm"
+                            />
+                          </Field>
+                        </>
+                      )}
+
+                      {step.kind === "dialog" && (
+                        <Field label="Dialogtext">
+                          <textarea
+                            value={step.dialogText}
+                            onChange={(e) => updateStep(index, { dialogText: e.target.value })}
+                            className="h-16 w-full rounded-md border border-border bg-background px-2 py-1 text-sm"
+                          />
+                        </Field>
+                      )}
+
+                      {step.kind === "collect" && (
+                        <>
+                          <div className="flex gap-2">
+                            <Field label="Item-VNUM (abzugeben)">
+                              <VnumInput
+                                value={step.requiredItemVnum}
+                                onChange={(v) => updateStep(index, { requiredItemVnum: v })}
+                                onPick={() =>
+                                  openPicker("item", (v) =>
+                                    updateStep(index, { requiredItemVnum: String(v) }),
+                                  )
+                                }
+                              />
+                            </Field>
+                            <Field label="Anzahl">
+                              <input
+                                type="number"
+                                min={1}
+                                value={step.requiredItemCount}
+                                onChange={(e) =>
+                                  updateStep(index, { requiredItemCount: e.target.value })
+                                }
+                                className="w-20 rounded-md border border-border bg-background px-2 py-1 text-sm"
+                              />
+                            </Field>
+                          </div>
+                          <Field label="Text bei Erfolg">
+                            <textarea
+                              value={step.successText}
+                              onChange={(e) => updateStep(index, { successText: e.target.value })}
+                              className="h-14 w-full rounded-md border border-border bg-background px-2 py-1 text-sm"
+                            />
+                          </Field>
+                          <Field label="Text wenn noch nicht genug Items">
+                            <textarea
+                              value={step.failText}
+                              onChange={(e) => updateStep(index, { failText: e.target.value })}
+                              className="h-14 w-full rounded-md border border-border bg-background px-2 py-1 text-sm"
+                            />
+                          </Field>
+                        </>
+                      )}
+
+                      {step.kind === "kill" && (
+                        <>
+                          <div className="flex gap-2">
+                            <Field label="Monster-VNUM">
+                              <VnumInput
+                                value={step.mobVnum}
+                                onChange={(v) => updateStep(index, { mobVnum: v })}
+                                onPick={() =>
+                                  openPicker("mob", (v) => updateStep(index, { mobVnum: String(v) }))
+                                }
+                              />
+                            </Field>
+                            <Field label="Anzahl zu töten">
+                              <input
+                                type="number"
+                                min={1}
+                                value={step.requiredKills}
+                                onChange={(e) =>
+                                  updateStep(index, { requiredKills: e.target.value })
+                                }
+                                className="w-24 rounded-md border border-border bg-background px-2 py-1 text-sm"
+                              />
+                            </Field>
+                          </div>
+                          <Field label="Fortschrittstext (%d = aktuell, %d = Ziel)">
+                            <input
+                              value={step.progressText}
+                              onChange={(e) => updateStep(index, { progressText: e.target.value })}
+                              className="w-full rounded-md border border-border bg-background px-2 py-1 text-sm"
+                            />
+                          </Field>
+                          <Field label="Text bei Erfolg">
+                            <textarea
+                              value={step.successText}
+                              onChange={(e) => updateStep(index, { successText: e.target.value })}
+                              className="h-14 w-full rounded-md border border-border bg-background px-2 py-1 text-sm"
+                            />
+                          </Field>
+                        </>
+                      )}
+
+                      {step.kind === "use" && (
+                        <>
+                          <Field label="Item-VNUM (zu benutzen)">
+                            <VnumInput
+                              value={step.useItemVnum}
+                              onChange={(v) => updateStep(index, { useItemVnum: v })}
+                              onPick={() =>
+                                openPicker("item", (v) => updateStep(index, { useItemVnum: String(v) }))
+                              }
+                            />
+                          </Field>
+                          <Field label="Text beim Benutzen">
+                            <textarea
+                              value={step.useText}
+                              onChange={(e) => updateStep(index, { useText: e.target.value })}
+                              className="h-14 w-full rounded-md border border-border bg-background px-2 py-1 text-sm"
+                            />
+                          </Field>
+                        </>
+                      )}
+
+                      <div className="space-y-1 rounded-md border border-border p-2">
+                        <span className="text-xs font-medium text-muted-foreground">
+                          Zwischenbelohnung (optional)
+                        </span>
+                        <div className="flex gap-2">
+                          <Field label="Item-VNUM">
+                            <VnumInput
+                              value={step.rewardItemVnum}
+                              onChange={(v) => updateStep(index, { rewardItemVnum: v })}
+                              onPick={() =>
+                                openPicker("item", (v) =>
+                                  updateStep(index, { rewardItemVnum: String(v) }),
+                                )
+                              }
+                            />
+                          </Field>
+                          <Field label="Anzahl">
+                            <input
+                              type="number"
+                              min={1}
+                              value={step.rewardItemCount}
+                              onChange={(e) =>
+                                updateStep(index, { rewardItemCount: e.target.value })
+                              }
+                              className="w-20 rounded-md border border-border bg-background px-2 py-1 text-sm"
+                            />
+                          </Field>
+                        </div>
+                        <Field label="Yang">
+                          <input
+                            type="number"
+                            value={step.rewardMoney}
+                            onChange={(e) => updateStep(index, { rewardMoney: e.target.value })}
+                            className="w-32 rounded-md border border-border bg-background px-2 py-1 text-sm"
+                          />
+                        </Field>
+                      </div>
+                    </div>
+                  ))}
+                  <p className="text-xs text-muted-foreground">
+                    Jeder Schritt schaltet sich automatisch frei, sobald der vorherige abgeschlossen
+                    ist (ein unsichtbarer Fortschritts-Zähler, kein Zutun des Spielers nötig) - beim
+                    letzten Schritt wird die Zwischenbelohnung zur eigentlichen Abschlussbelohnung.
+                  </p>
+                </div>
               )}
 
               {createError && <p className="text-sm text-destructive">{createError}</p>}

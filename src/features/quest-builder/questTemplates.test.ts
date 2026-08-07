@@ -3,10 +3,14 @@ import {
   DEFAULT_DUNGEON_FORM,
   DEFAULT_FLOOR,
   DEFAULT_FORM,
+  DEFAULT_STEP,
   generateDungeonQuest,
+  generateMultiStepQuest,
   generateQuestLua,
   type DungeonFormState,
+  type MultiStepFormState,
   type QuestFormState,
+  type QuestStep,
 } from "./questTemplates";
 
 // Every `begin` and every plain `if` (no elseif/while/for/function used in
@@ -180,5 +184,111 @@ describe("generateDungeonQuest", () => {
     const lua = generateDungeonQuest("empty_run", { ...twoFloorForm, floors: [] });
     expectBalanced(lua);
     expect(lua).toContain("when 0.kill with pc.in_dungeon()");
+  });
+});
+
+describe("generateMultiStepQuest", () => {
+  const dialogStep = (patch: Partial<QuestStep> = {}): QuestStep => ({
+    ...DEFAULT_STEP,
+    kind: "dialog",
+    npcVnum: "9001",
+    chatLabel: "Quest",
+    npcTitle: "Testwirt",
+    dialogText: "Hallo!",
+    ...patch,
+  });
+  const collectStep = (patch: Partial<QuestStep> = {}): QuestStep => ({
+    ...DEFAULT_STEP,
+    kind: "collect",
+    npcVnum: "9001",
+    chatLabel: "Quest",
+    npcTitle: "Testwirt",
+    requiredItemVnum: "100",
+    requiredItemCount: "5",
+    ...patch,
+  });
+  const killStep = (patch: Partial<QuestStep> = {}): QuestStep => ({
+    ...DEFAULT_STEP,
+    kind: "kill",
+    npcVnum: "9001",
+    chatLabel: "Quest",
+    npcTitle: "Testwirt",
+    mobVnum: "101",
+    requiredKills: "5",
+    ...patch,
+  });
+  const useStep = (patch: Partial<QuestStep> = {}): QuestStep => ({
+    ...DEFAULT_STEP,
+    kind: "use",
+    useItemVnum: "300",
+    useText: "Bumm!",
+    ...patch,
+  });
+
+  function form(steps: QuestStep[]): MultiStepFormState {
+    return { steps };
+  }
+
+  it("wraps every step in exactly one quest/state block and stays balanced", () => {
+    const lua = generateMultiStepQuest("multi_quest", form([dialogStep(), collectStep(), killStep()]));
+    expect(lua).toMatch(/^quest multi_quest begin/);
+    expect(lua).toContain("state start begin");
+    expectBalanced(lua);
+  });
+
+  it("dialog step: gates on step_index and advances it unless it's the last step", () => {
+    const lua = generateMultiStepQuest("d", form([dialogStep(), useStep()]));
+    expect(lua).toContain('when 9001.chat."Quest" with pc.getqf("step_index") == 0 begin');
+    expect(lua).toContain('pc.setqf("step_index", 1)');
+    expectBalanced(lua);
+  });
+
+  it("collect step: same gate/reward structure as the single-state collect template, plus step_index guard", () => {
+    const lua = generateMultiStepQuest("c", form([collectStep(), useStep()]));
+    expect(lua).toContain('when 9001.chat."Quest" with pc.getqf("step_index") == 0 begin');
+    expect(lua).toContain("if pc.count_item(100) >= 5 then");
+    expect(lua).toContain("pc.remove_item(100, 5)");
+    expect(lua).toContain('pc.setqf("step_index", 1)');
+    expectBalanced(lua);
+  });
+
+  it("kill step: uses a step-namespaced kill counter, not the plain kill_count key", () => {
+    const lua = generateMultiStepQuest("k", form([killStep(), useStep()]));
+    expect(lua).toContain("when 101.kill with pc.getqf(\"step_index\") == 0 begin");
+    expect(lua).toContain('pc.getqf("kill_count_step0")');
+    expect(lua).not.toContain('pc.getqf("kill_count")');
+    expectBalanced(lua);
+  });
+
+  it("use step: needs no NPC, still respects the step_index guard", () => {
+    const lua = generateMultiStepQuest("u", form([dialogStep(), useStep()]));
+    expect(lua).toContain('when 300.use with pc.getqf("step_index") == 1 begin');
+    expect(lua).toContain('say("Bumm!")');
+    expectBalanced(lua);
+  });
+
+  it("chains a 3-step quest (dialog -> collect -> kill) with the right step_index advances", () => {
+    const lua = generateMultiStepQuest("chain", form([dialogStep(), collectStep(), killStep()]));
+    expect(lua).toContain('pc.setqf("step_index", 1)'); // after step 0 (dialog)
+    expect(lua).toContain('pc.setqf("step_index", 2)'); // after step 1 (collect)
+    // the last step (kill, index 2) must NOT advance step_index any further
+    expect(lua).not.toContain('pc.setqf("step_index", 3)');
+    expectBalanced(lua);
+  });
+
+  it("two kill steps in the same quest get distinct namespaced counters", () => {
+    const lua = generateMultiStepQuest(
+      "double_kill",
+      form([killStep(), dialogStep(), killStep({ mobVnum: "202" })]),
+    );
+    expect(lua).toContain('pc.getqf("kill_count_step0")');
+    expect(lua).toContain('pc.getqf("kill_count_step2")');
+    expectBalanced(lua);
+  });
+
+  it("falls back to a single default step when the list is empty", () => {
+    const lua = generateMultiStepQuest("empty_multi", form([]));
+    expectBalanced(lua);
+    expect(lua).toContain("state start begin");
   });
 });

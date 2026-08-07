@@ -6,6 +6,24 @@ nach [SemVer](https://semver.org/) (`MAJOR.MINOR.PATCH`, solange < 1.0 gilt
 `MINOR` für neue Features, `PATCH` für reine Fixes). Für die vollständige
 Feature-Historie mit allen Details siehe `STATUS.md`.
 
+## [0.10.0] - 2026-08-07
+
+### Hinzugefügt
+
+- **Quest Builder: Mehrschritt-Vorlage** — neue Vorlagenart "Mehrschritt-Quest",
+  die beliebig viele der bekannten Bausteine (Dialog, Sammeln, Töten, Item
+  benutzen) zu einer echten mehrstufigen Quest verkettet, ganz ohne Code
+  (z.B. "Rede mit NPC" → "sammle 10 Wolfsfelle" → "töte den Boss" → "rede
+  nochmal für die Belohnung"). Bewusst **keine** mehreren `state`-Blöcke/
+  `set_state()` verwendet - diese Syntax ist nur aus dem 1:1 kopierten
+  Community-Wiki bekannt und auf diesem Server nicht verifiziert. Stattdessen
+  bleibt alles in einem `state start`, ein unsichtbarer Fortschritts-Zähler
+  (`pc.getqf("step_index")`) schaltet die Schritte frei - exakt dasselbe
+  bereits bewährte Muster, das die Kill-Quest- und Dungeon-Vorlage schon
+  einsetzen. Kill-Schritte bekommen einen pro Schritt eigenen, namensraum-
+  isolierten Zähler (`kill_count_stepN`), damit zwei Kill-Schritte in
+  derselben Quest sich nicht gegenseitig überschreiben.
+
 ## [0.9.0] - 2026-08-07
 
 ### Hinzugefügt
