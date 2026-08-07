@@ -580,6 +580,18 @@ export interface QuestStep {
   rewardItemVnum: string;
   rewardItemCount: string;
   rewardMoney: string;
+  // Feste Bonus-Attribute auf dem Belohnungs-Item (z.B. "Max. HP +250"),
+  // exakt derselbe Mechanismus wie bei der buffed_item-Vorlage weiter oben
+  // (pc.give_item2_select + item.set_value statt pc.give_item2) - "0"/
+  // Apply-Typ "Keine" bedeutet der Slot bleibt ungenutzt.
+  rewardAttrType0: string;
+  rewardAttrValue0: string;
+  rewardAttrType1: string;
+  rewardAttrValue1: string;
+  rewardAttrType2: string;
+  rewardAttrValue2: string;
+  rewardAttrType3: string;
+  rewardAttrValue3: string;
 }
 
 export const DEFAULT_STEP: QuestStep = {
@@ -600,14 +612,29 @@ export const DEFAULT_STEP: QuestStep = {
   rewardItemVnum: "",
   rewardItemCount: "1",
   rewardMoney: "",
+  rewardAttrType0: "0",
+  rewardAttrValue0: "0",
+  rewardAttrType1: "0",
+  rewardAttrValue1: "0",
+  rewardAttrType2: "0",
+  rewardAttrValue2: "0",
+  rewardAttrType3: "0",
+  rewardAttrValue3: "0",
 };
 
 export interface MultiStepFormState {
   steps: QuestStep[];
+  // Wiederholbare Quest mit Cooldown (z.B. "alle 4 Tage") statt einmalig -
+  // siehe generateMultiStepQuest für die Cooldown-Sperre an Schritt 0 und
+  // den Kill-Zähler-Reset beim erneuten Durchlauf.
+  repeatable: boolean;
+  cooldownDays: string;
 }
 
 export const DEFAULT_MULTI_STEP_FORM: MultiStepFormState = {
   steps: [{ ...DEFAULT_STEP }],
+  repeatable: false,
+  cooldownDays: "4",
 };
 
 export const STEP_LABELS: Record<StepKind, string> = {
@@ -625,16 +652,42 @@ function stateName(index: number): string {
   return index === 0 ? "start" : `step_${index + 1}`;
 }
 
-function nextStateName(index: number, isLast: boolean): string {
-  return isLast ? "__COMPLETE__" : stateName(index + 1);
+// Bei einer wiederholbaren Quest gibt es keinen echten Abschluss-Zustand -
+// der letzte Schritt springt zurück auf "start" (Kreis statt Sackgasse),
+// die Cooldown-Sperre an Schritt 0 verhindert einen sofortigen Neustart.
+function nextStateName(index: number, isLast: boolean, repeatable: boolean): string {
+  if (isLast) return repeatable ? "start" : "__COMPLETE__";
+  return stateName(index + 1);
 }
 
 function stepRewardLines(step: QuestStep): string[] {
   const lines: string[] = [];
   const itemVnum = Number(step.rewardItemVnum);
+  const attrSlots: [string, string][] = [
+    [step.rewardAttrType0, step.rewardAttrValue0],
+    [step.rewardAttrType1, step.rewardAttrValue1],
+    [step.rewardAttrType2, step.rewardAttrValue2],
+    [step.rewardAttrType3, step.rewardAttrValue3],
+  ];
+  const hasAttrs = attrSlots.some(([type]) => (Number(type) || 0) > 0);
+
   if (Number.isFinite(itemVnum) && itemVnum > 0) {
     const count = Math.max(1, Number(step.rewardItemCount) || 1);
-    lines.push(`pc.give_item2(${itemVnum}, ${count})`);
+    if (hasAttrs) {
+      // Fest eingebaute Bonus-Attribute (z.B. "Max. HP +250") - derselbe
+      // Mechanismus wie buffedItemTemplate weiter oben: give_item2_select
+      // markiert das neue Item als "aktuelles Item", item.set_value
+      // schreibt direkt in einen der 7 Bonus-Slots statt eines
+      // Zufalls-Rolls.
+      lines.push(`pc.give_item2_select(${itemVnum}, ${count})`);
+      attrSlots.forEach(([type, value], slot) => {
+        const applyType = Number(type) || 0;
+        const applyValue = Number(value) || 0;
+        if (applyType > 0) lines.push(`item.set_value(${slot}, ${applyType}, ${applyValue})`);
+      });
+    } else {
+      lines.push(`pc.give_item2(${itemVnum}, ${count})`);
+    }
   }
   const money = Number(step.rewardMoney);
   if (Number.isFinite(money) && money !== 0) {
@@ -643,38 +696,69 @@ function stepRewardLines(step: QuestStep): string[] {
   return lines;
 }
 
-function dialogStepLines(step: QuestStep, index: number, isLast: boolean): string[] {
-  const npcVnum = Number(step.npcVnum) || 0;
-  const body = [
-    `say_title(${luaString(step.npcTitle)})`,
-    `say(${luaString(step.dialogText)})`,
-    ...stepRewardLines(step),
-    `set_state(${nextStateName(index, isLast)})`,
-  ];
+// Cooldown-Bedingung für den Eintritt in Schritt 0 einer wiederholbaren
+// Quest - get_time()/get_global_time() ist eine echte, registrierte
+// Quest-Funktion (game-src/source/game/src/questlua_global.cpp), nicht
+// aus dem Wiki übernommen. "not (...)" negiert dieselbe Bedingung für den
+// "noch nicht wieder verfügbar"-Geschwisterblock, statt eine zweite
+// Formel von Hand gegenzurechnen (Fehlerquelle vermieden).
+function cooldownGuardExpr(days: number): string {
+  return `pc.getqf("last_complete") == 0 or get_time() - pc.getqf("last_complete") >= ${Math.max(0, days) * 86400}`;
+}
+
+function cooldownWaitBlock(trigger: string, cooldownGuard: string): string[] {
   return [
-    `when ${npcVnum}.chat.${luaString(step.chatLabel)} begin`,
-    indent(body, 1),
+    `when ${trigger} with not (${cooldownGuard}) begin`,
+    indent([`say(${luaString("Diese Quest ist noch nicht wieder verfügbar.")})`], 1),
     `end`,
   ];
 }
 
-function collectStepLines(step: QuestStep, index: number, isLast: boolean): string[] {
+type StepLineGenerator = (
+  step: QuestStep,
+  index: number,
+  next: string,
+  completionExtra: string[],
+  cooldownGuard: string | null,
+) => string[];
+
+const dialogStepLines: StepLineGenerator = (step, _index, next, completionExtra, cooldownGuard) => {
+  const npcVnum = Number(step.npcVnum) || 0;
+  const trigger = `${npcVnum}.chat.${luaString(step.chatLabel)}`;
+  const body = [
+    `say_title(${luaString(step.npcTitle)})`,
+    `say(${luaString(step.dialogText)})`,
+    ...stepRewardLines(step),
+    ...completionExtra,
+    `set_state(${next})`,
+  ];
+  const lines = [
+    `when ${trigger}${cooldownGuard ? ` with ${cooldownGuard}` : ""} begin`,
+    indent(body, 1),
+    `end`,
+  ];
+  return cooldownGuard ? [...lines, ...cooldownWaitBlock(trigger, cooldownGuard)] : lines;
+};
+
+const collectStepLines: StepLineGenerator = (step, _index, next, completionExtra, cooldownGuard) => {
   const npcVnum = Number(step.npcVnum) || 0;
   const requiredVnum = Number(step.requiredItemVnum) || 0;
   const requiredCount = Math.max(1, Number(step.requiredItemCount) || 1);
+  const trigger = `${npcVnum}.chat.${luaString(step.chatLabel)}`;
   const successBody = [
     `say_title(${luaString(step.npcTitle)})`,
     `say(${luaString(step.successText)})`,
     `pc.remove_item(${requiredVnum}, ${requiredCount})`,
     ...stepRewardLines(step),
-    `set_state(${nextStateName(index, isLast)})`,
+    ...completionExtra,
+    `set_state(${next})`,
   ];
   const failBody = [
     `say_title(${luaString(step.npcTitle)})`,
     `say(${luaString(step.failText)})`,
   ];
-  return [
-    `when ${npcVnum}.chat.${luaString(step.chatLabel)} begin`,
+  const lines = [
+    `when ${trigger}${cooldownGuard ? ` with ${cooldownGuard}` : ""} begin`,
     `\tif pc.count_item(${requiredVnum}) >= ${requiredCount} then`,
     indent(successBody, 2),
     `\telse`,
@@ -682,17 +766,21 @@ function collectStepLines(step: QuestStep, index: number, isLast: boolean): stri
     `\tend`,
     `end`,
   ];
-}
+  return cooldownGuard ? [...lines, ...cooldownWaitBlock(trigger, cooldownGuard)] : lines;
+};
 
 // Eigener, nach Schritt-Index benannter qf-Key (z.B. "kill_count_step2") -
 // pc.getqf/setqf sind NICHT pro Zustand gescoped (quellcode-verifiziert,
 // siehe Kommentar oben), sonst würden zwei Kill-Schritte in derselben
-// Quest denselben Zähler teilen und sich gegenseitig kaputt machen.
-function killStepLines(step: QuestStep, index: number, isLast: boolean): string[] {
+// Quest denselben Zähler teilen und sich gegenseitig kaputt machen. Bei
+// einer wiederholbaren Quest wird dieser Zähler zusätzlich bei jedem
+// Abschluss zurückgesetzt (siehe generateMultiStepQuest).
+const killStepLines: StepLineGenerator = (step, index, next, completionExtra, cooldownGuard) => {
   const npcVnum = Number(step.npcVnum) || 0;
   const mobVnum = Number(step.mobVnum) || 0;
   const requiredKills = Math.max(1, Number(step.requiredKills) || 1);
   const qfKey = `kill_count_step${index}`;
+  const trigger = `${npcVnum}.chat.${luaString(step.chatLabel)}`;
   const progressBody = [
     `say_title(${luaString(step.npcTitle)})`,
     `say(string.format(${luaString(step.progressText)}, pc.getqf(${luaString(qfKey)}), ${requiredKills}))`,
@@ -701,13 +789,15 @@ function killStepLines(step: QuestStep, index: number, isLast: boolean): string[
     `say_title(${luaString(step.npcTitle)})`,
     `say(${luaString(step.successText)})`,
     ...stepRewardLines(step),
-    `set_state(${nextStateName(index, isLast)})`,
+    ...completionExtra,
+    `set_state(${next})`,
   ];
-  return [
-    `when ${npcVnum}.chat.${luaString(step.chatLabel)} with pc.getqf(${luaString(qfKey)}) < ${requiredKills} begin`,
+  const guardSuffix = cooldownGuard ? ` and (${cooldownGuard})` : "";
+  const lines = [
+    `when ${trigger} with pc.getqf(${luaString(qfKey)}) < ${requiredKills}${guardSuffix} begin`,
     indent(progressBody, 1),
     `end`,
-    `when ${npcVnum}.chat.${luaString(step.chatLabel)} with pc.getqf(${luaString(qfKey)}) >= ${requiredKills} begin`,
+    `when ${trigger} with pc.getqf(${luaString(qfKey)}) >= ${requiredKills}${guardSuffix} begin`,
     indent(successBody, 1),
     `end`,
     `when ${mobVnum}.kill begin`,
@@ -716,26 +806,27 @@ function killStepLines(step: QuestStep, index: number, isLast: boolean): string[
     `\tend`,
     `end`,
   ];
-}
+  return cooldownGuard ? [...lines, ...cooldownWaitBlock(trigger, cooldownGuard)] : lines;
+};
 
-function useStepLines(step: QuestStep, index: number, isLast: boolean): string[] {
+const useStepLines: StepLineGenerator = (step, _index, next, completionExtra, cooldownGuard) => {
   const useItemVnum = Number(step.useItemVnum) || 0;
+  const trigger = `${useItemVnum}.use`;
   const body = [
     `say(${luaString(step.useText)})`,
     ...stepRewardLines(step),
-    `set_state(${nextStateName(index, isLast)})`,
+    ...completionExtra,
+    `set_state(${next})`,
   ];
-  return [
-    `when ${useItemVnum}.use begin`,
+  const lines = [
+    `when ${trigger}${cooldownGuard ? ` with ${cooldownGuard}` : ""} begin`,
     indent(body, 1),
     `end`,
   ];
-}
+  return cooldownGuard ? [...lines, ...cooldownWaitBlock(trigger, cooldownGuard)] : lines;
+};
 
-const STEP_GENERATORS: Record<
-  StepKind,
-  (step: QuestStep, index: number, isLast: boolean) => string[]
-> = {
+const STEP_GENERATORS: Record<StepKind, StepLineGenerator> = {
   dialog: dialogStepLines,
   collect: collectStepLines,
   kill: killStepLines,
@@ -744,20 +835,40 @@ const STEP_GENERATORS: Record<
 
 export function generateMultiStepQuest(questName: string, form: MultiStepFormState): string {
   const steps = form.steps.length > 0 ? form.steps : [DEFAULT_STEP];
+  const cooldownDays = Math.max(0, Number(form.cooldownDays) || 0);
+  const cooldownGuard = form.repeatable ? cooldownGuardExpr(cooldownDays) : null;
+
   const lines: string[] = [`quest ${questName} begin`];
   steps.forEach((step, index) => {
     const isLast = index === steps.length - 1;
+    const next = nextStateName(index, isLast, form.repeatable);
+    const completionExtra: string[] = [];
+    if (isLast && form.repeatable) {
+      completionExtra.push(`pc.setqf("last_complete", get_time())`);
+      steps.forEach((s, i) => {
+        if (s.kind === "kill") completionExtra.push(`pc.setqf(${luaString(`kill_count_step${i}`)}, 0)`);
+      });
+    }
     lines.push(`\t-- Schritt ${index + 1}${isLast ? " (Abschluss)" : ""}`);
     lines.push(`\tstate ${stateName(index)} begin`);
-    lines.push(indent(STEP_GENERATORS[step.kind](step, index, isLast), 2));
+    lines.push(
+      indent(
+        STEP_GENERATORS[step.kind](step, index, next, completionExtra, index === 0 ? cooldownGuard : null),
+        2,
+      ),
+    );
     lines.push(`\tend`);
     lines.push("");
   });
   // Terminaler Zustand - reine Namenskonvention (quellcode-verifiziert,
   // keine Sonderbehandlung durch die Engine), muss aber existieren, damit
-  // set_state("__COMPLETE__") einen gültigen Zustand auflöst.
-  lines.push(`\tstate __COMPLETE__ begin`);
-  lines.push(`\tend`);
+  // set_state("__COMPLETE__") einen gültigen Zustand auflöst. Bei einer
+  // wiederholbaren Quest wird er nie erreicht (letzter Schritt springt
+  // stattdessen auf "start" zurück) - deshalb hier weggelassen.
+  if (!form.repeatable) {
+    lines.push(`\tstate __COMPLETE__ begin`);
+    lines.push(`\tend`);
+  }
   lines.push(`end`);
   lines.push("");
   return lines.join("\n");

@@ -47,6 +47,7 @@ import {
   pickBestMatch,
   type LookupKind,
   type NameCandidate,
+  type UnresolvedLookup,
 } from "./questDescriptionParser";
 import QUEST_FUNCTIONS from "./questFunctions.json";
 import { APPLY_TYPES } from "@/features/item-editor/itemFlags";
@@ -139,6 +140,7 @@ export function QuestBuilder() {
   const [descriptionText, setDescriptionText] = useState("");
   const [descriptionBusy, setDescriptionBusy] = useState(false);
   const [descriptionNotes, setDescriptionNotes] = useState<string[] | null>(null);
+  const [descriptionUnresolved, setDescriptionUnresolved] = useState<UnresolvedLookup[]>([]);
   const [createError, setCreateError] = useState<string | null>(null);
   const [creatingBusy, setCreatingBusy] = useState(false);
 
@@ -333,18 +335,24 @@ export function QuestBuilder() {
 
   function updateStep(index: number, patch: Partial<QuestStep>) {
     setMultiStepForm((prev) => ({
+      ...prev,
       steps: prev.steps.map((s, i) => (i === index ? { ...s, ...patch } : s)),
     }));
   }
 
   function addStep() {
-    setMultiStepForm((prev) => ({ steps: [...prev.steps, { ...DEFAULT_STEP }] }));
+    setMultiStepForm((prev) => ({ ...prev, steps: [...prev.steps, { ...DEFAULT_STEP }] }));
   }
 
   function removeStep(index: number) {
     setMultiStepForm((prev) => ({
+      ...prev,
       steps: prev.steps.length > 1 ? prev.steps.filter((_, i) => i !== index) : prev.steps,
     }));
+  }
+
+  function updateMultiStepForm(patch: Partial<Omit<MultiStepFormState, "steps">>) {
+    setMultiStepForm((prev) => ({ ...prev, ...patch }));
   }
 
   // "Semi-KI"-Freitext-Assistent: reine Mustererkennung
@@ -357,19 +365,40 @@ export function QuestBuilder() {
     if (!descriptionText.trim()) return;
     setDescriptionBusy(true);
     setDescriptionNotes(null);
+    setDescriptionUnresolved([]);
     try {
       const lookup = async (phrase: string, kind: LookupKind): Promise<NameCandidate | null> => {
         const command = kind === "item" ? "search_items" : "search_mobs";
         const results = await invoke<PickResult[]>(command, { query: phrase });
         return pickBestMatch(phrase, results);
       };
-      const { steps, notes } = await resolveDescription(descriptionText, lookup);
+      const { steps, notes, unresolved, repeatable, cooldownDays } = await resolveDescription(
+        descriptionText,
+        lookup,
+      );
       setTemplateType("multi_step");
-      setMultiStepForm({ steps: steps.length > 0 ? steps : [{ ...DEFAULT_STEP }] });
+      setMultiStepForm({
+        steps: steps.length > 0 ? steps : [{ ...DEFAULT_STEP }],
+        repeatable,
+        cooldownDays: cooldownDays !== null ? String(cooldownDays) : DEFAULT_MULTI_STEP_FORM.cooldownDays,
+      });
       setDescriptionNotes(notes);
+      setDescriptionUnresolved(unresolved);
     } finally {
       setDescriptionBusy(false);
     }
+  }
+
+  // Erlaubt der Hinweis-Liste, direkt einen bestimmten Schritt-Fehlschlag
+  // nachzubessern - öffnet denselben Picker wie das VNUM-Feld selbst, nur
+  // mit der bereits erkannten Namensphrase vorausgefüllt.
+  function resolveUnresolved(entry: UnresolvedLookup) {
+    openPicker(
+      entry.kind === "npc" ? "npc" : entry.kind === "mob" ? "mob" : "item",
+      (v) => updateStep(entry.stepIndex, { [entry.field]: String(v) }),
+      entry.query,
+    );
+    setDescriptionUnresolved((prev) => prev.filter((u) => u !== entry));
   }
 
   const preview = useMemo(() => {
@@ -402,6 +431,7 @@ export function QuestBuilder() {
       setMultiStepForm(DEFAULT_MULTI_STEP_FORM);
       setDescriptionText("");
       setDescriptionNotes(null);
+      setDescriptionUnresolved([]);
       await loadFiles();
       await openFile(path);
     } catch (e) {
@@ -411,17 +441,25 @@ export function QuestBuilder() {
     }
   }
 
-  function openPicker(kind: PickerKind, onPick: (vnum: number) => void) {
+  function openPicker(kind: PickerKind, onPick: (vnum: number) => void, initialQuery?: string) {
     setPicker({ kind, onPick });
-    setPickerQuery("");
+    setPickerQuery(initialQuery ?? "");
     setPickerResults([]);
     setPickerError(null);
+    if (initialQuery?.trim()) {
+      // Sucht direkt mit der übergebenen Anfrage statt auf den (noch
+      // veralteten) State zu warten - vermeidet ein Timing-Problem
+      // zwischen setPickerQuery und einem sofortigen Suchaufruf.
+      void runPickerSearch(kind, initialQuery);
+    }
   }
 
-  async function runPickerSearch() {
-    if (!picker || !pickerQuery.trim()) return;
-    const command = picker.kind === "item" ? "search_items" : "search_mobs";
-    await runAsyncAction(() => invoke<PickResult[]>(command, { query: pickerQuery.trim() }), {
+  async function runPickerSearch(kindOverride?: PickerKind, queryOverride?: string) {
+    const kind = kindOverride ?? picker?.kind;
+    const query = (queryOverride ?? pickerQuery).trim();
+    if (!kind || !query) return;
+    const command = kind === "item" ? "search_items" : "search_mobs";
+    await runAsyncAction(() => invoke<PickResult[]>(command, { query }), {
       onStart: () => {
         setPickerSearching(true);
         setPickerError(null);
@@ -784,8 +822,10 @@ export function QuestBuilder() {
                 </div>
                 <p className="text-xs text-muted-foreground">
                   Mustererkennung, keine echte KI - einfache, klare Sätze funktionieren am besten
-                  (z.B. "Rede mit Hans, sammle 10 Wolfsfelle, dann bekommt man 100 Yang."). Füllt den
-                  Mehrschritt-Baukasten unten vor - Ergebnis vor dem Anlegen prüfen!
+                  (z.B. "Rede mit Hans, sammle 10 Wolfsfelle, dann bekommt man 100 Yang."). NPC und
+                  Item am besten mit "bei" trennen ("gib 20 Orkzähne bei Gemi ab") statt in einer
+                  Aufzählung ("bringe der Gemi, 20 Orkzähne") - sonst kann die Zuordnung danebengehen.
+                  Füllt den Mehrschritt-Baukasten unten vor - Ergebnis vor dem Anlegen prüfen!
                 </p>
                 <textarea
                   value={descriptionText}
@@ -803,9 +843,25 @@ export function QuestBuilder() {
                   {descriptionBusy ? "Analysiere…" : "Analysieren"}
                 </Button>
                 {descriptionNotes && descriptionNotes.length > 0 && (
-                  <div className="space-y-1 rounded-md border border-amber-500/40 bg-amber-500/10 p-2 text-xs text-amber-700 dark:text-amber-400">
+                  <div className="space-y-1.5 rounded-md border border-amber-500/40 bg-amber-500/10 p-2 text-xs text-amber-700 dark:text-amber-400">
                     {descriptionNotes.map((note, i) => (
                       <p key={i}>{note}</p>
+                    ))}
+                    {descriptionUnresolved.map((entry, i) => (
+                      <div key={i} className="flex items-center justify-between gap-2">
+                        <span>
+                          "{entry.query}" nicht gefunden (Schritt {entry.stepIndex + 1})
+                        </span>
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          onClick={() => resolveUnresolved(entry)}
+                          className="shrink-0"
+                        >
+                          <Search className="size-3.5" />
+                          Suchen
+                        </Button>
+                      </div>
                     ))}
                   </div>
                 )}
@@ -1345,6 +1401,32 @@ export function QuestBuilder() {
 
               {templateType === "multi_step" && (
                 <div className="space-y-2 rounded-md border border-border p-2">
+                  <label className="flex items-center gap-2 text-sm">
+                    <input
+                      type="checkbox"
+                      checked={multiStepForm.repeatable}
+                      onChange={(e) => updateMultiStepForm({ repeatable: e.target.checked })}
+                    />
+                    Wiederholbar (mit Cooldown)
+                  </label>
+                  {multiStepForm.repeatable && (
+                    <>
+                      <Field label="Cooldown (Tage)">
+                        <input
+                          type="number"
+                          min={0}
+                          value={multiStepForm.cooldownDays}
+                          onChange={(e) => updateMultiStepForm({ cooldownDays: e.target.value })}
+                          className="w-24 rounded-md border border-border bg-background px-2 py-1 text-sm"
+                        />
+                      </Field>
+                      <p className="text-xs text-muted-foreground">
+                        Nach Abschluss springt die Quest zurück auf Schritt 1 statt zu enden - Schritt
+                        1 ist bis zum Ablauf des Cooldowns gesperrt, alle Töten-Zähler in der Kette
+                        werden bei jedem Abschluss automatisch zurückgesetzt.
+                      </p>
+                    </>
+                  )}
                   <div className="flex items-center justify-between">
                     <span className="text-xs font-medium text-muted-foreground">
                       Schritte ({multiStepForm.steps.length})
@@ -1559,6 +1641,39 @@ export function QuestBuilder() {
                             className="w-32 rounded-md border border-border bg-background px-2 py-1 text-sm"
                           />
                         </Field>
+                        <span className="text-xs font-medium text-muted-foreground">
+                          Feste Bonus-Attribute (optional, überschreibt den Zufalls-Roll - z.B. "Max.
+                          HP +250")
+                        </span>
+                        {([0, 1, 2, 3] as const).map((slot) => {
+                          const typeKey = `rewardAttrType${slot}` as const;
+                          const valueKey = `rewardAttrValue${slot}` as const;
+                          return (
+                            <div key={slot} className="flex gap-2">
+                              <Field label={`Attribut ${slot + 1}`}>
+                                <select
+                                  value={step[typeKey]}
+                                  onChange={(e) => updateStep(index, { [typeKey]: e.target.value })}
+                                  className="w-56 rounded-md border border-border bg-background px-2 py-1 text-sm"
+                                >
+                                  {APPLY_TYPES.map((t) => (
+                                    <option key={t.value} value={t.value}>
+                                      {t.label}
+                                    </option>
+                                  ))}
+                                </select>
+                              </Field>
+                              <Field label="Wert">
+                                <input
+                                  type="number"
+                                  value={step[valueKey]}
+                                  onChange={(e) => updateStep(index, { [valueKey]: e.target.value })}
+                                  className="w-24 rounded-md border border-border bg-background px-2 py-1 text-sm"
+                                />
+                              </Field>
+                            </div>
+                          );
+                        })}
                       </div>
                     </div>
                   ))}
@@ -1612,7 +1727,7 @@ export function QuestBuilder() {
                 }
                 className="flex-1 rounded-md border border-border bg-background px-2 py-1 text-sm"
               />
-              <Button variant="outline" onClick={runPickerSearch} disabled={pickerSearching}>
+              <Button variant="outline" onClick={() => runPickerSearch()} disabled={pickerSearching}>
                 <Search className="size-4" />
               </Button>
             </div>

@@ -6,6 +6,35 @@ nach [SemVer](https://semver.org/) (`MAJOR.MINOR.PATCH`, solange < 1.0 gilt
 `MINOR` für neue Features, `PATCH` für reine Fixes). Für die vollständige
 Feature-Historie mit allen Details siehe `STATUS.md`.
 
+## [0.12.0] - 2026-08-07
+
+### Hinzugefügt
+
+- **Quest Builder: Mehrschritt-Baukasten wiederholbar mit Cooldown** — neues
+  Häkchen "Wiederholbar" + Cooldown-Tage-Feld. Schritt 1 wird per
+  `get_time()` (echte, quellcode-verifizierte Quest-Funktion) gesperrt, bis
+  der Cooldown abgelaufen ist, der letzte Schritt springt statt zu einem
+  Abschluss zurück auf Schritt 1 und setzt dabei alle Töten-Zähler der
+  Kette zurück.
+- **Quest Builder: feste Bonus-Attribute als Belohnung** — jeder Schritt
+  kann jetzt statt eines normalen Items ein Item mit fest eingebauten
+  Attributen (z.B. "Max. HP +250") vergeben, derselbe Mechanismus wie bei
+  der Vorlage "Item mit festen Boni verschenken".
+- **Freitext-Assistent: manuelle Suche bei fehlgeschlagener Erkennung** —
+  jeder nicht gefundene NPC/Item bekommt einen direkten "Suchen"-Knopf, der
+  denselben Picker wie überall im Baukasten öffnet, mit der erkannten
+  Namensphrase vorausgefüllt und sofort durchsucht.
+
+### Geändert
+
+- **Freitext-Assistent: robustere Satz-Erkennung** — mehr Belohnungs-
+  Konjugationen erkannt ("erhalte", "bekommst", "kriegt" usw. statt nur der
+  Grundform), und "wiederholbar alle N Tage" wird jetzt als eigene Klausel
+  erkannt und in die neuen Wiederholbar-Felder übernommen statt als
+  Textwust an die letzte Aktion angehängt zu werden. Ausgelöst durch einen
+  echten Nutzertest, der zeigte, dass der ganze Rest eines Satzes an eine
+  Namenssuche angehängt wurde, sobald kein bekanntes Muster mehr folgte.
+
 ## [0.11.0] - 2026-08-07
 
 ### Hinzugefügt

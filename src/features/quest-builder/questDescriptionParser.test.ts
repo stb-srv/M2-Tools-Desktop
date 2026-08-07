@@ -6,6 +6,7 @@ import {
   resolveDescription,
   splitIntoClauses,
   type NameCandidate,
+  type NameLookup,
 } from "./questDescriptionParser";
 
 describe("splitIntoClauses", () => {
@@ -211,5 +212,135 @@ describe("resolveDescription", () => {
     expect(steps[0].requiredItemVnum).toBe("");
     expect(notes.some((n) => n.includes('NPC "Hans"'))).toBe(true);
     expect(notes.some((n) => n.includes('Item "Wolfsfelle"'))).toBe(true);
+  });
+
+  it("returns a structured unresolved entry pointing at the exact field and query that failed", async () => {
+    const lookup: NameLookup = async () => null;
+    const { unresolved } = await resolveDescription("Sammle 10 Wolfsfelle bei Hans.", lookup);
+
+    expect(unresolved).toContainEqual({ stepIndex: 0, field: "npcVnum", kind: "npc", query: "Hans" });
+    expect(unresolved).toContainEqual({
+      stepIndex: 0,
+      field: "requiredItemVnum",
+      kind: "item",
+      query: "Wolfsfelle",
+    });
+  });
+
+  it("uses the useItemVnum field (not requiredItemVnum) for an unresolved use-step item", async () => {
+    const lookup: NameLookup = async () => null;
+    const { unresolved } = await resolveDescription("benutze den Trank", lookup);
+
+    expect(unresolved).toContainEqual({ stepIndex: 0, field: "useItemVnum", kind: "item", query: "Trank" });
+  });
+
+  it("carries repeatable/cooldownDays through into the resolved result", async () => {
+    const lookup: NameLookup = async () => null;
+    const { repeatable, cooldownDays } = await resolveDescription(
+      "Rede mit Hans, alle 4 Tage wiederholbar.",
+      lookup,
+    );
+    expect(repeatable).toBe(true);
+    expect(cooldownDays).toBe(4);
+  });
+});
+
+describe("REWARD_MARKERS coverage (via classifyClause's reward detection)", () => {
+  const cases = [
+    "Man erhalte 100 Yang",
+    "Man erhältst 100 Yang",
+    "Man erhaltet 100 Yang",
+    "Man bekomme 100 Yang",
+    "Man bekommst 100 Yang",
+    "Man kriege 100 Yang",
+    "Man kriegst 100 Yang",
+    "Man kriegt 100 Yang",
+  ];
+  for (const clause of cases) {
+    it(`recognizes "${clause}" as a reward-only clause`, () => {
+      const result = classifyClause(clause);
+      expect(result.isRewardOnly).toBe(true);
+      expect(result.rewardMoney).toBe(100);
+    });
+  }
+});
+
+describe("repeatable-quest detection ('alle N Tage')", () => {
+  it("splits an 'alle N Tage' remark into its own clause even without 'dann'", () => {
+    expect(splitIntoClauses("Sammle 10 Felle, du kannst das alle 4 Tage machen")).toEqual([
+      "Sammle 10 Felle",
+      "du kannst das alle 4 Tage machen",
+    ]);
+  });
+
+  it("extracts repeatable/cooldownDays and does not turn the clause into a step", () => {
+    const { drafts, repeatable, cooldownDays } = buildDraftSteps(
+      "Rede mit Hans. Du kannst diese Quest alle 4 Tage machen.",
+    );
+    expect(drafts).toHaveLength(1);
+    expect(repeatable).toBe(true);
+    expect(cooldownDays).toBe(4);
+  });
+
+  it("recognizes 'Tagen' (dative plural) as well as 'Tage'", () => {
+    const { repeatable, cooldownDays } = buildDraftSteps("Wiederholbar alle 7 Tagen.");
+    expect(repeatable).toBe(true);
+    expect(cooldownDays).toBe(7);
+  });
+});
+
+describe("real-world phrasing: 'bei <NPC>' cleanly separates NPC from item+quantity", () => {
+  it("extracts quantity, item, and NPC all correctly when the sentence uses 'bei <NPC> ab'", () => {
+    const { drafts } = buildDraftSteps("gib 20 Orkzähne bei Gemi ab, dann bekommst du 100 Yang");
+    expect(drafts).toHaveLength(1);
+    expect(drafts[0].kind).toBe("collect");
+    expect(drafts[0].quantity).toBe(20);
+    expect(drafts[0].targetPhrase).toBe("Orkzähne");
+    expect(drafts[0].npcPhrase).toBe("Gemi");
+    expect(drafts[0].rewardMoney).toBe(100);
+  });
+});
+
+describe("regression: the exact user bug report sentence", () => {
+  // "Rede mit dem Gemi, bringe der Gemi, 20 Orkzähne und erhalte dafür
+  // 250HP zusätzlich dauerhaft, du kannst diese quest alle 4 Tage machen"
+  // - live-reported: the NPC/item search failed because the whole rest of
+  // the sentence got glued onto the item search. This locks in what the
+  // fix actually achieves: clean clause boundaries and correct
+  // repeatable-detection. It does NOT claim "Orkzähne" now resolves
+  // perfectly - splitting the indirect object ("der Gemi") from the
+  // direct object ("20 Orkzähne") across a bare comma is a genuine
+  // grammar-level ambiguity no keyword matcher fully resolves; the
+  // "Suchen" fallback (QuestBuilder.tsx) is the safety net for exactly
+  // this case.
+  const SENTENCE =
+    "Rede mit dem Gemi, bringe der Gemi, 20 Orkzähne und erhalte dafür 250HP zusätzlich dauerhaft, du kannst diese quest alle 4 Tage machen";
+
+  it("splits into clean clauses instead of gluing the whole tail onto one clause", () => {
+    const clauses = splitIntoClauses(SENTENCE);
+    expect(clauses).toEqual([
+      "Rede mit dem Gemi",
+      "bringe der Gemi",
+      "20 Orkzähne und erhalte dafür 250HP zusätzlich dauerhaft",
+      "du kannst diese quest alle 4 Tage machen",
+    ]);
+  });
+
+  it("correctly extracts repeatable/cooldownDays instead of treating it as noise", () => {
+    const { repeatable, cooldownDays, drafts } = buildDraftSteps(SENTENCE);
+    expect(repeatable).toBe(true);
+    expect(cooldownDays).toBe(4);
+    // the repeatable clause must not itself become a bogus 3rd step
+    expect(drafts).toHaveLength(2);
+  });
+
+  it("resolves the first step's NPC correctly via the fuzzy lookup", async () => {
+    const lookup: NameLookup = async (phrase, kind) => {
+      if (kind === "npc" && phrase === "Gemi") return { vnum: 9042, name: "Gemischwarenhändlerin" };
+      return null;
+    };
+    const { steps } = await resolveDescription(SENTENCE, lookup);
+    expect(steps[0].kind).toBe("dialog");
+    expect(steps[0].npcVnum).toBe("9042");
   });
 });

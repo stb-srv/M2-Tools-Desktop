@@ -225,8 +225,8 @@ describe("generateMultiStepQuest", () => {
     ...patch,
   });
 
-  function form(steps: QuestStep[]): MultiStepFormState {
-    return { steps };
+  function form(steps: QuestStep[], patch: Partial<MultiStepFormState> = {}): MultiStepFormState {
+    return { steps, repeatable: false, cooldownDays: "4", ...patch };
   }
 
   it("wraps every step in its own state block plus a terminal __COMPLETE__ state, and stays balanced", () => {
@@ -296,5 +296,85 @@ describe("generateMultiStepQuest", () => {
     expectBalanced(lua);
     expect(lua).toContain("state start begin");
     expect(lua).toContain("state __COMPLETE__ begin");
+  });
+
+  describe("repeatable quests with cooldown", () => {
+    it("gates only step 0's entry with the cooldown condition, and adds a 'not ready' sibling block", () => {
+      const lua = generateMultiStepQuest(
+        "repeat_quest",
+        form([dialogStep(), useStep()], { repeatable: true, cooldownDays: "4" }),
+      );
+      const cooldownExpr =
+        'pc.getqf("last_complete") == 0 or get_time() - pc.getqf("last_complete") >= 345600';
+      expect(lua).toContain(`when 9001.chat."Quest" with ${cooldownExpr} begin`);
+      expect(lua).toContain(`when 9001.chat."Quest" with not (${cooldownExpr}) begin`);
+      // step 1 (use, not step 0) must NOT be cooldown-gated
+      expect(lua).toContain("when 300.use begin");
+      expect(lua).not.toContain("300.use with");
+      expectBalanced(lua);
+    });
+
+    it("loops back to start instead of __COMPLETE__, and omits the unreachable __COMPLETE__ state", () => {
+      const lua = generateMultiStepQuest(
+        "repeat_quest",
+        form([dialogStep(), useStep()], { repeatable: true, cooldownDays: "1" }),
+      );
+      expect(lua).toContain("set_state(start)");
+      expect(lua).not.toContain("__COMPLETE__");
+      expect(lua).toContain('pc.setqf("last_complete", get_time())');
+      expectBalanced(lua);
+    });
+
+    it("resets every kill step's counter on completion so a repeat run starts fresh", () => {
+      const lua = generateMultiStepQuest(
+        "repeat_kill",
+        form([killStep(), dialogStep(), killStep({ mobVnum: "202" })], {
+          repeatable: true,
+          cooldownDays: "2",
+        }),
+      );
+      expect(lua).toContain('pc.setqf("kill_count_step0", 0)');
+      expect(lua).toContain('pc.setqf("kill_count_step2", 0)');
+      expectBalanced(lua);
+    });
+
+    it("gates all of step 0's chat triggers when step 0 is a kill step (progress and success)", () => {
+      const lua = generateMultiStepQuest(
+        "repeat_kill_first",
+        form([killStep(), useStep()], { repeatable: true, cooldownDays: "1" }),
+      );
+      const cooldownExpr = 'pc.getqf("last_complete") == 0 or get_time() - pc.getqf("last_complete") >= 86400';
+      expect(lua).toContain(`pc.getqf("kill_count_step0") < 5 and (${cooldownExpr})`);
+      expect(lua).toContain(`pc.getqf("kill_count_step0") >= 5 and (${cooldownExpr})`);
+      expect(lua).toContain(`when 9001.chat."Quest" with not (${cooldownExpr}) begin`);
+      expectBalanced(lua);
+    });
+  });
+
+  describe("fixed attribute rewards (reuses the buffed_item mechanism)", () => {
+    it("gives the reward item via give_item2_select + item.set_value when an attribute slot is filled", () => {
+      const lua = generateMultiStepQuest(
+        "attr_reward",
+        form([
+          collectStep({
+            rewardItemVnum: "700010",
+            rewardItemCount: "1",
+            rewardAttrType0: "1", // Max. HP
+            rewardAttrValue0: "250",
+          }),
+        ]),
+      );
+      expect(lua).toContain("pc.give_item2_select(700010, 1)");
+      expect(lua).toContain("item.set_value(0, 1, 250)");
+      expect(lua).not.toContain("pc.give_item2(700010");
+      expectBalanced(lua);
+    });
+
+    it("keeps the plain pc.give_item2 when no attribute slot is set", () => {
+      const lua = generateMultiStepQuest("plain_reward", form([collectStep({ rewardItemVnum: "40", rewardItemCount: "3" })]));
+      expect(lua).toContain("pc.give_item2(40, 3)");
+      expect(lua).not.toContain("item.set_value");
+      expectBalanced(lua);
+    });
   });
 });

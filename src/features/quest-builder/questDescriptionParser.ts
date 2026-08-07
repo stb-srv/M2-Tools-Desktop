@@ -22,10 +22,14 @@ const COLLECT_VERBS = /\b(sammle|sammel|sammelt|gib|abgeben|bring|bringe|bringt|
 const USE_VERBS = /\b(benutze|benutzt|benutz|verwende|verwendet|nutze|nutzt)\b/i;
 const DIALOG_VERBS = /\b(rede|redet|sprich|sprechen|unterhalte|unterhalt|besuche|besuch)\b/i;
 
-const REWARD_MARKERS = /\b(belohnung|bekommt|bekommen|erhält|erhaelt|erhalten)\b/i;
+const REWARD_MARKERS =
+  /\b(belohnung|bekomme|bekommst|bekommt|bekommen|erhalte|erhältst|erhaelst|erhält|erhaelt|erhaltet|erhalten|kriege|kriegst|kriegt|kriegen)\b/i;
 const YANG_PATTERN = /(\d+)\s*yang/i;
 const QUANTITY_PATTERN = /\b(\d+)\b(?!\s*yang)/i;
 const NPC_BEI_PATTERN = /\bbei\s+([A-ZÄÖÜ][\p{L}]*(?:\s+[A-ZÄÖÜ][\p{L}]*)*)/u;
+// "alle 4 Tage" / "alle 4 Tagen" - wiederholbare Quest mit Cooldown, siehe
+// MultiStepFormState.repeatable/cooldownDays in questTemplates.ts.
+const REPEATABLE_PATTERN = /\balle\s+(\d+)\s+tage?n?\b/i;
 
 const FILLER_WORDS = new Set([
   "mit",
@@ -80,7 +84,8 @@ function looksLikeNewClause(fragment: string): boolean {
     USE_VERBS.test(stripped) ||
     DIALOG_VERBS.test(stripped) ||
     REWARD_MARKERS.test(stripped) ||
-    YANG_PATTERN.test(stripped)
+    YANG_PATTERN.test(stripped) ||
+    REPEATABLE_PATTERN.test(stripped)
   );
 }
 
@@ -214,6 +219,8 @@ export function classifyClause(clause: string): ClauseParse {
 export interface DraftStepsResult {
   drafts: ClauseParse[];
   notes: string[];
+  repeatable: boolean;
+  cooldownDays: number | null;
 }
 
 export function buildDraftSteps(text: string): DraftStepsResult {
@@ -221,8 +228,17 @@ export function buildDraftSteps(text: string): DraftStepsResult {
   const drafts: ClauseParse[] = [];
   const notes: string[] = [];
   let carriedNpcPhrase: string | null = null;
+  let repeatable = false;
+  let cooldownDays: number | null = null;
 
   clauses.forEach((clause) => {
+    const repeatableMatch = clause.match(REPEATABLE_PATTERN);
+    if (repeatableMatch) {
+      repeatable = true;
+      cooldownDays = Number(repeatableMatch[1]);
+      return;
+    }
+
     const parsed = classifyClause(clause);
 
     if (parsed.isRewardOnly) {
@@ -262,7 +278,7 @@ export function buildDraftSteps(text: string): DraftStepsResult {
     drafts.push(parsed);
   });
 
-  return { drafts, notes };
+  return { drafts, notes, repeatable, cooldownDays };
 }
 
 export interface NameCandidate {
@@ -299,65 +315,90 @@ export function pickBestMatch(query: string, candidates: NameCandidate[]): NameC
 export type LookupKind = "npc" | "item" | "mob";
 export type NameLookup = (phrase: string, kind: LookupKind) => Promise<NameCandidate | null>;
 
+// Welches QuestStep-Feld ein fehlgeschlagener Namens-Lookup betrifft -
+// erlaubt der UI, direkt einen "Suchen"-Knopf für genau dieses Feld
+// anzubieten (openPicker mit der erkannten Namensphrase vorausgefüllt),
+// statt nur eine Textnotiz anzuzeigen.
+export type UnresolvedField = "npcVnum" | "requiredItemVnum" | "useItemVnum" | "mobVnum" | "rewardItemVnum";
+
+export interface UnresolvedLookup {
+  stepIndex: number;
+  field: UnresolvedField;
+  kind: LookupKind;
+  query: string;
+}
+
 export interface ResolveResult {
   steps: QuestStep[];
   notes: string[];
+  unresolved: UnresolvedLookup[];
+  repeatable: boolean;
+  cooldownDays: number | null;
 }
 
 export async function resolveDescription(text: string, lookup: NameLookup): Promise<ResolveResult> {
-  const { drafts, notes } = buildDraftSteps(text);
+  const { drafts, notes, repeatable, cooldownDays } = buildDraftSteps(text);
   const allNotes = [...notes];
+  const unresolved: UnresolvedLookup[] = [];
 
   const steps = await Promise.all(
     drafts.map(async (draft, index) => {
       const step: QuestStep = { ...DEFAULT_STEP, kind: draft.kind };
 
+      const resolveField = async (
+        phrase: string,
+        kind: LookupKind,
+        field: UnresolvedField,
+        label: string,
+      ): Promise<NameCandidate | null> => {
+        const match = await lookup(phrase, kind);
+        if (match) return match;
+        allNotes.push(`Schritt ${index + 1}: ${label} "${phrase}" nicht eindeutig gefunden.`);
+        unresolved.push({ stepIndex: index, field, kind, query: phrase });
+        return null;
+      };
+
       if (draft.kind === "dialog") {
         step.dialogText = draft.rawText;
         if (draft.npcPhrase) {
-          const match = await lookup(draft.npcPhrase, "npc");
+          const match = await resolveField(draft.npcPhrase, "npc", "npcVnum", "NPC");
           if (match) step.npcVnum = String(match.vnum);
-          else allNotes.push(`Schritt ${index + 1}: NPC "${draft.npcPhrase}" nicht eindeutig gefunden.`);
         }
       } else {
         if (draft.npcPhrase) {
-          const match = await lookup(draft.npcPhrase, "npc");
+          const match = await resolveField(draft.npcPhrase, "npc", "npcVnum", "NPC");
           if (match) step.npcVnum = String(match.vnum);
-          else allNotes.push(`Schritt ${index + 1}: NPC "${draft.npcPhrase}" nicht eindeutig gefunden.`);
         }
 
-        if (draft.kind === "collect" || draft.kind === "use") {
+        if (draft.kind === "collect") {
           step.requiredItemCount = String(draft.quantity ?? 1);
-          step.useItemVnum = "";
           if (draft.targetPhrase) {
-            const match = await lookup(draft.targetPhrase, "item");
-            if (match) {
-              step.requiredItemVnum = String(match.vnum);
-              step.useItemVnum = String(match.vnum);
-            } else {
-              allNotes.push(`Schritt ${index + 1}: Item "${draft.targetPhrase}" nicht eindeutig gefunden.`);
-            }
+            const match = await resolveField(draft.targetPhrase, "item", "requiredItemVnum", "Item");
+            if (match) step.requiredItemVnum = String(match.vnum);
+          }
+        } else if (draft.kind === "use") {
+          if (draft.targetPhrase) {
+            const match = await resolveField(draft.targetPhrase, "item", "useItemVnum", "Item");
+            if (match) step.useItemVnum = String(match.vnum);
           }
         } else if (draft.kind === "kill") {
           step.requiredKills = String(draft.quantity ?? 1);
           if (draft.targetPhrase) {
-            const match = await lookup(draft.targetPhrase, "mob");
+            const match = await resolveField(draft.targetPhrase, "mob", "mobVnum", "Monster");
             if (match) step.mobVnum = String(match.vnum);
-            else allNotes.push(`Schritt ${index + 1}: Monster "${draft.targetPhrase}" nicht eindeutig gefunden.`);
           }
         }
       }
 
       if (draft.rewardMoney !== null) step.rewardMoney = String(draft.rewardMoney);
       if (draft.rewardItemPhrase) {
-        const match = await lookup(draft.rewardItemPhrase, "item");
+        const match = await resolveField(draft.rewardItemPhrase, "item", "rewardItemVnum", "Belohnungs-Item");
         if (match) step.rewardItemVnum = String(match.vnum);
-        else allNotes.push(`Schritt ${index + 1}: Belohnungs-Item "${draft.rewardItemPhrase}" nicht eindeutig gefunden.`);
       }
 
       return step;
     }),
   );
 
-  return { steps, notes: allNotes };
+  return { steps, notes: allNotes, unresolved, repeatable, cooldownDays };
 }
