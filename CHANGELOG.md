@@ -6,6 +6,20 @@ nach [SemVer](https://semver.org/) (`MAJOR.MINOR.PATCH`, solange < 1.0 gilt
 `MINOR` für neue Features, `PATCH` für reine Fixes). Für die vollständige
 Feature-Historie mit allen Details siehe `STATUS.md`.
 
+## [0.5.5] - 2026-08-07
+
+### Hinzugefügt
+
+- **Kisten-Editor: Kisten-Item direkt einrichten** — bei der
+  Kisten-Item-VNUM gibt es jetzt „Item suchen & einrichten…“: Item per
+  Name/VNUM suchen und mit einem Klick automatisch auf Typ GIFTBOX (23) +
+  „Stapelbar" umstellen, statt das manuell im Item Editor zu erledigen.
+  Ist das gefundene Item noch kein GIFTBOX, fragt das Tool vorher explizit
+  nach Bestätigung (Typänderung an einem bestehenden Item ist nicht
+  rückstandslos rückgängig zu machen). Der bestehende VNUM-Hinweis bietet
+  denselben Einrichten-Button jetzt auch direkt an, wenn schon eine VNUM
+  eingetragen ist, die nur an Typ/Stapelbar-Flag hakt.
+
 ## [0.5.4] - 2026-08-07
 
 ### Hinzugefügt

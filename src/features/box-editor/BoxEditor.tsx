@@ -6,6 +6,7 @@ import { Search, Plus, Trash2, RefreshCw, CheckCircle2, AlertTriangle, Info, Pac
 import { useNavigationStore } from "@/store/navigation";
 
 const GIFTBOX_TYPE = 23;
+const FLAG_STACKABLE = 1 << 2;
 const ANTIFLAG_NOT_STACKABLE = 1 << 15;
 
 interface ItemProtoFullLite {
@@ -13,7 +14,34 @@ interface ItemProtoFullLite {
   locale_name: string;
   name: string;
   type: number;
+  flag: number;
   antiflag: number;
+}
+
+function boxItemIsReady(proto: ItemProtoFullLite): boolean {
+  return proto.type === GIFTBOX_TYPE && (proto.flag & FLAG_STACKABLE) !== 0 && (proto.antiflag & ANTIFLAG_NOT_STACKABLE) === 0;
+}
+
+// Sets item_proto.type=GIFTBOX(23), sets the "Stapelbar" flag bit, and
+// clears the "Nicht stapelbar" antiflag override (the two conflicting bits
+// BoxVnumHint/BoxItemPicker both check) - then repacks the client's own
+// item_proto file, mirroring exactly what the Item Editor's "proto" step
+// does after any type/flag edit (db/item.rs::update_item_proto followed by
+// regenerate_item_proto + deploy_item_proto). No server restart needed -
+// item_proto is a normal DB-backed prototype table, unlike the boot-only
+// special_item_group.txt/refine_proto text files.
+async function setupBoxItem(vnum: number): Promise<void> {
+  const full = await invoke<Record<string, unknown> | null>("get_item_proto", { vnum });
+  if (!full) throw new Error(`Item #${vnum} wurde nicht gefunden.`);
+  const patched = {
+    ...full,
+    type: GIFTBOX_TYPE,
+    flag: ((full.flag as number) || 0) | FLAG_STACKABLE,
+    antiflag: ((full.antiflag as number) || 0) & ~ANTIFLAG_NOT_STACKABLE,
+  };
+  await invoke("update_item_proto", { item: patched });
+  const generated = await invoke<string>("regenerate_item_proto");
+  await invoke("deploy_item_proto", { generatedProtoPath: generated });
 }
 
 // Resolves a "Kisten-Item-VNUM" input against the real item_proto row, so a
@@ -22,22 +50,40 @@ interface ItemProtoFullLite {
 // (char_item.cpp) looks the group up purely by the box item's own vnum, with
 // no cross-check, so a group whose Vnum doesn't match a real GIFTBOX item's
 // vnum fails invisibly (logged server-side only, never shown to the player).
-function BoxVnumHint({ vnum }: { vnum: number }) {
+function BoxVnumHint({ vnum, onFixed }: { vnum: number; onFixed?: () => void }) {
   const [proto, setProto] = useState<ItemProtoFullLite | null | undefined>(undefined);
+  const [fixing, setFixing] = useState(false);
+  const [fixError, setFixError] = useState<string | null>(null);
 
-  useEffect(() => {
+  function reload() {
     if (!vnum) {
       setProto(undefined);
       return;
     }
-    let cancelled = false;
     invoke<ItemProtoFullLite | null>("get_item_proto", { vnum })
-      .then((p) => !cancelled && setProto(p))
-      .catch(() => !cancelled && setProto(null));
-    return () => {
-      cancelled = true;
-    };
+      .then(setProto)
+      .catch(() => setProto(null));
+  }
+
+  useEffect(() => {
+    setFixError(null);
+    reload();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [vnum]);
+
+  async function fix() {
+    setFixing(true);
+    setFixError(null);
+    try {
+      await setupBoxItem(vnum);
+      reload();
+      onFixed?.();
+    } catch (e) {
+      setFixError(String(e));
+    } finally {
+      setFixing(false);
+    }
+  }
 
   if (!vnum || proto === undefined) return null;
 
@@ -51,23 +97,162 @@ function BoxVnumHint({ vnum }: { vnum: number }) {
 
   const displayName = proto.locale_name || proto.name;
 
-  if (proto.type !== GIFTBOX_TYPE) {
+  if (!boxItemIsReady(proto)) {
     return (
-      <p className="flex items-center gap-1 text-xs text-destructive">
-        <AlertTriangle className="size-3.5 shrink-0" />
-        "{displayName}" hat nicht den Typ GIFTBOX (23) - diese Kisten-Gruppe wird beim Öffnen nie gezogen.
-      </p>
+      <div className="space-y-1">
+        <p className="flex items-center gap-1 text-xs text-destructive">
+          <AlertTriangle className="size-3.5 shrink-0" />
+          "{displayName}" ist noch nicht als Kisten-Item eingerichtet (Typ GIFTBOX + Stapelbar).
+        </p>
+        <Button size="sm" variant="outline" onClick={fix} disabled={fixing}>
+          {fixing ? "Richte ein…" : "Jetzt automatisch einrichten"}
+        </Button>
+        {fixError && <p className="text-xs text-destructive">{fixError}</p>}
+      </div>
     );
   }
-
-  const notStackable = (proto.antiflag & ANTIFLAG_NOT_STACKABLE) !== 0;
 
   return (
     <p className="flex items-center gap-1 text-xs text-muted-foreground">
       <CheckCircle2 className="size-3.5 shrink-0 text-green-600" />
-      "{displayName}" (GIFTBOX)
-      {notStackable && " - Achtung: Nicht stapelbar gesetzt, jede Kiste zeigt daher keine gemeinsame Restanzahl."}
+      "{displayName}" (GIFTBOX, stapelbar)
     </p>
+  );
+}
+
+// Search-and-fix picker for the "Kisten-Item-VNUM" field: lets the user find
+// a candidate item by name instead of already knowing its vnum, and applies
+// setupBoxItem in one click - a plain (non-GIFTBOX) item needs an explicit
+// confirmation first since changing its type/flag is not harmless if the
+// wrong result gets picked (e.g. a real weapon reused for something else).
+function BoxItemPicker({ onPick }: { onPick: (vnum: number) => void }) {
+  const [picking, setPicking] = useState(false);
+  const [query, setQuery] = useState("");
+  const [results, setResults] = useState<ItemSearchResult[]>([]);
+  const [searching, setSearching] = useState(false);
+  const [statuses, setStatuses] = useState<Record<number, ItemProtoFullLite | null>>({});
+  const [confirmVnum, setConfirmVnum] = useState<number | null>(null);
+  const [busyVnum, setBusyVnum] = useState<number | null>(null);
+  const [error, setError] = useState<string | null>(null);
+
+  async function runSearch() {
+    if (!query.trim()) return;
+    setError(null);
+    await runAsyncAction(() => invoke<ItemSearchResult[]>("search_items", { query: query.trim() }), {
+      onStart: () => setSearching(true),
+      onSuccess: (found) => {
+        setResults(found);
+        setStatuses({});
+        found.forEach((r) => {
+          invoke<ItemProtoFullLite | null>("get_item_proto", { vnum: r.vnum })
+            .then((p) => setStatuses((prev) => ({ ...prev, [r.vnum]: p })))
+            .catch(() => setStatuses((prev) => ({ ...prev, [r.vnum]: null })));
+        });
+      },
+      onError: () => setResults([]),
+      onFinally: () => setSearching(false),
+    });
+  }
+
+  async function apply(vnum: number) {
+    setError(null);
+    setBusyVnum(vnum);
+    try {
+      await setupBoxItem(vnum);
+      onPick(vnum);
+      setPicking(false);
+      setResults([]);
+      setQuery("");
+      setConfirmVnum(null);
+    } catch (e) {
+      setError(String(e));
+    } finally {
+      setBusyVnum(null);
+    }
+  }
+
+  function handleUseClick(vnum: number) {
+    const status = statuses[vnum];
+    if (status && status.type !== GIFTBOX_TYPE) {
+      setConfirmVnum(vnum);
+    } else {
+      apply(vnum);
+    }
+  }
+
+  const confirmTarget = confirmVnum !== null ? statuses[confirmVnum] : null;
+
+  return (
+    <div className="flex flex-col gap-1">
+      <Button variant="outline" size="sm" onClick={() => setPicking((p) => !p)}>
+        <Search className="size-3.5" /> Item suchen & einrichten…
+      </Button>
+      {picking && (
+        <div className="flex w-96 flex-col gap-1 rounded-md border border-border bg-card p-2 shadow-md">
+          <div className="flex gap-1">
+            <input
+              autoFocus
+              value={query}
+              onChange={(e) => setQuery(e.target.value)}
+              onKeyDown={(e) => e.key === "Enter" && runSearch()}
+              placeholder="Item nach Name oder VNUM suchen…"
+              className="flex-1 rounded-md border border-border bg-background px-2 py-1 text-xs"
+            />
+            <Button size="sm" variant="outline" onClick={runSearch} disabled={searching}>
+              <Search className="size-3.5" />
+            </Button>
+          </div>
+          {error && <p className="text-xs text-destructive">{error}</p>}
+          <div className="max-h-56 space-y-1 overflow-y-auto">
+            {results.map((r) => {
+              const status = statuses[r.vnum];
+              const ready = status ? boxItemIsReady(status) : undefined;
+              return (
+                <div key={r.vnum} className="flex items-center justify-between gap-2 rounded-md px-2 py-1 text-xs hover:bg-muted">
+                  <span className="flex-1 truncate">
+                    {r.name} <span className="text-muted-foreground">#{r.vnum}</span>
+                    {ready === true && <span className="ml-1 text-green-600">(bereits eingerichtet)</span>}
+                    {ready === false && <span className="ml-1 text-amber-600">(wird umgestellt)</span>}
+                  </span>
+                  <Button
+                    size="sm"
+                    onClick={() => handleUseClick(r.vnum)}
+                    disabled={status === undefined || busyVnum === r.vnum}
+                  >
+                    {busyVnum === r.vnum ? "…" : "Verwenden"}
+                  </Button>
+                </div>
+              );
+            })}
+            {results.length === 0 && !searching && (
+              <p className="p-1 text-xs text-muted-foreground">Noch keine Suche.</p>
+            )}
+          </div>
+        </div>
+      )}
+      {confirmVnum !== null && (
+        <div className="fixed inset-0 z-10 flex items-center justify-center bg-black/50">
+          <div className="w-96 space-y-3 rounded-lg border border-border bg-card p-4">
+            <p className="flex items-start gap-2 text-sm">
+              <AlertTriangle className="mt-0.5 size-4 shrink-0 text-destructive" />
+              <span>
+                "{confirmTarget?.locale_name || confirmTarget?.name}" hat aktuell nicht den Typ GIFTBOX (Typ{" "}
+                {confirmTarget?.type}). Wird jetzt auf GIFTBOX (23) + Stapelbar umgestellt - das ändert, wie sich
+                dieses Item im Spiel verhält. Wirklich fortfahren?
+              </span>
+            </p>
+            <div className="flex justify-end gap-2">
+              <Button variant="outline" onClick={() => setConfirmVnum(null)}>
+                Abbrechen
+              </Button>
+              <Button variant="destructive" onClick={() => apply(confirmVnum)}>
+                Umstellen
+              </Button>
+            </div>
+          </div>
+        </div>
+      )}
+    </div>
   );
 }
 
@@ -368,8 +553,9 @@ export function BoxEditor() {
       <p className="flex items-start gap-2 rounded-lg border border-amber-500/40 bg-amber-500/10 p-3 text-sm text-amber-700 dark:text-amber-400">
         <Info className="mt-0.5 size-4 shrink-0" />
         Damit eine Kiste diese Tabelle überhaupt nutzt, muss ihr <code>item_proto.type</code> auf{" "}
-        <strong>GIFTBOX (23)</strong> stehen und „Stapelbar" gesetzt sein (im Item-Editor einstellbar) - das
-        legt dieser Editor hier nicht selbst an, nur die Beute-Tabelle.
+        <strong>GIFTBOX (23)</strong> stehen und „Stapelbar" gesetzt sein - über „Item suchen &amp;
+        einrichten…" bei der Kisten-Item-VNUM lässt sich das jetzt auch direkt hier erledigen, statt
+        umständlich im Item-Editor.
       </p>
       <div className="flex items-start gap-2 rounded-lg border border-amber-500/40 bg-amber-500/10 p-3 text-sm text-amber-700 dark:text-amber-400">
         <Info className="mt-0.5 size-4 shrink-0" />
@@ -429,6 +615,7 @@ export function BoxEditor() {
                 className="rounded-md border border-border bg-background px-2 py-1 text-sm"
               />
             </Field>
+            <BoxItemPicker onPick={(v) => setNewVnum(String(v))} />
             <BoxVnumHint vnum={Number(newVnum) || 0} />
             <div className="flex justify-end gap-2">
               <Button variant="outline" onClick={() => setCreating(false)}>
@@ -480,6 +667,7 @@ export function BoxEditor() {
                       onChange={(e) => updateGroup(selectedIndex, { vnum: Number(e.target.value) || 0 })}
                       className="w-28 rounded-md border border-border bg-background px-2 py-1 text-sm"
                     />
+                    <BoxItemPicker onPick={(v) => updateGroup(selectedIndex, { vnum: v })} />
                     <BoxVnumHint vnum={selected.vnum} />
                   </Field>
                   <Field label="Typ">
