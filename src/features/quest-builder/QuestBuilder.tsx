@@ -34,6 +34,7 @@ import {
   type TemplateType,
 } from "./questTemplates";
 import QUEST_FUNCTIONS from "./questFunctions.json";
+import { APPLY_TYPES } from "@/features/item-editor/itemFlags";
 
 interface QuestFile {
   category: string;
@@ -733,7 +734,7 @@ export function QuestBuilder() {
                 </>
               )}
 
-              {templateType === "dialog" && (
+              {(templateType === "dialog" || templateType === "buffed_item") && (
                 <Field label="Dialogtext">
                   <textarea
                     value={form.dialogText}
@@ -918,7 +919,79 @@ export function QuestBuilder() {
                 </>
               )}
 
-              {templateType !== "dungeon" && (
+              {templateType === "buffed_item" && (
+                <>
+                  <div className="flex gap-2">
+                    <Field label="Zu verschenkendes Item-VNUM">
+                      <VnumInput
+                        value={form.buffedItemVnum}
+                        onChange={(v) => updateForm({ buffedItemVnum: v })}
+                        onPick={() =>
+                          openPicker("item", (v) => updateForm({ buffedItemVnum: String(v) }))
+                        }
+                      />
+                    </Field>
+                    <Field label="Anzahl">
+                      <input
+                        type="number"
+                        min={1}
+                        value={form.buffedItemCount}
+                        onChange={(e) => updateForm({ buffedItemCount: e.target.value })}
+                        className="w-20 rounded-md border border-border bg-background px-2 py-1 text-sm"
+                      />
+                    </Field>
+                  </div>
+                  <p className="text-xs text-muted-foreground">
+                    Für eine fertige "+9"-Waffe/Rüstung hier die VNUM der +9-Stufe eintragen (z.B. aus
+                    dem Aufwertungs-Editor), nicht die +0-Basis - die Kette selbst wird hierdurch nicht
+                    ausgelöst, nur ein bereits existierendes Item vergeben.
+                  </p>
+                  <div className="space-y-1 rounded-md border border-border p-2">
+                    <span className="text-xs font-medium text-muted-foreground">
+                      Feste Bonus-Attribute (bis zu 4, leer = Slot ungenutzt)
+                    </span>
+                    {([0, 1, 2, 3] as const).map((slot) => {
+                      const typeKey = `buffedAttrType${slot}` as const;
+                      const valueKey = `buffedAttrValue${slot}` as const;
+                      return (
+                        <div key={slot} className="flex gap-2">
+                          <Field label={`Attribut ${slot + 1}`}>
+                            <select
+                              value={form[typeKey]}
+                              onChange={(e) => updateForm({ [typeKey]: e.target.value })}
+                              className="w-56 rounded-md border border-border bg-background px-2 py-1 text-sm"
+                            >
+                              {APPLY_TYPES.map((t) => (
+                                <option key={t.value} value={t.value}>
+                                  {t.label}
+                                </option>
+                              ))}
+                            </select>
+                          </Field>
+                          <Field label="Wert">
+                            <input
+                              type="number"
+                              value={form[valueKey]}
+                              onChange={(e) => updateForm({ [valueKey]: e.target.value })}
+                              className="w-24 rounded-md border border-border bg-background px-2 py-1 text-sm"
+                            />
+                          </Field>
+                        </div>
+                      );
+                    })}
+                  </div>
+                  <Field label="Belohnung Yang (optional)">
+                    <input
+                      type="number"
+                      value={form.rewardMoney}
+                      onChange={(e) => updateForm({ rewardMoney: e.target.value })}
+                      className="w-32 rounded-md border border-border bg-background px-2 py-1 text-sm"
+                    />
+                  </Field>
+                </>
+              )}
+
+              {templateType !== "dungeon" && templateType !== "buffed_item" && (
                 <>
                   <div className="flex gap-2">
                     <Field label="Belohnung Item-VNUM (optional)">

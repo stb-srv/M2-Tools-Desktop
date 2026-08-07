@@ -6,6 +6,25 @@ nach [SemVer](https://semver.org/) (`MAJOR.MINOR.PATCH`, solange < 1.0 gilt
 `MINOR` für neue Features, `PATCH` für reine Fixes). Für die vollständige
 Feature-Historie mit allen Details siehe `STATUS.md`.
 
+## [0.5.4] - 2026-08-07
+
+### Hinzugefügt
+
+- **Item Editor: Beschreibung/Kurzbeschreibung** — zwei neue Felder direkt
+  im Item Editor lesen/schreiben `locale/<lang>/itemdesc.txt`, den
+  clientseitigen Tooltip-Text eines Items (existiert nicht als
+  `item_proto`-Spalte, daher bisher nirgends im Tool auffindbar). Reine
+  lokale Datei-Operation im Client-Ordner (mit Backup wie bei den anderen
+  Text-Datei-Editoren), keine Server-/SFTP-Beteiligung — ein
+  Client-Neustart/-Relog reicht, kein Server-Neustart nötig.
+- **Quest Builder: Vorlage "Item mit festen Boni verschenken"** — für
+  vorgegebene Attribute auf einem Belohnungs-Item (z.B. "Schwert+9 mit INT
+  500, STR 700"), was über die Kisten-Loot-Tabelle nicht möglich ist (die
+  kennt nur VNUM+Anzahl+Chance). Nutzt `pc.give_item2_select` +
+  `item.set_value` (bis zu 4 Attribut-Slots, Dropdown mit denselben
+  Attribut-Typen wie bei `applytype0-3` im Item Editor) — beides bereits im
+  Server-Quest-Lua vorhanden, keine Server-Quelltext-Änderung nötig.
+
 ## [0.5.3] - 2026-08-06
 
 ### Geändert

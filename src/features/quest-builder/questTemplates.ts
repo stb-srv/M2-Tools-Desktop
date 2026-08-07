@@ -7,7 +7,7 @@
 // Metin2 documentation. Templates only cover the common single-state cases;
 // anything more complex is edited as raw code after creation.
 
-export type TemplateType = "dialog" | "collect" | "chance_collect" | "kill" | "use" | "dungeon";
+export type TemplateType = "dialog" | "collect" | "chance_collect" | "kill" | "use" | "buffed_item" | "dungeon";
 
 export interface QuestFormState {
   npcVnum: string;
@@ -33,6 +33,24 @@ export interface QuestFormState {
   requiredSuccesses: string;
   noItemText: string;
   completeText: string;
+  // buffed_item only - gives a specific item with forced bonus attributes
+  // instead of a random/rolled one. `apply_type` values reuse the same
+  // EApplyTypes enum as item_proto.applytype0-3 (see itemFlags.ts's
+  // APPLY_TYPES) - item.set_value(index, apply_type, value) (bound to
+  // CItem::SetForceAttribute in questlua_item.cpp) writes directly into one
+  // of the item's 7 bonus-attribute slots, the same slots normally filled
+  // by the random rare-item roll. "0"/apply type "Keine" means the slot is
+  // left empty.
+  buffedItemVnum: string;
+  buffedItemCount: string;
+  buffedAttrType0: string;
+  buffedAttrValue0: string;
+  buffedAttrType1: string;
+  buffedAttrValue1: string;
+  buffedAttrType2: string;
+  buffedAttrValue2: string;
+  buffedAttrType3: string;
+  buffedAttrValue3: string;
 }
 
 export const DEFAULT_FORM: QuestFormState = {
@@ -57,6 +75,16 @@ export const DEFAULT_FORM: QuestFormState = {
   requiredSuccesses: "10",
   noItemText: "Du hast das benötigte Item nicht dabei.",
   completeText: "Damit hast du genug gesammelt!",
+  buffedItemVnum: "",
+  buffedItemCount: "1",
+  buffedAttrType0: "0",
+  buffedAttrValue0: "0",
+  buffedAttrType1: "0",
+  buffedAttrValue1: "0",
+  buffedAttrType2: "0",
+  buffedAttrValue2: "0",
+  buffedAttrType3: "0",
+  buffedAttrValue3: "0",
 };
 
 // say()/say_title() take a plain Lua double-quoted string - escape what
@@ -223,6 +251,49 @@ function useTemplate(form: QuestFormState): string {
   ].join("\n");
 }
 
+// Gives one specific item (e.g. the "+9" step of an already-built refine
+// chain) with up to 4 forced bonus-attribute slots, instead of the box/
+// loot-table system's vnum+count+probability-only entries, which cannot
+// carry attribute values at all. `pc.give_item2_select` (unlike the plain
+// `pc.give_item2` every other template uses) additionally marks the new
+// item as the quest's "current item", which `item.set_value` then writes
+// into - verified against questlua_pc.cpp/questlua_item.cpp, not guessed.
+function buffedItemTemplate(form: QuestFormState): string {
+  const npcVnum = Number(form.npcVnum) || 0;
+  const itemVnum = Number(form.buffedItemVnum) || 0;
+  const itemCount = Math.max(1, Number(form.buffedItemCount) || 1);
+
+  const attrSlots: [string, string][] = [
+    [form.buffedAttrType0, form.buffedAttrValue0],
+    [form.buffedAttrType1, form.buffedAttrValue1],
+    [form.buffedAttrType2, form.buffedAttrValue2],
+    [form.buffedAttrType3, form.buffedAttrValue3],
+  ];
+
+  const body = [
+    `say_title(${luaString(form.npcTitle)})`,
+    `say(${luaString(form.dialogText)})`,
+    `pc.give_item2_select(${itemVnum}, ${itemCount})`,
+  ];
+  attrSlots.forEach(([type, value], index) => {
+    const applyType = Number(type) || 0;
+    const applyValue = Number(value) || 0;
+    if (applyType > 0) {
+      body.push(`item.set_value(${index}, ${applyType}, ${applyValue})`);
+    }
+  });
+  const money = Number(form.rewardMoney);
+  if (Number.isFinite(money) && money !== 0) {
+    body.push(`pc.changemoney(${money})`);
+  }
+
+  return [
+    `when ${npcVnum}.chat.${luaString(form.chatLabel)} begin`,
+    indent(body, 1),
+    `end`,
+  ].join("\n");
+}
+
 type SimpleTemplateType = Exclude<TemplateType, "dungeon">;
 
 const TEMPLATE_BODIES: Record<SimpleTemplateType, (form: QuestFormState) => string> = {
@@ -231,6 +302,7 @@ const TEMPLATE_BODIES: Record<SimpleTemplateType, (form: QuestFormState) => stri
   chance_collect: chanceCollectTemplate,
   kill: killTemplate,
   use: useTemplate,
+  buffed_item: buffedItemTemplate,
 };
 
 export function generateQuestLua(
@@ -255,6 +327,7 @@ export const TEMPLATE_LABELS: Record<TemplateType, string> = {
   chance_collect: "Sammel-Quest mit Erfolgschance (Biologie-Stil)",
   kill: "Kill-Quest (Monster töten)",
   use: "Item-Benutzung",
+  buffed_item: "Item mit festen Boni verschenken",
   dungeon: "Run / Instanz-Dungeon (mehrere Etagen)",
 };
 
@@ -266,6 +339,8 @@ export const TEMPLATE_HINTS: Record<TemplateType, string> = {
     "Wie bei den echten Biologie-Quests (z.B. Orkzahn.lua): Spieler gibt bei jedem Versuch ein Item ab, das Item wird IMMER verbraucht, zählt aber nur mit einer festgelegten Chance zum Fortschritt. Erst nach genug Erfolgen gibt es die Belohnung.",
   kill: "Spieler muss eine bestimmte Anzahl eines Monsters töten (Fortschritt wird pro Spieler gespeichert), dann beim NPC melden.",
   use: "Ein Item löst beim Benutzen direkt einen Effekt/eine Belohnung aus (kein NPC nötig).",
+  buffed_item:
+    "Für vorgegebene Boni (z.B. \"Schwert+9 mit INT 500, STR 700\"), die über die Kisten-Loot-Tabelle nicht möglich sind (die kennt nur VNUM+Anzahl+Chance, keine Attribut-Werte). Spieler spricht den NPC an und bekommt ein konkretes Item (z.B. die bereits im Aufwertungs-Editor angelegte \"+9\"-Stufe) mit bis zu 4 fest eingestellten Bonus-Attributen - keine Server-Änderung nötig, item.set_value ist bereits im Quest-Lua vorhanden.",
   dungeon:
     "Grundgerüst für einen mehrstufigen Run wie Beran/Daemonenturm/Teufelskatakomben: NPC-Einstieg, pro Etage ein Boss-Kill schaltet die nächste Etage frei (d.regen_file/d.jump_all/d.setf), am Ende Belohnung + Rauswurf. Deckt bewusst nur das gemeinsame Grundmuster ab - Passwort-Systeme, Zeitlimits o.ä. wie beim echten Beran müssen danach im Code-Editor von Hand ergänzt werden.",
 };

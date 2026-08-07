@@ -10,6 +10,7 @@ mod gr2;
 mod icons;
 mod imageconv;
 mod import_history;
+mod itemdesc;
 mod locale;
 mod mapdata;
 mod mobdrop;
@@ -106,6 +107,8 @@ pub fn run() {
             commands::write_item_model,
             commands::pack_item_models,
             commands::write_item_list_entry,
+            commands::get_item_desc,
+            commands::write_item_desc,
             commands::regenerate_item_proto,
             commands::deploy_item_proto,
             commands::scan_module,

@@ -105,6 +105,28 @@ describe("generateQuestLua", () => {
     expectBalanced(lua);
   });
 
+  it("buffed_item: gives the item via give_item2_select and force-sets only the filled attribute slots", () => {
+    const lua = generateQuestLua(
+      "buffed_quest",
+      "buffed_item",
+      withNpc({
+        buffedItemVnum: "800009",
+        buffedItemCount: "1",
+        buffedAttrType0: "4", // INT
+        buffedAttrValue0: "500",
+        buffedAttrType1: "5", // STR
+        buffedAttrValue1: "700",
+        // slots 2/3 left at DEFAULT_FORM's "0" (Keine) - must not appear
+      }),
+    );
+    expect(lua).toContain("pc.give_item2_select(800009, 1)");
+    expect(lua).toContain("item.set_value(0, 4, 500)");
+    expect(lua).toContain("item.set_value(1, 5, 700)");
+    expect(lua).not.toContain("item.set_value(2,");
+    expect(lua).not.toContain("item.set_value(3,");
+    expectBalanced(lua);
+  });
+
   it("escapes quotes and turns real newlines into [ENTER]", () => {
     const lua = generateQuestLua(
       "escape_quest",

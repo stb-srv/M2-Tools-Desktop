@@ -6,6 +6,7 @@ use crate::db::shop::{self, DatabaseStats, ItemSearchResult, ShopItem, ShopSumma
 use crate::gr2::{self, ModelInfo};
 use crate::icons;
 use crate::import_history;
+use crate::itemdesc;
 use crate::mobdrop;
 use crate::modulescan::{self, ScannedModule};
 use crate::msm;
@@ -1283,6 +1284,26 @@ pub fn write_item_list_entry(
         &icon_rel_path,
         model_rel_path.as_deref(),
     )
+}
+
+// ---- Item-Beschreibung (locale/<lang>/itemdesc.txt - client-seitig, keine
+// item_proto-Spalte) ----
+
+#[tauri::command]
+pub fn get_item_desc(state: State<'_, AppState>, vnum: u32) -> Result<Option<itemdesc::ItemDescEntry>, String> {
+    let client_path = item_editor_setting(&state, "client_path")?;
+    itemdesc::read_entry(&client_path, vnum)
+}
+
+#[tauri::command]
+pub fn write_item_desc(
+    state: State<'_, AppState>,
+    vnum: u32,
+    description: String,
+    summary: String,
+) -> Result<(), String> {
+    let client_path = item_editor_setting(&state, "client_path")?;
+    itemdesc::write_entry(&client_path, vnum, &description, &summary)
 }
 
 #[tauri::command]

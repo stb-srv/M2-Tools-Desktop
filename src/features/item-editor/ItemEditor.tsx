@@ -74,6 +74,13 @@ interface ItemSearchResult {
   name: string;
 }
 
+interface ItemDescEntry {
+  vnum: number;
+  description: string;
+  summary: string;
+  extra: string | null;
+}
+
 function emptyItem(vnum: number): ItemProtoInput {
   return {
     vnum,
@@ -148,6 +155,14 @@ export function ItemEditor() {
 
   const [advancedOpen, setAdvancedOpen] = useState(false);
   const [iconBrowserOpen, setIconBrowserOpen] = useState(false);
+
+  // locale/<lang>/itemdesc.txt (client tooltip text) - no item_proto column
+  // at all, so tracked separately from `item` and written in its own
+  // pipeline step. See src-tauri/src/itemdesc.rs for the file format.
+  const [description, setDescription] = useState("");
+  const [summary, setSummary] = useState("");
+  const [origDescription, setOrigDescription] = useState("");
+  const [origSummary, setOrigSummary] = useState("");
 
   const [confirmPipeline, setConfirmPipeline] = useState(false);
   const [steps, setSteps] = useState<Record<string, StepStatus>>({});
@@ -241,6 +256,10 @@ export function ItemEditor() {
     );
     setItem(emptyItem(vnum));
     setVnumTaken(vnum > 0 ? false : null);
+    setDescription("");
+    setSummary("");
+    setOrigDescription("");
+    setOrigSummary("");
   }
 
   async function runEditSearch() {
@@ -271,6 +290,11 @@ export function ItemEditor() {
     setSteps({});
     const preview = await invoke<string | null>("get_item_icon", { vnum }).catch(() => null);
     setIconPreview(preview);
+    const desc = await invoke<ItemDescEntry | null>("get_item_desc", { vnum }).catch(() => null);
+    setDescription(desc?.description ?? "");
+    setSummary(desc?.summary ?? "");
+    setOrigDescription(desc?.description ?? "");
+    setOrigSummary(desc?.summary ?? "");
   }
 
   async function pickIcon() {
@@ -320,6 +344,11 @@ export function ItemEditor() {
     setPipelineError(null);
     setSteps({});
     setVnumTaken(vnum > 0 ? false : null);
+    // Description/summary text is kept as a starting draft (matches how
+    // every other field is duplicated), but the "original" baseline resets
+    // to empty since the new vnum has no itemdesc.txt row of its own yet.
+    setOrigDescription("");
+    setOrigSummary("");
   }
 
   async function loadReference(vnum: number) {
@@ -343,6 +372,7 @@ export function ItemEditor() {
 
   const hasNewIcon = !!iconSourcePath;
   const hasModelCopy = copyModel && refModelVnum !== null && item.type === 1;
+  const hasDescChange = description !== origDescription || summary !== origSummary;
 
   const canCreate =
     item.vnum > 0 &&
@@ -390,6 +420,13 @@ export function ItemEditor() {
           setUpdatedInDb(true);
         }
       });
+      if (hasDescChange) {
+        await runStep("desc", async () => {
+          await invoke("write_item_desc", { vnum: item.vnum, description, summary });
+          setOrigDescription(description);
+          setOrigSummary(summary);
+        });
+      }
       if (hasNewIcon) {
         await runStep("icon", async () => {
           await invoke("write_item_icon", { vnum: item.vnum, sourcePath: iconSourcePath });
@@ -666,6 +703,29 @@ export function ItemEditor() {
             />
           </Field>
         </div>
+
+        <div className="flex flex-wrap gap-3">
+          <Field label="Beschreibung (Tooltip-Text)">
+            <textarea
+              value={description}
+              onChange={(e) => setDescription(e.target.value)}
+              className="h-16 w-72 rounded-md border border-border bg-background px-2 py-1 text-sm"
+            />
+          </Field>
+          <Field label="Kurzbeschreibung">
+            <textarea
+              value={summary}
+              onChange={(e) => setSummary(e.target.value)}
+              className="h-16 w-56 rounded-md border border-border bg-background px-2 py-1 text-sm"
+            />
+          </Field>
+        </div>
+        <p className="text-xs text-muted-foreground">
+          Rein clientseitiger Tooltip-Text (<code>locale/&lt;lang&gt;/itemdesc.txt</code>) - keine
+          Datenbank-Spalte, keine Server-Beteiligung. Wird beim Speichern lokal in die Client-Datei
+          geschrieben (mit Backup), nicht über SFTP - ein Client-Neustart/-Relog reicht, um die neue
+          Beschreibung zu sehen, kein Server-Neustart nötig.
+        </p>
 
         <div className="flex flex-wrap gap-3">
           <Field label="Kaufpreis (NPC → Spieler)">
@@ -952,6 +1012,7 @@ export function ItemEditor() {
           <div className="space-y-1 text-sm">
             <StepRow label="Voraussetzungen prüfen (Tool-Pfade)" status={steps.setup} />
             <StepRow label="Datenbankeintrag" status={steps.db} />
+            {hasDescChange && <StepRow label="Beschreibung schreiben (itemdesc.txt)" status={steps.desc} />}
             {hasNewIcon && <StepRow label="Icon schreiben" status={steps.icon} />}
             {hasNewIcon && <StepRow label="icon.epk neu packen" status={steps.pack} />}
             {hasModelCopy && <StepRow label="3D-Modell kopieren" status={steps.model} />}
