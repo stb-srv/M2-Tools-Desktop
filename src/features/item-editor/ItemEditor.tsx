@@ -956,6 +956,29 @@ export function ItemEditor() {
                 </p>
               </div>
             )}
+            {item.type === 3 && item.subtype === 2 && (
+              <div className="space-y-1 rounded-md border border-border bg-muted/40 p-2 text-xs">
+                <p className="font-medium">Aufwertungs-Schriftrolle (USE_TUNING):</p>
+                <p>
+                  value0 = Schriftrollen-ID — 0-6 sind fest im Server-Quellcode belegt (Chukbok,
+                  Hyuniron, Yongsin, Musin, Yagong, Memo, B-Dragon). Für eine neue, generische
+                  Schriftrolle einen Wert ≥ 7 verwenden.
+                </p>
+                {item.value0 >= 0 && item.value0 <= 6 && (
+                  <p className="flex items-center gap-1 text-amber-600 dark:text-amber-400">
+                    <AlertTriangle className="size-3.5 shrink-0" /> value0 = {item.value0} kollidiert mit
+                    einer fest verdrahteten Alt-Schriftrolle — für eine neue generische Schriftrolle
+                    mindestens 7 verwenden.
+                  </p>
+                )}
+                <p>
+                  value2 = Erfolgschance in % (0-100), value3 = Verhalten bei Fehlschlag (0 = Item wird
+                  abgestuft falls möglich, 1 = Item bleibt bei Fehlschlag erhalten). Erfordert den
+                  char_item.cpp-Patch für generische Boost-Schriftrollen (bereits auf dem Server
+                  eingespielt, wirkt erst nach dem nächsten Bauen &amp; Einspielen der Server-Software).
+                </p>
+              </div>
+            )}
 
             <p className="text-xs text-muted-foreground">
               Stat-Boni (applytype/applyvalue) — Typen aus dem echten Server-Quellcode verifiziert

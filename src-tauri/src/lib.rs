@@ -3,6 +3,7 @@
 #![allow(linker_messages)]
 
 mod backups;
+mod build_deploy;
 mod commands;
 mod credentials;
 mod db;
@@ -21,6 +22,7 @@ mod quest;
 mod refine;
 mod regen;
 mod db_backup;
+mod deploy_history;
 mod resources;
 mod webhook;
 mod settings;
@@ -65,6 +67,12 @@ pub fn run() {
             commands::convert_image_to_tga,
             commands::preview_image_file,
             commands::run_server_command,
+            commands::list_build_targets,
+            commands::sync_build_source,
+            commands::run_source_build,
+            commands::run_deploy,
+            commands::run_rollback,
+            commands::list_deploy_history,
             commands::test_mysql_connection,
             commands::store_credential,
             commands::get_credential,

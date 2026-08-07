@@ -16,6 +16,7 @@ import { SetupWizard } from "@/features/setup/SetupWizard";
 // navigation.ts) stays eager for a fast first paint; everything else loads
 // on first visit to that section.
 const ServerControl = lazy(() => import("@/features/server-control/ServerControl").then((m) => ({ default: m.ServerControl })));
+const BuildDeploy = lazy(() => import("@/features/build-deploy/BuildDeploy").then((m) => ({ default: m.BuildDeploy })));
 const DbExplorer = lazy(() => import("@/features/db-explorer/DbExplorer").then((m) => ({ default: m.DbExplorer })));
 const ShopEditor = lazy(() => import("@/features/shop-editor/ShopEditor").then((m) => ({ default: m.ShopEditor })));
 const ItemEditor = lazy(() => import("@/features/item-editor/ItemEditor").then((m) => ({ default: m.ItemEditor })));
@@ -81,6 +82,7 @@ function App() {
         {section === "dashboard" && <Dashboard />}
         <Suspense fallback={<LoadingFallback />}>
           {section === "server-control" && <ServerControl />}
+          {section === "build-deploy" && <BuildDeploy />}
           {section === "db-explorer" && <DbExplorer />}
           {section === "shop-editor" && <ShopEditor />}
           {section === "item-editor" && <ItemEditor />}

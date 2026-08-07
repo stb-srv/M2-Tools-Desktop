@@ -6,6 +6,33 @@ nach [SemVer](https://semver.org/) (`MAJOR.MINOR.PATCH`, solange < 1.0 gilt
 `MINOR` für neue Features, `PATCH` für reine Fixes). Für die vollständige
 Feature-Historie mit allen Details siehe `STATUS.md`.
 
+## [0.6.0] - 2026-08-07
+
+### Hinzugefügt
+
+- **Generische Aufwertungs-Boost-Schriftrollen** — Server-Quellcode-Patch
+  (`char_item.cpp`, live auf dem Server eingespielt) erlaubt jetzt neue
+  Schriftrollen, deren Erfolgschance/Fehlschlag-Verhalten direkt aus der
+  `item_proto`-Zeile kommt (`value0` ≥ 7, `value2` = Erfolgschance,
+  `value3` = Verhalten bei Fehlschlag), statt für jede neue Schriftrolle
+  wieder harten C++-Code zu brauchen. Die 7 bestehenden Alt-Schriftrollen
+  (Musin/Memo/Drachenblut/Yongsin/Yagong/Hyuniron/Chukbok) bleiben
+  unverändert. Hinweistext dazu im Item Editor.
+- **Server-Quellcode Bauen & Einspielen** — komplett neuer Bereich, der
+  Metin2-Server-Quellcode auf dem Live-Server über SSH baut (immer in
+  einer separaten Arbeitskopie, nie im Live-Quellbaum) und das Ergebnis
+  bei Bedarf live einspielt: Quellcode-Kopie synchronisieren, gezielt
+  Bibliotheken/Programmdateien (neu) bauen mit Live-Log, automatisches
+  Backup der aktuellen Programmdatei(en) vor jedem Einspielen,
+  Live-Prüfung nach dem Neustart (zwei `ps`-Momentaufnahmen, erkennt eine
+  Absturzschleife), vollständiger Verlauf mit Ein-Klick-Rückgängig-machen.
+  Erstes Feature im Tool mit **eingetippter** statt nur geklickter
+  Bestätigung vor dem eigentlichen Einspielen — alle Channels und der
+  Login-Server teilen sich per Symlink eine einzige Programmdatei, es
+  gibt keinen Testserver, jede Version betrifft sofort den kompletten
+  Live-Server gleichzeitig (live gegen den echten Server verifiziert,
+  nicht angenommen).
+
 ## [0.5.5] - 2026-08-07
 
 ### Hinzugefügt

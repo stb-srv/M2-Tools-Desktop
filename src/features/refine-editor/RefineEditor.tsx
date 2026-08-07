@@ -557,6 +557,13 @@ export function RefineEditor() {
         </span>
       </div>
 
+      <p className="text-xs text-muted-foreground">
+        Andere Items können die Erfolgschance einer Aufwertung beeinflussen (Aufwertungs-Schriftrollen).{" "}
+        <button className="underline" onClick={() => setSection("item-editor")}>
+          Neue Aufwertungs-Schriftrolle erstellen
+        </button>
+      </p>
+
       <section className="space-y-3 rounded-lg border border-border p-4">
         <h2 className="text-sm font-medium text-muted-foreground">Item wählen</h2>
         <ItemPicker placeholder="Item nach Name oder VNUM suchen…" onPick={(item) => loadChain(item.vnum)} />

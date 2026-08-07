@@ -20,11 +20,13 @@ import {
   Settings as SettingsIcon,
   Hammer,
   Package,
+  Wrench,
 } from "lucide-react";
 
 export type Section =
   | "dashboard"
   | "server-control"
+  | "build-deploy"
   | "db-explorer"
   | "shop-editor"
   | "item-editor"
@@ -64,6 +66,7 @@ export const CATEGORY_LABEL_KEYS: Record<Category, string> = {
 export const NAV_ITEMS: { section: Section; icon: typeof LayoutDashboard; labelKey: string; category: Category }[] = [
   { section: "dashboard", icon: LayoutDashboard, labelKey: "nav.dashboard", category: "overview" },
   { section: "server-control", icon: Terminal, labelKey: "nav.serverControl", category: "overview" },
+  { section: "build-deploy", icon: Wrench, labelKey: "nav.buildDeploy", category: "overview" },
   { section: "db-explorer", icon: Database, labelKey: "nav.dbExplorer", category: "editors" },
   { section: "shop-editor", icon: Store, labelKey: "nav.shopEditor", category: "editors" },
   { section: "item-editor", icon: PackagePlus, labelKey: "nav.itemEditor", category: "editors" },

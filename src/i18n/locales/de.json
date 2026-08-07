@@ -2,6 +2,7 @@
   "nav": {
     "dashboard": "Dashboard",
     "serverControl": "Server-Steuerung",
+    "buildDeploy": "Quellcode Bauen & Einspielen",
     "dbExplorer": "Datenbank-Explorer",
     "shopEditor": "Shop-Editor",
     "itemEditor": "Item Editor",

@@ -25,6 +25,17 @@ pub fn init_db(app_data_dir: &Path) -> Result<Connection, String> {
             created_at TEXT NOT NULL,
             vnums_json TEXT NOT NULL,
             had_effects INTEGER NOT NULL DEFAULT 0
+        );
+        CREATE TABLE IF NOT EXISTS deploy_history (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            kind TEXT NOT NULL,
+            targets_json TEXT NOT NULL,
+            created_at TEXT NOT NULL,
+            game_backup_path TEXT,
+            db_backup_path TEXT,
+            note TEXT,
+            success INTEGER,
+            rolled_back_from INTEGER
         );",
     )
     .map_err(|e| e.to_string())?;

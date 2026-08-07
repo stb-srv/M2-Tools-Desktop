@@ -214,17 +214,12 @@ pub async fn list_remote_dir(
     Ok(result)
 }
 
-/// Moves a remote file into the same `m2manager_backups` folder used by
-/// `write_remote_file_with_backup`, without writing a replacement - used for
-/// "delete" actions where we never want to actually destroy server data.
-/// Returns the backup path, or `None` if the file didn't exist.
-pub async fn delete_remote_file_with_backup(
-    config: &SshConfig,
-    auth: &SshAuth,
-    path: &str,
-) -> Result<Option<String>, String> {
-    let sftp = open_sftp(config, auth).await?;
-
+/// Renames an existing remote file into a sibling `m2manager_backups` folder
+/// with a timestamp suffix, without writing anything back - the shared core
+/// of `delete_remote_file_with_backup`, `write_remote_file_with_backup`, and
+/// `backup_remote_binary`. Returns the backup path, or `None` if `path`
+/// doesn't exist (nothing to back up - e.g. a brand-new file).
+async fn backup_existing(sftp: &SftpSession, path: &str, suffix: &str) -> Result<Option<String>, String> {
     if !sftp.try_exists(path).await.map_err(|e| e.to_string())? {
         return Ok(None);
     }
@@ -238,11 +233,36 @@ pub async fn delete_remote_file_with_backup(
         let _ = sftp.create_dir(&backup_dir).await;
     }
     let timestamp = chrono::Local::now().format("%Y%m%d_%H%M%S");
-    let dest = format!("{backup_dir}/{filename}.{timestamp}.deleted");
+    let dest = format!("{backup_dir}/{filename}.{timestamp}.{suffix}");
     sftp.rename(path, &dest)
         .await
-        .map_err(|e| format!("Löschen (Backup-Verschiebung) fehlgeschlagen: {e}"))?;
+        .map_err(|e| format!("Backup fehlgeschlagen: {e}"))?;
     Ok(Some(dest))
+}
+
+/// Moves a remote file into the same `m2manager_backups` folder used by
+/// `write_remote_file_with_backup`, without writing a replacement - used for
+/// "delete" actions where we never want to actually destroy server data.
+/// Returns the backup path, or `None` if the file didn't exist.
+pub async fn delete_remote_file_with_backup(
+    config: &SshConfig,
+    auth: &SshAuth,
+    path: &str,
+) -> Result<Option<String>, String> {
+    let sftp = open_sftp(config, auth).await?;
+    backup_existing(&sftp, path, "deleted").await
+}
+
+/// Renames the currently-live file at `path` into its sibling
+/// `m2manager_backups` folder (same-filesystem rename, no data transfer)
+/// without writing a replacement - used as the deploy sequence's backup step
+/// before a freshly-built binary is copied into place via a server-side `cp`
+/// (see `build_deploy.rs`). Unlike text files, the replacement here never
+/// round-trips through this app, so there is no matching
+/// `write_remote_binary_with_backup` - this is a standalone step.
+pub async fn backup_remote_binary(config: &SshConfig, auth: &SshAuth, path: &str) -> Result<Option<String>, String> {
+    let sftp = open_sftp(config, auth).await?;
+    backup_existing(&sftp, path, "bak").await
 }
 
 /// Permanently removes a remote file - unlike `delete_remote_file_with_backup`,
@@ -335,23 +355,7 @@ pub async fn write_remote_file_with_backup(
 ) -> Result<Option<String>, String> {
     let sftp = open_sftp(config, auth).await?;
 
-    let mut backup_path = None;
-    if sftp.try_exists(path).await.map_err(|e| e.to_string())? {
-        let (dir, filename) = match path.rfind('/') {
-            Some(idx) => (&path[..idx], &path[idx + 1..]),
-            None => (".", path),
-        };
-        let backup_dir = format!("{dir}/m2manager_backups");
-        if !sftp.try_exists(&backup_dir).await.unwrap_or(false) {
-            let _ = sftp.create_dir(&backup_dir).await;
-        }
-        let timestamp = chrono::Local::now().format("%Y%m%d_%H%M%S");
-        let dest = format!("{backup_dir}/{filename}.{timestamp}.bak");
-        sftp.rename(path, &dest)
-            .await
-            .map_err(|e| format!("Backup fehlgeschlagen: {e}"))?;
-        backup_path = Some(dest);
-    }
+    let backup_path = backup_existing(&sftp, path, "bak").await?;
 
     // sftp.write() only opens with WRITE (no CREATE), which would fail here
     // since the path above was just renamed away - open with CREATE
