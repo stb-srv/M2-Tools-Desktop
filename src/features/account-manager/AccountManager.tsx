@@ -1,8 +1,8 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { invoke } from "@tauri-apps/api/core";
 import { runAsyncAction } from "@/lib/asyncAction";
 import { Button } from "@/components/ui/button";
-import { Search, AlertTriangle, Users, Plus, Trash2 } from "lucide-react";
+import { Search, AlertTriangle, Users, Plus, Trash2, KeyRound, ChevronLeft, ChevronRight, CheckCircle2 } from "lucide-react";
 import { GenericRowEditor } from "@/features/shared/GenericRowEditor";
 
 interface ColumnInfo {
@@ -29,7 +29,6 @@ interface TableTarget {
 // beyond that: search column is user-editable (schemas vary in which column
 // holds the login/character name), and the primary key is auto-detected at
 // runtime by GenericRowEditor via `is_primary_key`, never guessed as "id".
-const ACCOUNT_TABLE: TableTarget = { database: "account", table: "account" };
 const PLAYER_TABLE: TableTarget = { database: "player", table: "player" };
 const ITEM_TABLE: TableTarget = { database: "player", table: "item" };
 
@@ -41,21 +40,12 @@ export function AccountManager() {
         <h1 className="text-2xl font-semibold">Account-/Spieler-Verwaltung</h1>
       </div>
       <p className="text-sm text-muted-foreground">
-        Sucht und bearbeitet Zeilen direkt in <code>account.account</code> und{" "}
-        <code>player.player</code> (generischer Editor, siehe Mob-Proto-Editor für dieselbe
-        Technik). Damit lassen sich z.B. GM-Level, Sperrstatus oder Position ändern - welche
-        Spalte das konkret ist, hängt vom Core ab und wird hier nicht geraten, sondern als reale
-        Spalte mit echtem Wert angezeigt. Es gibt keinen Kanal zu einem laufenden Spielprozess -
-        Änderungen an bereits online befindlichen Spielern wirken daher unter Umständen erst nach
-        Neuanmeldung, nicht sofort live.
+        Es gibt keinen Kanal zu einem laufenden Spielprozess - Änderungen an bereits online
+        befindlichen Spielern wirken daher unter Umständen erst nach Neuanmeldung, nicht sofort
+        live.
       </p>
 
-      <TableSearchSection
-        title="Accounts"
-        target={ACCOUNT_TABLE}
-        defaultColumn="login"
-        placeholder="Login suchen…"
-      />
+      <AccountSection />
       <TableSearchSection
         title="Spieler"
         target={PLAYER_TABLE}
@@ -63,6 +53,334 @@ export function AccountManager() {
         placeholder="Charaktername suchen…"
       />
       <GiveItemSection />
+    </div>
+  );
+}
+
+interface AccountSummary {
+  id: number;
+  login: string;
+  email: string;
+  status: string;
+  empire: number;
+  create_time: string;
+  last_play: string | null;
+}
+
+const EMPIRE_LABELS: Record<number, string> = {
+  0: "Noch nicht gewählt",
+  1: "Shinsoo (Rot)",
+  2: "Chunjo (Gelb)",
+  3: "Jinno (Blau)",
+};
+
+const PAGE_SIZE = 20;
+
+// Eigene, gezielte Commands statt des generischen DB-Explorer-Zeilen-CRUD -
+// Passwörter müssen über MySQLs eigene PASSWORD()-Funktion gesetzt werden
+// (verifiziert gegen den echten Server-Quellcode: der Login-Check vergleicht
+// PASSWORD(eingegebenes_pw) mit der gespeicherten Spalte), das kann der
+// generische insert_table_row/update_table_row-Pfad nicht leisten - deshalb
+// hier ein eigener kleiner Abschnitt statt TableSearchSection.
+function AccountSection() {
+  const [accounts, setAccounts] = useState<AccountSummary[] | null>(null);
+  const [total, setTotal] = useState(0);
+  const [page, setPage] = useState(0);
+  const [search, setSearch] = useState("");
+  const [loading, setLoading] = useState(false);
+  const [loadError, setLoadError] = useState<string | null>(null);
+
+  const [editingPk, setEditingPk] = useState<string | null>(null);
+  const [resetTarget, setResetTarget] = useState<AccountSummary | null>(null);
+
+  const [creating, setCreating] = useState(false);
+  const [newLogin, setNewLogin] = useState("");
+  const [newPassword, setNewPassword] = useState("");
+  const [newEmpire, setNewEmpire] = useState("0");
+  const [createBusy, setCreateBusy] = useState(false);
+  const [createError, setCreateError] = useState<string | null>(null);
+
+  async function load() {
+    await runAsyncAction(
+      async () => {
+        const [rows, count] = await Promise.all([
+          invoke<AccountSummary[]>("list_accounts", { search, limit: PAGE_SIZE, offset: page * PAGE_SIZE }),
+          invoke<number>("count_accounts", { search }),
+        ]);
+        return { rows, count };
+      },
+      {
+        onStart: () => {
+          setLoading(true);
+          setLoadError(null);
+        },
+        onSuccess: ({ rows, count }) => {
+          setAccounts(rows);
+          setTotal(count);
+        },
+        onError: setLoadError,
+        onFinally: () => setLoading(false),
+      },
+    );
+  }
+
+  useEffect(() => {
+    load();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [page]);
+
+  function runSearch() {
+    setPage(0);
+    load();
+  }
+
+  async function submitCreate() {
+    await runAsyncAction(
+      () =>
+        invoke("create_account", {
+          login: newLogin.trim(),
+          password: newPassword,
+          empire: newEmpire === "0" ? null : Number(newEmpire),
+        }),
+      {
+        onStart: () => {
+          setCreateBusy(true);
+          setCreateError(null);
+        },
+        onSuccess: async () => {
+          setCreating(false);
+          setNewLogin("");
+          setNewPassword("");
+          setNewEmpire("0");
+          setPage(0);
+          await load();
+        },
+        onError: setCreateError,
+        onFinally: () => setCreateBusy(false),
+      },
+    );
+  }
+
+  const canCreate = newLogin.trim().length > 0 && newPassword.length > 0;
+  const totalPages = Math.max(1, Math.ceil(total / PAGE_SIZE));
+
+  return (
+    <section className="space-y-2 rounded-lg border border-border p-4">
+      <div className="flex items-center justify-between">
+        <h2 className="text-sm font-medium text-muted-foreground">Accounts</h2>
+        <Button size="sm" onClick={() => setCreating(true)}>
+          <Plus className="size-3.5" />
+          Neuer Account…
+        </Button>
+      </div>
+
+      <div className="flex gap-2">
+        <input
+          value={search}
+          onChange={(e) => setSearch(e.target.value)}
+          onKeyDown={(e) => e.key === "Enter" && runSearch()}
+          placeholder="Login suchen (leer = alle anzeigen)…"
+          className="flex-1 rounded-md border border-border bg-background px-2 py-1 text-sm"
+        />
+        <Button variant="outline" onClick={runSearch} disabled={loading}>
+          <Search className="size-4" />
+        </Button>
+      </div>
+
+      {loadError && (
+        <p className="flex items-start gap-2 text-sm text-destructive">
+          <AlertTriangle className="mt-0.5 size-4 shrink-0" />
+          <span>{loadError}</span>
+        </p>
+      )}
+
+      {accounts && (
+        <div className="overflow-x-auto rounded-md border border-border">
+          <table className="w-full text-xs">
+            <thead className="bg-muted/40">
+              <tr>
+                <th className="px-2 py-1 text-left font-medium">ID</th>
+                <th className="px-2 py-1 text-left font-medium">Login</th>
+                <th className="px-2 py-1 text-left font-medium">E-Mail</th>
+                <th className="px-2 py-1 text-left font-medium">Status</th>
+                <th className="px-2 py-1 text-left font-medium">Reich</th>
+                <th className="px-2 py-1 text-left font-medium">Erstellt</th>
+                <th className="px-2 py-1 text-left font-medium">Zuletzt gespielt</th>
+                <th />
+              </tr>
+            </thead>
+            <tbody>
+              {accounts.map((a) => (
+                <tr key={a.id} className="border-t border-border">
+                  <td className="px-2 py-1">{a.id}</td>
+                  <td className="px-2 py-1 font-medium">{a.login}</td>
+                  <td className="max-w-32 truncate px-2 py-1">{a.email || "—"}</td>
+                  <td className="px-2 py-1">{a.status}</td>
+                  <td className="px-2 py-1">{EMPIRE_LABELS[a.empire] ?? a.empire}</td>
+                  <td className="px-2 py-1">{a.create_time}</td>
+                  <td className="px-2 py-1">{a.last_play ?? "—"}</td>
+                  <td className="whitespace-nowrap px-2 py-1 text-right">
+                    <Button size="sm" variant="outline" onClick={() => setEditingPk(String(a.id))}>
+                      Bearbeiten
+                    </Button>{" "}
+                    <Button size="sm" variant="outline" onClick={() => setResetTarget(a)}>
+                      <KeyRound className="size-3.5" />
+                      Passwort
+                    </Button>
+                  </td>
+                </tr>
+              ))}
+              {accounts.length === 0 && (
+                <tr>
+                  <td colSpan={8} className="px-2 py-3 text-center text-muted-foreground">
+                    Keine Accounts gefunden.
+                  </td>
+                </tr>
+              )}
+            </tbody>
+          </table>
+          <div className="flex items-center justify-between border-t border-border p-1.5 text-[10px] text-muted-foreground">
+            <span>
+              {total} Account{total === 1 ? "" : "s"} - Seite {page + 1} von {totalPages}
+            </span>
+            <div className="flex gap-1">
+              <Button variant="ghost" size="icon-sm" disabled={page === 0} onClick={() => setPage((p) => p - 1)}>
+                <ChevronLeft className="size-3.5" />
+              </Button>
+              <Button
+                variant="ghost"
+                size="icon-sm"
+                disabled={page + 1 >= totalPages}
+                onClick={() => setPage((p) => p + 1)}
+              >
+                <ChevronRight className="size-3.5" />
+              </Button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {editingPk !== null && (
+        <GenericRowEditor
+          database="account"
+          table="account"
+          pkValue={editingPk}
+          onClose={() => setEditingPk(null)}
+          onSaved={load}
+        />
+      )}
+
+      {resetTarget && <ResetPasswordDialog account={resetTarget} onClose={() => setResetTarget(null)} />}
+
+      {creating && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50">
+          <div className="w-96 space-y-3 rounded-lg border border-border bg-card p-4">
+            <p className="text-sm font-medium">Neuer Account</p>
+            <label className="flex flex-col gap-1 text-xs text-muted-foreground">
+              Login
+              <input
+                autoFocus
+                value={newLogin}
+                onChange={(e) => setNewLogin(e.target.value)}
+                className="rounded-md border border-border bg-background px-2 py-1 text-sm"
+              />
+            </label>
+            <label className="flex flex-col gap-1 text-xs text-muted-foreground">
+              Passwort
+              <input
+                type="text"
+                value={newPassword}
+                onChange={(e) => setNewPassword(e.target.value)}
+                className="rounded-md border border-border bg-background px-2 py-1 text-sm"
+              />
+            </label>
+            <label className="flex flex-col gap-1 text-xs text-muted-foreground">
+              Reich (optional, sonst wählt der Spieler beim ersten Login)
+              <select
+                value={newEmpire}
+                onChange={(e) => setNewEmpire(e.target.value)}
+                className="rounded-md border border-border bg-background px-2 py-1 text-sm"
+              >
+                {Object.entries(EMPIRE_LABELS).map(([value, label]) => (
+                  <option key={value} value={value}>
+                    {label}
+                  </option>
+                ))}
+              </select>
+            </label>
+            {createError && <p className="text-sm text-destructive">{createError}</p>}
+            <div className="flex justify-end gap-2">
+              <Button variant="outline" onClick={() => setCreating(false)}>
+                Abbrechen
+              </Button>
+              <Button disabled={!canCreate || createBusy} onClick={submitCreate}>
+                {createBusy ? "Lege an…" : "Anlegen"}
+              </Button>
+            </div>
+          </div>
+        </div>
+      )}
+    </section>
+  );
+}
+
+// Passwörter sind ein Einweg-Hash (MySQL PASSWORD()) - live gegen echte
+// Accounts verifiziert (41-Zeichen "*..."-Hash), nicht umkehrbar. "Auslesen"
+// ist daher technisch unmöglich; stattdessen wird ein neues Passwort
+// gesetzt, genau wie es der echte Login-Check erwartet.
+function ResetPasswordDialog({ account, onClose }: { account: AccountSummary; onClose: () => void }) {
+  const [password, setPassword] = useState("");
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const [ok, setOk] = useState(false);
+
+  async function submit() {
+    await runAsyncAction(() => invoke("reset_account_password", { id: account.id, newPassword: password }), {
+      onStart: () => {
+        setBusy(true);
+        setError(null);
+      },
+      onSuccess: () => setOk(true),
+      onError: setError,
+      onFinally: () => setBusy(false),
+    });
+  }
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50">
+      <div className="w-96 space-y-3 rounded-lg border border-border bg-card p-4">
+        <p className="text-sm font-medium">Passwort zurücksetzen: {account.login}</p>
+        <p className="text-xs text-muted-foreground">
+          Passwörter sind als Einweg-Hash gespeichert und können nicht ausgelesen werden - hier
+          lässt sich nur ein neues setzen.
+        </p>
+        <label className="flex flex-col gap-1 text-xs text-muted-foreground">
+          Neues Passwort
+          <input
+            autoFocus
+            type="text"
+            value={password}
+            onChange={(e) => setPassword(e.target.value)}
+            className="rounded-md border border-border bg-background px-2 py-1 text-sm"
+          />
+        </label>
+        {error && <p className="text-sm text-destructive">{error}</p>}
+        {ok && (
+          <p className="flex items-center gap-1 text-sm text-green-600">
+            <CheckCircle2 className="size-4" /> Passwort gesetzt.
+          </p>
+        )}
+        <div className="flex justify-end gap-2">
+          <Button variant="outline" onClick={onClose}>
+            {ok ? "Schließen" : "Abbrechen"}
+          </Button>
+          {!ok && (
+            <Button disabled={!password || busy} onClick={submit}>
+              {busy ? "Setze…" : "Setzen"}
+            </Button>
+          )}
+        </div>
+      </div>
     </div>
   );
 }

@@ -1,4 +1,5 @@
 use crate::credentials;
+use crate::db::account;
 use crate::db::mysql::{self, MysqlConfig};
 use crate::db::explorer::{self, ColumnInfo, TableInfo, TableRows};
 use crate::db::item::{self, ItemProtoFull, ItemProtoInput};
@@ -1076,6 +1077,51 @@ async fn require_pool(state: &State<'_, AppState>) -> Result<sqlx::MySqlPool, St
 pub async fn get_database_stats(state: State<'_, AppState>) -> Result<DatabaseStats, String> {
     let pool = require_pool(&state).await?;
     shop::get_stats(&pool).await
+}
+
+// ---- Account-Verwaltung ----
+//
+// Eigene, gezielte Commands statt der generischen DB-Explorer-Zeilen-CRUD -
+// Passwörter müssen über MySQLs eigene PASSWORD()-Funktion gesetzt werden,
+// nicht als Klartext-Spaltenwert (siehe db/account.rs), das kann der
+// generische Insert/Update-Pfad nicht leisten.
+
+#[tauri::command]
+pub async fn list_accounts(
+    state: State<'_, AppState>,
+    search: String,
+    limit: i64,
+    offset: i64,
+) -> Result<Vec<account::AccountSummary>, String> {
+    let pool = require_pool(&state).await?;
+    account::list_accounts(&pool, &search, limit, offset).await
+}
+
+#[tauri::command]
+pub async fn count_accounts(state: State<'_, AppState>, search: String) -> Result<i64, String> {
+    let pool = require_pool(&state).await?;
+    account::count_accounts(&pool, &search).await
+}
+
+#[tauri::command]
+pub async fn create_account(
+    state: State<'_, AppState>,
+    login: String,
+    password: String,
+    empire: Option<i8>,
+) -> Result<(), String> {
+    let pool = require_pool(&state).await?;
+    account::create_account(&pool, &login, &password, empire).await
+}
+
+#[tauri::command]
+pub async fn reset_account_password(
+    state: State<'_, AppState>,
+    id: i32,
+    new_password: String,
+) -> Result<(), String> {
+    let pool = require_pool(&state).await?;
+    account::reset_password(&pool, id, &new_password).await
 }
 
 #[tauri::command]

@@ -6,6 +6,23 @@ nach [SemVer](https://semver.org/) (`MAJOR.MINOR.PATCH`, solange < 1.0 gilt
 `MINOR` für neue Features, `PATCH` für reine Fixes). Für die vollständige
 Feature-Historie mit allen Details siehe `STATUS.md`.
 
+## [0.7.0] - 2026-08-07
+
+### Hinzugefügt
+
+- **Account-Verwaltung: Liste, Anlegen, Passwort zurücksetzen** — statt nur
+  Suche gibt es jetzt eine durchblätterbare Liste aller Accounts (mit
+  optionalem Login-Filter), einen "Neuer Account…"-Dialog (Login, Passwort,
+  optional Reich) und pro Account einen "Passwort"-Knopf zum Zurücksetzen.
+  Passwörter sind live gegen den echten Server verifiziert ein
+  MySQL-`PASSWORD()`-Einweg-Hash (41-Zeichen `*...`-Hash, exakt wie der
+  echte Login-Check in `input_auth.cpp`/`db.cpp` es erwartet) — ein
+  bestehendes Passwort lässt sich technisch nicht auslesen, deshalb gibt es
+  nur "Zurücksetzen", kein "Anzeigen". Anlegen/Zurücksetzen laufen über
+  eigene Commands (nicht den generischen Zeilen-Editor), damit das Passwort
+  garantiert über `PASSWORD()` gesetzt wird statt versehentlich als
+  Klartext in die Spalte zu landen.
+
 ## [0.6.0] - 2026-08-07
 
 ### Hinzugefügt
