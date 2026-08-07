@@ -6,6 +6,26 @@ nach [SemVer](https://semver.org/) (`MAJOR.MINOR.PATCH`, solange < 1.0 gilt
 `MINOR` für neue Features, `PATCH` für reine Fixes). Für die vollständige
 Feature-Historie mit allen Details siehe `STATUS.md`.
 
+## [0.10.1] - 2026-08-07
+
+### Geändert
+
+- **Quest Builder: Mehrschritt-Vorlage nutzt jetzt echte `state`/`set_state`-Blöcke**
+  statt des Fortschritts-Zähler-Workarounds aus 0.10.0. Der Nutzer wies darauf hin,
+  dass das kopierte Community-Wiki aus denselben Server-Dateien stammt, die er
+  einsetzt - daraufhin im echten Server-Quellcode geprüft statt einfach
+  übernommen: `set_state`/`setstate` sind in `questlua_quest.cpp` real registriert
+  und rufen über `CQuestManager::GetQuestStateIndex`/`PC::SetQuestState`
+  (`questpc.cpp`) exakt den vom Wiki beschriebenen Mechanismus auf; `__COMPLETE__`
+  ist dabei nur eine Namenskonvention, keine Engine-Sonderbehandlung. Jeder
+  Schritt ist jetzt ein eigener `state <name> begin...end`-Block mit
+  `set_state(...)`-Übergang statt eines `pc.getqf("step_index")`-Zählers mit
+  `with`-Bedingung auf jedem `when`-Block - erzeugt idiomatischeren, leichter von
+  Hand weiterbearbeitbaren Quest-Code. Zusätzlich verifiziert: `pc.getqf`/
+  `pc.setqf` sind quest-global, nicht pro Zustand gescoped - die pro-Schritt-
+  namensraum-isolierten Kill-Zähler (`kill_count_stepN`) bleiben deshalb weiterhin
+  nötig.
+
 ## [0.10.0] - 2026-08-07
 
 ### Hinzugefügt

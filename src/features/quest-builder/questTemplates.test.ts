@@ -229,50 +229,55 @@ describe("generateMultiStepQuest", () => {
     return { steps };
   }
 
-  it("wraps every step in exactly one quest/state block and stays balanced", () => {
+  it("wraps every step in its own state block plus a terminal __COMPLETE__ state, and stays balanced", () => {
     const lua = generateMultiStepQuest("multi_quest", form([dialogStep(), collectStep(), killStep()]));
     expect(lua).toMatch(/^quest multi_quest begin/);
     expect(lua).toContain("state start begin");
+    expect(lua).toContain("state step_2 begin");
+    expect(lua).toContain("state step_3 begin");
+    expect(lua).toContain("state __COMPLETE__ begin");
     expectBalanced(lua);
   });
 
-  it("dialog step: gates on step_index and advances it unless it's the last step", () => {
+  it("dialog step: advances to the next state via set_state unless it's the last step", () => {
     const lua = generateMultiStepQuest("d", form([dialogStep(), useStep()]));
-    expect(lua).toContain('when 9001.chat."Quest" with pc.getqf("step_index") == 0 begin');
-    expect(lua).toContain('pc.setqf("step_index", 1)');
+    expect(lua).toContain('when 9001.chat."Quest" begin');
+    expect(lua).toContain("set_state(step_2)");
     expectBalanced(lua);
   });
 
-  it("collect step: same gate/reward structure as the single-state collect template, plus step_index guard", () => {
+  it("collect step: same gate/reward structure as the single-state collect template, scoped to its own state", () => {
     const lua = generateMultiStepQuest("c", form([collectStep(), useStep()]));
-    expect(lua).toContain('when 9001.chat."Quest" with pc.getqf("step_index") == 0 begin');
+    expect(lua).toContain('when 9001.chat."Quest" begin');
     expect(lua).toContain("if pc.count_item(100) >= 5 then");
     expect(lua).toContain("pc.remove_item(100, 5)");
-    expect(lua).toContain('pc.setqf("step_index", 1)');
+    expect(lua).toContain("set_state(step_2)");
     expectBalanced(lua);
   });
 
   it("kill step: uses a step-namespaced kill counter, not the plain kill_count key", () => {
     const lua = generateMultiStepQuest("k", form([killStep(), useStep()]));
-    expect(lua).toContain("when 101.kill with pc.getqf(\"step_index\") == 0 begin");
+    expect(lua).toContain("when 101.kill begin");
     expect(lua).toContain('pc.getqf("kill_count_step0")');
     expect(lua).not.toContain('pc.getqf("kill_count")');
     expectBalanced(lua);
   });
 
-  it("use step: needs no NPC, still respects the step_index guard", () => {
+  it("use step: needs no NPC, and the last step transitions to __COMPLETE__", () => {
     const lua = generateMultiStepQuest("u", form([dialogStep(), useStep()]));
-    expect(lua).toContain('when 300.use with pc.getqf("step_index") == 1 begin');
+    expect(lua).toContain("when 300.use begin");
     expect(lua).toContain('say("Bumm!")');
+    expect(lua).toContain("set_state(__COMPLETE__)");
     expectBalanced(lua);
   });
 
-  it("chains a 3-step quest (dialog -> collect -> kill) with the right step_index advances", () => {
+  it("chains a 3-step quest (dialog -> collect -> kill) with the right set_state targets", () => {
     const lua = generateMultiStepQuest("chain", form([dialogStep(), collectStep(), killStep()]));
-    expect(lua).toContain('pc.setqf("step_index", 1)'); // after step 0 (dialog)
-    expect(lua).toContain('pc.setqf("step_index", 2)'); // after step 1 (collect)
-    // the last step (kill, index 2) must NOT advance step_index any further
-    expect(lua).not.toContain('pc.setqf("step_index", 3)');
+    expect(lua).toContain("set_state(step_2)"); // after step 0 (dialog)
+    expect(lua).toContain("set_state(step_3)"); // after step 1 (collect)
+    // the last step (kill, index 2) must transition to the terminal state, not a further step
+    expect(lua).toContain("set_state(__COMPLETE__)");
+    expect(lua).not.toContain("state step_4 begin");
     expectBalanced(lua);
   });
 
@@ -290,5 +295,6 @@ describe("generateMultiStepQuest", () => {
     const lua = generateMultiStepQuest("empty_multi", form([]));
     expectBalanced(lua);
     expect(lua).toContain("state start begin");
+    expect(lua).toContain("state __COMPLETE__ begin");
   });
 });

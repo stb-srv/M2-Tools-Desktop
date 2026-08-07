@@ -1487,9 +1487,10 @@ export function QuestBuilder() {
                     </div>
                   ))}
                   <p className="text-xs text-muted-foreground">
-                    Jeder Schritt schaltet sich automatisch frei, sobald der vorherige abgeschlossen
-                    ist (ein unsichtbarer Fortschritts-Zähler, kein Zutun des Spielers nötig) - beim
-                    letzten Schritt wird die Zwischenbelohnung zur eigentlichen Abschlussbelohnung.
+                    Jeder Schritt wird ein eigener Quest-Zustand - der Spieler kommt automatisch beim
+                    nächsten Schritt an, sobald der vorherige abgeschlossen ist (set_state im
+                    Hintergrund, kein Zutun des Spielers nötig). Beim letzten Schritt wird die
+                    Zwischenbelohnung zur eigentlichen Abschlussbelohnung.
                   </p>
                 </div>
               )}

@@ -353,7 +353,7 @@ export const TEMPLATE_HINTS: Record<TemplateType, string> = {
   dungeon:
     "Grundgerüst für einen mehrstufigen Run wie Beran/Daemonenturm/Teufelskatakomben: NPC-Einstieg, pro Etage ein Boss-Kill schaltet die nächste Etage frei (d.regen_file/d.jump_all/d.setf), am Ende Belohnung + Rauswurf. Deckt bewusst nur das gemeinsame Grundmuster ab - Passwort-Systeme, Zeitlimits o.ä. wie beim echten Beran müssen danach im Code-Editor von Hand ergänzt werden.",
   multi_step:
-    "Verkettet beliebig viele der bekannten Bausteine (Dialog, Sammeln, Töten, Item benutzen) zu einer echten Mehrschritt-Quest, ganz ohne Code - z.B. \"Rede mit NPC\" → \"sammle 10 Wolfsfelle\" → \"töte den Boss\" → \"rede nochmal für die Belohnung\". Nutzt bewusst denselben bewährten Fortschritts-Zähler-Trick wie die Kill-Quest- und Dungeon-Vorlage (ein unsichtbarer Zähler schaltet Schritt für Schritt frei) statt der im Wiki beschriebenen state/set_state-Syntax, die auf diesem Server noch nicht verifiziert ist.",
+    "Verkettet beliebig viele der bekannten Bausteine (Dialog, Sammeln, Töten, Item benutzen) zu einer echten Mehrschritt-Quest, ganz ohne Code - z.B. \"Rede mit NPC\" → \"sammle 10 Wolfsfelle\" → \"töte den Boss\" → \"rede nochmal für die Belohnung\". Jeder Schritt wird ein eigener state-Block, der Übergang läuft über set_state() - gegen den echten Server-Quellcode verifiziert (questlua_quest.cpp/questpc.cpp), nicht nur aus dem Wiki übernommen.",
 };
 
 // ---- Dungeon-Run-Vorlage ----
@@ -537,16 +537,26 @@ export function generateDungeonQuest(questName: string, form: DungeonFormState):
 // ---- Mehrschritt-Vorlage ----
 //
 // Verkettet mehrere der bekannten Bausteine (Dialog/Sammeln/Töten/Item
-// benutzen) zu einer echten Mehrschritt-Quest. Bewusst KEINE mehreren
-// `state`-Blöcke / kein `set_state()` - diese Syntax ist nur aus dem 1:1
-// kopierten Community-Wiki bekannt (core-concepts.md), nicht gegen den
-// echten Server dieses Projekts verifiziert. Stattdessen bleibt alles in
-// einem einzigen `state start`, und ein unsichtbarer Fortschritts-Zähler
-// (`pc.getqf("step_index")`) plus eine zusätzliche `with`-Bedingung pro
-// `when`-Block schaltet die Schritte frei - exakt dasselbe Muster, das
-// killTemplate (zwei when-Blöcke mit unterschiedlicher with-Bedingung) und
-// generateDungeonQuest (d.getf("level")/d.setf("level", n) pro Etage) oben
-// bereits verwenden.
+// benutzen) zu einer echten Mehrschritt-Quest - jeder Schritt ist ein
+// eigener `state <name> begin...end`-Block, der Übergang läuft über
+// `set_state(<name>)`. Diese Mechanik stand ursprünglich nur im 1:1
+// kopierten Community-Wiki (core-concepts.md) und wurde deshalb zunächst
+// bewusst vermieden - inzwischen direkt im echten Server-Quellcode dieses
+// Projekts verifiziert: `set_state`/`setstate` sind in
+// game-src/source/game/src/questlua_quest.cpp an `quest_setstate`
+// gebunden, das über `CQuestManager::GetQuestStateIndex` den Zustandsnamen
+// auflöst und `PC::SetQuestState` (questpc.cpp) aufruft - exakt der vom
+// Wiki beschriebene Mechanismus. `__COMPLETE__` ist dabei keine
+// Sonderkonstante der Engine, sondern reine Namenskonvention: ein
+// gewöhnlicher (leerer) Zustand, den `GetQuestStateIndex` genauso wie
+// jeden anderen per Lua-Tabellen-Lookup auflöst.
+//
+// Wichtig, ebenfalls quellcode-verifiziert: `pc.getqf`/`pc.setqf` sind
+// NICHT pro Zustand gescoped, sondern global pro Quest (Schlüssel
+// `<questName>.<flag>`, siehe questlua_pc.cpp::pc_get/set_quest_flag).
+// Ein Kill-Zähler braucht deshalb weiterhin einen pro Schritt eigenen,
+// namensraum-isolierten qf-Key (kill_count_stepN) - sonst würden zwei
+// Kill-Schritte in derselben Quest denselben Zähler teilen.
 
 export type StepKind = "dialog" | "collect" | "kill" | "use";
 
@@ -607,8 +617,16 @@ export const STEP_LABELS: Record<StepKind, string> = {
   use: "Item benutzen",
 };
 
-function stepGuard(index: number): string {
-  return `pc.getqf("step_index") == ${index}`;
+// Zustandsname pro Schritt: der erste Schritt ist immer "start" (von der
+// Engine als Startzustand vorausgesetzt), alle weiteren heißen "step_N"
+// (N = Schritt-Nummer, 1-basiert) - passend zu den "Schritt N"-Kartenlabeln
+// in der UI (Schritt 2 -> state step_2 usw.).
+function stateName(index: number): string {
+  return index === 0 ? "start" : `step_${index + 1}`;
+}
+
+function nextStateName(index: number, isLast: boolean): string {
+  return isLast ? "__COMPLETE__" : stateName(index + 1);
 }
 
 function stepRewardLines(step: QuestStep): string[] {
@@ -631,10 +649,10 @@ function dialogStepLines(step: QuestStep, index: number, isLast: boolean): strin
     `say_title(${luaString(step.npcTitle)})`,
     `say(${luaString(step.dialogText)})`,
     ...stepRewardLines(step),
-    ...(isLast ? [] : [`pc.setqf("step_index", ${index + 1})`]),
+    `set_state(${nextStateName(index, isLast)})`,
   ];
   return [
-    `when ${npcVnum}.chat.${luaString(step.chatLabel)} with ${stepGuard(index)} begin`,
+    `when ${npcVnum}.chat.${luaString(step.chatLabel)} begin`,
     indent(body, 1),
     `end`,
   ];
@@ -649,14 +667,14 @@ function collectStepLines(step: QuestStep, index: number, isLast: boolean): stri
     `say(${luaString(step.successText)})`,
     `pc.remove_item(${requiredVnum}, ${requiredCount})`,
     ...stepRewardLines(step),
-    ...(isLast ? [] : [`pc.setqf("step_index", ${index + 1})`]),
+    `set_state(${nextStateName(index, isLast)})`,
   ];
   const failBody = [
     `say_title(${luaString(step.npcTitle)})`,
     `say(${luaString(step.failText)})`,
   ];
   return [
-    `when ${npcVnum}.chat.${luaString(step.chatLabel)} with ${stepGuard(index)} begin`,
+    `when ${npcVnum}.chat.${luaString(step.chatLabel)} begin`,
     `\tif pc.count_item(${requiredVnum}) >= ${requiredCount} then`,
     indent(successBody, 2),
     `\telse`,
@@ -667,8 +685,9 @@ function collectStepLines(step: QuestStep, index: number, isLast: boolean): stri
 }
 
 // Eigener, nach Schritt-Index benannter qf-Key (z.B. "kill_count_step2") -
-// sonst würden zwei Kill-Schritte in derselben Quest denselben Zähler
-// teilen und sich gegenseitig kaputt machen.
+// pc.getqf/setqf sind NICHT pro Zustand gescoped (quellcode-verifiziert,
+// siehe Kommentar oben), sonst würden zwei Kill-Schritte in derselben
+// Quest denselben Zähler teilen und sich gegenseitig kaputt machen.
 function killStepLines(step: QuestStep, index: number, isLast: boolean): string[] {
   const npcVnum = Number(step.npcVnum) || 0;
   const mobVnum = Number(step.mobVnum) || 0;
@@ -682,16 +701,16 @@ function killStepLines(step: QuestStep, index: number, isLast: boolean): string[
     `say_title(${luaString(step.npcTitle)})`,
     `say(${luaString(step.successText)})`,
     ...stepRewardLines(step),
-    ...(isLast ? [] : [`pc.setqf("step_index", ${index + 1})`]),
+    `set_state(${nextStateName(index, isLast)})`,
   ];
   return [
-    `when ${npcVnum}.chat.${luaString(step.chatLabel)} with ${stepGuard(index)} and pc.getqf(${luaString(qfKey)}) < ${requiredKills} begin`,
+    `when ${npcVnum}.chat.${luaString(step.chatLabel)} with pc.getqf(${luaString(qfKey)}) < ${requiredKills} begin`,
     indent(progressBody, 1),
     `end`,
-    `when ${npcVnum}.chat.${luaString(step.chatLabel)} with ${stepGuard(index)} and pc.getqf(${luaString(qfKey)}) >= ${requiredKills} begin`,
+    `when ${npcVnum}.chat.${luaString(step.chatLabel)} with pc.getqf(${luaString(qfKey)}) >= ${requiredKills} begin`,
     indent(successBody, 1),
     `end`,
-    `when ${mobVnum}.kill with ${stepGuard(index)} begin`,
+    `when ${mobVnum}.kill begin`,
     `\tif pc.getqf(${luaString(qfKey)}) < ${requiredKills} then`,
     `\t\tpc.setqf(${luaString(qfKey)}, pc.getqf(${luaString(qfKey)}) + 1)`,
     `\tend`,
@@ -704,10 +723,10 @@ function useStepLines(step: QuestStep, index: number, isLast: boolean): string[]
   const body = [
     `say(${luaString(step.useText)})`,
     ...stepRewardLines(step),
-    ...(isLast ? [] : [`pc.setqf("step_index", ${index + 1})`]),
+    `set_state(${nextStateName(index, isLast)})`,
   ];
   return [
-    `when ${useItemVnum}.use with ${stepGuard(index)} begin`,
+    `when ${useItemVnum}.use begin`,
     indent(body, 1),
     `end`,
   ];
@@ -725,13 +744,19 @@ const STEP_GENERATORS: Record<
 
 export function generateMultiStepQuest(questName: string, form: MultiStepFormState): string {
   const steps = form.steps.length > 0 ? form.steps : [DEFAULT_STEP];
-  const lines: string[] = [`quest ${questName} begin`, `\tstate start begin`];
+  const lines: string[] = [`quest ${questName} begin`];
   steps.forEach((step, index) => {
     const isLast = index === steps.length - 1;
-    lines.push(`\t\t-- Schritt ${index + 1}${isLast ? " (Abschluss)" : ""}`);
+    lines.push(`\t-- Schritt ${index + 1}${isLast ? " (Abschluss)" : ""}`);
+    lines.push(`\tstate ${stateName(index)} begin`);
     lines.push(indent(STEP_GENERATORS[step.kind](step, index, isLast), 2));
+    lines.push(`\tend`);
     lines.push("");
   });
+  // Terminaler Zustand - reine Namenskonvention (quellcode-verifiziert,
+  // keine Sonderbehandlung durch die Engine), muss aber existieren, damit
+  // set_state("__COMPLETE__") einen gültigen Zustand auflöst.
+  lines.push(`\tstate __COMPLETE__ begin`);
   lines.push(`\tend`);
   lines.push(`end`);
   lines.push("");
