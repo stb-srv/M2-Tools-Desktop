@@ -29,6 +29,9 @@ mod settings;
 mod special_item_group;
 mod ssh;
 mod state;
+mod system_installs;
+mod system_patch;
+mod system_scan;
 mod textures;
 
 use state::AppState;
@@ -178,6 +181,13 @@ pub fn run() {
             commands::write_locale_namespace,
             commands::create_locale_namespace,
             commands::sanitize_locale_namespace,
+            commands::scan_system_package,
+            commands::find_system_target,
+            commands::read_system_target_file,
+            commands::resolve_system_insertion,
+            commands::apply_system_install,
+            commands::list_system_installs,
+            commands::undo_system_install,
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");

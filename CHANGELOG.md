@@ -6,6 +6,28 @@ nach [SemVer](https://semver.org/) (`MAJOR.MINOR.PATCH`, solange < 1.0 gilt
 `MINOR` für neue Features, `PATCH` für reine Fixes). Für die vollständige
 Feature-Historie mit allen Details siehe `STATUS.md`.
 
+## [0.13.0] - 2026-08-07
+
+### Hinzugefügt
+
+- **System-Installer** (neue Sidebar-Kategorie "Systeme") — baut fertige
+  Community-"Systeme" (Server-/Client-Erweiterungen wie ResizeWindow oder
+  InGame-Admin-Panels) automatisiert ein, statt jede Datei von Hand zu
+  vergleichen. Erkennt die verbreitete `// search` / `// add above|below|
+  inside|at the end`-Konvention (mehrere Schreibvarianten, mehrere Blöcke
+  pro Datei, `##inside:`-Scope-Anker, ADDONS-Unterordner inkl.
+  Bindestrich-verflachter Pfade) über einen abgestuften Anker-Suchalgorithmus
+  (exakt → einrückungs-tolerant → kommentar-bereinigt → Teiltreffer), damit
+  Kommentare mitten im Suchtext keinen Treffer verhindern. Zielpfad wird pro
+  Datei über eine Dateiname-Suche vorgeschlagen (Server live per SSH, Client-
+  Quellcode über neue Einstellung `binary_src_path`, Client-Installations-
+  dateien über den bestehenden `client_path`) und kann jederzeit manuell
+  überschrieben werden; nicht automatisch lösbare Fälle (Freitext-Anweisungen,
+  mehrdeutige/fehlende Treffer) bleiben klar markiert zur manuellen Klärung
+  stehen statt geraten zu werden. Jeder Einbau läuft mit Backup vor jedem
+  Schreiben und einem Verlaufs-Eintrag mit Ein-Klick-Rückgängig-machen (exakt
+  wie bei jedem anderen Editor in diesem Projekt).
+
 ## [0.12.0] - 2026-08-07
 
 ### Hinzugefügt

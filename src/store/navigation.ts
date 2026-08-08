@@ -22,6 +22,7 @@ import {
   Package,
   Wrench,
   Sparkles,
+  Puzzle,
 } from "lucide-react";
 
 export type Section =
@@ -46,19 +47,21 @@ export type Section =
   | "icon-browser"
   | "model-viewer"
   | "account-manager"
+  | "system-installer"
   | "settings";
 
 // Groups drive the collapsible sections in the Sidebar. "settings" is not a
 // real group - it's rendered pinned at the bottom, never collapsed.
-export type Category = "overview" | "editors" | "backups" | "assets" | "settings";
+export type Category = "overview" | "editors" | "backups" | "assets" | "systems" | "settings";
 
-export const CATEGORY_ORDER: Category[] = ["overview", "editors", "backups", "assets"];
+export const CATEGORY_ORDER: Category[] = ["overview", "editors", "backups", "assets", "systems"];
 
 export const CATEGORY_LABEL_KEYS: Record<Category, string> = {
   overview: "nav.groups.overview",
   editors: "nav.groups.editors",
   backups: "nav.groups.backups",
   assets: "nav.groups.assets",
+  systems: "nav.groups.systems",
   settings: "nav.groups.settings",
 };
 
@@ -87,6 +90,7 @@ export const NAV_ITEMS: { section: Section; icon: typeof LayoutDashboard; labelK
   { section: "tga-converter", icon: ImagePlus, labelKey: "nav.tgaConverter", category: "assets" },
   { section: "icon-browser", icon: Images, labelKey: "nav.iconBrowser", category: "assets" },
   { section: "model-viewer", icon: Box, labelKey: "nav.modelViewer", category: "assets" },
+  { section: "system-installer", icon: Puzzle, labelKey: "nav.systemInstaller", category: "systems" },
   { section: "settings", icon: SettingsIcon, labelKey: "nav.settings", category: "settings" },
 ];
 

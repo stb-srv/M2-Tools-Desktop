@@ -214,6 +214,37 @@ pub async fn list_remote_dir(
     Ok(result)
 }
 
+/// Sucht rekursiv nach Dateien mit genau diesem Namen unter `root` - für den
+/// System-Installer, der aus einem Systempaket-Dateinamen (z.B. `cmd_gm.cpp`)
+/// erst noch den echten Pfad im Live-Quellbaum finden muss (die
+/// Präfix-Konventionen der Pakete stimmen nicht 1:1 mit dem echten Layout
+/// überein, z.B. `Source/Server/game/cmd_gm.cpp` im Paket vs.
+/// `game/src/cmd_gm.cpp` live). Nutzt `find` statt einer rekursiven
+/// SFTP-Traversierung, da das auf dem Server selbst läuft und für tiefe
+/// Bäume wie den kompletten Quellcode deutlich schneller ist als viele
+/// einzelne SFTP-Roundtrips. Gibt vollständige Pfade zurück, mehrere
+/// Treffer möglich (der Aufrufer entscheidet, wie damit umzugehen ist).
+pub async fn find_remote_file_by_name(
+    config: &SshConfig,
+    auth: &SshAuth,
+    root: &str,
+    filename: &str,
+) -> Result<Vec<String>, String> {
+    let command = format!(
+        "find {} -type f -name {} 2>/dev/null",
+        crate::db_backup::shell_single_quote(root),
+        crate::db_backup::shell_single_quote(filename)
+    );
+    let result = run_command_streaming(config, auth, &command, |_| {}).await?;
+    Ok(result
+        .output
+        .lines()
+        .map(str::trim)
+        .filter(|l| !l.is_empty())
+        .map(str::to_string)
+        .collect())
+}
+
 /// Renames an existing remote file into a sibling `m2manager_backups` folder
 /// with a timestamp suffix, without writing anything back - the shared core
 /// of `delete_remote_file_with_backup`, `write_remote_file_with_backup`, and

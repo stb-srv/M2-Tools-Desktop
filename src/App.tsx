@@ -35,6 +35,7 @@ const TgaConverter = lazy(() => import("@/features/tga-converter/TgaConverter").
 const IconBrowser = lazy(() => import("@/features/icon-browser/IconBrowser").then((m) => ({ default: m.IconBrowser })));
 const ModelViewer = lazy(() => import("@/features/model-viewer/ModelViewer").then((m) => ({ default: m.ModelViewer })));
 const AccountManager = lazy(() => import("@/features/account-manager/AccountManager").then((m) => ({ default: m.AccountManager })));
+const SystemInstaller = lazy(() => import("@/features/system-installer/SystemInstaller").then((m) => ({ default: m.SystemInstaller })));
 const Settings = lazy(() => import("@/features/settings/Settings").then((m) => ({ default: m.Settings })));
 
 function LoadingFallback() {
@@ -102,6 +103,7 @@ function App() {
           {section === "icon-browser" && <IconBrowser />}
           {section === "model-viewer" && <ModelViewer />}
           {section === "account-manager" && <AccountManager />}
+          {section === "system-installer" && <SystemInstaller />}
           {section === "settings" && <Settings />}
         </Suspense>
       </main>
