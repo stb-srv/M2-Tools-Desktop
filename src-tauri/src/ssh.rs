@@ -344,8 +344,10 @@ pub async fn delete_remote_file(config: &SshConfig, auth: &SshAuth, path: &str) 
 // valid UTF-8 and used to make this fail outright). Try strict UTF-8 first
 // so already-clean files decode byte-for-byte; only fall back to a cp1252
 // decode (which - unlike UTF-8 - never fails, every byte maps to something)
-// for files that actually need it.
-fn decode_bytes(bytes: Vec<u8>) -> String {
+// for files that actually need it. `pub(crate)` so local (non-SSH) file
+// reads can reuse the exact same fallback instead of duplicating it - see
+// `commands::read_target_content`'s local branch.
+pub(crate) fn decode_bytes(bytes: Vec<u8>) -> String {
     match String::from_utf8(bytes) {
         Ok(text) => text,
         Err(e) => {
@@ -434,4 +436,25 @@ pub async fn write_remote_file_with_backup(
     file.shutdown().await.map_err(|e| e.to_string())?;
 
     Ok(backup_path)
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn decode_bytes_reads_clean_utf8_unchanged() {
+        assert_eq!(decode_bytes("hello".as_bytes().to_vec()), "hello");
+    }
+
+    #[test]
+    fn decode_bytes_falls_back_to_windows_1252_for_raw_cp1252_bytes() {
+        // Reale Live-Meldung eines Nutzers beim System-Installer: eine
+        // lokale Client-Quellcode-Datei mit deutschem Umlaut in cp1252
+        // (0xE4 = "ä" in Windows-1252, keine gültige UTF-8-Bytefolge) ließ
+        // `std::fs::read_to_string` bisher mit "stream did not contain
+        // valid UTF-8" hart abbrechen.
+        let bytes = vec![b'K', 0xE4, b'f', b'e', b'r']; // "Käfer" in cp1252
+        assert_eq!(decode_bytes(bytes), "Käfer");
+    }
 }

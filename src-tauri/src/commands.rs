@@ -1972,7 +1972,14 @@ async fn read_target_content(
                     "\"{path}\" ist ein Ordner, keine Datei - bitte den vollständigen Pfad zur Zieldatei angeben (inkl. Dateiname)."
                 ));
             }
-            std::fs::read_to_string(p).map(Some).map_err(|e| e.to_string())
+            // Reale Client-Quellcode-/Installationsdateien sind wie die
+            // Quest-Dateien auf dem Server oft nicht UTF-8 sondern
+            // Windows-1252 (z.B. deutsche Umlaute in Kommentaren) - `
+            // read_to_string` bricht dabei hart ab ("stream did not contain
+            // valid UTF-8"), reale Live-Meldung eines Nutzers. Nutzt
+            // denselben Fallback wie die SSH-Seite.
+            let bytes = std::fs::read(p).map_err(|e| e.to_string())?;
+            Ok(Some(ssh::decode_bytes(bytes)))
         }
     }
 }

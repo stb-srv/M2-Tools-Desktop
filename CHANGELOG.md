@@ -6,6 +6,17 @@ nach [SemVer](https://semver.org/) (`MAJOR.MINOR.PATCH`, solange < 1.0 gilt
 `MINOR` für neue Features, `PATCH` für reine Fixes). Für die vollständige
 Feature-Historie mit allen Details siehe `STATUS.md`.
 
+## [0.13.2] - 2026-08-08
+
+### Geändert
+
+- **Sidebar-Kategorien neu strukturiert** — Nutzerwunsch: fast alles lag im einen Sammeltopf "Datenbank-Editoren" (12 von 22 Bereichen), der Rest war 1-3 Einträge groß. Aufgeteilt in vier thematisch enger gefasste Gruppen: **Items & Ausrüstung** (Item Editor, Modul-Importer, Aufwertungs-Editor, Kisten-Editor), **Shops & Monster** (Shop-Editor, Mob-Proto-Editor, Mob Drop Editor), **Quests & Welt** (Quest Builder, Regen-Datei-Editor, Locale-Verwaltung), **Server & Accounts** (Server-Events, Account-Verwaltung, Datenbank-Explorer). Übersicht/Backups/Client-Assets/Systeme unverändert. Rein datengetrieben über `NAV_ITEMS`/`CATEGORY_ORDER` in `navigation.ts` - Sidebar und Command Palette (Strg+K) brauchten keine eigene Änderung.
+
+### Behoben
+
+- **System-Installer: lokale Zieldateien mit Windows-1252-Inhalt konnten nicht gelesen werden** — echter Nutzer-Bugreport: "stream did not contain valid UTF-8" beim Lesen einer lokalen Zieldatei (z.B. C++-Quellcode mit deutschem Kommentar). `read_target_content` nutzte für lokale Dateien `std::fs::read_to_string`, das strikt UTF-8 verlangt und sonst hart abbricht - derselbe Fehlerklasse, die schon Quest Builder/Mob Drop Editor betraf, dort aber bereits mit einem UTF-8-zuerst-dann-Windows-1252-Fallback gelöst war (bisher nur auf der SSH-Seite, nicht lokal). Denselben Fallback (`ssh::decode_bytes`, jetzt `pub(crate)`) auf den lokalen Lesepfad angewendet.
+- **System-Installer: Systempaket-Dateien mit Windows-1252-Inhalt verschwanden lautlos aus der Sichtung** — verwandter Fund beim Beheben des obigen Bugs: `scan_system_package` übersprang jede nicht-UTF-8-Datei stillschweigend (`let Ok(..) = read_to_string(..) else { continue }`), ursprünglich gedacht um Bilder/Archivreste zu ignorieren, hat dabei aber auch echte cp1252-Textdateien (z.B. deutsche Kommentare/Locale-Strings im Paket) ohne jeden Hinweis verschluckt. Jetzt: Binärdateien werden über NUL-Bytes erkannt (dieselbe Heuristik wie z.B. bei `git`), alles andere wird mit demselben UTF-8/cp1252-Fallback gelesen statt geraten übersprungen zu werden.
+
 ## [0.13.1] - 2026-08-08
 
 ### Behoben

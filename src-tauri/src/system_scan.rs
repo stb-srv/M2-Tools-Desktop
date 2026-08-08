@@ -146,12 +146,22 @@ pub fn scan_system_package(root: &Path) -> Result<Vec<ScannedFile>, String> {
             None => (None, relative_path.clone()),
         };
 
-        // Binäre/nicht als Text lesbare Dateien (Bilder, .rar/.zip-Reste)
-        // sind keine Patch-Kandidaten und werden übersprungen, statt einen
-        // Fehler für die ganze Sichtung auszulösen.
-        let Ok(content) = std::fs::read_to_string(&path) else {
+        // Binäre Dateien (Bilder, .rar/.zip-Reste) sind keine Patch-
+        // Kandidaten und werden übersprungen, statt einen Fehler für die
+        // ganze Sichtung auszulösen - erkannt über das Vorhandensein von
+        // NUL-Bytes (echter Text, auch cp1252, enthält praktisch nie welche;
+        // dieselbe Heuristik wie z.B. bei git). Wichtig: NICHT einfach
+        // `std::fs::read_to_string` nutzen und den Fehlerfall überspringen -
+        // das hätte auch echte, aber nicht-UTF-8 Text-Dateien (z.B. deutsche
+        // Kommentare/Locale-Strings in Windows-1252) lautlos aus der
+        // Sichtung verschwinden lassen, ohne jeden Hinweis für den Nutzer.
+        let Ok(raw) = std::fs::read(&path) else {
             continue;
         };
+        if raw.contains(&0u8) {
+            continue;
+        }
+        let content = crate::ssh::decode_bytes(raw);
 
         let filename = path
             .file_name()
@@ -215,6 +225,37 @@ pub fn find_local_files_by_names(
 mod tests {
     use super::*;
     use std::collections::HashSet;
+
+    #[test]
+    fn scan_reads_windows_1252_text_files_instead_of_silently_dropping_them() {
+        // Reale Live-Meldung eines Nutzers: eine cp1252-kodierte Datei
+        // (z.B. deutscher Kommentar/Locale-String im Systempaket) brach
+        // `read_to_string` bisher hart ab - der `let Ok(..) else { continue }`
+        // hat sie dann lautlos aus der Sichtung verschworen, ganz ohne
+        // Hinweis für den Nutzer.
+        let scratch = std::env::temp_dir().join(format!("m2manager_systemscan_cp1252_test_{}", std::process::id()));
+        std::fs::create_dir_all(&scratch).unwrap();
+        let bytes = vec![b'/', b'/', b' ', b'K', 0xE4, b'f', b'e', b'r', b'\n']; // "// Käfer" in cp1252
+        std::fs::write(scratch.join("comment.cpp"), &bytes).unwrap();
+
+        let files = scan_system_package(&scratch).expect("scan failed");
+        assert_eq!(files.len(), 1);
+        assert!(files[0].raw_content.as_deref() == Some("// Käfer\n"));
+
+        std::fs::remove_dir_all(&scratch).unwrap();
+    }
+
+    #[test]
+    fn scan_skips_genuine_binary_files_with_nul_bytes() {
+        let scratch = std::env::temp_dir().join(format!("m2manager_systemscan_binary_test_{}", std::process::id()));
+        std::fs::create_dir_all(&scratch).unwrap();
+        std::fs::write(scratch.join("icon.tga"), [0x00u8, 0x01, 0x02, 0x00, 0xFF]).unwrap();
+
+        let files = scan_system_package(&scratch).expect("scan failed");
+        assert!(files.is_empty());
+
+        std::fs::remove_dir_all(&scratch).unwrap();
+    }
 
     #[test]
     fn find_local_files_by_names_resolves_several_names_in_one_walk() {

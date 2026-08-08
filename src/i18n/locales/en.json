@@ -28,7 +28,10 @@
     "unpin": "Unpin",
     "groups": {
       "overview": "Overview",
-      "editors": "Database Editors",
+      "items": "Items & Equipment",
+      "shopsMonsters": "Shops & Monsters",
+      "questsWorld": "Quests & World",
+      "serverAdmin": "Server & Accounts",
       "backups": "Backups",
       "assets": "Client Assets",
       "systems": "Systems",
