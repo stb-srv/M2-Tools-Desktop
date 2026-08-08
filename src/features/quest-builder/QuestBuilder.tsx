@@ -22,7 +22,9 @@ import {
   Wand2,
   BookOpen,
   Sparkles,
+  HelpCircle,
 } from "lucide-react";
+import { openManual } from "@/lib/manual";
 import {
   DEFAULT_FORM,
   DEFAULT_DUNGEON_FORM,
@@ -554,7 +556,12 @@ export function QuestBuilder() {
   return (
     <div className="flex h-full flex-col gap-3">
       <div className="flex items-center justify-between">
-        <h1 className="text-2xl font-semibold">Quest Builder</h1>
+        <div className="flex items-center gap-2">
+          <h1 className="text-2xl font-semibold">Quest Builder</h1>
+          <Button variant="ghost" size="icon-sm" title="Hilfe zu diesem Modul" onClick={() => openManual("quest-builder")}>
+            <HelpCircle className="size-4" />
+          </Button>
+        </div>
         <div className="flex items-center gap-2">
           <Button variant="outline" onClick={openWiki}>
             <BookOpen className="size-4" />

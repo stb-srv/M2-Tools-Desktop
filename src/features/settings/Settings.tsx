@@ -6,7 +6,8 @@ import { useThemeStore, type Theme } from "@/store/theme";
 import { Button } from "@/components/ui/button";
 import { PasswordInput } from "@/components/ui/password-input";
 import { cn } from "@/lib/utils";
-import { FolderOpen, X, CheckCircle2, XCircle } from "lucide-react";
+import { FolderOpen, X, CheckCircle2, XCircle, HelpCircle } from "lucide-react";
+import { openManual } from "@/lib/manual";
 
 const THEMES: Theme[] = ["light", "dark", "system"];
 const LANGUAGES = [
@@ -353,7 +354,12 @@ export function Settings() {
 
   return (
     <div className="max-w-2xl space-y-10">
-      <h1 className="text-2xl font-semibold">{t("settings.title")}</h1>
+      <div className="flex items-center gap-2">
+        <h1 className="text-2xl font-semibold">{t("settings.title")}</h1>
+        <Button variant="ghost" size="icon-sm" title="Hilfe zu diesem Modul" onClick={() => openManual("settings")}>
+          <HelpCircle className="size-4" />
+        </Button>
+      </div>
 
       {/* ---------------- Allgemein ---------------- */}
       <div className="space-y-4">

@@ -14,7 +14,9 @@ import {
   ChevronRight,
   Plus,
   Trash2,
+  HelpCircle,
 } from "lucide-react";
+import { openManual } from "@/lib/manual";
 
 interface EventFlagRow {
   name: string;
@@ -236,9 +238,14 @@ export function ServerEvents() {
   return (
     <div className="max-w-3xl space-y-6 pb-10">
       <div className="flex items-center justify-between">
-        <h1 className="flex items-center gap-2 text-2xl font-semibold">
-          <Sparkles className="size-6" /> Server-Events
-        </h1>
+        <div className="flex items-center gap-2">
+          <h1 className="flex items-center gap-2 text-2xl font-semibold">
+            <Sparkles className="size-6" /> Server-Events
+          </h1>
+          <Button variant="ghost" size="icon-sm" title="Hilfe zu diesem Modul" onClick={() => openManual("server-events")}>
+            <HelpCircle className="size-4" />
+          </Button>
+        </div>
         <Button variant="outline" onClick={load} disabled={loading}>
           <RefreshCw className={`size-4 ${loading ? "animate-spin" : ""}`} />
           Neu laden

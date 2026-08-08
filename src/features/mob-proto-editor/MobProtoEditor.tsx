@@ -2,8 +2,9 @@ import { useState } from "react";
 import { invoke } from "@tauri-apps/api/core";
 import { runAsyncAction } from "@/lib/asyncAction";
 import { Button } from "@/components/ui/button";
-import { Search, AlertTriangle, PawPrint } from "lucide-react";
+import { Search, AlertTriangle, PawPrint, HelpCircle } from "lucide-react";
 import { GenericRowEditor } from "@/features/shared/GenericRowEditor";
+import { openManual } from "@/lib/manual";
 
 interface MobSearchResult {
   vnum: number;
@@ -38,6 +39,9 @@ export function MobProtoEditor() {
       <div className="flex items-center gap-2">
         <PawPrint className="size-6 text-muted-foreground" />
         <h1 className="text-2xl font-semibold">Mob-Proto-Editor</h1>
+        <Button variant="ghost" size="icon-sm" title="Hilfe zu diesem Modul" onClick={() => openManual("mob-proto-editor")}>
+          <HelpCircle className="size-4" />
+        </Button>
       </div>
       <p className="text-sm text-muted-foreground">
         Bearbeitet <code>player.mob_proto</code> (Monster-/NPC-Stats) direkt in der Datenbank.

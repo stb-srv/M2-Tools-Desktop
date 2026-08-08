@@ -3,7 +3,8 @@ import { invoke } from "@tauri-apps/api/core";
 import { runAsyncAction } from "@/lib/asyncAction";
 import { reportSectionDirty } from "@/store/navigation";
 import { Button } from "@/components/ui/button";
-import { Search, Plus, Trash2, X, RefreshCw, CheckCircle2, AlertTriangle } from "lucide-react";
+import { Search, Plus, Trash2, X, RefreshCw, CheckCircle2, AlertTriangle, HelpCircle } from "lucide-react";
+import { openManual } from "@/lib/manual";
 
 interface LocaleEntry {
   key: string;
@@ -155,7 +156,12 @@ export function LocaleEditor() {
   return (
     <div className="flex h-full flex-col gap-3">
       <div>
-        <h1 className="text-2xl font-semibold">Locale-String-Verwaltung</h1>
+        <div className="flex items-center gap-2">
+          <h1 className="text-2xl font-semibold">Locale-String-Verwaltung</h1>
+          <Button variant="ghost" size="icon-sm" title="Hilfe zu diesem Modul" onClick={() => openManual("locale-editor")}>
+            <HelpCircle className="size-4" />
+          </Button>
+        </div>
         <p className="text-sm text-muted-foreground">
           Bearbeitet <code>share/translate.lua</code> - die Textbausteine, die Quests über{" "}
           <code>gameforge.questname._key</code> referenzieren. Speichern ändert nur den

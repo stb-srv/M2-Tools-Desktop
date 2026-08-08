@@ -16,8 +16,10 @@ import {
   MapPin,
   Store,
   Loader2,
+  HelpCircle,
 } from "lucide-react";
 import { useNavigationStore } from "@/store/navigation";
+import { openManual } from "@/lib/manual";
 
 interface ItemSearchResult {
   vnum: number;
@@ -539,7 +541,12 @@ export function RefineEditor() {
 
   return (
     <div className="max-w-4xl space-y-6 pb-10">
-      <h1 className="text-2xl font-semibold">Aufwertungs-Editor (Refine)</h1>
+      <div className="flex items-center gap-2">
+        <h1 className="text-2xl font-semibold">Aufwertungs-Editor (Refine)</h1>
+        <Button variant="ghost" size="icon-sm" title="Hilfe zu diesem Modul" onClick={() => openManual("refine-editor")}>
+          <HelpCircle className="size-4" />
+        </Button>
+      </div>
       <p className="text-sm text-muted-foreground">
         Visualisiert die komplette Aufwertungs-Kette eines Items (Materialien, Gold-Kosten, Erfolgschance je Stufe)
         statt roher <code>refine_proto</code>-Zeilen. <code>refine_set</code> ist dabei eine reine Rezept-ID, die mit

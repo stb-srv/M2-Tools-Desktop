@@ -2,7 +2,8 @@ import { useEffect, useMemo, useState } from "react";
 import { invoke } from "@tauri-apps/api/core";
 import { runAsyncAction } from "@/lib/asyncAction";
 import { Button } from "@/components/ui/button";
-import { Search, Images, ChevronLeft, ChevronRight } from "lucide-react";
+import { Search, Images, ChevronLeft, ChevronRight, HelpCircle } from "lucide-react";
+import { openManual } from "@/lib/manual";
 
 interface IconFile {
   absolute_path: string;
@@ -139,6 +140,9 @@ export function IconBrowser() {
       <div className="flex items-center gap-2">
         <Images className="size-6 text-muted-foreground" />
         <h1 className="text-2xl font-semibold">Icon-Browser</h1>
+        <Button variant="ghost" size="icon-sm" title="Hilfe zu diesem Modul" onClick={() => openManual("icon-browser")}>
+          <HelpCircle className="size-4" />
+        </Button>
       </div>
       <p className="text-sm text-muted-foreground">
         Durchblättert alle Item-Icons (<code>pack/icon/icon/item/**.tga</code>) im konfigurierten

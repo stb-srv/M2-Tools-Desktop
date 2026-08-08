@@ -15,7 +15,9 @@ import {
   Sparkles,
   ChevronDown,
   ChevronRight,
+  HelpCircle,
 } from "lucide-react";
+import { openManual } from "@/lib/manual";
 
 // Spiegeln system_patch.rs/system_installs.rs 1:1 - keine camelCase-
 // Umbenennung, dieselbe Konvention wie überall sonst in diesem Projekt
@@ -394,7 +396,12 @@ export function SystemInstaller() {
   return (
     <div className="space-y-4">
       <div className="flex items-center justify-between">
-        <h1 className="text-2xl font-semibold">System-Installer</h1>
+        <div className="flex items-center gap-2">
+          <h1 className="text-2xl font-semibold">System-Installer</h1>
+          <Button variant="ghost" size="icon-sm" title="Hilfe zu diesem Modul" onClick={() => openManual("system-installer")}>
+            <HelpCircle className="size-4" />
+          </Button>
+        </div>
         <Button
           variant="outline"
           onClick={() => {

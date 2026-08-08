@@ -3,7 +3,8 @@ import { useTranslation } from "react-i18next";
 import { invoke } from "@tauri-apps/api/core";
 import { listen } from "@tauri-apps/api/event";
 import { Button } from "@/components/ui/button";
-import { Play, Square, Trash2, RefreshCw, RotateCcw, Settings2, Eraser } from "lucide-react";
+import { Play, Square, Trash2, RefreshCw, RotateCcw, Settings2, Eraser, HelpCircle } from "lucide-react";
+import { openManual } from "@/lib/manual";
 
 type ActionId = "start" | "stop" | "clearLogs" | "reloadQuests";
 
@@ -202,7 +203,12 @@ export function ServerControl() {
   return (
     <div className="flex h-full flex-col gap-4">
       <div className="flex items-center justify-between">
-        <h1 className="text-2xl font-semibold">{t("serverControl.title")}</h1>
+        <div className="flex items-center gap-2">
+          <h1 className="text-2xl font-semibold">{t("serverControl.title")}</h1>
+          <Button variant="ghost" size="icon-sm" title="Hilfe zu diesem Modul" onClick={() => openManual("server-control")}>
+            <HelpCircle className="size-4" />
+          </Button>
+        </div>
         <Button variant="ghost" onClick={() => setEditing((v) => !v)}>
           <Settings2 className="size-4" />
           Befehle {editing ? "ausblenden" : "anpassen"}

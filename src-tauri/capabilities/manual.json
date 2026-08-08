@@ -1,0 +1,10 @@
+{
+  "$schema": "../gen/schemas/desktop-schema.json",
+  "identifier": "manual",
+  "description": "Capability for the separate Handbuch (app manual) window - only needs to render bundled static content, no external links.",
+  "windows": ["manual"],
+  "permissions": [
+    "core:default",
+    "opener:default"
+  ]
+}

@@ -9,7 +9,9 @@ import {
   CheckCircle2,
   History,
   Trash2,
+  HelpCircle,
 } from "lucide-react";
+import { openManual } from "@/lib/manual";
 
 interface RemoteEntry {
   name: string;
@@ -124,6 +126,9 @@ export function DbBackups() {
       <div className="flex items-center gap-2">
         <DatabaseBackup className="size-6 text-muted-foreground" />
         <h1 className="text-2xl font-semibold">Datenbank-Backups</h1>
+        <Button variant="ghost" size="icon-sm" title="Hilfe zu diesem Modul" onClick={() => openManual("db-backups")}>
+          <HelpCircle className="size-4" />
+        </Button>
       </div>
       <p className="text-sm text-muted-foreground">
         Löst <code>mysqldump</code> auf dem Server über die bestehende SSH-Verbindung aus, mit

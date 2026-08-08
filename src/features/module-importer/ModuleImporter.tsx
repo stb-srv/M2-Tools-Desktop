@@ -3,7 +3,8 @@ import { invoke } from "@tauri-apps/api/core";
 import { listen } from "@tauri-apps/api/event";
 import { open } from "@tauri-apps/plugin-dialog";
 import { Button } from "@/components/ui/button";
-import { Search, CheckCircle2, AlertTriangle, Info, FolderOpen, Image as ImageIcon, Trash2 } from "lucide-react";
+import { Search, CheckCircle2, AlertTriangle, Info, FolderOpen, Image as ImageIcon, Trash2, HelpCircle } from "lucide-react";
+import { openManual } from "@/lib/manual";
 import { SUBTYPES_BY_TYPE, WEAR_FLAGS, ITEM_TYPES, VALUE_LABELS_BY_TYPE, VALUE_HINTS } from "@/features/item-editor/itemFlags";
 
 // Same shape as the local (unexported) ItemProtoInput in ItemEditor.tsx -
@@ -1994,7 +1995,12 @@ export function ModuleImporter() {
 
   return (
     <div className="max-w-3xl space-y-6 pb-10">
-      <h1 className="text-2xl font-semibold">Modul-Importer</h1>
+      <div className="flex items-center gap-2">
+        <h1 className="text-2xl font-semibold">Modul-Importer</h1>
+        <Button variant="ghost" size="icon-sm" title="Hilfe zu diesem Modul" onClick={() => openManual("module-importer")}>
+          <HelpCircle className="size-4" />
+        </Button>
+      </div>
 
       <div className="flex overflow-hidden rounded-md border border-border text-sm w-fit">
         <button

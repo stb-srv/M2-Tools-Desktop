@@ -13,7 +13,9 @@ import {
   CheckCircle2,
   XCircle,
   Eraser,
+  HelpCircle,
 } from "lucide-react";
+import { openManual } from "@/lib/manual";
 
 interface DeployRecord {
   id: number;
@@ -255,9 +257,14 @@ export function BuildDeploy() {
   return (
     <div className="max-w-4xl space-y-6 pb-10">
       <div className="flex items-center justify-between">
-        <h1 className="flex items-center gap-2 text-2xl font-semibold">
-          <Wrench className="size-6" /> Server-Quellcode Bauen & Einspielen
-        </h1>
+        <div className="flex items-center gap-2">
+          <h1 className="flex items-center gap-2 text-2xl font-semibold">
+            <Wrench className="size-6" /> Server-Quellcode Bauen & Einspielen
+          </h1>
+          <Button variant="ghost" size="icon-sm" title="Hilfe zu diesem Modul" onClick={() => openManual("build-deploy")}>
+            <HelpCircle className="size-4" />
+          </Button>
+        </div>
         <Button variant="ghost" onClick={() => setEditingSettings((v) => !v)}>
           <Settings2 className="size-4" />
           Einstellungen {editingSettings ? "ausblenden" : "anzeigen"}

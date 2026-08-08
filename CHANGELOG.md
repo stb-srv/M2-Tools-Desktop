@@ -6,6 +6,12 @@ nach [SemVer](https://semver.org/) (`MAJOR.MINOR.PATCH`, solange < 1.0 gilt
 `MINOR` für neue Features, `PATCH` für reine Fixes). Für die vollständige
 Feature-Historie mit allen Details siehe `STATUS.md`.
 
+## [0.14.0] - 2026-08-08
+
+### Hinzugefügt
+
+- **Handbuch** (`src/features/manual`, neues Tauri-Fenster "manual") — Nutzerwunsch: ein eingebautes Nachschlagewerk für M2Manager selbst, mit einem Hinweis-Knopf direkt in jedem Modul, der zum passenden Abschnitt springt. Architektur 1:1 vom bestehenden Quest-Wiki übernommen (eigenes Vite-Entry `manual.html`, eigenes `WebviewWindow`, `react-markdown`+`remark-gfm`, eigene Capability) - Unterschied: der Inhalt ist selbst verfasst, nicht aus einem externen Repo kopiert. 24 Seiten (1 Einführung + 23 Module), gruppiert wie die App-Sidebar. Neuer zentraler Helfer `src/lib/manual.ts::openManual(section)` - öffnet das Fenster neu oder fokussiert ein bereits offenes und springt per Tauri-Event zur richtigen Seite (Deep-Link beim Erstöffnen über den URL-Hash `manual.html#<section>`). Kleiner `HelpCircle`-Knopf neben dem Titel in allen 23 Modul-Seiten.
+
 ## [0.13.3] - 2026-08-08
 
 ### Hinzugefügt

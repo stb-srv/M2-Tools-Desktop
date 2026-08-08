@@ -2,8 +2,9 @@ import { useEffect, useState } from "react";
 import { invoke } from "@tauri-apps/api/core";
 import { runAsyncAction } from "@/lib/asyncAction";
 import { Button } from "@/components/ui/button";
-import { Search, AlertTriangle, Users, Plus, Trash2, KeyRound, ChevronLeft, ChevronRight, CheckCircle2 } from "lucide-react";
+import { Search, AlertTriangle, Users, Plus, Trash2, KeyRound, ChevronLeft, ChevronRight, CheckCircle2, HelpCircle } from "lucide-react";
 import { GenericRowEditor } from "@/features/shared/GenericRowEditor";
+import { openManual } from "@/lib/manual";
 
 interface ColumnInfo {
   name: string;
@@ -38,6 +39,9 @@ export function AccountManager() {
       <div className="flex items-center gap-2">
         <Users className="size-6 text-muted-foreground" />
         <h1 className="text-2xl font-semibold">Account-/Spieler-Verwaltung</h1>
+        <Button variant="ghost" size="icon-sm" title="Hilfe zu diesem Modul" onClick={() => openManual("account-manager")}>
+          <HelpCircle className="size-4" />
+        </Button>
       </div>
       <p className="text-sm text-muted-foreground">
         Es gibt keinen Kanal zu einem laufenden Spielprozess - Änderungen an bereits online

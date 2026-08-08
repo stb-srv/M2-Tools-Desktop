@@ -14,9 +14,11 @@ import {
   Info,
   FolderOpen,
   Crosshair,
+  HelpCircle,
 } from "lucide-react";
 import { SERVER_NOTES } from "./serverNotes";
 import { formatRealDropChance } from "./dropChance";
+import { openManual } from "@/lib/manual";
 
 interface MobDropItem {
   item_vnum: number;
@@ -411,6 +413,9 @@ export function MobDropEditor() {
       <div className="flex items-center justify-between">
         <div className="flex items-center gap-2">
           <h1 className="text-2xl font-semibold">Mob Drop Editor</h1>
+          <Button variant="ghost" size="icon-sm" title="Hilfe zu diesem Modul" onClick={() => openManual("mob-drop-editor")}>
+            <HelpCircle className="size-4" />
+          </Button>
           <div className="relative">
             <Button
               variant="ghost"

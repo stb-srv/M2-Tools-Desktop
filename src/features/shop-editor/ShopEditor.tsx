@@ -6,7 +6,8 @@ import { PasswordInput } from "@/components/ui/password-input";
 import { autoConnectMysql } from "@/lib/mysqlConnect";
 import { Gr2Canvas } from "@/features/model-viewer/Gr2Canvas";
 import type { Gr2ModelInfo } from "@/features/model-viewer/types";
-import { Minus, Plus, Search, Trash2, AlertTriangle, X, RefreshCw } from "lucide-react";
+import { Minus, Plus, Search, Trash2, AlertTriangle, X, RefreshCw, HelpCircle } from "lucide-react";
+import { openManual } from "@/lib/manual";
 
 interface ShopSummary {
   vnum: number;
@@ -417,7 +418,12 @@ export function ShopEditor() {
   if (!connected) {
     return (
       <div className="max-w-md space-y-4">
-        <h1 className="text-2xl font-semibold">{t("nav.shopEditor")}</h1>
+        <div className="flex items-center gap-2">
+          <h1 className="text-2xl font-semibold">{t("nav.shopEditor")}</h1>
+          <Button variant="ghost" size="icon-sm" title="Hilfe zu diesem Modul" onClick={() => openManual("shop-editor")}>
+            <HelpCircle className="size-4" />
+          </Button>
+        </div>
         <p className="text-sm text-muted-foreground">
           Verbinde dich mit der MySQL-Datenbank, um Shops zu bearbeiten.
         </p>
@@ -474,6 +480,9 @@ export function ShopEditor() {
           </div>
           <Button variant="outline" size="icon" onClick={() => setCreating(true)}>
             <Plus className="size-4" />
+          </Button>
+          <Button variant="ghost" size="icon" title="Hilfe zu diesem Modul" onClick={() => openManual("shop-editor")}>
+            <HelpCircle className="size-4" />
           </Button>
         </div>
         <div className="flex-1 space-y-1 overflow-y-auto">

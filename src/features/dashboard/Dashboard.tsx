@@ -3,6 +3,7 @@ import { useTranslation } from "react-i18next";
 import { invoke } from "@tauri-apps/api/core";
 import { Button } from "@/components/ui/button";
 import { useNavigationStore } from "@/store/navigation";
+import { openManual } from "@/lib/manual";
 import {
   CheckCircle2,
   XCircle,
@@ -14,6 +15,7 @@ import {
   Network,
   MemoryStick,
   HardDrive,
+  HelpCircle,
 } from "lucide-react";
 
 interface DatabaseStats {
@@ -134,7 +136,12 @@ export function Dashboard() {
   return (
     <div className="space-y-6">
       <div className="flex items-center justify-between">
-        <h1 className="text-2xl font-semibold">{t("dashboard.title")}</h1>
+        <div className="flex items-center gap-2">
+          <h1 className="text-2xl font-semibold">{t("dashboard.title")}</h1>
+          <Button variant="ghost" size="icon-sm" title="Hilfe zu diesem Modul" onClick={() => openManual("dashboard")}>
+            <HelpCircle className="size-4" />
+          </Button>
+        </div>
         <Button variant="outline" onClick={refresh} disabled={refreshing}>
           <RefreshCw className={`size-4 ${refreshing ? "animate-spin" : ""}`} />
           Aktualisieren

@@ -3,8 +3,9 @@ import { invoke } from "@tauri-apps/api/core";
 import { listen } from "@tauri-apps/api/event";
 import { open } from "@tauri-apps/plugin-dialog";
 import { Button } from "@/components/ui/button";
-import { Search, Image as ImageIcon, AlertTriangle, CheckCircle2, Copy, Images } from "lucide-react";
+import { Search, Image as ImageIcon, AlertTriangle, CheckCircle2, Copy, Images, HelpCircle } from "lucide-react";
 import { IconBrowserModal } from "@/features/icon-browser/IconBrowser";
+import { openManual } from "@/lib/manual";
 import {
   ITEM_TYPES,
   SUBTYPES_BY_TYPE,
@@ -513,7 +514,12 @@ export function ItemEditor() {
 
   return (
     <div className="max-w-3xl space-y-6 pb-10">
-      <h1 className="text-2xl font-semibold">Item Editor</h1>
+      <div className="flex items-center gap-2">
+        <h1 className="text-2xl font-semibold">Item Editor</h1>
+        <Button variant="ghost" size="icon-sm" title="Hilfe zu diesem Modul" onClick={() => openManual("item-editor")}>
+          <HelpCircle className="size-4" />
+        </Button>
+      </div>
       <p className="text-sm text-muted-foreground">
         Legt neue Items an oder bearbeitet bestehende. Waffen können beim Anlegen das 3D-Modell eines
         bestehenden Waffen-Items übernehmen (Referenz-Item übernehmen unten). Komplett neue,

@@ -31,10 +31,14 @@ export default defineConfig(async () => ({
     // than a lazy-loaded section within the main window's App.tsx router -
     // it needs to stay open side-by-side with the main window while
     // writing a quest, not replace whatever section is currently shown.
+    // Third entry point "manual" is the same pattern for the app's own
+    // in-app manual (src/lib/manual.ts's openManual()), opened from a
+    // small help button on every module page.
     rollupOptions: {
       input: {
         main: path.resolve(__dirname, "index.html"),
         wiki: path.resolve(__dirname, "wiki.html"),
+        manual: path.resolve(__dirname, "manual.html"),
       },
     },
   },

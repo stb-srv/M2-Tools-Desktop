@@ -3,9 +3,10 @@ import { useTranslation } from "react-i18next";
 import { invoke } from "@tauri-apps/api/core";
 import { open } from "@tauri-apps/plugin-dialog";
 import { Button } from "@/components/ui/button";
-import { FolderOpen } from "lucide-react";
+import { FolderOpen, HelpCircle } from "lucide-react";
 import { Gr2Canvas } from "./Gr2Canvas";
 import type { Gr2ModelInfo } from "./types";
+import { openManual } from "@/lib/manual";
 
 export function ModelViewer() {
   const { t } = useTranslation();
@@ -57,7 +58,12 @@ export function ModelViewer() {
 
   return (
     <div className="flex h-full flex-col gap-4">
-      <h1 className="text-2xl font-semibold">{t("nav.modelViewer")}</h1>
+      <div className="flex items-center gap-2">
+        <h1 className="text-2xl font-semibold">{t("nav.modelViewer")}</h1>
+        <Button variant="ghost" size="icon-sm" title="Hilfe zu diesem Modul" onClick={() => openManual("model-viewer")}>
+          <HelpCircle className="size-4" />
+        </Button>
+      </div>
 
       <div className="space-y-2 rounded-lg border border-border bg-card p-3">
         <div className="flex items-center gap-2">
