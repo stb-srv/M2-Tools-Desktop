@@ -6,6 +6,16 @@ nach [SemVer](https://semver.org/) (`MAJOR.MINOR.PATCH`, solange < 1.0 gilt
 `MINOR` für neue Features, `PATCH` für reine Fixes). Für die vollständige
 Feature-Historie mit allen Details siehe `STATUS.md`.
 
+## [0.13.3] - 2026-08-08
+
+### Hinzugefügt
+
+- **System-Installer: `Placement::Replace`-Marker** — echter Nutzer-Bugreport: eine Zieldatei zeigte "existiert bereits, wird nicht überschrieben", obwohl neuer Code eingefügt werden sollte. Root Cause: die Datei nutzt `//REPLACE with:` (ersetzt den gefundenen Suchtext komplett statt daneben einzufügen) - ein dritter, real verbreiteter Marker-Typ (6× im ResizeWindow1.2-Paket allein, u.a. viermal in einer einzigen Datei), den der Parser bisher gar nicht kannte. Da `classify_marker_line` dafür `None` zurückgab, blieb der Parser im `CapturingAnchor`-Zustand hängen und absorbierte den kompletten Rest der Datei stillschweigend als nie abgeschlossenen Anker (0 Ops statt der echten automatisierbaren Blöcke) - betraf mehrere Dateien im Paket, nicht nur die gemeldete. Neuer `Placement::Replace` + `InsertionResolution::ReadyReplace` + `replace_lines()` (Gegenstück zu `splice_lines`) implementiert, Frontend-Vorschau/Diff entsprechend erweitert.
+
+### Behoben
+
+- **System-Installer: Tippfehler/Wortstellungs-Varianten führten zu stiller FALSCHER Automatik, nicht nur zu übersprungenen Blöcken** — beim Beheben des obigen Bugs zwei weitere reale Fälle gefunden (`PythonPlayerModule.cpp` im InGame-Admin-Paket): (1) `// serach` (Tippfehler statt `search`) wurde gar nicht erkannt, wodurch der nachfolgende `// add above`-Marker fälschlich als "add OHNE Suchtext" interpretiert wurde - ein leerer Anker löst sich automatisch auf "am Dateiende einfügen" auf, das wäre eine **stille, aber falsche** automatische Anwendung an der falschen Stelle gewesen, nicht nur ein übersprungener Block. `serach` jetzt als Alias für `search` erkannt. (2) `// little bit down add` (Marker-Wort "add" am Satzende statt am Anfang) wurde ebenfalls ignoriert - jetzt wird das letzte Wort einer unbekannten Kommentarzeile zusätzlich geprüft und als `FreeformInstruction` (manuelle Prüfung nötig) markiert statt komplett unsichtbar zu bleiben.
+
 ## [0.13.2] - 2026-08-08
 
 ### Geändert

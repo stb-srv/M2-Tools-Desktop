@@ -12,13 +12,16 @@
 // (Python), `// add above`, `// add below`, `// add ABOVE, not below:`,
 // `##inside:` (setzt einen Scope-Anker für die folgenden Blöcke, bis ein
 // neuer `inside`-Marker kommt), `##add at the end:` (Ende des aktuellen
-// Scopes, kein eigener Suchtext nötig), bloßes `// add` (Standard: unten).
-// Daneben: Freitext-Anweisungen ohne festen Suchtext ("search and edit like
-// this", "add in MODULES_DICT and set an ID") - dafür gibt es keinen
-// zuverlässigen Automatismus, die werden als `FreeformInstruction` markiert
-// statt geraten. Eine Datei ganz ohne jede Markierung liefert eine leere
-// `ops`-Liste - der Aufrufer behandelt das als Ganzdatei-Kandidat (neue
-// Datei).
+// Scopes, kein eigener Suchtext nötig), bloßes `// add` (Standard: unten),
+// `//REPLACE with:`/`// replace` (der gesamte Suchtext wird durch den neuen
+// Code ERSETZT statt daneben eingefügt - real in mehreren Dateien von
+// ResizeWindow1.2 genutzt, u.a. `PythonApplicationProcedure.cpp` gleich
+// viermal). Daneben: Freitext-Anweisungen ohne festen Suchtext ("search and
+// edit like this", "add in MODULES_DICT and set an ID") - dafür gibt es
+// keinen zuverlässigen Automatismus, die werden als `FreeformInstruction`
+// markiert statt geraten. Eine Datei ganz ohne jede Markierung liefert eine
+// leere `ops`-Liste - der Aufrufer behandelt das als Ganzdatei-Kandidat
+// (neue Datei).
 
 use serde::{Deserialize, Serialize};
 
@@ -28,6 +31,9 @@ pub enum Placement {
     Below,
     Inside,
     AtEnd,
+    /// Ersetzt den gefundenen Suchtext komplett durch `code`, statt ihn zu
+    /// erhalten und daneben etwas einzufügen - siehe `//REPLACE with:`.
+    Replace,
 }
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
@@ -233,6 +239,10 @@ pub fn find_anchor_with_scope(haystack: &str, scope: Option<&str>, anchor: &str)
 #[serde(tag = "kind")]
 pub enum InsertionResolution {
     Ready { line: usize, confidence: AnchorConfidence },
+    /// Wie `Ready`, aber für `Placement::Replace` - `code` ersetzt die
+    /// komplette Zeilenspanne `[start_line, end_line]` (inklusive) statt
+    /// an einer einzelnen Zeile eingefügt zu werden.
+    ReadyReplace { start_line: usize, end_line: usize, confidence: AnchorConfidence },
     NeedsReview { reason: String },
 }
 
@@ -269,9 +279,17 @@ pub fn resolve_insertion(
 
     match find_anchor_with_scope(haystack, scope, anchor) {
         AnchorMatch::Found { range, confidence } => {
+            if placement == Placement::Replace {
+                return InsertionResolution::ReadyReplace {
+                    start_line: range.start_line,
+                    end_line: range.end_line,
+                    confidence,
+                };
+            }
             let line = match placement {
                 Placement::Above => range.start_line,
                 Placement::Below | Placement::Inside | Placement::AtEnd => range.end_line + 1,
+                Placement::Replace => unreachable!("handled above"),
             };
             InsertionResolution::Ready { line, confidence }
         }
@@ -295,6 +313,27 @@ pub fn splice_lines(content: &str, line: usize, code: &str) -> String {
     result.extend_from_slice(&lines[..at]);
     result.extend_from_slice(&insert_lines);
     result.extend_from_slice(&lines[at..]);
+
+    let mut joined = result.join("\n");
+    if content.is_empty() || content.ends_with('\n') {
+        joined.push('\n');
+    }
+    joined
+}
+
+/// Ersetzt Zeilen `[start_line, end_line]` (0-basiert, inklusive) in
+/// `content` durch `code` (kann mehrzeilig sein) - Gegenstück zu
+/// `splice_lines` für `Placement::Replace`.
+pub fn replace_lines(content: &str, start_line: usize, end_line: usize, code: &str) -> String {
+    let lines: Vec<&str> = content.lines().collect();
+    let insert_lines: Vec<&str> = code.lines().collect();
+    let start = start_line.min(lines.len());
+    let end = (end_line + 1).min(lines.len()).max(start);
+
+    let mut result: Vec<&str> = Vec::with_capacity(lines.len() + insert_lines.len());
+    result.extend_from_slice(&lines[..start]);
+    result.extend_from_slice(&insert_lines);
+    result.extend_from_slice(&lines[end..]);
 
     let mut joined = result.join("\n");
     if content.is_empty() || content.ends_with('\n') {
@@ -359,10 +398,16 @@ fn classify_marker_line(line: &str) -> Option<Marker> {
     let body = stripped.trim().trim_end_matches(':').trim();
     let lower = body.to_lowercase();
 
-    if lower == "search" {
+    // "serach" ist ein real gefundener Tippfehler (PythonPlayerModule.cpp) -
+    // ohne diesen Alias würde die Zeile stillschweigend ignoriert und der
+    // nachfolgende "add"-Marker fälschlich als "add ohne Suchtext"
+    // interpretiert (leerer Anker löst sich sonst automatisch auf
+    // "Dateiende einfügen" auf - eine stille FALSCHE Automatik, schlimmer
+    // als ein übersprungener Block).
+    if lower == "search" || lower == "serach" {
         return Some(Marker::Search);
     }
-    if lower.starts_with("search") {
+    if lower.starts_with("search") || lower.starts_with("serach") {
         // z.B. "search and edit like this" - kein fester Suchtext.
         return Some(Marker::Freeform(trimmed.to_string()));
     }
@@ -394,6 +439,26 @@ fn classify_marker_line(line: &str) -> Option<Marker> {
         }
         // Unbekannter Zusatztext (z.B. "in MODULES_DICT and set an ID for
         // you") - kein zuverlässiger Automatismus möglich.
+        return Some(Marker::Freeform(trimmed.to_string()));
+    }
+    if lower.starts_with("replace") {
+        let rest = lower.strip_prefix("replace").unwrap_or("").trim();
+        // "// replace" (bare) und "//REPLACE with:" (rest == "with" nach dem
+        // Entfernen des Doppelpunkts oben) sind die real gefundenen
+        // Varianten - beide ersetzen den kompletten Suchtext.
+        if rest.is_empty() || rest == "with" {
+            return Some(Marker::Add(Placement::Replace));
+        }
+        return Some(Marker::Freeform(trimmed.to_string()));
+    }
+    // Letzter Auffangschritt: eine Kommentarzeile, deren LETZTES Wort ein
+    // Marker-Schlüsselwort ist (z.B. "little bit down add" statt "add a
+    // little bit down"), wird real in PythonPlayerModule.cpp genutzt und
+    // wurde vorher komplett ignoriert statt wenigstens zur manuellen Prüfung
+    // markiert zu werden. Bewusst nur das LETZTE Wort geprüft (nicht die
+    // ganze Zeile durchsucht), um normale Code-Kommentare nicht
+    // fälschlicherweise als Anweisung misszuverstehen.
+    if matches!(lower.split_whitespace().last(), Some("add") | Some("search") | Some("replace")) {
         return Some(Marker::Freeform(trimmed.to_string()));
     }
     None
@@ -738,6 +803,111 @@ mod tests {
     }
 
     #[test]
+    fn replace_with_from_python_application_event_cpp() {
+        // Wortgleicher Auszug aus dem echten ResizeWindow1.2-Paket
+        // (Source/client/UserInterface/PythonApplicationEvent.cpp) - ein
+        // real gefundener dritter "add"-Marker-Typ ("//REPLACE with:"),
+        // der den kompletten Suchtext ersetzt statt daneben etwas
+        // einzufügen. Vorher wurde "REPLACE" von classify_marker_line gar
+        // nicht erkannt, wodurch der komplette Rest der Datei fälschlich
+        // als nie abgeschlossener Anker verschluckt wurde (ops=0, obwohl
+        // die Datei einen echten, automatisierbaren Block enthält).
+        let content = "//search:\nvoid CPythonApplication::OnSizeChange(int width, int height)\n{\n}\n//REPLACE with:\nvoid CPythonApplication::OnSizeChange(int width, int height)\n{\n#ifdef ENABLE_WINDOW_RESIZE\n\tif (m_dwWidth != width || m_dwHeight != height)\n\t{\n\t\tm_dwWidth = width;\n\t}\n#endif\n}\n";
+        let parsed = parse_system_file(content);
+        assert_eq!(parsed.ops.len(), 1);
+        match &parsed.ops[0] {
+            PatchOp::SearchInsert { anchor, placement, code, .. } => {
+                assert_eq!(
+                    anchor,
+                    "void CPythonApplication::OnSizeChange(int width, int height)\n{\n}"
+                );
+                assert_eq!(*placement, Placement::Replace);
+                assert!(code.contains("ENABLE_WINDOW_RESIZE"));
+                assert!(code.starts_with("void CPythonApplication::OnSizeChange"));
+            }
+            other => panic!("expected SearchInsert, got {other:?}"),
+        }
+    }
+
+    #[test]
+    fn bare_replace_marker_from_ime_cpp() {
+        // Wortgleicher Auszug aus dem echten InGame-Admin-ADDON
+        // (ClientSrc-EterLib-IME.cpp) - bloßes "// replace" ohne "with".
+        let content = "// search\n\nvoid CIME::OnChar(wchar_t c)\n{\n\t[...]\n}\n\n// replace\n\nvoid CIME::OnChar(wchar_t c)\n{\n\tif (m_bOnlyNumberMode && c != '-')\n\t\tif (!iswdigit(c))\n\t\t\treturn;\n}\n";
+        let parsed = parse_system_file(content);
+        assert_eq!(parsed.ops.len(), 1);
+        match &parsed.ops[0] {
+            PatchOp::SearchInsert { placement, code, .. } => {
+                assert_eq!(*placement, Placement::Replace);
+                assert!(code.contains("m_bOnlyNumberMode"));
+            }
+            other => panic!("expected SearchInsert, got {other:?}"),
+        }
+    }
+
+    #[test]
+    fn multiple_replace_blocks_in_one_file_from_python_application_procedure_cpp() {
+        // Wortgleicher (nur gekürzter) Auszug aus dem echten
+        // ResizeWindow1.2-Paket (PythonApplicationProcedure.cpp) - hier
+        // kommen VIER search/REPLACE-Paare in einer Datei vor, gemischt
+        // mit einem normalen "add ABOVE"-Block. Vorher wurde davon nur der
+        // "add ABOVE"-Block erkannt (1 Op statt 4), alle drei
+        // REPLACE-Blöcke wurden lautlos verschluckt.
+        let content = "//search:\nfirst old\n//REPLACE with:\nfirst new\n\n//search:\nsecond old\n//REPLACE with:\nsecond new\n\n//search:\n\t\tcase WM_SYSKEYDOWN:\n//add ABOVE, not below:\n\t\tcase WM_ENTERSIZEMOVE:\n\t\t\tbreak;\n\n//search:\nfourth old\n//REPLACE with:\nfourth new\n";
+        let parsed = parse_system_file(content);
+        assert_eq!(parsed.ops.len(), 4);
+
+        for (idx, expected_anchor, expected_placement) in [
+            (0, "first old", Placement::Replace),
+            (1, "second old", Placement::Replace),
+            (2, "\t\tcase WM_SYSKEYDOWN:", Placement::Above),
+            (3, "fourth old", Placement::Replace),
+        ] {
+            match &parsed.ops[idx] {
+                PatchOp::SearchInsert { anchor, placement, .. } => {
+                    assert_eq!(anchor, expected_anchor, "op {idx}");
+                    assert_eq!(*placement, expected_placement, "op {idx}");
+                }
+                other => panic!("op {idx}: expected SearchInsert, got {other:?}"),
+            }
+        }
+    }
+
+    #[test]
+    fn typo_serach_is_recognized_from_python_player_module_cpp() {
+        // Wortgleicher Auszug aus dem echten InGame-Admin-Paket
+        // (Source/Client/UserInterface/PythonPlayerModule.cpp) - "// serach"
+        // (Tippfehler) statt "// search". Vorher wurde diese Zeile gar
+        // nicht erkannt, wodurch der nachfolgende "// add above"-Marker
+        // fälschlich als "add OHNE Suchtext" behandelt wurde (leerer Anker
+        // löst sich automatisch auf "am Dateiende einfügen" auf) - eine
+        // stille FALSCHE Automatik statt eines erkennbar übersprungenen
+        // Blocks.
+        let content = "// serach\n\nvoid initPlayer()\n{\n\tstatic PyMethodDef s_methods[] =\n\t{\n\n// add above\n\n#ifdef ENABLE_ASLAN_MODULAR_ADMIN_PANEL\nPyObject* playerGetGMLevel(PyObject* poSelf, PyObject* poArgs)\n{\n\treturn Py_BuildValue(\"b\", CPythonPlayer::Instance().GetStatus(POINT_GM_LEVEL));\n}\n#endif\n\n// little bit down add\n\n#ifdef ENABLE_ASLAN_MODULAR_ADMIN_PANEL\n\t\t{ \"GetGMLevel\",\t\t\t\t\t\tplayerGetGMLevel,\t\t\t\t\t\tMETH_VARARGS },\n#endif\n";
+        let parsed = parse_system_file(content);
+        assert_eq!(parsed.ops.len(), 2);
+
+        match &parsed.ops[0] {
+            PatchOp::SearchInsert { anchor, placement, code, .. } => {
+                assert_eq!(
+                    anchor,
+                    "void initPlayer()\n{\n\tstatic PyMethodDef s_methods[] =\n\t{"
+                );
+                assert_eq!(*placement, Placement::Above);
+                assert!(code.contains("playerGetGMLevel"));
+            }
+            other => panic!("expected SearchInsert, got {other:?}"),
+        }
+        match &parsed.ops[1] {
+            PatchOp::FreeformInstruction { instruction, code } => {
+                assert_eq!(instruction, "// little bit down add");
+                assert!(code.contains("GetGMLevel"));
+            }
+            other => panic!("expected FreeformInstruction, got {other:?}"),
+        }
+    }
+
+    #[test]
     fn file_with_no_markers_at_all_is_a_whole_file_candidate() {
         let content = "class ImageBox(Window):\n\tdef __init__(self):\n\t\tpass\n";
         let parsed = parse_system_file(content);
@@ -927,6 +1097,44 @@ mod tests {
             assert_eq!(
                 result,
                 "// header\n\n#ifdef ADMINPANEL_MOD_CREATE_ITEM_ASLAN\nint extra;\n#endif\nCItemManager::CItemManager() : m_pSelectedItemData(NULL)\n{\n}\n"
+            );
+        }
+
+        #[test]
+        fn resolves_replace_to_the_full_anchor_range() {
+            let haystack = "a\nb\nc\nd\n";
+            match resolve_insertion(haystack, None, "b\nc", Placement::Replace) {
+                InsertionResolution::ReadyReplace { start_line, end_line, .. } => {
+                    assert_eq!(start_line, 1);
+                    assert_eq!(end_line, 2);
+                }
+                other => panic!("expected ReadyReplace, got {other:?}"),
+            }
+        }
+
+        #[test]
+        fn replace_lines_swaps_the_given_range_for_new_code() {
+            let content = "a\nb\nc\nd\n";
+            let result = replace_lines(content, 1, 2, "x\ny\nz");
+            assert_eq!(result, "a\nx\ny\nz\nd\n");
+        }
+
+        #[test]
+        fn full_round_trip_from_a_real_replace_block() {
+            // Simuliert genau den PythonApplicationEvent.cpp-Fall: Anker
+            // gefunden, komplett durch den neuen Code ersetzt statt daneben
+            // eingefügt.
+            let real_file = "void CPythonApplication::OnSizeChange(int width, int height)\n{\n}\n";
+            let anchor = "void CPythonApplication::OnSizeChange(int width, int height)\n{\n}";
+            let code = "void CPythonApplication::OnSizeChange(int width, int height)\n{\n#ifdef ENABLE_WINDOW_RESIZE\n\tDoStuff();\n#endif\n}";
+            let resolution = resolve_insertion(real_file, None, anchor, Placement::Replace);
+            let InsertionResolution::ReadyReplace { start_line, end_line, .. } = resolution else {
+                panic!("expected ReadyReplace, got {resolution:?}");
+            };
+            let result = replace_lines(real_file, start_line, end_line, code);
+            assert_eq!(
+                result,
+                "void CPythonApplication::OnSizeChange(int width, int height)\n{\n#ifdef ENABLE_WINDOW_RESIZE\n\tDoStuff();\n#endif\n}\n"
             );
         }
     }

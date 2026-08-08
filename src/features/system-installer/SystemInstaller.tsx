@@ -21,7 +21,7 @@ import {
 // Umbenennung, dieselbe Konvention wie überall sonst in diesem Projekt
 // (siehe z.B. RegenSpawn in regen-editor).
 
-type Placement = "Above" | "Below" | "Inside" | "AtEnd";
+type Placement = "Above" | "Below" | "Inside" | "AtEnd" | "Replace";
 type AnchorConfidence = "Exact" | "WhitespaceTolerant" | "CommentStripped" | "Partial";
 
 type PatchOp =
@@ -46,6 +46,7 @@ interface ScannedFile {
 
 type InsertionResolution =
   | { kind: "Ready"; line: number; confidence: AnchorConfidence }
+  | { kind: "ReadyReplace"; start_line: number; end_line: number; confidence: AnchorConfidence }
   | { kind: "NeedsReview"; reason: string };
 
 type FileAction = "Patched" | "Created";
@@ -310,7 +311,8 @@ export function SystemInstaller() {
           anchor: op.anchor,
           placement: op.placement,
         });
-        return { done: true, kind: resolution.kind === "Ready" ? "ready" : "review", resolution } as OpStatus;
+        const isReady = resolution.kind === "Ready" || resolution.kind === "ReadyReplace";
+        return { done: true, kind: isReady ? "ready" : "review", resolution } as OpStatus;
       }),
     );
     setItems((prev) => (prev ? { ...prev, [key]: { ...prev[key], opStatuses: statuses } } : prev));
@@ -709,7 +711,9 @@ function OpDetail({
   if (status.kind === "conflict") return null;
 
   const resolution = status.resolution;
-  const ready = resolution.kind === "Ready";
+  const ready = resolution.kind === "Ready" || resolution.kind === "ReadyReplace";
+  const confidence = ready ? resolution.confidence : null;
+  const replaceLabel = op.kind === "SearchInsert" && op.placement === "Replace" ? "Ersetzen" : label;
 
   return (
     <div
@@ -723,7 +727,7 @@ function OpDetail({
         }
       >
         {ready ? <CheckCircle2 className="size-3.5" /> : <AlertTriangle className="size-3.5" />}
-        {label} - {ready ? CONFIDENCE_LABELS[resolution.confidence] : resolution.reason}
+        {replaceLabel} - {confidence ? CONFIDENCE_LABELS[confidence] : resolution.kind === "NeedsReview" ? resolution.reason : ""}
       </p>
       {op.kind === "SearchInsert" && (
         <details>
@@ -732,13 +736,21 @@ function OpDetail({
         </details>
       )}
       <details>
-        <summary className="cursor-pointer text-muted-foreground">Einzufügender Code</summary>
+        <summary className="cursor-pointer text-muted-foreground">
+          {op.kind === "SearchInsert" && op.placement === "Replace" ? "Ersetzender Code" : "Einzufügender Code"}
+        </summary>
         <pre className="mt-1 max-h-32 overflow-auto rounded bg-muted/40 p-1">{code}</pre>
       </details>
-      {ready && targetContent !== null && op.kind === "SearchInsert" && (
+      {resolution.kind === "Ready" && targetContent !== null && op.kind === "SearchInsert" && (
         <details>
           <summary className="cursor-pointer text-muted-foreground">Vorschau (Diff)</summary>
           <PreviewDiff before={targetContent} line={resolution.line} code={code} />
+        </details>
+      )}
+      {resolution.kind === "ReadyReplace" && targetContent !== null && op.kind === "SearchInsert" && (
+        <details>
+          <summary className="cursor-pointer text-muted-foreground">Vorschau (Diff)</summary>
+          <ReplacePreviewDiff before={targetContent} startLine={resolution.start_line} endLine={resolution.end_line} code={code} />
         </details>
       )}
     </div>
@@ -749,6 +761,30 @@ function PreviewDiff({ before, line, code }: { before: string; line: number; cod
   const lines = before.split("\n");
   const insertLines = code.split("\n");
   const after = [...lines.slice(0, line), ...insertLines, ...lines.slice(line)].join("\n");
+  return <DiffLines before={before} after={after} />;
+}
+
+// Gegenstück zu PreviewDiff für Placement::Replace - ersetzt die Zeilenspanne
+// [startLine, endLine] (inklusive) statt nur an einer Zeile einzufügen,
+// spiegelt system_patch.rs::replace_lines.
+function ReplacePreviewDiff({
+  before,
+  startLine,
+  endLine,
+  code,
+}: {
+  before: string;
+  startLine: number;
+  endLine: number;
+  code: string;
+}) {
+  const lines = before.split("\n");
+  const replacementLines = code.split("\n");
+  const after = [...lines.slice(0, startLine), ...replacementLines, ...lines.slice(endLine + 1)].join("\n");
+  return <DiffLines before={before} after={after} />;
+}
+
+function DiffLines({ before, after }: { before: string; after: string }) {
   const parts = diffLines(before, after);
   return (
     <pre className="mt-1 max-h-48 overflow-auto rounded bg-muted/20 p-1 font-mono">

@@ -2172,6 +2172,9 @@ async fn apply_one_file(
                     InsertionResolution::Ready { line, .. } => {
                         content = system_patch::splice_lines(&content, line, code);
                     }
+                    InsertionResolution::ReadyReplace { start_line, end_line, .. } => {
+                        content = system_patch::replace_lines(&content, start_line, end_line, code);
+                    }
                     InsertionResolution::NeedsReview { reason } => {
                         return Err(format!("{}: {reason} - bitte manuell prüfen.", file.target_path));
                     }
