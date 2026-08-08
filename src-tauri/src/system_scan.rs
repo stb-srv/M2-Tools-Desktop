@@ -170,7 +170,9 @@ pub fn scan_system_package(root: &Path) -> Result<Vec<ScannedFile>, String> {
 
 /// Sucht lokal (nicht über SSH) rekursiv nach Dateien mit genau diesem
 /// Namen - Gegenstück zu `ssh::find_remote_file_by_name`, für
-/// `binary_src_path`/`client_path`.
+/// `binary_src_path`/`client_path`. Nur für gezielte Einzelsuche (z.B. der
+/// "Erneut suchen"-Knopf im Frontend) - für viele Dateinamen auf einmal
+/// unbedingt `find_local_files_by_names` nutzen, siehe dort.
 pub fn find_local_file_by_name(root: &Path, filename: &str) -> Vec<String> {
     let mut paths = Vec::new();
     walk(root, &mut paths);
@@ -181,9 +183,61 @@ pub fn find_local_file_by_name(root: &Path, filename: &str) -> Vec<String> {
         .collect()
 }
 
+/// Wie `find_local_file_by_name`, aber sucht viele Dateinamen in einem
+/// einzigen Verzeichnis-Durchlauf statt den Baum für jede Datei erneut
+/// abzulaufen. Wichtig für `client_path`: reale Client-Ordner haben oft
+/// mehrere zehntausend Dateien (Texturen, Sounds, Modelle) - ein System-
+/// Paket mit einem Dutzend Dateien hat den kompletten Baum sonst ein
+/// Dutzend Mal durchsucht, was real mehrere Minuten dauern kann.
+pub fn find_local_files_by_names(
+    root: &Path,
+    filenames: &std::collections::HashSet<String>,
+) -> std::collections::HashMap<String, Vec<String>> {
+    let mut paths = Vec::new();
+    walk(root, &mut paths);
+
+    let mut result: std::collections::HashMap<String, Vec<String>> = std::collections::HashMap::new();
+    for p in paths {
+        let Some(name) = p.file_name().and_then(|f| f.to_str()) else {
+            continue;
+        };
+        if filenames.contains(name) {
+            result
+                .entry(name.to_string())
+                .or_default()
+                .push(p.to_string_lossy().replace('\\', "/"));
+        }
+    }
+    result
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
+    use std::collections::HashSet;
+
+    #[test]
+    fn find_local_files_by_names_resolves_several_names_in_one_walk() {
+        let scratch = std::env::temp_dir().join(format!("m2manager_systemscan_batchfind_test_{}", std::process::id()));
+        std::fs::create_dir_all(scratch.join("EterLib")).unwrap();
+        std::fs::create_dir_all(scratch.join("UserInterface")).unwrap();
+        std::fs::write(scratch.join("EterLib").join("GrpDevice.cpp"), "x").unwrap();
+        std::fs::write(scratch.join("UserInterface").join("Defines.h"), "x").unwrap();
+        std::fs::write(scratch.join("UserInterface").join("Unrelated.cpp"), "x").unwrap();
+
+        let wanted: HashSet<String> = ["GrpDevice.cpp".to_string(), "Defines.h".to_string(), "Missing.cpp".to_string()]
+            .into_iter()
+            .collect();
+        let found = find_local_files_by_names(&scratch, &wanted);
+
+        assert_eq!(found.len(), 2);
+        assert!(found["GrpDevice.cpp"][0].ends_with("EterLib/GrpDevice.cpp"));
+        assert!(found["Defines.h"][0].ends_with("UserInterface/Defines.h"));
+        assert!(!found.contains_key("Missing.cpp"));
+        assert!(!found.contains_key("Unrelated.cpp"));
+
+        std::fs::remove_dir_all(&scratch).unwrap();
+    }
 
     #[test]
     fn categorizes_source_server_as_live_server() {
@@ -260,4 +314,3 @@ mod tests {
         std::fs::remove_dir_all(&scratch).unwrap();
     }
 }
-

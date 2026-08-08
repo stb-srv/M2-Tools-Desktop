@@ -1967,6 +1967,11 @@ async fn read_target_content(
             if !p.exists() {
                 return Ok(None);
             }
+            if p.is_dir() {
+                return Err(format!(
+                    "\"{path}\" ist ein Ordner, keine Datei - bitte den vollständigen Pfad zur Zieldatei angeben (inkl. Dateiname)."
+                ));
+            }
             std::fs::read_to_string(p).map(Some).map_err(|e| e.to_string())
         }
     }
@@ -2060,6 +2065,39 @@ pub async fn find_system_target(
         TargetKind::LocalClientInstall => {
             let root = client_path_setting(&state)?;
             Ok(system_scan::find_local_file_by_name(std::path::Path::new(&root), &filename))
+        }
+    }
+}
+
+/// Wie `find_system_target`, aber löst viele Dateinamen einer Kategorie in
+/// einem Rutsch auf (ein Verzeichnis-Durchlauf bzw. ein `find`-Aufruf statt
+/// einer pro Datei) - der eigentliche Grund für den Befehl: `client_path`
+/// zeigt real oft auf einen kompletten Client-Ordner mit mehreren
+/// zehntausend Dateien, ein Systempaket mit einem Dutzend Client-Dateien
+/// hätte diesen Baum sonst ein Dutzend Mal komplett durchsucht. Wird beim
+/// initialen Scannen eines Systempakets genutzt, `find_system_target`
+/// bleibt für die gezielte Einzelsuche ("Erneut suchen").
+#[tauri::command]
+pub async fn find_system_targets_batch(
+    state: State<'_, AppState>,
+    category: TargetKind,
+    filenames: Vec<String>,
+) -> Result<std::collections::HashMap<String, Vec<String>>, String> {
+    match category {
+        TargetKind::LiveServer => {
+            let (config, auth) = stored_ssh_auth(&state)?;
+            let root = build_deploy_setting(&state, "build_live_source_root", "/usr/home/source/server")?;
+            ssh::find_remote_files_by_names(&config, &auth, &root, &filenames).await
+        }
+        TargetKind::LocalClientSource => {
+            let root = binary_src_path_setting(&state)?;
+            let wanted: std::collections::HashSet<String> = filenames.into_iter().collect();
+            Ok(system_scan::find_local_files_by_names(std::path::Path::new(&root), &wanted))
+        }
+        TargetKind::LocalClientInstall => {
+            let root = client_path_setting(&state)?;
+            let wanted: std::collections::HashSet<String> = filenames.into_iter().collect();
+            Ok(system_scan::find_local_files_by_names(std::path::Path::new(&root), &wanted))
         }
     }
 }

@@ -245,6 +245,39 @@ pub async fn find_remote_file_by_name(
         .collect())
 }
 
+/// Wie `find_remote_file_by_name`, aber sucht viele Dateinamen in einem
+/// einzigen `find`-Aufruf statt einen SSH-Roundtrip pro Datei zu bezahlen -
+/// bei einem Systempaket mit einem Dutzend Server-Dateien sonst ein Dutzend
+/// separater SSH-Verbindungen/-Befehle nacheinander.
+pub async fn find_remote_files_by_names(
+    config: &SshConfig,
+    auth: &SshAuth,
+    root: &str,
+    filenames: &[String],
+) -> Result<std::collections::HashMap<String, Vec<String>>, String> {
+    if filenames.is_empty() {
+        return Ok(std::collections::HashMap::new());
+    }
+    let name_clauses: Vec<String> = filenames
+        .iter()
+        .map(|f| format!("-name {}", crate::db_backup::shell_single_quote(f)))
+        .collect();
+    let command = format!(
+        "find {} -type f \\( {} \\) 2>/dev/null",
+        crate::db_backup::shell_single_quote(root),
+        name_clauses.join(" -o ")
+    );
+    let result = run_command_streaming(config, auth, &command, |_| {}).await?;
+
+    let mut by_name: std::collections::HashMap<String, Vec<String>> = std::collections::HashMap::new();
+    for line in result.output.lines().map(str::trim).filter(|l| !l.is_empty()) {
+        if let Some(name) = line.rsplit('/').next() {
+            by_name.entry(name.to_string()).or_default().push(line.to_string());
+        }
+    }
+    Ok(by_name)
+}
+
 /// Renames an existing remote file into a sibling `m2manager_backups` folder
 /// with a timestamp suffix, without writing anything back - the shared core
 /// of `delete_remote_file_with_backup`, `write_remote_file_with_backup`, and

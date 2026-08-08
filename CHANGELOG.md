@@ -6,6 +6,13 @@ nach [SemVer](https://semver.org/) (`MAJOR.MINOR.PATCH`, solange < 1.0 gilt
 `MINOR` für neue Features, `PATCH` für reine Fixes). Für die vollständige
 Feature-Historie mit allen Details siehe `STATUS.md`.
 
+## [0.13.1] - 2026-08-08
+
+### Behoben
+
+- **System-Installer: Fehler bei der Zielsuche wurden stillschweigend verschluckt** — echter Nutzer-Bugreport nach dem ersten Live-Test: C++-Dateien wurden nie gefunden ("er sucht wohl, aber findet nichts"), auch nach manuell gesetztem Pfad. Ursache gefunden: `searchTarget`/`setTargetPath` im Frontend fingen jeden Backend-Fehler ab und zeigten immer dieselbe generische "Zieldatei nicht gefunden"-Meldung, egal ob wirklich nichts gefunden wurde oder z.B. `binary_src_path` gar nicht konfiguriert war (live in der Einstellungs-DB des Nutzers verifiziert: tatsächlich leer) oder ein Zielpfad versehentlich auf einen Ordner statt eine Datei zeigte. Beide Stellen zeigen den echten Fehler jetzt an, Ordner-statt-Datei-Zielpfade werden serverseitig explizit erkannt statt einen kryptischen OS-Fehler durchzureichen.
+- **System-Installer: Client-Zielsuche brauchte mehrere Minuten** — zweiter Teil desselben Bugreports. Ursache: jede einzelne Paket-Datei löste einen kompletten rekursiven Verzeichnis-Durchlauf über `client_path` aus (real oft der komplette Spielclient, beim Nutzer 58.166 Dateien), ein Systempaket mit einem Dutzend Client-Dateien hat diesen Baum also ein Dutzend Mal komplett durchsucht. Neue `find_local_files_by_names`/`find_remote_files_by_names` lösen alle Dateinamen einer Kategorie in einem einzigen Durchlauf bzw. SSH-Aufruf auf (neuer Befehl `find_system_targets_batch`, beim initialen Scan genutzt). Live gegen den echten 58k-Datei-Ordner gemessen: 11 Dateien einzeln 31,4s, gebündelt 2,9s.
+
 ## [0.13.0] - 2026-08-07
 
 ### Hinzugefügt

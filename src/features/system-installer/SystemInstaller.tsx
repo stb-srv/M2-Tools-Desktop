@@ -95,8 +95,10 @@ interface FileWorkItem {
   targetPath: string;
   targetCandidates: string[];
   targetSearching: boolean;
+  targetSearchError: string | null; // z.B. "binary_src_path nicht konfiguriert" - unterscheidet "Fehler" von "wirklich nichts gefunden"
   targetContent: string | null; // null = noch nicht geladen ODER Datei existiert nicht
   targetLoaded: boolean;
+  targetReadError: string | null; // z.B. Pfad zeigt auf einen Ordner statt einer Datei
   opStatuses: OpStatus[];
 }
 
@@ -109,6 +111,11 @@ function isWholeFileCandidate(file: ScannedFile): boolean {
 }
 
 function computeFileStatus(item: FileWorkItem): "loading" | "ready" | "review" {
+  // Ein echter Fehler (Konfiguration fehlt, Zielpfad ist ein Ordner, ...)
+  // darf nie als "bereit" durchgehen und nie für immer "lädt" bleiben -
+  // sonst würde ein Fehlschlag entweder unbemerkt übernommen oder die
+  // Datei verschwindet stillschweigend aus der Übersicht.
+  if (item.targetSearchError || item.targetReadError) return "review";
   if (isWholeFileCandidate(item.file)) {
     if (!item.targetLoaded) return "loading";
     return item.targetContent === null ? "ready" : "review"; // review = Ziel existiert schon, Konflikt
@@ -167,15 +174,16 @@ export function SystemInstaller() {
           file,
           targetPath: "",
           targetCandidates: [],
-          targetSearching: false,
+          targetSearching: true,
+          targetSearchError: null,
           targetContent: null,
           targetLoaded: false,
+          targetReadError: null,
           opStatuses: file.parsed.ops.map(() => ({ done: false }) as OpStatus),
         };
       }
       setItems(map);
-      // Zielsuche für jede Datei parallel anstoßen, statt auf Klick zu warten.
-      await Promise.all(Object.keys(map).map((key) => searchTarget(key, map)));
+      await resolveAllTargets(files, map);
     } catch (e) {
       setScanError(String(e));
     } finally {
@@ -183,10 +191,64 @@ export function SystemInstaller() {
     }
   }
 
-  async function searchTarget(key: string, snapshot?: Record<string, FileWorkItem>) {
-    const current = (snapshot ?? items)?.[key];
+  // Löst die Ziele aller gescannten Dateien auf - gruppiert nach Kategorie,
+  // ein Backend-Aufruf pro Kategorie (max. 3) statt einer pro Datei. Wichtig
+  // bei `client_path`: das ist real oft der komplette Client-Ordner mit
+  // mehreren zehntausend Dateien, ein Aufruf pro einzelner Paket-Datei hätte
+  // diesen Baum sonst ein Dutzend Mal komplett durchsucht (mehrere Minuten
+  // für ein normal großes System-Paket).
+  async function resolveAllTargets(files: ScannedFile[], snapshot: Record<string, FileWorkItem>) {
+    const byCategory = new Map<TargetKind, ScannedFile[]>();
+    for (const file of files) {
+      const list = byCategory.get(file.category) ?? [];
+      list.push(file);
+      byCategory.set(file.category, list);
+    }
+    await Promise.all(
+      [...byCategory.entries()].map(async ([category, categoryFiles]) => {
+        const filenames = [...new Set(categoryFiles.map((f) => f.filename))];
+        try {
+          const results = await invoke<Record<string, string[]>>("find_system_targets_batch", {
+            category,
+            filenames,
+          });
+          for (const file of categoryFiles) {
+            const key = keyFor(file);
+            const candidates = results[file.filename] ?? [];
+            setItems((prev) =>
+              prev
+                ? { ...prev, [key]: { ...prev[key], targetCandidates: candidates, targetSearching: false, targetSearchError: null } }
+                : prev,
+            );
+            if (candidates.length === 1) {
+              await setTargetPath(key, candidates[0], snapshot);
+            }
+          }
+        } catch (e) {
+          const message = String(e);
+          setItems((prev) => {
+            if (!prev) return prev;
+            const next = { ...prev };
+            for (const file of categoryFiles) {
+              const key = keyFor(file);
+              next[key] = { ...next[key], targetSearching: false, targetCandidates: [], targetSearchError: message };
+            }
+            return next;
+          });
+        }
+      }),
+    );
+  }
+
+  // Gezielte Einzelsuche für den "Erneut suchen"-Knopf - eine Datei, ein
+  // Backend-Aufruf, für den seltenen manuellen Retry-Fall völlig ausreichend
+  // schnell (die Massenauflösung beim Import läuft über resolveAllTargets).
+  async function searchTarget(key: string) {
+    const current = items?.[key];
     if (!current) return;
-    setItems((prev) => (prev ? { ...prev, [key]: { ...prev[key], targetSearching: true } } : prev));
+    setItems((prev) =>
+      prev ? { ...prev, [key]: { ...prev[key], targetSearching: true, targetSearchError: null } } : prev,
+    );
     try {
       const candidates = await invoke<string[]>("find_system_target", {
         category: current.file.category,
@@ -194,36 +256,39 @@ export function SystemInstaller() {
       });
       setItems((prev) => {
         if (!prev) return prev;
-        return { ...prev, [key]: { ...prev[key], targetCandidates: candidates, targetSearching: false } };
+        return { ...prev, [key]: { ...prev[key], targetCandidates: candidates, targetSearching: false, targetSearchError: null } };
       });
       if (candidates.length === 1) {
         await setTargetPath(key, candidates[0]);
       }
     } catch (e) {
       setItems((prev) =>
-        prev ? { ...prev, [key]: { ...prev[key], targetSearching: false, targetCandidates: [] } } : prev,
+        prev
+          ? { ...prev, [key]: { ...prev[key], targetSearching: false, targetCandidates: [], targetSearchError: String(e) } }
+          : prev,
       );
-      void e;
     }
   }
 
-  async function setTargetPath(key: string, path: string) {
+  async function setTargetPath(key: string, path: string, snapshot?: Record<string, FileWorkItem>) {
     setItems((prev) =>
-      prev ? { ...prev, [key]: { ...prev[key], targetPath: path, targetLoaded: false } } : prev,
+      prev ? { ...prev, [key]: { ...prev[key], targetPath: path, targetLoaded: false, targetReadError: null } } : prev,
     );
-    const current = items?.[key];
+    const current = (snapshot ?? items)?.[key];
     const category = current?.file.category;
     if (!category) return;
     try {
       const content = await invoke<string | null>("read_system_target_file", { category, path });
       setItems((prev) => {
         if (!prev) return prev;
-        return { ...prev, [key]: { ...prev[key], targetContent: content, targetLoaded: true } };
+        return { ...prev, [key]: { ...prev[key], targetContent: content, targetLoaded: true, targetReadError: null } };
       });
       await resolveOps(key, content);
-    } catch {
+    } catch (e) {
       setItems((prev) =>
-        prev ? { ...prev, [key]: { ...prev[key], targetContent: null, targetLoaded: true } } : prev,
+        prev
+          ? { ...prev, [key]: { ...prev[key], targetContent: null, targetLoaded: true, targetReadError: String(e) } }
+          : prev,
       );
     }
   }
@@ -542,6 +607,18 @@ function FileDetail({
           Suchen
         </Button>
       </div>
+      {item.targetSearchError && (
+        <p className="flex items-center gap-1.5 rounded-md border border-destructive/40 bg-destructive/10 p-2 text-xs text-destructive">
+          <XCircle className="size-3.5 shrink-0" />
+          Suche fehlgeschlagen: {item.targetSearchError}
+        </p>
+      )}
+      {item.targetReadError && (
+        <p className="flex items-center gap-1.5 rounded-md border border-destructive/40 bg-destructive/10 p-2 text-xs text-destructive">
+          <XCircle className="size-3.5 shrink-0" />
+          Zieldatei konnte nicht gelesen werden: {item.targetReadError}
+        </p>
+      )}
       {item.targetCandidates.length > 1 && (
         <div className="space-y-1 rounded-md border border-amber-500/40 bg-amber-500/10 p-2 text-xs">
           <p className="text-amber-700 dark:text-amber-400">Mehrere Treffer - bitte auswählen:</p>
@@ -556,7 +633,7 @@ function FileDetail({
           ))}
         </div>
       )}
-      {item.targetCandidates.length === 0 && !item.targetSearching && !item.targetPath && (
+      {!item.targetSearchError && item.targetCandidates.length === 0 && !item.targetSearching && !item.targetPath && (
         <p className="flex items-center gap-1.5 text-xs text-amber-700 dark:text-amber-400">
           <XCircle className="size-3.5" />
           Zieldatei nicht gefunden - bitte Pfad manuell eintragen oder erneut suchen.

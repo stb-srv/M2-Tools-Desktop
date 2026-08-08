@@ -2,7 +2,7 @@
 
 Diese Datei ist die laufende Referenz für „was ist schon gebaut" vs. „was fehlt noch". Wird bei jeder größeren Session aktualisiert/abgehakt. Quelle der Ursprungs-Features: `Idee.md` + `weitere Informationen.md`.
 
-Stand: 2026-08-07
+Stand: 2026-08-08
 
 ---
 
@@ -95,7 +95,7 @@ Stand: 2026-08-07
 - [ ] **Automatisierte Tests für Server-Steuerung** — bisher bewusst nur mit harmlosen Commands (`echo`/`sleep`) getestet, echte Start/Stop-Läufe nie automatisiert verifiziert (siehe [[m2manager_server_control]])
 - [ ] **Mob Drop Editor: Live-Test gegen echten Server** — Parser/Serializer sind gegen die echte Beispieldatei des Nutzers unit-getestet (Round-Trip), aber SFTP-Lesen/Schreiben/Backup wurde noch nie live gegen den Dev-Server ausgeführt (siehe [[m2manager_mob_drop_editor]])
 - [ ] **Eigenständiger Syntax-Checker** — vom Nutzer beim System-Installer-Auftrag zusätzlich gewünscht: beliebigen Ordner wählen, alle Dateien auf Syntaxfehler prüfen, bei Fehlern automatisch einen Korrekturvorschlag anzeigen, Nutzer bestätigt oder lässt es so. Bewusst nicht Teil des System-Installers — der baut nur einen eingebauten Struktur-Check (Klammern/`#if`-`#endif`-Balance) als Sicherheitsnetz. Der volle Bereich (mehrsprachig, echte Auto-Reparatur-Vorschläge) ist ein eigenständiges, größeres Feature und noch nicht begonnen
-- [ ] **System-Installer: erster echter Einbau + Rückgängig-machen live getestet** — Parser/Kategorisierung/Anker-Suche sind gegen die echten, unveränderten Dateien beider Beispielsysteme verifiziert (siehe oben, dabei zwei reale Parser-/Kategorisierungs-Bugs gefunden und behoben), aber der komplette Ablauf über die UI (Ordner wählen → Ziel auflösen → anwenden → Verlauf → Rückgängig machen) wurde noch nicht im laufenden Tauri-Fenster durchgeklickt — Tauri-Ordnerauswahl-Dialog lässt sich nicht über den reinen Vite-Dev-Server+Browser-Stub testen, den dieses Projekt sonst für UI-Verifikation nutzt
+- [ ] **System-Installer: erster echter Einbau + Rückgängig-machen live getestet** — Parser/Kategorisierung/Anker-Suche sind gegen die echten, unveränderten Dateien beider Beispielsysteme verifiziert (siehe oben, dabei zwei reale Parser-/Kategorisierungs-Bugs gefunden und behoben), der eigentliche Einbau/Rückgängig-machen-Zyklus wurde noch nicht durchgeklickt. **2026-08-08, echter erster Nutzer-Test:** zwei weitere reale Bugs bei der Zielsuche gefunden und behoben (siehe CHANGELOG 0.13.1) - Fehler wurden im Frontend stillschweigend verschluckt (jeder Fehlschlag sah wie "nichts gefunden" aus, egal ob `binary_src_path` fehlte oder ein Ordner statt einer Datei als Ziel angegeben war), und die Client-Zielsuche durchsuchte den kompletten `client_path`-Baum (58k Dateien beim Nutzer) einmal pro Paket-Datei statt gebündelt (live gemessen: 31,4s einzeln vs. 2,9s gebündelt für 11 Dateien) - neuer `find_system_targets_batch`-Befehl behebt das. `binary_src_path` war beim Test schlicht noch nicht gesetzt (Einstellungen → Client-Quellcode-Ordner) - jetzt mit sichtbarer Fehlermeldung statt stiller "nicht gefunden"-Anzeige
 
 ### Mittelfristig (im Plan vorgesehen, noch nicht begonnen)
 - [ ] **Auto-Updates** — `tauri-plugin-updater` ist noch nicht als Dependency vorhanden, keine GitHub-Releases-Pipeline, kein Update-Badge in der UI

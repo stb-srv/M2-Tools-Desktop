@@ -183,6 +183,7 @@ pub fn run() {
             commands::sanitize_locale_namespace,
             commands::scan_system_package,
             commands::find_system_target,
+            commands::find_system_targets_batch,
             commands::read_system_target_file,
             commands::resolve_system_insertion,
             commands::apply_system_install,
