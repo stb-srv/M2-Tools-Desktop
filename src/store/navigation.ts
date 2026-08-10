@@ -23,6 +23,8 @@ import {
   Wrench,
   Sparkles,
   Puzzle,
+  Megaphone,
+  Moon,
 } from "lucide-react";
 
 export type Section =
@@ -48,6 +50,8 @@ export type Section =
   | "model-viewer"
   | "account-manager"
   | "system-installer"
+  | "broadcast-system"
+  | "weather-control"
   | "settings";
 
 // Groups drive the collapsible sections in the Sidebar. "settings" is not a
@@ -110,6 +114,8 @@ export const NAV_ITEMS: { section: Section; icon: typeof LayoutDashboard; labelK
   { section: "server-events", icon: Sparkles, labelKey: "nav.serverEvents", category: "serverAdmin" },
   { section: "account-manager", icon: Users, labelKey: "nav.accountManager", category: "serverAdmin" },
   { section: "db-explorer", icon: Database, labelKey: "nav.dbExplorer", category: "serverAdmin" },
+  { section: "broadcast-system", icon: Megaphone, labelKey: "nav.broadcastSystem", category: "serverAdmin" },
+  { section: "weather-control", icon: Moon, labelKey: "nav.weatherControl", category: "serverAdmin" },
   { section: "backup-browser", icon: History, labelKey: "nav.backupBrowser", category: "backups" },
   { section: "db-backups", icon: DatabaseBackup, labelKey: "nav.dbBackups", category: "backups" },
   { section: "tga-converter", icon: ImagePlus, labelKey: "nav.tgaConverter", category: "assets" },

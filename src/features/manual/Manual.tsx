@@ -21,6 +21,8 @@ import localeEditorMd from "./docs/quests-welt/locale-editor.md?raw";
 import serverEventsMd from "./docs/server-accounts/server-events.md?raw";
 import accountManagerMd from "./docs/server-accounts/account-manager.md?raw";
 import dbExplorerMd from "./docs/server-accounts/db-explorer.md?raw";
+import broadcastSystemMd from "./docs/server-accounts/broadcast-system.md?raw";
+import weatherControlMd from "./docs/server-accounts/weather-control.md?raw";
 import backupBrowserMd from "./docs/backups/backup-browser.md?raw";
 import dbBackupsMd from "./docs/backups/db-backups.md?raw";
 import tgaConverterMd from "./docs/assets/tga-converter.md?raw";
@@ -50,6 +52,8 @@ const PAGES: Record<string, string> = {
   "server-events": serverEventsMd,
   "account-manager": accountManagerMd,
   "db-explorer": dbExplorerMd,
+  "broadcast-system": broadcastSystemMd,
+  "weather-control": weatherControlMd,
   "backup-browser": backupBrowserMd,
   "db-backups": dbBackupsMd,
   "tga-converter": tgaConverterMd,
@@ -106,6 +110,8 @@ const NAV: NavEntry[] = [
       { id: "server-events", label: "Server-Events" },
       { id: "account-manager", label: "Account-Verwaltung" },
       { id: "db-explorer", label: "Datenbank-Explorer" },
+      { id: "broadcast-system", label: "Broadcast-System" },
+      { id: "weather-control", label: "Tag/Nacht & Schnee" },
     ],
   },
   {

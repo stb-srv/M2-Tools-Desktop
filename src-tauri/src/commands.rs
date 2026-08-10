@@ -14,6 +14,7 @@ use crate::modulescan::{self, ScannedModule};
 use crate::msm;
 use crate::packtools;
 use crate::backups;
+use crate::broadcast;
 use crate::build_deploy;
 use crate::locale;
 use crate::mapdata;
@@ -31,6 +32,7 @@ use crate::state::AppState;
 use crate::system_installs::{self, FileAction, InstalledFile, TargetKind};
 use crate::system_patch::{self, InsertionResolution, PatchOp, Placement};
 use crate::system_scan::{self, ScannedFile};
+use crate::weather;
 use tauri::{AppHandle, Emitter, Manager, State};
 
 #[tauri::command]
@@ -804,6 +806,79 @@ pub async fn search_quest_files(
         .collect();
     let contents = ssh::read_remote_files(&config, &auth, &paths).await?;
     Ok(quest::search_contents(&files, &contents, &query))
+}
+
+// ---- Broadcast-System ----
+//
+// The message list itself is purely local (app-owned SQLite, see
+// `broadcast.rs`) - deploying it is just generating one quest file from that
+// list on the frontend (`broadcastQuest.ts`) and pushing it through the
+// already-existing `create_quest_file`/`write_quest_file` commands above,
+// then reloading via the already-existing `run_server_command` +
+// `server_cmd_reload_quests` setting (same as Server Control/Quest
+// Builder's "Quests reloaden"/"Kompilieren & Neuladen"). No new SSH logic.
+
+#[tauri::command]
+pub fn list_broadcast_messages(state: State<'_, AppState>) -> Result<Vec<broadcast::BroadcastMessage>, String> {
+    let conn = state.settings_db.lock().map_err(|e| e.to_string())?;
+    broadcast::list_messages(&conn)
+}
+
+#[tauri::command]
+pub fn create_broadcast_message(
+    state: State<'_, AppState>,
+    text: String,
+    interval_minutes: i64,
+) -> Result<i64, String> {
+    let conn = state.settings_db.lock().map_err(|e| e.to_string())?;
+    broadcast::create_message(&conn, &text, interval_minutes)
+}
+
+#[tauri::command]
+pub fn update_broadcast_message(
+    state: State<'_, AppState>,
+    id: i64,
+    text: String,
+    interval_minutes: i64,
+) -> Result<(), String> {
+    let conn = state.settings_db.lock().map_err(|e| e.to_string())?;
+    broadcast::update_message(&conn, id, &text, interval_minutes)
+}
+
+#[tauri::command]
+pub fn set_broadcast_message_enabled(state: State<'_, AppState>, id: i64, enabled: bool) -> Result<(), String> {
+    let conn = state.settings_db.lock().map_err(|e| e.to_string())?;
+    broadcast::set_enabled(&conn, id, enabled)
+}
+
+#[tauri::command]
+pub fn delete_broadcast_message(state: State<'_, AppState>, id: i64) -> Result<(), String> {
+    let conn = state.settings_db.lock().map_err(|e| e.to_string())?;
+    broadcast::delete_message(&conn, id)
+}
+
+// ---- Tag/Nacht & Schnee ----
+//
+// Gleiches Prinzip wie das Broadcast-System: lokaler SQLite-Zustand
+// (weather.rs), Deploy generiert eine Quest-Datei und schaltet sie live per
+// bereits vorhandenem `create_quest_file`/`write_quest_file` +
+// `run_server_command` scharf - kein Server-Neustart nötig (siehe
+// weather.rs für das Warum: ein reiner DB-Write wäre hier wirkungslos).
+
+#[tauri::command]
+pub fn get_weather_state(state: State<'_, AppState>) -> Result<weather::WeatherState, String> {
+    let conn = state.settings_db.lock().map_err(|e| e.to_string())?;
+    weather::get_state(&conn)
+}
+
+#[tauri::command]
+pub fn set_weather_state(
+    state: State<'_, AppState>,
+    night_enabled: bool,
+    snow_enabled: bool,
+) -> Result<weather::WeatherState, String> {
+    let conn = state.settings_db.lock().map_err(|e| e.to_string())?;
+    weather::set_state(&conn, night_enabled, snow_enabled)
 }
 
 // ---- Remote directory browsing (shared by Regen-Datei-Editor + Backup-Browser) ----

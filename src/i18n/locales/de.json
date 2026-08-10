@@ -22,6 +22,8 @@
     "modelViewer": "3D-Modell-Viewer",
     "accountManager": "Account-Verwaltung",
     "systemInstaller": "System-Installer",
+    "broadcastSystem": "Broadcast-System",
+    "weatherControl": "Tag/Nacht & Schnee",
     "settings": "Einstellungen",
     "unsavedChanges": "Ungespeicherte Änderungen",
     "pin": "Anheften",

@@ -3,6 +3,7 @@
 #![allow(linker_messages)]
 
 mod backups;
+mod broadcast;
 mod build_deploy;
 mod commands;
 mod credentials;
@@ -33,6 +34,7 @@ mod system_installs;
 mod system_patch;
 mod system_scan;
 mod textures;
+mod weather;
 
 use state::AppState;
 use tauri::Manager;
@@ -189,6 +191,13 @@ pub fn run() {
             commands::apply_system_install,
             commands::list_system_installs,
             commands::undo_system_install,
+            commands::list_broadcast_messages,
+            commands::create_broadcast_message,
+            commands::update_broadcast_message,
+            commands::set_broadcast_message_enabled,
+            commands::delete_broadcast_message,
+            commands::get_weather_state,
+            commands::set_weather_state,
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");

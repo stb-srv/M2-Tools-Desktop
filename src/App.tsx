@@ -36,6 +36,8 @@ const IconBrowser = lazy(() => import("@/features/icon-browser/IconBrowser").the
 const ModelViewer = lazy(() => import("@/features/model-viewer/ModelViewer").then((m) => ({ default: m.ModelViewer })));
 const AccountManager = lazy(() => import("@/features/account-manager/AccountManager").then((m) => ({ default: m.AccountManager })));
 const SystemInstaller = lazy(() => import("@/features/system-installer/SystemInstaller").then((m) => ({ default: m.SystemInstaller })));
+const BroadcastSystem = lazy(() => import("@/features/broadcast/BroadcastSystem").then((m) => ({ default: m.BroadcastSystem })));
+const WeatherControl = lazy(() => import("@/features/weather/WeatherControl").then((m) => ({ default: m.WeatherControl })));
 const Settings = lazy(() => import("@/features/settings/Settings").then((m) => ({ default: m.Settings })));
 
 function LoadingFallback() {
@@ -104,6 +106,8 @@ function App() {
           {section === "model-viewer" && <ModelViewer />}
           {section === "account-manager" && <AccountManager />}
           {section === "system-installer" && <SystemInstaller />}
+          {section === "broadcast-system" && <BroadcastSystem />}
+          {section === "weather-control" && <WeatherControl />}
           {section === "settings" && <Settings />}
         </Suspense>
       </main>

@@ -42,6 +42,20 @@ pub fn init_db(app_data_dir: &Path) -> Result<Connection, String> {
             system_name TEXT NOT NULL,
             created_at TEXT NOT NULL,
             files_json TEXT NOT NULL
+        );
+        CREATE TABLE IF NOT EXISTS broadcast_messages (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            text TEXT NOT NULL,
+            interval_minutes INTEGER NOT NULL,
+            enabled INTEGER NOT NULL DEFAULT 1,
+            revision INTEGER NOT NULL DEFAULT 1,
+            created_at TEXT NOT NULL
+        );
+        CREATE TABLE IF NOT EXISTS weather_state (
+            id INTEGER PRIMARY KEY CHECK (id = 1),
+            night_enabled INTEGER NOT NULL DEFAULT 0,
+            snow_enabled INTEGER NOT NULL DEFAULT 0,
+            revision INTEGER NOT NULL DEFAULT 1
         );",
     )
     .map_err(|e| e.to_string())?;
