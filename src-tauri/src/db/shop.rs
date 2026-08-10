@@ -200,6 +200,102 @@ pub async fn search_items(
         .collect())
 }
 
+#[derive(Debug, Clone, Serialize)]
+pub struct EntityBrowsePage {
+    pub rows: Vec<ItemSearchResult>,
+    pub total: i64,
+}
+
+/// Paginated, always-non-empty browse view (ordered by vnum) for pickers that
+/// need to let the user scroll through the whole table instead of only ever
+/// finding something when they already know an exact vnum - real complaint:
+/// `search_items`'s numeric branch does `WHERE vnum = ?`, so searching e.g.
+/// "7000" when no item happens to sit at exactly that vnum returns nothing at
+/// all, with no fallback list to browse from. `query`, if given, narrows the
+/// same way `search_items` does but as a CONTAINS match even for numeric
+/// input (not just exact-vnum) - safe to broaden here because the result is
+/// paginated with a real total count, unlike `search_items`'s fixed `LIMIT`
+/// which would otherwise silently truncate a broad match.
+pub async fn browse_items(
+    pool: &MySqlPool,
+    query: Option<&str>,
+    offset: i64,
+    limit: i64,
+) -> Result<EntityBrowsePage, String> {
+    browse_table(pool, "item_proto", query, offset, limit).await
+}
+
+/// Same as `browse_items` but against `mob_proto`.
+pub async fn browse_mobs(
+    pool: &MySqlPool,
+    query: Option<&str>,
+    offset: i64,
+    limit: i64,
+) -> Result<EntityBrowsePage, String> {
+    browse_table(pool, "mob_proto", query, offset, limit).await
+}
+
+// `table` is always one of the two hardcoded literals above, never
+// user-supplied, so interpolating it directly into the SQL string is safe -
+// the actual user-controlled value (`query`) is always bound as a parameter.
+async fn browse_table(
+    pool: &MySqlPool,
+    table: &str,
+    query: Option<&str>,
+    offset: i64,
+    limit: i64,
+) -> Result<EntityBrowsePage, String> {
+    let trimmed = query.map(str::trim).filter(|q| !q.is_empty());
+    let (where_clause, like_value): (&str, Option<String>) = match trimmed {
+        None => ("", None),
+        Some(q) if q.chars().all(|c| c.is_ascii_digit()) => {
+            ("WHERE CAST(vnum AS CHAR) LIKE ?", Some(format!("%{q}%")))
+        }
+        Some(q) => (
+            "WHERE LOWER(CONVERT(locale_name USING latin1)) LIKE LOWER(CONVERT(? USING latin1))",
+            Some(format!("%{}%", q.replace('%', "\\%").replace('_', "\\_"))),
+        ),
+    };
+
+    let count_sql = format!("SELECT COUNT(*) AS c FROM player.{table} {where_clause}");
+    let mut count_query = sqlx::query(&count_sql);
+    if let Some(v) = &like_value {
+        count_query = count_query.bind(v);
+    }
+    let total: i64 = count_query
+        .fetch_one(pool)
+        .await
+        .map_err(|e| e.to_string())?
+        .try_get::<i64, _>("c")
+        .unwrap_or(0);
+
+    let rows_sql =
+        format!("SELECT vnum, locale_name FROM player.{table} {where_clause} ORDER BY vnum LIMIT ? OFFSET ?");
+    let mut rows_query = sqlx::query(&rows_sql);
+    if let Some(v) = &like_value {
+        rows_query = rows_query.bind(v);
+    }
+    let rows = rows_query
+        .bind(limit)
+        .bind(offset)
+        .fetch_all(pool)
+        .await
+        .map_err(|e| e.to_string())?;
+
+    let rows = rows
+        .into_iter()
+        .map(|row| {
+            let name_raw: Vec<u8> = row.try_get("locale_name").unwrap_or_default();
+            ItemSearchResult {
+                vnum: row.try_get("vnum").unwrap_or_default(),
+                name: decode_name(&name_raw),
+            }
+        })
+        .collect();
+
+    Ok(EntityBrowsePage { rows, total })
+}
+
 /// Same lookup as `search_items` but against `mob_proto` - used by the Quest
 /// Builder's kill-quest template to pick a monster vnum by name.
 pub async fn search_mobs(

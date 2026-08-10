@@ -4,7 +4,7 @@ use crate::db::event_flags;
 use crate::db::mysql::{self, MysqlConfig};
 use crate::db::explorer::{self, ColumnInfo, TableInfo, TableRows};
 use crate::db::item::{self, ItemProtoFull, ItemProtoInput};
-use crate::db::shop::{self, DatabaseStats, ItemSearchResult, ShopItem, ShopSummary};
+use crate::db::shop::{self, DatabaseStats, EntityBrowsePage, ItemSearchResult, ShopItem, ShopSummary};
 use crate::gr2::{self, ModelInfo};
 use crate::icons;
 use crate::import_history;
@@ -1359,6 +1359,32 @@ pub async fn search_mobs(
 ) -> Result<Vec<ItemSearchResult>, String> {
     let pool = require_pool(&state).await?;
     shop::search_mobs(&pool, &query, 50).await
+}
+
+/// Paginated item browse/search used by pickers - see `shop::browse_items`
+/// for why this exists alongside `search_items` (that one returns nothing
+/// when a numeric query doesn't match an exact vnum, with no way to browse
+/// what's actually there instead).
+#[tauri::command]
+pub async fn browse_items(
+    state: State<'_, AppState>,
+    query: Option<String>,
+    offset: i64,
+    limit: i64,
+) -> Result<EntityBrowsePage, String> {
+    let pool = require_pool(&state).await?;
+    shop::browse_items(&pool, query.as_deref(), offset, limit).await
+}
+
+#[tauri::command]
+pub async fn browse_mobs(
+    state: State<'_, AppState>,
+    query: Option<String>,
+    offset: i64,
+    limit: i64,
+) -> Result<EntityBrowsePage, String> {
+    let pool = require_pool(&state).await?;
+    shop::browse_mobs(&pool, query.as_deref(), offset, limit).await
 }
 
 #[tauri::command]

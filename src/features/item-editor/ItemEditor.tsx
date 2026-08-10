@@ -3,8 +3,9 @@ import { invoke } from "@tauri-apps/api/core";
 import { listen } from "@tauri-apps/api/event";
 import { open } from "@tauri-apps/plugin-dialog";
 import { Button } from "@/components/ui/button";
-import { Search, Image as ImageIcon, AlertTriangle, CheckCircle2, Copy, Images, HelpCircle } from "lucide-react";
+import { Image as ImageIcon, AlertTriangle, CheckCircle2, Copy, Images, HelpCircle } from "lucide-react";
 import { IconBrowserModal } from "@/features/icon-browser/IconBrowser";
+import { EntityBrowser } from "@/features/shared/EntityBrowser";
 import { openManual } from "@/lib/manual";
 import {
   ITEM_TYPES,
@@ -68,11 +69,6 @@ interface ItemProtoInput {
   specular: number;
   socket_pct: number;
   addon_type: number;
-}
-
-interface ItemSearchResult {
-  vnum: number;
-  name: string;
 }
 
 interface ItemDescEntry {
@@ -144,13 +140,6 @@ export function ItemEditor() {
   const [iconSourcePath, setIconSourcePath] = useState("");
   const [iconPreview, setIconPreview] = useState<string | null>(null);
 
-  const [editSearch, setEditSearch] = useState("");
-  const [editResults, setEditResults] = useState<ItemSearchResult[]>([]);
-  const [editSearching, setEditSearching] = useState(false);
-
-  const [refSearch, setRefSearch] = useState("");
-  const [refResults, setRefResults] = useState<ItemSearchResult[]>([]);
-  const [refSearching, setRefSearching] = useState(false);
   const [refModelVnum, setRefModelVnum] = useState<number | null>(null);
   const [copyModel, setCopyModel] = useState(false);
 
@@ -240,8 +229,6 @@ export function ItemEditor() {
     setOriginalItem(null);
     setIconSourcePath("");
     setIconPreview(null);
-    setEditResults([]);
-    setEditSearch("");
     setRefModelVnum(null);
     setCopyModel(false);
     setDone(false);
@@ -263,19 +250,6 @@ export function ItemEditor() {
     setOrigSummary("");
   }
 
-  async function runEditSearch() {
-    if (!editSearch.trim()) return;
-    setEditSearching(true);
-    try {
-      const results = await invoke<ItemSearchResult[]>("search_items", {
-        query: editSearch.trim(),
-      });
-      setEditResults(results);
-    } finally {
-      setEditSearching(false);
-    }
-  }
-
   async function loadForEdit(vnum: number) {
     const full = await invoke<ItemProtoInput | null>("get_item_proto", { vnum });
     if (!full) return;
@@ -284,8 +258,6 @@ export function ItemEditor() {
     setOriginalItem(full);
     setVnumTaken(null);
     setIconSourcePath("");
-    setEditResults([]);
-    setEditSearch("");
     setDone(false);
     setPipelineError(null);
     setSteps({});
@@ -310,19 +282,6 @@ export function ItemEditor() {
     }
   }
 
-  async function runRefSearch() {
-    if (!refSearch.trim()) return;
-    setRefSearching(true);
-    try {
-      const results = await invoke<ItemSearchResult[]>("search_items", {
-        query: refSearch.trim(),
-      });
-      setRefResults(results);
-    } finally {
-      setRefSearching(false);
-    }
-  }
-
   async function duplicateAsNew() {
     const start = Number(
       (await invoke<string | null>("get_setting", { key: "item_vnum_range_start" }).catch(
@@ -337,8 +296,6 @@ export function ItemEditor() {
     setOriginalItem(null);
     setIconSourcePath("");
     setIconPreview(null);
-    setEditResults([]);
-    setEditSearch("");
     setRefModelVnum(null);
     setCopyModel(false);
     setDone(false);
@@ -363,8 +320,6 @@ export function ItemEditor() {
     // pc_* character trees and aren't supported here.
     setRefModelVnum(full && full.type === 1 ? vnum : null);
     setCopyModel(false);
-    setRefResults([]);
-    setRefSearch("");
   }
 
   function toggleFlag(key: "wearflag" | "antiflag" | "immuneflag" | "flag", bit: number) {
@@ -545,37 +500,7 @@ export function ItemEditor() {
         </div>
 
         {mode === "edit" && !originalItem && (
-          <div className="space-y-2">
-            <div className="flex gap-2">
-              <input
-                value={editSearch}
-                onChange={(e) => setEditSearch(e.target.value)}
-                onKeyDown={(e) => e.key === "Enter" && runEditSearch()}
-                placeholder="Item nach Name oder VNUM suchen…"
-                className="flex-1 rounded-md border border-border bg-background px-2 py-1 text-sm"
-              />
-              <Button variant="outline" onClick={runEditSearch} disabled={editSearching}>
-                <Search className="size-4" />
-              </Button>
-            </div>
-            {editResults.length > 0 && (
-              <div className="max-h-40 space-y-1 overflow-y-auto">
-                {editResults.map((r) => (
-                  <div
-                    key={r.vnum}
-                    className="flex items-center justify-between rounded-md px-2 py-1 text-sm hover:bg-muted"
-                  >
-                    <span>
-                      {r.name} <span className="text-muted-foreground">#{r.vnum}</span>
-                    </span>
-                    <Button size="sm" variant="outline" onClick={() => loadForEdit(r.vnum)}>
-                      Laden
-                    </Button>
-                  </div>
-                ))}
-              </div>
-            )}
-          </div>
+          <EntityBrowser kind="item" pickLabel="Laden" onPick={(r) => loadForEdit(r.vnum)} />
         )}
 
         {mode === "edit" && originalItem && (
@@ -800,35 +725,7 @@ export function ItemEditor() {
             Übernimmt alle Werte (Typ, Flags, Werte) eines bestehenden Items als Ausgangsbasis — die
             VNUM bleibt unverändert.
           </p>
-          <div className="flex gap-2">
-            <input
-              value={refSearch}
-              onChange={(e) => setRefSearch(e.target.value)}
-              onKeyDown={(e) => e.key === "Enter" && runRefSearch()}
-              placeholder="Item nach Name oder VNUM suchen…"
-              className="flex-1 rounded-md border border-border bg-background px-2 py-1 text-sm"
-            />
-            <Button variant="outline" onClick={runRefSearch} disabled={refSearching}>
-              <Search className="size-4" />
-            </Button>
-          </div>
-          {refResults.length > 0 && (
-            <div className="max-h-40 space-y-1 overflow-y-auto">
-              {refResults.map((r) => (
-                <div
-                  key={r.vnum}
-                  className="flex items-center justify-between rounded-md px-2 py-1 text-sm hover:bg-muted"
-                >
-                  <span>
-                    {r.name} <span className="text-muted-foreground">#{r.vnum}</span>
-                  </span>
-                  <Button size="sm" variant="outline" onClick={() => loadReference(r.vnum)}>
-                    Übernehmen
-                  </Button>
-                </div>
-              ))}
-            </div>
-          )}
+          <EntityBrowser kind="item" pickLabel="Übernehmen" onPick={(r) => loadReference(r.vnum)} />
           {refModelVnum !== null && item.type === 1 && (
             <label className="flex items-center gap-2 text-sm">
               <input

@@ -409,6 +409,35 @@ pub async fn read_remote_files(
     Ok(results)
 }
 
+/// Creates `dir` and every missing ancestor, one segment at a time - SFTP's
+/// `create_dir` only creates a single level (unlike `mkdir -p`), so a write
+/// into a brand-new subfolder (e.g. a quest category that's never existed
+/// before, like "Broadcast") would otherwise fail with "No such file"
+/// (real live report: `create_quest_file` writing
+/// `share/quest/Broadcast/Broadcast_System.lua` for the first time). Already-
+/// existing segments are left untouched; errors on `create_dir` are ignored
+/// the same way `backup_existing`'s backup-folder creation already does,
+/// since a segment that appeared between the `try_exists` check and the
+/// `create_dir` call (or one we simply lack permission to stat) shouldn't
+/// abort the write - the follow-up `open_with_flags` below is the real
+/// failure signal if the directory genuinely isn't usable.
+async fn ensure_remote_dir(sftp: &SftpSession, dir: &str) {
+    if dir.is_empty() || dir == "/" || sftp.try_exists(dir).await.unwrap_or(false) {
+        return;
+    }
+    let mut current = String::new();
+    for segment in dir.split('/') {
+        if segment.is_empty() {
+            continue;
+        }
+        current.push('/');
+        current.push_str(segment);
+        if !sftp.try_exists(&current).await.unwrap_or(false) {
+            let _ = sftp.create_dir(&current).await;
+        }
+    }
+}
+
 /// Backs up the existing remote file (rename, no re-upload needed - the
 /// contents never leave the server) before overwriting it, mirroring the
 /// local backup pattern in `packtools.rs`. Returns the backup path, or
@@ -420,6 +449,10 @@ pub async fn write_remote_file_with_backup(
     content: &str,
 ) -> Result<Option<String>, String> {
     let sftp = open_sftp(config, auth).await?;
+
+    if let Some(idx) = path.rfind('/') {
+        ensure_remote_dir(&sftp, &path[..idx]).await;
+    }
 
     let backup_path = backup_existing(&sftp, path, "bak").await?;
 

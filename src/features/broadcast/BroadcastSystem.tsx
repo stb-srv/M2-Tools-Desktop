@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from "react";
 import { invoke } from "@tauri-apps/api/core";
+import { listen } from "@tauri-apps/api/event";
 import { runAsyncAction } from "@/lib/asyncAction";
 import { openManual } from "@/lib/manual";
 import { Button } from "@/components/ui/button";
@@ -36,6 +37,7 @@ export function BroadcastSystem() {
 
   const [deploying, setDeploying] = useState(false);
   const [deployLog, setDeployLog] = useState<string[]>([]);
+  const [deployOpen, setDeployOpen] = useState(false);
   const logRef = useRef<HTMLPreElement>(null);
 
   async function load() {
@@ -52,6 +54,21 @@ export function BroadcastSystem() {
 
   useEffect(() => {
     load();
+  }, []);
+
+  // Live-Ausgabe des Server-Befehls kommt als Ereignis-Strom (index.sh ist ein
+  // interaktives Menüskript, dessen Ausgabe der Backend-Befehl live weiterreicht,
+  // siehe `run_server_command`/`server-output`) - ohne diesen Listener kam beim
+  // ersten echten Test gar nichts an, bis der Befehl komplett fertig war, und
+  // dann alles auf einmal als ein einziger unformatierter Textblock ("Log nur
+  // sehr schwer zu sehen"). Gleiches Muster wie Quest Builder/Server-Steuerung.
+  useEffect(() => {
+    const unlisten = listen<string>("server-output", (event) => {
+      setDeployLog((prev) => [...prev, event.payload]);
+    });
+    return () => {
+      unlisten.then((fn) => fn());
+    };
   }, []);
 
   useEffect(() => {
@@ -128,6 +145,7 @@ export function BroadcastSystem() {
   // Quest-Builder-Commands schreibt (anlegen beim ersten Mal, sonst
   // überschreiben).
   async function runDeploy() {
+    setDeployOpen(true);
     setDeploying(true);
     setError(null);
     setDeployLog((prev) => [...prev, "\n[Generiere Quest-Datei…]\n"]);
@@ -162,7 +180,6 @@ export function BroadcastSystem() {
         )) || `cd ${workdir} && echo 4 | sh index.sh`;
 
       const result = await invoke<ServerCommandResult>("run_server_command", { command });
-      setDeployLog((prev) => [...prev, result.output]);
       if (result.exit_status !== null && result.exit_status !== 0) {
         setDeployLog((prev) => [...prev, `\n[Beendet mit Code ${result.exit_status}]\n`]);
       } else {
@@ -284,28 +301,47 @@ export function BroadcastSystem() {
         </pre>
       </div>
 
-      <div className="flex min-h-0 flex-1 flex-col gap-1">
+      <div className="space-y-1">
         <div className="flex items-center justify-between">
           <Button onClick={runDeploy} disabled={deploying}>
             <PlayCircle className="size-4" />
             {deploying ? "Wird eingespielt…" : "Deploy & Neuladen"}
           </Button>
-          <Button variant="ghost" size="sm" onClick={() => setDeployLog([])} disabled={!deployLog.length}>
-            <Eraser className="size-3.5" />
-            Ausgabe leeren
-          </Button>
+          {deployLog.length > 0 && (
+            <Button variant="outline" size="sm" onClick={() => setDeployOpen(true)}>
+              Ausgabe anzeigen
+            </Button>
+          )}
         </div>
         <p className="text-xs text-muted-foreground">
           Schreibt <code>{QUEST_RELATIVE_PATH}</code> auf den Server und führt denselben Befehl aus wie
           „Quests reloaden" in der Server-Steuerung.
         </p>
-        <pre
-          ref={logRef}
-          className="min-h-0 flex-1 overflow-auto whitespace-pre-wrap rounded-lg border border-border bg-muted/30 p-3 font-mono text-xs"
-        >
-          {deployLog.length ? deployLog.join("") : "Noch keine Ausgabe."}
-        </pre>
       </div>
+
+      {deployOpen && (
+        <div className="fixed inset-0 flex items-center justify-center bg-black/50">
+          <div className="flex max-h-[70vh] w-[36rem] flex-col gap-3 rounded-lg border border-border bg-card p-4">
+            <div className="flex items-center justify-between">
+              <p className="text-sm font-medium">Broadcast-System einspielen</p>
+              <div className="flex items-center gap-1">
+                <Button variant="ghost" size="icon-sm" onClick={() => setDeployLog([])} disabled={!deployLog.length} title="Ausgabe leeren">
+                  <Eraser className="size-3.5" />
+                </Button>
+                <button onClick={() => setDeployOpen(false)} className="text-muted-foreground hover:text-foreground">
+                  <X className="size-4" />
+                </button>
+              </div>
+            </div>
+            <pre
+              ref={logRef}
+              className="min-h-0 flex-1 overflow-auto whitespace-pre-wrap rounded-md border border-border bg-muted/30 p-2 font-mono text-xs"
+            >
+              {deployLog.length ? deployLog.join("") : "…"}
+            </pre>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

@@ -278,15 +278,16 @@ export function SystemInstaller() {
       prev ? { ...prev, [key]: { ...prev[key], targetPath: path, targetLoaded: false, targetReadError: null } } : prev,
     );
     const current = (snapshot ?? items)?.[key];
-    const category = current?.file.category;
-    if (!category) return;
+    const file = current?.file;
+    if (!file) return;
+    const category = file.category;
     try {
       const content = await invoke<string | null>("read_system_target_file", { category, path });
       setItems((prev) => {
         if (!prev) return prev;
         return { ...prev, [key]: { ...prev[key], targetContent: content, targetLoaded: true, targetReadError: null } };
       });
-      await resolveOps(key, content);
+      await resolveOps(key, file, content);
     } catch (e) {
       setItems((prev) =>
         prev
@@ -296,13 +297,21 @@ export function SystemInstaller() {
     }
   }
 
-  async function resolveOps(key: string, content: string | null) {
-    const current = items?.[key];
-    if (!current) return;
-    if (isWholeFileCandidate(current.file)) return; // kein Op aufzulösen, nur Konflikt-Check über targetContent
+  // `file` wird explizit übergeben statt aus dem `items`-State neu
+  // aufgelöst zu werden - der Aufrufer (`setTargetPath`, direkt aus
+  // `resolveAllTargets` beim initialen Scan) läuft mit dem `items`-Stand
+  // vom Klick-Zeitpunkt auf "System-Ordner wählen" (React-Closure, nicht
+  // aktualisiert durch die zwischenzeitlichen `setItems`-Aufrufe) - der war
+  // zu dem Zeitpunkt noch `null`. `items?.[key]` wäre hier also IMMER
+  // `undefined` gewesen und die Funktion wäre sofort zurückgekehrt, ohne
+  // je einen Op aufzulösen - jede Datei mit echten search/add-Blöcken blieb
+  // dadurch für immer auf "wird geprüft…" hängen (reales Live-Testergebnis:
+  // "lädt und lädt, es passiert absolut gar nichts").
+  async function resolveOps(key: string, file: ScannedFile, content: string | null) {
+    if (isWholeFileCandidate(file)) return; // kein Op aufzulösen, nur Konflikt-Check über targetContent
 
     const statuses = await Promise.all(
-      current.file.parsed.ops.map(async (op): Promise<OpStatus> => {
+      file.parsed.ops.map(async (op): Promise<OpStatus> => {
         if (op.kind === "FreeformInstruction") return { done: true, kind: "freeform" };
         if (op.kind === "AppendToEnd") {
           return { done: true, kind: "ready", resolution: { kind: "Ready", line: -1, confidence: "Exact" } };

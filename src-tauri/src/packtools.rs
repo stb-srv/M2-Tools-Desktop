@@ -436,6 +436,25 @@ async fn run_streamed(
 /// e.g. `folder_name = "icon"` after a new icon was dropped into
 /// `icon/icon/item/`. Syntax verified live: `EterPackConsoleLz4.exe <folder>`
 /// run with cwd = the folder's parent, exit code 0 on success.
+///
+/// **Critical, live-verified behavior**: this is a full REPLACE, not a
+/// merge - in an isolated sandbox test, packing a loose folder containing a
+/// single file shrank a real 13.6MB/~3500-file `icon.epk` down to 2KB/1
+/// file. This app only ever loose-writes the specific icons/models it
+/// itself creates or touches, never the client's full stock set, so without
+/// protection every repack here would silently discard every stock
+/// icon/model that only ever lived inside the archive. This is the real
+/// cause of a live user-reported incident ("alle Icons weg nach Rückgängig
+/// machen", had to restore from a client backup - `undo_import_batch`'s
+/// repack step was the trigger, but every other caller of this function was
+/// equally exposed). Two-part fix: (1) back up the existing archive before
+/// touching it (this app's established convention everywhere else, oddly
+/// missing here before), (2) before packing, extract the CURRENT archive
+/// into an isolated scratch copy and fill in only whatever's missing from
+/// the real loose folder (never overwriting a file already there, which
+/// could be a just-written new/edited file from this very operation) - so
+/// the destructive pack step always sees the true union of "already
+/// archived" + "new", not just whatever this run happened to touch.
 pub async fn run_eterpack_pack(
     app: &AppHandle,
     tool_path: &str,
@@ -446,14 +465,75 @@ pub async fn run_eterpack_pack(
         .parent()
         .ok_or("EterPackConsoleLz4-Pfad hat kein übergeordnetes Verzeichnis")?;
 
-    run_streamed(app, "item-editor-output", tool, &[folder_name], cwd).await?;
-
     let epk = cwd.join(format!("{folder_name}.epk"));
     let eix = cwd.join(format!("{folder_name}.eix"));
+    if epk.exists() && eix.exists() {
+        backup_file(&epk)?;
+        backup_file(&eix)?;
+        fill_missing_from_archive(app, tool, cwd, folder_name).await?;
+    }
+
+    run_streamed(app, "item-editor-output", tool, &[folder_name], cwd).await?;
+
     if !epk.exists() || !eix.exists() {
         return Err(format!(
             "Packen abgeschlossen, aber {epk:?}/{eix:?} wurden nicht gefunden."
         ));
+    }
+    Ok(())
+}
+
+/// Extracts a scratch copy of the current `<folder_name>.epk` and copies
+/// into the real loose `<cwd>/<folder_name>` folder only the files not
+/// already present there - see `run_eterpack_pack` for why this has to run
+/// before every repack. The scratch copy (never the live archive) is what
+/// gets extracted, and the scratch directory is always cleaned up
+/// afterward, success or failure.
+async fn fill_missing_from_archive(
+    app: &AppHandle,
+    tool: &Path,
+    cwd: &Path,
+    folder_name: &str,
+) -> Result<(), String> {
+    let scratch = std::env::temp_dir().join(format!(
+        "m2manager_pack_merge_{folder_name}_{}",
+        std::process::id()
+    ));
+    std::fs::create_dir_all(&scratch).map_err(|e| e.to_string())?;
+
+    let result: Result<(), String> = async {
+        std::fs::copy(cwd.join(format!("{folder_name}.epk")), scratch.join(format!("{folder_name}.epk")))
+            .map_err(|e| e.to_string())?;
+        std::fs::copy(cwd.join(format!("{folder_name}.eix")), scratch.join(format!("{folder_name}.eix")))
+            .map_err(|e| e.to_string())?;
+
+        let eix_arg = format!("{folder_name}.eix");
+        run_streamed(app, "item-editor-output", tool, &[eix_arg.as_str()], &scratch).await?;
+
+        let extracted_root = scratch.join(folder_name);
+        if extracted_root.is_dir() {
+            copy_missing_recursive(&extracted_root, &cwd.join(folder_name))?;
+        }
+        Ok(())
+    }
+    .await;
+
+    let _ = std::fs::remove_dir_all(&scratch);
+    result
+}
+
+/// Copies every file under `src` into the matching path under `dest`,
+/// skipping any file that already exists there - never overwrites.
+fn copy_missing_recursive(src: &Path, dest: &Path) -> Result<(), String> {
+    std::fs::create_dir_all(dest).map_err(|e| e.to_string())?;
+    for entry in std::fs::read_dir(src).map_err(|e| e.to_string())?.flatten() {
+        let path = entry.path();
+        let target = dest.join(entry.file_name());
+        if path.is_dir() {
+            copy_missing_recursive(&path, &target)?;
+        } else if !target.exists() {
+            std::fs::copy(&path, &target).map_err(|e| e.to_string())?;
+        }
     }
     Ok(())
 }
@@ -706,6 +786,56 @@ mod tests {
         assert_eq!(second, "second line");
 
         assert!(read_decoded_line(&mut reader, &mut buf).await.unwrap().is_none());
+    }
+
+    // Regression test for a real live incident (2026-08-10): a user's
+    // "Rückgängig machen" (undo) on a Module Importer batch left their
+    // client with all icons gone, requiring a restore from a client backup.
+    // Root cause (verified live in an isolated sandbox against a real
+    // `EterPackConsoleLz4.exe`/`icon.epk`, not guessed): the pack step is a
+    // full REPLACE of the archive using only whatever's in the loose folder
+    // at that moment - packing a loose folder containing a single file
+    // shrank a real 13.6MB/~3500-file `icon.epk` down to 2KB/1 file. This
+    // app only ever loose-writes the icons/models it itself touches, never
+    // the client's full stock set, so every repack was silently discarding
+    // everything else. The fix's core safety property is `copy_missing_
+    // recursive`: it must fill in anything missing from the archive without
+    // ever overwriting a file that's already loose (which could be a
+    // just-written new/edited icon from the very operation about to repack)
+    // - separately confirmed live that plain extraction overwrites
+    // unconditionally, so this skip-if-exists check is what makes the merge
+    // safe rather than just moving the data-loss risk to the other side.
+    #[test]
+    fn copy_missing_recursive_fills_gaps_without_overwriting_existing_files() {
+        let scratch = std::env::temp_dir().join(format!(
+            "m2manager_packtools_mergetest_{}",
+            std::time::SystemTime::now()
+                .duration_since(std::time::UNIX_EPOCH)
+                .unwrap()
+                .as_nanos()
+        ));
+        let archive_extract = scratch.join("archive").join("icon").join("item");
+        let real_loose = scratch.join("real").join("icon").join("item");
+        std::fs::create_dir_all(&archive_extract).unwrap();
+        std::fs::create_dir_all(&real_loose).unwrap();
+
+        // The archive has two stock icons the loose folder never had.
+        std::fs::write(archive_extract.join("00010.tga"), b"stock icon 10").unwrap();
+        std::fs::write(archive_extract.join("00020.tga"), b"stock icon 20").unwrap();
+        // The loose folder has a brand-new icon this run just wrote, AND a
+        // same-named file that also happens to exist in the archive but
+        // with different (newer/edited) content - this one must survive.
+        std::fs::write(real_loose.join("900000.tga"), b"freshly imported icon").unwrap();
+        std::fs::write(archive_extract.join("900000.tga"), b"stale archived version").unwrap();
+
+        copy_missing_recursive(&scratch.join("archive").join("icon"), &scratch.join("real").join("icon")).unwrap();
+
+        assert_eq!(std::fs::read(real_loose.join("00010.tga")).unwrap(), b"stock icon 10");
+        assert_eq!(std::fs::read(real_loose.join("00020.tga")).unwrap(), b"stock icon 20");
+        // Never overwritten - the just-written file wins over the archive.
+        assert_eq!(std::fs::read(real_loose.join("900000.tga")).unwrap(), b"freshly imported icon");
+
+        std::fs::remove_dir_all(&scratch).ok();
     }
 
     // Uses a scratch temp dir standing in for the client folder - never

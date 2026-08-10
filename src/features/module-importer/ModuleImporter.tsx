@@ -191,9 +191,9 @@ function labelForVariant(v: WeaponVariant): string {
 // built from user-editable base name + suffix must be clamped client-side
 // before it ever reaches create_item_proto. Byte length matters, not char
 // length, in case the base name contains multi-byte UTF-8 characters.
-const ITEM_NAME_MAX_BYTES = 24;
+export const ITEM_NAME_MAX_BYTES = 24;
 
-function fitToByteLimit(s: string, maxBytes = ITEM_NAME_MAX_BYTES): string {
+export function fitToByteLimit(s: string, maxBytes = ITEM_NAME_MAX_BYTES): string {
   const encoder = new TextEncoder();
   if (encoder.encode(s).length <= maxBytes) return s;
   let truncated = s;
@@ -201,6 +201,19 @@ function fitToByteLimit(s: string, maxBytes = ITEM_NAME_MAX_BYTES): string {
     truncated = truncated.slice(0, -1);
   }
   return truncated;
+}
+
+// Wie `fitToByteLimit`, kürzt aber garantiert nur `base`, nie `suffix` (z.B.
+// " +16") - reales Nutzerproblem: bei einem Basisnamen, der schon nah am
+// Limit lag, hat `fitToByteLimit(base + suffix)` einfach das letzte Zeichen
+// der GESAMTEN Zeichenkette abgeschnitten, sobald "+10" statt "+9" (ein
+// Zeichen länger) drüber lag - das trifft immer genau die letzte Ziffer der
+// Stufenzahl. "+10" wurde so zu "+1", "+11" zu "+1", "+12" zu "+1" usw. -
+// jede zweistellige Stufe kollidierte auf denselben abgeschnittenen Namen.
+export function fitToByteLimitWithSuffix(base: string, suffix: string, maxBytes = ITEM_NAME_MAX_BYTES): string {
+  const encoder = new TextEncoder();
+  const budget = Math.max(0, maxBytes - encoder.encode(suffix).length);
+  return fitToByteLimit(base, budget) + suffix;
 }
 
 // Aufwertungs-Kette (Refine): verified against this server's real stock
@@ -569,8 +582,11 @@ function PackageImporter({ onImported }: { onImported: () => void }) {
       ...template,
       vnum,
       vnum_range: 0,
-      name: fitToByteLimit(`${baseName || "item"}_${variant.key}${suffix}`),
-      locale_name: fitToByteLimit(`${baseLocaleName || baseName} (${labelForVariant(variant)}) ${suffix}`.trim()),
+      name: fitToByteLimitWithSuffix(`${baseName || "item"}_${variant.key}`, suffix),
+      locale_name: fitToByteLimitWithSuffix(
+        `${baseLocaleName || baseName} (${labelForVariant(variant)})`,
+        suffix ? ` ${suffix}` : "",
+      ),
       type: 1,
       subtype: row.subtype,
       antiflag,
@@ -607,8 +623,8 @@ function PackageImporter({ onImported }: { onImported: () => void }) {
       ...template,
       vnum,
       vnum_range: 0,
-      name: fitToByteLimit(`${baseName || "item"}_armor${level > 0 ? `+${level}` : ""}`),
-      locale_name: fitToByteLimit(`${baseLocaleName || baseName}${suffix}`),
+      name: fitToByteLimitWithSuffix(`${baseName || "item"}_armor`, level > 0 ? `+${level}` : ""),
+      locale_name: fitToByteLimitWithSuffix(baseLocaleName || baseName, suffix),
       type: 2,
       subtype: armorSubtype,
       antiflag,
@@ -1401,8 +1417,8 @@ function IconItemImporter({ onImported }: { onImported: () => void }) {
             ...template,
             vnum,
             vnum_range: 0,
-            name: fitToByteLimit(`${row.name}${level > 0 ? `_${level}` : ""}`),
-            locale_name: fitToByteLimit(`${row.localeName}${suffix}`),
+            name: fitToByteLimitWithSuffix(row.name, level > 0 ? `_${level}` : ""),
+            locale_name: fitToByteLimitWithSuffix(row.localeName, suffix),
             type: row.type,
             subtype: row.subtype,
             wearflag: row.wearflag,

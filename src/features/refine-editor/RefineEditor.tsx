@@ -20,11 +20,7 @@ import {
 } from "lucide-react";
 import { useNavigationStore } from "@/store/navigation";
 import { openManual } from "@/lib/manual";
-
-interface ItemSearchResult {
-  vnum: number;
-  name: string;
-}
+import { EntityBrowser } from "@/features/shared/EntityBrowser";
 
 interface RefineMaterial {
   vnum: number;
@@ -66,67 +62,6 @@ interface ShopSource {
   shop_name: string;
   npc_vnum: number;
   count: number;
-}
-
-function ItemPicker({
-  onPick,
-  placeholder,
-}: {
-  onPick: (item: ItemSearchResult) => void;
-  placeholder: string;
-}) {
-  const [query, setQuery] = useState("");
-  const [results, setResults] = useState<ItemSearchResult[]>([]);
-  const [searching, setSearching] = useState(false);
-
-  async function run() {
-    if (!query.trim()) return;
-    setSearching(true);
-    try {
-      setResults(await invoke<ItemSearchResult[]>("search_items", { query: query.trim() }));
-    } finally {
-      setSearching(false);
-    }
-  }
-
-  return (
-    <div className="space-y-2">
-      <div className="flex gap-2">
-        <input
-          autoFocus
-          value={query}
-          onChange={(e) => setQuery(e.target.value)}
-          onKeyDown={(e) => e.key === "Enter" && run()}
-          placeholder={placeholder}
-          className="flex-1 rounded-md border border-border bg-background px-2 py-1 text-sm"
-        />
-        <Button variant="outline" onClick={run} disabled={searching}>
-          <Search className="size-4" />
-        </Button>
-      </div>
-      {results.length > 0 && (
-        <div className="max-h-48 space-y-1 overflow-y-auto">
-          {results.map((r) => (
-            <div key={r.vnum} className="flex items-center justify-between rounded-md px-2 py-1 text-sm hover:bg-muted">
-              <span>
-                {r.name} <span className="text-muted-foreground">#{r.vnum}</span>
-              </span>
-              <Button
-                size="sm"
-                onClick={() => {
-                  onPick(r);
-                  setResults([]);
-                  setQuery("");
-                }}
-              >
-                Auswählen
-              </Button>
-            </div>
-          ))}
-        </div>
-      )}
-    </div>
-  );
 }
 
 function ItemIcon({ vnum, cache, setCache }: { vnum: number; cache: Record<number, string | null>; setCache: (vnum: number, url: string | null) => void }) {
@@ -361,8 +296,8 @@ function RecipeEditor({
           />
           {targetName && <span className="text-xs text-muted-foreground">{targetName}</span>}
         </div>
-        <ItemPicker
-          placeholder="Ziel-Item suchen…"
+        <EntityBrowser
+          kind="item"
           onPick={(item) => {
             setTargetVnum(item.vnum);
             setTargetName(item.name);
@@ -434,8 +369,9 @@ function RecipeEditor({
           </div>
         ))}
         {materialPickerIndex !== null && (
-          <ItemPicker
-            placeholder="Material suchen…"
+          <EntityBrowser
+            kind="item"
+            pickLabel="Übernehmen"
             onPick={(item) => {
               setMaterials((prev) =>
                 prev.map((row, idx) => (idx === materialPickerIndex ? { vnum: item.vnum, name: item.name, count: row.count || 1 } : row)),
@@ -573,7 +509,7 @@ export function RefineEditor() {
 
       <section className="space-y-3 rounded-lg border border-border p-4">
         <h2 className="text-sm font-medium text-muted-foreground">Item wählen</h2>
-        <ItemPicker placeholder="Item nach Name oder VNUM suchen…" onPick={(item) => loadChain(item.vnum)} />
+        <EntityBrowser kind="item" pickLabel="Kette laden" onPick={(item) => loadChain(item.vnum)} />
       </section>
 
       {loading && <p className="text-sm text-muted-foreground">Lade Kette…</p>}
