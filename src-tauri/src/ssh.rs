@@ -5,7 +5,21 @@ use russh_sftp::protocol::OpenFlags;
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 use std::sync::{Arc, Mutex, OnceLock};
+use std::time::Duration;
 use tokio::io::AsyncWriteExt;
+
+// No SSH operation in this file had a timeout anywhere - a TCP-level stall
+// (dropped packets, firewall, flaky network) makes `connect()`/the login
+// handshake hang indefinitely with zero error surfaced, since there's
+// nothing to time out and report. Real live report (2026-08-11): the
+// System-Installer's "Anwenden" step froze forever with no error message
+// while patching a package with 10 server-side files - each file triggers
+// its own fresh `open_sftp` call (read + write = 20 separate connect+login
+// round-trips for that one apply), so a single stalled connection among
+// those 20 was enough to hang the entire operation. This bounds every
+// connect/login attempt so a stall always turns into a clear, actionable
+// error instead of an infinite spinner.
+const SSH_TIMEOUT: Duration = Duration::from_secs(20);
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct SshConfig {
@@ -38,12 +52,19 @@ impl Handler for AcceptAllHandler {
 
 async fn open_session(config: &SshConfig) -> Result<Handle<AcceptAllHandler>, String> {
     let ssh_config = Arc::new(Config::default());
-    connect(
-        ssh_config,
-        (config.host.as_str(), config.port),
-        AcceptAllHandler,
+    tokio::time::timeout(
+        SSH_TIMEOUT,
+        connect(ssh_config, (config.host.as_str(), config.port), AcceptAllHandler),
     )
     .await
+    .map_err(|_| {
+        format!(
+            "Verbindung zu {}:{} nach {}s ohne Antwort abgebrochen (Server nicht erreichbar, Firewall, oder Netzwerkproblem).",
+            config.host,
+            config.port,
+            SSH_TIMEOUT.as_secs()
+        )
+    })?
     .map_err(|e| e.to_string())
 }
 
@@ -124,6 +145,23 @@ async fn authenticate(
     config: &SshConfig,
     auth: &SshAuth,
 ) -> Result<bool, String> {
+    tokio::time::timeout(SSH_TIMEOUT, authenticate_inner(session, config, auth))
+        .await
+        .map_err(|_| {
+            format!(
+                "Anmeldung bei {}:{} nach {}s ohne Antwort abgebrochen.",
+                config.host,
+                config.port,
+                SSH_TIMEOUT.as_secs()
+            )
+        })?
+}
+
+async fn authenticate_inner(
+    session: &mut Handle<AcceptAllHandler>,
+    config: &SshConfig,
+    auth: &SshAuth,
+) -> Result<bool, String> {
     match auth {
         SshAuth::Password { password } => authenticate_with_password(session, config, password).await,
         SshAuth::PrivateKey { path, passphrase } => {
@@ -199,7 +237,13 @@ where
     })
 }
 
-async fn open_sftp(config: &SshConfig, auth: &SshAuth) -> Result<SftpSession, String> {
+/// `pub(crate)` (not just module-private) so callers that need to batch
+/// several operations over one connection - e.g. `commands::apply_system_install`,
+/// which used to open a fresh session per file being patched, see
+/// `read_file_if_exists_via`/`write_file_with_backup_via`'s own doc - can
+/// open a session once and reuse it themselves instead of going through the
+/// one-shot `read_remote_file*`/`write_remote_file*` functions below.
+pub(crate) async fn open_sftp(config: &SshConfig, auth: &SshAuth) -> Result<SftpSession, String> {
     let mut session = open_session(config).await?;
     if !authenticate(&mut session, config, auth).await? {
         return Err("Authentifizierung fehlgeschlagen".into());
@@ -451,6 +495,12 @@ pub async fn read_remote_file_if_exists(
     path: &str,
 ) -> Result<Option<String>, String> {
     let sftp = open_sftp(config, auth).await?;
+    read_file_if_exists_via(&sftp, path).await
+}
+
+/// Session-reusing counterpart to `read_remote_file_if_exists` - see
+/// `open_sftp`'s own doc for why a caller would want this instead.
+pub(crate) async fn read_file_if_exists_via(sftp: &SftpSession, path: &str) -> Result<Option<String>, String> {
     if !sftp.try_exists(path).await.map_err(|e| e.to_string())? {
         return Ok(None);
     }
@@ -542,9 +592,18 @@ pub async fn write_remote_file_with_backup(
     content: &str,
 ) -> Result<Option<String>, String> {
     let sftp = open_sftp(config, auth).await?;
+    write_file_with_backup_via(&sftp, path, content).await
+}
 
+/// Session-reusing counterpart to `write_remote_file_with_backup` - see
+/// `open_sftp`'s own doc for why a caller would want this instead.
+pub(crate) async fn write_file_with_backup_via(
+    sftp: &SftpSession,
+    path: &str,
+    content: &str,
+) -> Result<Option<String>, String> {
     if let Some(idx) = path.rfind('/') {
-        ensure_remote_dir(&sftp, &path[..idx]).await;
+        ensure_remote_dir(sftp, &path[..idx]).await;
     }
 
     // Peeked *before* backup_existing renames the file away, so this still
@@ -553,7 +612,7 @@ pub async fn write_remote_file_with_backup(
     // upgrading to UTF-8).
     let original_bytes = sftp.read(path).await.ok();
 
-    let backup_path = backup_existing(&sftp, path, "bak").await?;
+    let backup_path = backup_existing(sftp, path, "bak").await?;
 
     // sftp.write() only opens with WRITE (no CREATE), which would fail here
     // since the path above was just renamed away - open with CREATE
@@ -642,5 +701,41 @@ mod tests {
     fn looks_binary_detects_nul_bytes_but_not_plain_text() {
         assert!(!looks_binary("normal text".as_bytes()));
         assert!(looks_binary(&[0x7F, 0x45, 0x4C, 0x46, 0x00, 0x01]));
+    }
+
+    // Regression test for the SSH_TIMEOUT addition (2026-08-11, real live
+    // report: System-Installer's "Anwenden" step against a 10-server-file
+    // package hung forever with no error - traced to open_session's connect()
+    // having no timeout at all, compounded by one fresh SSH connection per
+    // file instead of a shared session). Connects against this machine's
+    // real configured dev server to prove the new timeout wrapper doesn't
+    // slow down or break a genuinely healthy connection - same live-DB-style
+    // test pattern already used in db/item.rs and commands.rs.
+    #[tokio::test]
+    async fn healthy_connection_succeeds_well_under_the_timeout() {
+        let conn = rusqlite::Connection::open(
+            r"C:\Users\DevSteven\AppData\Roaming\com.m2manager.app\m2manager.sqlite",
+        )
+        .expect("open settings db");
+        let get = |key: &str| -> Option<String> {
+            conn.query_row("SELECT value FROM paths WHERE key = ?1", [key], |r| r.get(0))
+                .ok()
+        };
+        let host = get("ssh_host").expect("ssh_host not configured on this machine");
+        let port: u16 = get("ssh_port").unwrap_or_else(|| "22".into()).parse().unwrap();
+        let username = get("ssh_username").expect("ssh_username not configured");
+        let password =
+            crate::credentials::get_secret("ssh_password").expect("ssh_password credential not stored");
+
+        let config = SshConfig { host, port, username };
+        let auth = SshAuth::Password { password };
+
+        let start = std::time::Instant::now();
+        test_connection(&config, &auth).await.expect("real SSH login should succeed");
+        let elapsed = start.elapsed();
+        assert!(
+            elapsed < Duration::from_secs(10),
+            "a healthy connection took {elapsed:?} - well past what a working SSH login should need, even with the new timeout wrapper in place"
+        );
     }
 }

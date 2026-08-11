@@ -22,7 +22,6 @@ import {
   Package,
   Wrench,
   Sparkles,
-  Puzzle,
   Megaphone,
   Moon,
 } from "lucide-react";
@@ -71,6 +70,9 @@ export type Category =
   | "systems"
   | "settings";
 
+// "systems" (System-Installer) deliberately left out here - the module is
+// deactivated (see NAV_ITEMS below), so its category has no items and would
+// otherwise render as an empty group heading in the Sidebar.
 export const CATEGORY_ORDER: Category[] = [
   "overview",
   "items",
@@ -79,7 +81,6 @@ export const CATEGORY_ORDER: Category[] = [
   "serverAdmin",
   "backups",
   "assets",
-  "systems",
 ];
 
 export const CATEGORY_LABEL_KEYS: Record<Category, string> = {
@@ -121,7 +122,12 @@ export const NAV_ITEMS: { section: Section; icon: typeof LayoutDashboard; labelK
   { section: "tga-converter", icon: ImagePlus, labelKey: "nav.tgaConverter", category: "assets" },
   { section: "icon-browser", icon: Images, labelKey: "nav.iconBrowser", category: "assets" },
   { section: "model-viewer", icon: Box, labelKey: "nav.modelViewer", category: "assets" },
-  { section: "system-installer", icon: Puzzle, labelKey: "nav.systemInstaller", category: "systems" },
+  // System-Installer deliberately deactivated (2026-08-11, user request) -
+  // not reliable enough in practice (see [[m2manager_system_installer]]:
+  // several real live-install failures across multiple bug-fix rounds).
+  // Removed from here (and from CATEGORY_ORDER above) so it's unreachable
+  // via Sidebar/Command Palette - code/backend commands intentionally left
+  // in place rather than deleted, in case this gets revisited later.
   { section: "settings", icon: SettingsIcon, labelKey: "nav.settings", category: "settings" },
 ];
 

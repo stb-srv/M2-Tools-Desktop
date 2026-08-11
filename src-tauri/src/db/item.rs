@@ -116,16 +116,54 @@ fn decode_name(bytes: &[u8]) -> String {
     text.trim().to_string()
 }
 
+// A row with `vnum_range != 0` doesn't just occupy its own `vnum` - the real
+// server (`ITEM_MANAGER::GetTable`, source/game/src/item_manager.cpp) falls
+// back to treating every vnum in the *open* interval `(vnum, vnum+vnum_range)`
+// as an alias for that same row when no literal row exists there. So a vnum
+// can be "taken" without any `item_proto` row ever existing at it. Verified
+// against the real server source 2026-08-11 after a live report: the Modul-
+// Importer picked vnum 500000 as free even though it fell inside another
+// row's reserved range - `vnum_exists`/`next_free_vnum` only ever checked
+// for a literal `vnum` match, missing this entirely.
+async fn range_owning_rows(pool: &MySqlPool) -> Result<Vec<(u32, u32)>, String> {
+    // Not filtered by any lower bound - a range-owning row's own vnum can be
+    // lower than whatever's being checked while its range still extends past
+    // it, so every such row anywhere in the table has to be considered.
+    let rows = sqlx::query("SELECT vnum, vnum_range FROM player.item_proto WHERE vnum_range != 0")
+        .fetch_all(pool)
+        .await
+        .map_err(|e| e.to_string())?;
+    Ok(rows
+        .into_iter()
+        .map(|row| {
+            (
+                row.try_get::<u32, _>("vnum").unwrap_or_default(),
+                row.try_get::<u32, _>("vnum_range").unwrap_or_default(),
+            )
+        })
+        .collect())
+}
+
+fn is_range_aliased(candidate: u32, ranges: &[(u32, u32)]) -> bool {
+    ranges
+        .iter()
+        .any(|&(base, range)| candidate > base && candidate < base + range)
+}
+
 pub async fn vnum_exists(pool: &MySqlPool, vnum: u32) -> Result<bool, String> {
     let row = sqlx::query("SELECT 1 FROM player.item_proto WHERE vnum = ? LIMIT 1")
         .bind(vnum)
         .fetch_optional(pool)
         .await
         .map_err(|e| e.to_string())?;
-    Ok(row.is_some())
+    if row.is_some() {
+        return Ok(true);
+    }
+    Ok(is_range_aliased(vnum, &range_owning_rows(pool).await?))
 }
 
-/// Scans upward from `range_start` for the first vnum with no item_proto row.
+/// Scans upward from `range_start` for the first vnum with no item_proto row
+/// AND no other row's `vnum_range` aliasing it (see `is_range_aliased`).
 pub async fn next_free_vnum(pool: &MySqlPool, range_start: u32) -> Result<u32, String> {
     let rows = sqlx::query("SELECT vnum FROM player.item_proto WHERE vnum >= ? ORDER BY vnum")
         .bind(range_start)
@@ -136,8 +174,9 @@ pub async fn next_free_vnum(pool: &MySqlPool, range_start: u32) -> Result<u32, S
         .into_iter()
         .map(|row| row.try_get::<u32, _>("vnum").unwrap_or_default())
         .collect();
+    let ranges = range_owning_rows(pool).await?;
     let mut candidate = range_start;
-    while taken.contains(&candidate) {
+    while taken.contains(&candidate) || is_range_aliased(candidate, &ranges) {
         candidate += 1;
     }
     Ok(candidate)
@@ -436,5 +475,123 @@ mod tests {
 
         assert_ne!(item.r#type, 0, "type decoded as 0 - signed/unsigned mismatch regressed");
         assert!(!item.name.is_empty(), "name should not be empty for a real item");
+    }
+
+    async fn real_pool() -> MySqlPool {
+        let conn = rusqlite::Connection::open(
+            r"C:\Users\DevSteven\AppData\Roaming\com.m2manager.app\m2manager.sqlite",
+        )
+        .expect("open settings db");
+        let get = |key: &str| -> Option<String> {
+            conn.query_row("SELECT value FROM paths WHERE key = ?1", [key], |r| r.get(0))
+                .ok()
+        };
+        let host = get("mysql_host").expect("mysql_host not configured on this machine");
+        let port: u16 = get("mysql_port")
+            .unwrap_or_else(|| "3306".into())
+            .parse()
+            .unwrap();
+        let user = get("mysql_username").expect("mysql_username not configured");
+        let password = keyring::Entry::new("m2manager", "mysql_password")
+            .unwrap()
+            .get_password()
+            .expect("mysql_password credential not stored");
+        let url = format!("mysql://{user}:{password}@{host}:{port}/player");
+        sqlx::mysql::MySqlPoolOptions::new()
+            .max_connections(1)
+            .connect(&url)
+            .await
+            .expect("connect to dev DB")
+    }
+
+    fn minimal_item(vnum: u32, vnum_range: u32, name: &str) -> ItemProtoInput {
+        ItemProtoInput {
+            vnum,
+            vnum_range,
+            name: name.into(),
+            locale_name: name.into(),
+            r#type: 1,
+            subtype: 0,
+            weight: 0,
+            size: 1,
+            antiflag: 0,
+            flag: 0,
+            wearflag: 0,
+            immuneflag: 0,
+            gold: 0,
+            shop_buy_price: 0,
+            refined_vnum: 0,
+            refine_set: 0,
+            magic_pct: 0,
+            limittype0: 0,
+            limitvalue0: 0,
+            limittype1: 0,
+            limitvalue1: 0,
+            applytype0: 0,
+            applyvalue0: 0,
+            applytype1: 0,
+            applyvalue1: 0,
+            applytype2: 0,
+            applyvalue2: 0,
+            applytype3: 0,
+            applyvalue3: 0,
+            value0: 0,
+            value1: 0,
+            value2: 0,
+            value3: 0,
+            value4: 0,
+            value5: 0,
+            socket0: 0,
+            socket1: 0,
+            socket2: 0,
+            socket3: 0,
+            socket4: 0,
+            socket5: 0,
+            specular: 0,
+            socket_pct: 0,
+            addon_type: 0,
+        }
+    }
+
+    // Regression test for a real live report (2026-08-11): the Modul-Importer
+    // picked vnum 500000 as "free" even though it was occupied - not by a
+    // literal item_proto row, but by falling inside another row's
+    // `vnum_range` alias interval, exactly like the real server's
+    // ITEM_MANAGER::GetTable range fallback resolves it (verified against
+    // source/game/src/item_manager.cpp). A row `vnum=X, vnum_range=N`
+    // reserves the OPEN interval `(X, X+N)` - X itself is already a literal
+    // row, and X+N is the first vnum *not* covered.
+    #[tokio::test]
+    async fn vnum_checks_respect_vnum_range_aliasing() {
+        let pool = real_pool().await;
+
+        // High throwaway vnums, well outside any real item range on this
+        // server (see teardown_item_drops_its_own_unshared_recipe_but_not_a_shared_one
+        // in commands.rs for the same convention).
+        let base = 900030u32;
+        for v in base..base + 12 {
+            let _ = delete_item_proto(&pool, v).await;
+        }
+
+        create_item_proto(&pool, &minimal_item(base, 10, "test_vnum_range_owner"))
+            .await
+            .expect("create range-owning item");
+
+        // Base vnum itself: a real literal row.
+        assert!(vnum_exists(&pool, base).await.unwrap());
+        // Interior of the range (base, base+10): aliased, no literal row.
+        assert!(vnum_exists(&pool, base + 1).await.unwrap());
+        assert!(vnum_exists(&pool, base + 9).await.unwrap());
+        // Exactly base+range: open interval, NOT covered.
+        assert!(!vnum_exists(&pool, base + 10).await.unwrap());
+
+        let next = next_free_vnum(&pool, base).await.unwrap();
+        assert_eq!(
+            next,
+            base + 10,
+            "must skip both the literal row and its entire aliased range"
+        );
+
+        delete_item_proto(&pool, base).await.expect("cleanup");
     }
 }

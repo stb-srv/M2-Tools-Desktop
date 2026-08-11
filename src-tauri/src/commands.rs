@@ -28,6 +28,7 @@ use crate::webhook;
 use crate::settings;
 use crate::special_item_group;
 use crate::ssh::{self, SshAuth, SshConfig};
+use russh_sftp::client::SftpSession;
 use crate::state::AppState;
 use crate::system_installs::{self, FileAction, InstalledFile, TargetKind};
 use crate::system_patch::{self, InsertionResolution, PatchOp, Placement};
@@ -2090,11 +2091,16 @@ async fn read_target_content(
     state: &State<'_, AppState>,
     category: TargetKind,
     path: &str,
+    shared_sftp: Option<&SftpSession>,
 ) -> Result<Option<String>, String> {
     match category {
         TargetKind::LiveServer => {
-            let (config, auth) = stored_ssh_auth(state)?;
-            ssh::read_remote_file_if_exists(&config, &auth, path).await
+            if let Some(sftp) = shared_sftp {
+                ssh::read_file_if_exists_via(sftp, path).await
+            } else {
+                let (config, auth) = stored_ssh_auth(state)?;
+                ssh::read_remote_file_if_exists(&config, &auth, path).await
+            }
         }
         TargetKind::LocalClientSource | TargetKind::LocalClientInstall => {
             let p = std::path::Path::new(path);
@@ -2123,11 +2129,16 @@ async fn write_target_with_backup(
     category: TargetKind,
     path: &str,
     content: &str,
+    shared_sftp: Option<&SftpSession>,
 ) -> Result<Option<String>, String> {
     match category {
         TargetKind::LiveServer => {
-            let (config, auth) = stored_ssh_auth(state)?;
-            ssh::write_remote_file_with_backup(&config, &auth, path, content).await
+            if let Some(sftp) = shared_sftp {
+                ssh::write_file_with_backup_via(sftp, path, content).await
+            } else {
+                let (config, auth) = stored_ssh_auth(state)?;
+                ssh::write_remote_file_with_backup(&config, &auth, path, content).await
+            }
         }
         TargetKind::LocalClientSource | TargetKind::LocalClientInstall => {
             let p = std::path::Path::new(path);
@@ -2260,7 +2271,7 @@ pub async fn read_system_target_file(
     category: TargetKind,
     path: String,
 ) -> Result<Option<String>, String> {
-    read_target_content(&state, category, &path).await
+    read_target_content(&state, category, &path, None).await
 }
 
 /// Reine Anker-/Einfüge-Auflösung (keine Datei-I/O) - lässt das Frontend
@@ -2296,8 +2307,9 @@ pub struct ApplyInstallResult {
 async fn apply_one_file(
     state: &State<'_, AppState>,
     file: &PlannedFile,
+    shared_sftp: Option<&SftpSession>,
 ) -> Result<(InstalledFile, Option<String>), String> {
-    let existing = read_target_content(state, file.category, &file.target_path).await?;
+    let existing = read_target_content(state, file.category, &file.target_path, shared_sftp).await?;
     let existed = existing.is_some();
     let mut content = existing.unwrap_or_default();
 
@@ -2335,7 +2347,8 @@ async fn apply_one_file(
     let warning = system_patch::check_structural_balance(&file.target_path, &content)
         .map(|w| format!("{}: {w}", file.target_path));
 
-    let backup_path = write_target_with_backup(state, file.category, &file.target_path, &content).await?;
+    let backup_path =
+        write_target_with_backup(state, file.category, &file.target_path, &content, shared_sftp).await?;
     let installed = InstalledFile {
         target_path: file.target_path.clone(),
         target_kind: file.category,
@@ -2358,12 +2371,27 @@ pub async fn apply_system_install(
     system_name: String,
     files: Vec<PlannedFile>,
 ) -> Result<ApplyInstallResult, String> {
+    // One shared SFTP session for every LiveServer file in this run instead
+    // of a fresh SSH connect+login per file - real live report (2026-08-11):
+    // a 10-server-file package meant 20 separate connect+login round-trips
+    // (read+write each), and a single stalled one among those froze the
+    // entire "Anwenden" step forever with no error shown (see the SSH
+    // timeout added in ssh.rs for the other half of that fix). Only opened
+    // if at least one file actually needs it - a purely client-side package
+    // shouldn't require a live SSH connection at all.
+    let shared_sftp = if files.iter().any(|f| f.category == TargetKind::LiveServer) {
+        let (config, auth) = stored_ssh_auth(&state)?;
+        Some(ssh::open_sftp(&config, &auth).await?)
+    } else {
+        None
+    };
+
     let mut installed_files = Vec::new();
     let mut warnings = Vec::new();
     let mut first_error: Option<String> = None;
 
     for file in &files {
-        match apply_one_file(&state, file).await {
+        match apply_one_file(&state, file, shared_sftp.as_ref()).await {
             Ok((installed, warning)) => {
                 installed_files.push(installed);
                 if let Some(w) = warning {
