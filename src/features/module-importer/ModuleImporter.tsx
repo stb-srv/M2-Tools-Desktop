@@ -486,6 +486,8 @@ function PackageImporter({ onImported }: { onImported: () => void }) {
 
   const [baseName, setBaseName] = useState("");
   const [baseLocaleName, setBaseLocaleName] = useState("");
+  const [description, setDescription] = useState("");
+  const [summary, setSummary] = useState("");
   const [vnumRangeStart, setVnumRangeStart] = useState(500000);
   const [includeEffects, setIncludeEffects] = useState(true);
   const [refItem, setRefItem] = useState<ItemProtoInput | null>(null);
@@ -628,6 +630,14 @@ function PackageImporter({ onImported }: { onImported: () => void }) {
       type: 2,
       subtype: armorSubtype,
       antiflag,
+      // Anders als bei Waffen (size hängt vom Subtyp ab, siehe
+      // sizeForSubtype) ist Rüstung im Inventar immer 1 Slot groß - das
+      // MUSS hier explizit gesetzt werden statt vom Referenz-Item geerbt
+      // zu werden (`...template` oben), sonst übernimmt ein z.B. als
+      // Referenz gewähltes Schwert (size 2/3) versehentlich dessen
+      // Grid-Höhe und die Rüstung überlappt Nachbar-Slots im Inventar
+      // (realer Bug, live gemeldet 2026-08-10).
+      size: 1,
       wearflag: armorWearflag || template.wearflag,
       // Magie-Verteidigung + Verteidigung (Grade) + Zusatz-Verteidigung -
       // die "Kampfwerte" für Rüstung laut VALUE_HINTS. value3 ist hier
@@ -711,6 +721,9 @@ function PackageImporter({ onImported }: { onImported: () => void }) {
           const item = buildWeaponItem(vnum, variant, row, level);
           await invoke("create_item_proto", { item });
           createdVnumsRef.current.push(vnum);
+          if (description.trim() || summary.trim()) {
+            await invoke("write_item_desc", { vnum, description, summary });
+          }
           await invoke("write_item_list_entry", { vnum, itemType: 1, iconRelPath, modelRelPath: virtualModelPath });
         }
 
@@ -754,6 +767,9 @@ function PackageImporter({ onImported }: { onImported: () => void }) {
           const item = buildArmorItem(vnum, shapeIndex, raceKeys, level);
           await invoke("create_item_proto", { item });
           createdVnumsRef.current.push(vnum);
+          if (description.trim() || summary.trim()) {
+            await invoke("write_item_desc", { vnum, description, summary });
+          }
           await invoke("write_item_list_entry", { vnum, itemType: 2, iconRelPath, modelRelPath: null });
         }
 
@@ -1079,6 +1095,27 @@ function PackageImporter({ onImported }: { onImported: () => void }) {
                 />
               </Field>
             </div>
+            <div className="flex flex-wrap gap-3">
+              <Field label="Beschreibung (Tooltip-Text, optional)">
+                <textarea
+                  value={description}
+                  onChange={(e) => setDescription(e.target.value)}
+                  className="h-16 w-72 rounded-md border border-border bg-background px-2 py-1 text-sm"
+                />
+              </Field>
+              <Field label="Kurzbeschreibung (optional)">
+                <textarea
+                  value={summary}
+                  onChange={(e) => setSummary(e.target.value)}
+                  className="h-16 w-56 rounded-md border border-border bg-background px-2 py-1 text-sm"
+                />
+              </Field>
+            </div>
+            <p className="text-xs text-muted-foreground">
+              Gilt für alle importierten Varianten/Stufen dieses Durchlaufs. Rein clientseitiger Tooltip-Text
+              (<code>locale/&lt;lang&gt;/itemdesc.txt</code>) - ohne Eintrag bleibt das Item im Client ohne
+              Beschreibung.
+            </p>
             {scanResult.effect_dirs.length > 0 && (
               <label className="flex items-center gap-2 text-sm">
                 <input type="checkbox" checked={includeEffects} onChange={(e) => setIncludeEffects(e.target.checked)} />
@@ -1217,6 +1254,11 @@ function PackageImporter({ onImported }: { onImported: () => void }) {
                   beim Serverstart aus der DB geladen wird
                 </li>
               )}
+              <li className={description.trim() || summary.trim() ? "" : "text-amber-600"}>
+                {description.trim() || summary.trim()
+                  ? "Beschreibung wird als itemdesc.txt-Eintrag geschrieben"
+                  : "Keine Beschreibung eingetragen - Item bleibt im Client ohne Tooltip-Text"}
+              </li>
               <li className={refItem ? "" : "text-amber-600"}>
                 {refItem
                   ? `Werte werden von "${refItem.locale_name || refItem.name}" (vnum ${refItem.vnum}) übernommen`
@@ -1256,6 +1298,8 @@ function itemTypeOptionLabel(value: number, label: string) {
 interface IconItemRow {
   name: string;
   localeName: string;
+  description: string;
+  summary: string;
   type: number;
   subtype: number;
   wearflag: number;
@@ -1277,6 +1321,8 @@ function defaultIconItemRow(suggestedName: string): IconItemRow {
   return {
     name: suggestedName,
     localeName: suggestedName,
+    description: "",
+    summary: "",
     type: 2,
     subtype: 0,
     wearflag: 0,
@@ -1421,6 +1467,12 @@ function IconItemImporter({ onImported }: { onImported: () => void }) {
             locale_name: fitToByteLimitWithSuffix(row.localeName, suffix),
             type: row.type,
             subtype: row.subtype,
+            // Wie bei buildArmorItem: explizit statt vom Referenz-Item
+            // geerbt (`...template` oben) - Zubehör ohne 3D-Modell (Schuhe,
+            // Ketten, ...) ist im Inventar immer 1 Slot groß, ein als
+            // Referenz gewähltes größeres Item (z.B. eine Waffe) darf seine
+            // Grid-Höhe nicht durchreichen.
+            size: 1,
             wearflag: row.wearflag,
             value0: values[0],
             value1: values[1],
@@ -1433,6 +1485,9 @@ function IconItemImporter({ onImported }: { onImported: () => void }) {
           };
           await invoke("create_item_proto", { item });
           createdVnumsRef.current.push(vnum);
+          if (row.description.trim() || row.summary.trim()) {
+            await invoke("write_item_desc", { vnum, description: row.description, summary: row.summary });
+          }
           await invoke("write_item_list_entry", { vnum, itemType: row.type, iconRelPath, modelRelPath: null });
         }
 
@@ -1630,6 +1685,29 @@ function IconItemImporter({ onImported }: { onImported: () => void }) {
                             </select>
                           </Field>
                         </div>
+
+                        <div className="flex flex-wrap gap-3">
+                          <Field label="Beschreibung (Tooltip-Text, optional)">
+                            <textarea
+                              value={row.description}
+                              onChange={(e) => updateRow(path, { description: e.target.value })}
+                              className="h-16 w-64 rounded-md border border-border bg-background px-2 py-1 text-sm"
+                            />
+                          </Field>
+                          <Field label="Kurzbeschreibung (optional)">
+                            <textarea
+                              value={row.summary}
+                              onChange={(e) => updateRow(path, { summary: e.target.value })}
+                              className="h-16 w-48 rounded-md border border-border bg-background px-2 py-1 text-sm"
+                            />
+                          </Field>
+                        </div>
+                        {!row.description.trim() && !row.summary.trim() && (
+                          <p className="flex items-start gap-2 text-xs text-amber-600">
+                            <Info className="mt-0.5 size-3.5 shrink-0" />
+                            Ohne Beschreibung bleibt das Item im Client ohne Tooltip-Text.
+                          </p>
+                        )}
 
                         <div className="space-y-1">
                           <p className="text-xs text-muted-foreground">

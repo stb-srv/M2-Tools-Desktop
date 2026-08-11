@@ -28,6 +28,7 @@ interface BackupDiff {
   target_path: string;
   backup_content: string;
   current_content: string | null;
+  is_binary: boolean;
 }
 
 const DEFAULT_ROOT = "/usr/home/game";
@@ -279,10 +280,17 @@ export function BackupBrowser() {
                   {diffData.current_content === null &&
                     " - existiert dort aktuell nicht (würde neu angelegt)."}
                 </p>
-                <DiffView
-                  oldText={diffData.current_content ?? ""}
-                  newText={diffData.backup_content}
-                />
+                {diffData.is_binary ? (
+                  <p className="rounded-md border border-dashed border-border p-3 text-sm text-muted-foreground">
+                    Binärdatei - kein Text-Diff möglich. Wiederherstellen kopiert den Inhalt
+                    trotzdem unverändert (Byte für Byte).
+                  </p>
+                ) : (
+                  <DiffView
+                    oldText={diffData.current_content ?? ""}
+                    newText={diffData.backup_content}
+                  />
+                )}
               </>
             )}
             <div className="flex justify-end gap-2">

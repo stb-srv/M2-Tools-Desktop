@@ -3,7 +3,8 @@ use russh::keys::{load_secret_key, PrivateKeyWithHashAlg, PublicKey};
 use russh_sftp::client::SftpSession;
 use russh_sftp::protocol::OpenFlags;
 use serde::{Deserialize, Serialize};
-use std::sync::Arc;
+use std::collections::HashMap;
+use std::sync::{Arc, Mutex, OnceLock};
 use tokio::io::AsyncWriteExt;
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -46,6 +47,22 @@ async fn open_session(config: &SshConfig) -> Result<Handle<AcceptAllHandler>, St
     .map_err(|e| e.to_string())
 }
 
+// Remembers, per (host, port, username), whether the last successful login
+// needed the keyboard-interactive fallback below - every SSH/SFTP call in
+// this app opens its own fresh session and re-authenticates from scratch
+// (no session reuse), so without this, every single one of them would waste
+// an auth attempt on a `password` method already known to be rejected by
+// this server. On a server configured with a low `MaxAuthTries` that can
+// lock the app out after just 1-2 remote operations even with a correct
+// password. Best-effort only: a `false`/missing entry just means "try
+// password first, same as before" - it never blocks the keyboard-interactive
+// fallback from still running if password unexpectedly fails.
+static NEEDS_KEYBOARD_INTERACTIVE: OnceLock<Mutex<HashMap<(String, u16, String), bool>>> = OnceLock::new();
+
+fn auth_cache_key(config: &SshConfig) -> (String, u16, String) {
+    (config.host.clone(), config.port, config.username.clone())
+}
+
 // Some servers (this FreeBSD/PAM setup among them) only advertise
 // "publickey,keyboard-interactive" and reject the plain SSH "password"
 // method outright, even though the login is conceptually just a password.
@@ -53,25 +70,43 @@ async fn open_session(config: &SshConfig) -> Result<Handle<AcceptAllHandler>, St
 // given password (matches how ssh/plink behave against the same server).
 async fn authenticate_with_password(
     session: &mut Handle<AcceptAllHandler>,
-    username: &str,
+    config: &SshConfig,
     password: &str,
 ) -> Result<bool, String> {
-    let direct = session
-        .authenticate_password(username, password)
-        .await
-        .map_err(|e| e.to_string())?;
-    if direct.success() {
-        return Ok(true);
+    let cache = NEEDS_KEYBOARD_INTERACTIVE.get_or_init(|| Mutex::new(HashMap::new()));
+    let key = auth_cache_key(config);
+    let skip_password = cache
+        .lock()
+        .ok()
+        .and_then(|m| m.get(&key).copied())
+        .unwrap_or(false);
+
+    if !skip_password {
+        let direct = session
+            .authenticate_password(&config.username, password)
+            .await
+            .map_err(|e| e.to_string())?;
+        if direct.success() {
+            if let Ok(mut m) = cache.lock() {
+                m.insert(key, false);
+            }
+            return Ok(true);
+        }
     }
 
     let mut response = session
-        .authenticate_keyboard_interactive_start(username, None)
+        .authenticate_keyboard_interactive_start(&config.username, None)
         .await
         .map_err(|e| e.to_string())?;
 
     loop {
         match response {
-            KeyboardInteractiveAuthResponse::Success => return Ok(true),
+            KeyboardInteractiveAuthResponse::Success => {
+                if let Ok(mut m) = cache.lock() {
+                    m.insert(key, true);
+                }
+                return Ok(true);
+            }
             KeyboardInteractiveAuthResponse::Failure { .. } => return Ok(false),
             KeyboardInteractiveAuthResponse::InfoRequest { prompts, .. } => {
                 let answers = vec![password.to_string(); prompts.len()];
@@ -86,18 +121,16 @@ async fn authenticate_with_password(
 
 async fn authenticate(
     session: &mut Handle<AcceptAllHandler>,
-    username: &str,
+    config: &SshConfig,
     auth: &SshAuth,
 ) -> Result<bool, String> {
     match auth {
-        SshAuth::Password { password } => {
-            authenticate_with_password(session, username, password).await
-        }
+        SshAuth::Password { password } => authenticate_with_password(session, config, password).await,
         SshAuth::PrivateKey { path, passphrase } => {
             let key = load_secret_key(path, passphrase.as_deref())
                 .map_err(|e| format!("Privater Schlüssel konnte nicht geladen werden: {e}"))?;
             let result = session
-                .authenticate_publickey(username, PrivateKeyWithHashAlg::new(Arc::new(key), None))
+                .authenticate_publickey(&config.username, PrivateKeyWithHashAlg::new(Arc::new(key), None))
                 .await
                 .map_err(|e| e.to_string())?;
             Ok(result.success())
@@ -107,7 +140,7 @@ async fn authenticate(
 
 pub async fn test_connection(config: &SshConfig, auth: &SshAuth) -> Result<(), String> {
     let mut session = open_session(config).await?;
-    if authenticate(&mut session, &config.username, auth).await? {
+    if authenticate(&mut session, config, auth).await? {
         Ok(())
     } else {
         Err("Authentifizierung fehlgeschlagen".into())
@@ -132,7 +165,7 @@ where
     F: FnMut(&str),
 {
     let mut session = open_session(config).await?;
-    if !authenticate(&mut session, &config.username, auth).await? {
+    if !authenticate(&mut session, config, auth).await? {
         return Err("Authentifizierung fehlgeschlagen".into());
     }
 
@@ -168,7 +201,7 @@ where
 
 async fn open_sftp(config: &SshConfig, auth: &SshAuth) -> Result<SftpSession, String> {
     let mut session = open_session(config).await?;
-    if !authenticate(&mut session, &config.username, auth).await? {
+    if !authenticate(&mut session, config, auth).await? {
         return Err("Authentifizierung fehlgeschlagen".into());
     }
     let channel = session
@@ -357,6 +390,27 @@ pub(crate) fn decode_bytes(bytes: Vec<u8>) -> String {
     }
 }
 
+/// Encodes `content` back to bytes matching whatever encoding `original`
+/// (the file's own bytes before this write) was in - `decode_bytes` above
+/// only ever falls back to Windows-1252 when strict UTF-8 fails, so if
+/// `original` isn't valid UTF-8 either, the file must have been Windows-1252
+/// on disk and has to be written back the same way. Without this, every
+/// write path that reads a file via `decode_bytes` and later saves it back
+/// (quest .lua files, client source patches, ...) would silently convert a
+/// Windows-1252 file (e.g. containing German umlauts) to UTF-8 on its very
+/// first edit - mojibake for every downstream reader still expecting
+/// Windows-1252, compounding on every subsequent save of the same file.
+/// `original: None` (brand-new file) keeps the existing UTF-8 default.
+pub(crate) fn encode_matching(content: &str, original: Option<&[u8]>) -> Vec<u8> {
+    match original {
+        Some(bytes) if std::str::from_utf8(bytes).is_err() => {
+            let (encoded, _, _) = encoding_rs::WINDOWS_1252.encode(content);
+            encoded.into_owned()
+        }
+        _ => content.as_bytes().to_vec(),
+    }
+}
+
 pub async fn read_remote_file(config: &SshConfig, auth: &SshAuth, path: &str) -> Result<String, String> {
     let sftp = open_sftp(config, auth).await?;
     let bytes = sftp
@@ -364,6 +418,27 @@ pub async fn read_remote_file(config: &SshConfig, auth: &SshAuth, path: &str) ->
         .await
         .map_err(|e| format!("Datei konnte nicht gelesen werden ({path}): {e}"))?;
     Ok(decode_bytes(bytes))
+}
+
+/// Raw byte read, bypassing `decode_bytes` entirely - used where the file's
+/// content must never be interpreted as text at all (e.g. restoring a
+/// backup byte-for-byte, which might be binary), since even the
+/// UTF-8-or-Windows-1252 fallback in `decode_bytes` is lossy for the small
+/// set of byte values Windows-1252 leaves undefined (0x81/0x8D/0x8F/0x90/
+/// 0x9D decode to U+FFFD and can't be recovered on re-encode).
+pub async fn read_remote_file_bytes(config: &SshConfig, auth: &SshAuth, path: &str) -> Result<Vec<u8>, String> {
+    let sftp = open_sftp(config, auth).await?;
+    sftp.read(path)
+        .await
+        .map_err(|e| format!("Datei konnte nicht gelesen werden ({path}): {e}"))
+}
+
+/// True if `bytes` looks like binary content rather than text - used only to
+/// decide whether a read-only diff view should attempt to render decoded
+/// text (a NUL byte never appears in genuine text content on this project's
+/// supported encodings, but is extremely common in binaries).
+pub(crate) fn looks_binary(bytes: &[u8]) -> bool {
+    bytes.contains(&0)
 }
 
 /// Like `read_remote_file`, but returns `None` instead of an error when the
@@ -384,6 +459,24 @@ pub async fn read_remote_file_if_exists(
         .await
         .map_err(|e| format!("Datei konnte nicht gelesen werden ({path}): {e}"))?;
     Ok(Some(decode_bytes(bytes)))
+}
+
+/// Byte-level counterpart to `read_remote_file_if_exists` - see
+/// `read_remote_file_bytes`'s own doc for why a caller would want raw bytes.
+pub async fn read_remote_file_bytes_if_exists(
+    config: &SshConfig,
+    auth: &SshAuth,
+    path: &str,
+) -> Result<Option<Vec<u8>>, String> {
+    let sftp = open_sftp(config, auth).await?;
+    if !sftp.try_exists(path).await.map_err(|e| e.to_string())? {
+        return Ok(None);
+    }
+    let bytes = sftp
+        .read(path)
+        .await
+        .map_err(|e| format!("Datei konnte nicht gelesen werden ({path}): {e}"))?;
+    Ok(Some(bytes))
 }
 
 /// Opens one SFTP session and reads every path within it - used by the Quest
@@ -454,6 +547,12 @@ pub async fn write_remote_file_with_backup(
         ensure_remote_dir(&sftp, &path[..idx]).await;
     }
 
+    // Peeked *before* backup_existing renames the file away, so this still
+    // sees the file's own bytes - see encode_matching's doc for why this
+    // matters (preserves Windows-1252 across re-saves instead of silently
+    // upgrading to UTF-8).
+    let original_bytes = sftp.read(path).await.ok();
+
     let backup_path = backup_existing(&sftp, path, "bak").await?;
 
     // sftp.write() only opens with WRITE (no CREATE), which would fail here
@@ -463,9 +562,37 @@ pub async fn write_remote_file_with_backup(
         .open_with_flags(path, OpenFlags::CREATE | OpenFlags::TRUNCATE | OpenFlags::WRITE)
         .await
         .map_err(|e| format!("Datei konnte nicht geschrieben werden ({path}): {e}"))?;
-    file.write_all(content.as_bytes())
+    file.write_all(&encode_matching(content, original_bytes.as_deref()))
         .await
         .map_err(|e| e.to_string())?;
+    file.shutdown().await.map_err(|e| e.to_string())?;
+
+    Ok(backup_path)
+}
+
+/// Byte-exact write, bypassing `encode_matching`/UTF-8 entirely - same
+/// backup-then-overwrite shape as `write_remote_file_with_backup`, but for
+/// callers that already have the exact target bytes (e.g. restoring a
+/// backup verbatim) and must not risk any text (re-)interpretation at all.
+pub async fn write_remote_file_bytes_with_backup(
+    config: &SshConfig,
+    auth: &SshAuth,
+    path: &str,
+    content: &[u8],
+) -> Result<Option<String>, String> {
+    let sftp = open_sftp(config, auth).await?;
+
+    if let Some(idx) = path.rfind('/') {
+        ensure_remote_dir(&sftp, &path[..idx]).await;
+    }
+
+    let backup_path = backup_existing(&sftp, path, "bak").await?;
+
+    let mut file = sftp
+        .open_with_flags(path, OpenFlags::CREATE | OpenFlags::TRUNCATE | OpenFlags::WRITE)
+        .await
+        .map_err(|e| format!("Datei konnte nicht geschrieben werden ({path}): {e}"))?;
+    file.write_all(content).await.map_err(|e| e.to_string())?;
     file.shutdown().await.map_err(|e| e.to_string())?;
 
     Ok(backup_path)
@@ -489,5 +616,31 @@ mod tests {
         // valid UTF-8" hart abbrechen.
         let bytes = vec![b'K', 0xE4, b'f', b'e', b'r']; // "Käfer" in cp1252
         assert_eq!(decode_bytes(bytes), "Käfer");
+    }
+
+    #[test]
+    fn encode_matching_round_trips_windows_1252_original_bytes() {
+        // Reale gemeldete Regression: eine cp1252-Datei mit Umlauten wurde
+        // bei jedem Speichern still nach UTF-8 hochkonvertiert, weil das
+        // Schreiben nie geprüft hat, wie die Datei ursprünglich kodiert war.
+        let original_cp1252 = vec![b'K', 0xE4, b'f', b'e', b'r']; // "Käfer"
+        let decoded = decode_bytes(original_cp1252.clone());
+        let re_encoded = encode_matching(&decoded, Some(&original_cp1252));
+        assert_eq!(re_encoded, original_cp1252);
+    }
+
+    #[test]
+    fn encode_matching_uses_utf8_for_brand_new_or_already_utf8_files() {
+        assert_eq!(encode_matching("hello", None), b"hello".to_vec());
+        assert_eq!(
+            encode_matching("hello", Some("existing utf-8".as_bytes())),
+            b"hello".to_vec()
+        );
+    }
+
+    #[test]
+    fn looks_binary_detects_nul_bytes_but_not_plain_text() {
+        assert!(!looks_binary("normal text".as_bytes()));
+        assert!(looks_binary(&[0x7F, 0x45, 0x4C, 0x46, 0x00, 0x01]));
     }
 }

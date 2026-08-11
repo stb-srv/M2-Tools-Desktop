@@ -5,6 +5,7 @@ import { Button } from "@/components/ui/button";
 import { Search, Plus, Trash2, RefreshCw, CheckCircle2, AlertTriangle, Info, Package, HelpCircle } from "lucide-react";
 import { useNavigationStore } from "@/store/navigation";
 import { openManual } from "@/lib/manual";
+import { EntityBrowser } from "@/features/shared/EntityBrowser";
 
 const GIFTBOX_TYPE = 23;
 const FLAG_STACKABLE = 1 << 2;
@@ -126,32 +127,25 @@ function BoxVnumHint({ vnum, onFixed }: { vnum: number; onFixed?: () => void }) 
 // setupBoxItem in one click - a plain (non-GIFTBOX) item needs an explicit
 // confirmation first since changing its type/flag is not harmless if the
 // wrong result gets picked (e.g. a real weapon reused for something else).
+// Uses the shared EntityBrowser for the search itself instead of a hand-rolled
+// query/results state - the old hand-rolled version swallowed search errors
+// as an empty result list (real finding from the full-project audit).
 function BoxItemPicker({ onPick }: { onPick: (vnum: number) => void }) {
   const [picking, setPicking] = useState(false);
-  const [query, setQuery] = useState("");
-  const [results, setResults] = useState<ItemSearchResult[]>([]);
-  const [searching, setSearching] = useState(false);
-  const [statuses, setStatuses] = useState<Record<number, ItemProtoFullLite | null>>({});
-  const [confirmVnum, setConfirmVnum] = useState<number | null>(null);
+  const [confirmTarget, setConfirmTarget] = useState<{ vnum: number; proto: ItemProtoFullLite } | null>(null);
   const [busyVnum, setBusyVnum] = useState<number | null>(null);
   const [error, setError] = useState<string | null>(null);
+  // "bereits eingerichtet"/"wird umgestellt" badge per row - prefetched via
+  // EntityBrowser's onRowsChange whenever the visible page of results
+  // changes, same idea as the old hand-rolled version's per-row prefetch.
+  const [statuses, setStatuses] = useState<Record<number, ItemProtoFullLite | null>>({});
 
-  async function runSearch() {
-    if (!query.trim()) return;
-    setError(null);
-    await runAsyncAction(() => invoke<ItemSearchResult[]>("search_items", { query: query.trim() }), {
-      onStart: () => setSearching(true),
-      onSuccess: (found) => {
-        setResults(found);
-        setStatuses({});
-        found.forEach((r) => {
-          invoke<ItemProtoFullLite | null>("get_item_proto", { vnum: r.vnum })
-            .then((p) => setStatuses((prev) => ({ ...prev, [r.vnum]: p })))
-            .catch(() => setStatuses((prev) => ({ ...prev, [r.vnum]: null })));
-        });
-      },
-      onError: () => setResults([]),
-      onFinally: () => setSearching(false),
+  function ensureStatuses(vnums: number[]) {
+    const missing = [...new Set(vnums)].filter((v) => !(v in statuses));
+    missing.forEach((vnum) => {
+      invoke<ItemProtoFullLite | null>("get_item_proto", { vnum })
+        .then((p) => setStatuses((prev) => ({ ...prev, [vnum]: p })))
+        .catch(() => setStatuses((prev) => ({ ...prev, [vnum]: null }))); // unclear status stays unbadged, not "ready"
     });
   }
 
@@ -162,9 +156,7 @@ function BoxItemPicker({ onPick }: { onPick: (vnum: number) => void }) {
       await setupBoxItem(vnum);
       onPick(vnum);
       setPicking(false);
-      setResults([]);
-      setQuery("");
-      setConfirmVnum(null);
+      setConfirmTarget(null);
     } catch (e) {
       setError(String(e));
     } finally {
@@ -172,16 +164,22 @@ function BoxItemPicker({ onPick }: { onPick: (vnum: number) => void }) {
     }
   }
 
-  function handleUseClick(vnum: number) {
-    const status = statuses[vnum];
-    if (status && status.type !== GIFTBOX_TYPE) {
-      setConfirmVnum(vnum);
-    } else {
-      apply(vnum);
+  async function handlePick(vnum: number) {
+    setError(null);
+    setBusyVnum(vnum);
+    try {
+      const proto = await invoke<ItemProtoFullLite | null>("get_item_proto", { vnum });
+      if (proto && !boxItemIsReady(proto)) {
+        setConfirmTarget({ vnum, proto });
+        setBusyVnum(null);
+      } else {
+        await apply(vnum);
+      }
+    } catch (e) {
+      setError(String(e));
+      setBusyVnum(null);
     }
   }
-
-  const confirmTarget = confirmVnum !== null ? statuses[confirmVnum] : null;
 
   return (
     <div className="flex flex-col gap-1">
@@ -189,64 +187,48 @@ function BoxItemPicker({ onPick }: { onPick: (vnum: number) => void }) {
         <Search className="size-3.5" /> Item suchen & einrichten…
       </Button>
       {picking && (
-        <div className="flex w-96 flex-col gap-1 rounded-md border border-border bg-card p-2 shadow-md">
-          <div className="flex gap-1">
-            <input
-              autoFocus
-              value={query}
-              onChange={(e) => setQuery(e.target.value)}
-              onKeyDown={(e) => e.key === "Enter" && runSearch()}
-              placeholder="Item nach Name oder VNUM suchen…"
-              className="flex-1 rounded-md border border-border bg-background px-2 py-1 text-xs"
-            />
-            <Button size="sm" variant="outline" onClick={runSearch} disabled={searching}>
-              <Search className="size-3.5" />
-            </Button>
-          </div>
-          {error && <p className="text-xs text-destructive">{error}</p>}
-          <div className="max-h-56 space-y-1 overflow-y-auto">
-            {results.map((r) => {
+        <div className="w-96 rounded-md border border-border bg-card p-2 shadow-md">
+          {error && <p className="mb-1 text-xs text-destructive">{error}</p>}
+          <EntityBrowser
+            kind="item"
+            pickLabel="Verwenden"
+            autoFocus
+            maxHeightClass="max-h-56"
+            onPick={(r) => handlePick(r.vnum)}
+            onRowsChange={(rows) => ensureStatuses(rows.map((r) => r.vnum))}
+            renderTrailing={(r) => {
               const status = statuses[r.vnum];
-              const ready = status ? boxItemIsReady(status) : undefined;
-              return (
-                <div key={r.vnum} className="flex items-center justify-between gap-2 rounded-md px-2 py-1 text-xs hover:bg-muted">
-                  <span className="flex-1 truncate">
-                    {r.name} <span className="text-muted-foreground">#{r.vnum}</span>
-                    {ready === true && <span className="ml-1 text-green-600">(bereits eingerichtet)</span>}
-                    {ready === false && <span className="ml-1 text-amber-600">(wird umgestellt)</span>}
-                  </span>
-                  <Button
-                    size="sm"
-                    onClick={() => handleUseClick(r.vnum)}
-                    disabled={status === undefined || busyVnum === r.vnum}
-                  >
-                    {busyVnum === r.vnum ? "…" : "Verwenden"}
-                  </Button>
-                </div>
+              if (status === undefined) return null;
+              const ready = status ? boxItemIsReady(status) : false;
+              return ready ? (
+                <span className="ml-1 text-green-600">(bereits eingerichtet)</span>
+              ) : (
+                <span className="ml-1 text-amber-600">(wird umgestellt)</span>
               );
-            })}
-            {results.length === 0 && !searching && (
-              <p className="p-1 text-xs text-muted-foreground">Noch keine Suche.</p>
-            )}
-          </div>
+            }}
+          />
         </div>
       )}
-      {confirmVnum !== null && (
+      {confirmTarget && (
         <div className="fixed inset-0 z-10 flex items-center justify-center bg-black/50">
           <div className="w-96 space-y-3 rounded-lg border border-border bg-card p-4">
             <p className="flex items-start gap-2 text-sm">
               <AlertTriangle className="mt-0.5 size-4 shrink-0 text-destructive" />
               <span>
-                "{confirmTarget?.locale_name || confirmTarget?.name}" hat aktuell nicht den Typ GIFTBOX (Typ{" "}
-                {confirmTarget?.type}). Wird jetzt auf GIFTBOX (23) + Stapelbar umgestellt - das ändert, wie sich
-                dieses Item im Spiel verhält. Wirklich fortfahren?
+                "{confirmTarget.proto.locale_name || confirmTarget.proto.name}" hat aktuell nicht den Typ
+                GIFTBOX (Typ {confirmTarget.proto.type}). Wird jetzt auf GIFTBOX (23) + Stapelbar umgestellt -
+                das ändert, wie sich dieses Item im Spiel verhält. Wirklich fortfahren?
               </span>
             </p>
             <div className="flex justify-end gap-2">
-              <Button variant="outline" onClick={() => setConfirmVnum(null)}>
+              <Button variant="outline" onClick={() => setConfirmTarget(null)}>
                 Abbrechen
               </Button>
-              <Button variant="destructive" onClick={() => apply(confirmVnum)}>
+              <Button
+                variant="destructive"
+                onClick={() => apply(confirmTarget.vnum)}
+                disabled={busyVnum === confirmTarget.vnum}
+              >
                 Umstellen
               </Button>
             </div>
@@ -269,11 +251,6 @@ interface SpecialItemGroup {
   vnum: number;
   group_type: string | null;
   entries: SpecialItemGroupEntry[];
-}
-
-interface ItemSearchResult {
-  vnum: number;
-  name: string;
 }
 
 // Special keywords the real server accepts instead of an item vnum in a
@@ -335,9 +312,6 @@ function ItemRefEditor({
   ensureIcon: (vnum: number) => void;
 }) {
   const [picking, setPicking] = useState(false);
-  const [query, setQuery] = useState("");
-  const [results, setResults] = useState<ItemSearchResult[]>([]);
-  const [searching, setSearching] = useState(false);
 
   const isKeyword = SPECIAL_KEYWORDS.includes(value);
   const numericVnum = !isKeyword ? Number(value) || null : null;
@@ -346,16 +320,6 @@ function ItemRefEditor({
     if (numericVnum) ensureIcon(numericVnum);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [numericVnum]);
-
-  async function runSearch() {
-    if (!query.trim()) return;
-    await runAsyncAction(() => invoke<ItemSearchResult[]>("search_items", { query: query.trim() }), {
-      onStart: () => setSearching(true),
-      onSuccess: setResults,
-      onError: () => setResults([]),
-      onFinally: () => setSearching(false),
-    });
-  }
 
   return (
     <div className="flex flex-col gap-1">
@@ -394,34 +358,17 @@ function ItemRefEditor({
         )}
       </div>
       {picking && !isKeyword && (
-        <div className="flex flex-col gap-1 rounded-md border border-border bg-card p-2">
-          <div className="flex gap-1">
-            <input
-              autoFocus
-              value={query}
-              onChange={(e) => setQuery(e.target.value)}
-              onKeyDown={(e) => e.key === "Enter" && runSearch()}
-              placeholder="Item suchen…"
-              className="flex-1 rounded-md border border-border bg-background px-2 py-1 text-xs"
-            />
-            <Button size="sm" variant="outline" onClick={runSearch} disabled={searching}>
-              <Search className="size-3.5" />
-            </Button>
-          </div>
-          {results.map((r) => (
-            <button
-              key={r.vnum}
-              className="rounded-md px-2 py-1 text-left text-xs hover:bg-muted"
-              onClick={() => {
-                onChange(String(r.vnum));
-                setPicking(false);
-                setResults([]);
-                setQuery("");
-              }}
-            >
-              {r.name} <span className="text-muted-foreground">#{r.vnum}</span>
-            </button>
-          ))}
+        <div className="rounded-md border border-border bg-card p-2">
+          <EntityBrowser
+            kind="item"
+            pickLabel="Übernehmen"
+            autoFocus
+            maxHeightClass="max-h-56"
+            onPick={(r) => {
+              onChange(String(r.vnum));
+              setPicking(false);
+            }}
+          />
         </div>
       )}
     </div>

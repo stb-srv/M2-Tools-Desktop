@@ -28,15 +28,46 @@ export function EntityBrowser({
   pickLabel = "Auswählen",
   autoFocus,
   maxHeightClass = "max-h-64",
+  initialQuery,
+  onRowsChange,
+  renderLeading,
+  renderTrailing,
 }: {
   kind: "item" | "mob";
   onPick: (row: EntityRow) => void;
   pickLabel?: string;
   autoFocus?: boolean;
   maxHeightClass?: string;
+  /** Pre-fills and immediately searches with this query on mount - e.g. the
+   * Quest Builder's free-text assistant re-opens this picker with the
+   * phrase it couldn't already resolve on its own. Only read once at mount
+   * (this component is always freshly mounted when a picker opens, never
+   * kept alive with a changing prop), so changing it after mount has no
+   * effect. */
+  initialQuery?: string;
+  /** Fires whenever the currently displayed page of rows changes - lets a
+   * caller side-load per-row extras (icons, status) the same way the
+   * pre-migration hand-rolled pickers did, without EntityBrowser itself
+   * needing to know anything about icons/vnum-specific status. */
+  onRowsChange?: (rows: EntityRow[]) => void;
+  /** Rendered before a row's name - e.g. an item icon. */
+  renderLeading?: (row: EntityRow) => React.ReactNode;
+  /** Rendered after a row's name/vnum, before the pick button - e.g. a
+   * status badge. */
+  renderTrailing?: (row: EntityRow) => React.ReactNode;
 }) {
-  const [query, setQuery] = useState("");
+  const [query, setQuery] = useState(initialQuery ?? "");
   const [page, setPage] = useState(0);
+  // Bumped by runSearch() so a manual re-search always re-triggers the
+  // effect below, even when page is already 0 and wouldn't otherwise change.
+  // Real bug this replaced: runSearch() used to fire its own separate
+  // invoke() for that "already on page 0" case, without the effect's
+  // `cancelled` stale-response guard - a second search fired while an
+  // earlier one was still in flight could have its result overwritten by
+  // the earlier one resolving later (out-of-order network timing). Routing
+  // every search through the same effect means there's only one fetch path
+  // to guard, not two to keep in sync.
+  const [refreshKey, setRefreshKey] = useState(0);
   const [rows, setRows] = useState<EntityRow[]>([]);
   const [total, setTotal] = useState(0);
   const [loading, setLoading] = useState(false);
@@ -71,27 +102,16 @@ export function EntityBrowser({
       cancelled = true;
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [command, page]);
+  }, [command, page, refreshKey]);
+
+  useEffect(() => {
+    onRowsChange?.(rows);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [rows]);
 
   function runSearch() {
     setPage(0);
-    // Same query/page (0) wouldn't re-trigger the effect above - force a
-    // reload by re-invoking directly for that one case.
-    if (page === 0) {
-      setLoading(true);
-      setError(null);
-      invoke<EntityBrowsePage>(command, { query: query.trim() || null, offset: 0, limit: PAGE_SIZE })
-        .then((result) => {
-          setRows(result.rows);
-          setTotal(result.total);
-        })
-        .catch((e) => {
-          setError(String(e));
-          setRows([]);
-          setTotal(0);
-        })
-        .finally(() => setLoading(false));
-    }
+    setRefreshKey((k) => k + 1);
   }
 
   const totalPages = Math.max(1, Math.ceil(total / PAGE_SIZE));
@@ -124,10 +144,14 @@ export function EntityBrowser({
           <p className="p-2 text-sm text-muted-foreground">Keine Treffer.</p>
         )}
         {rows.map((r) => (
-          <div key={r.vnum} className="flex items-center justify-between px-2 py-1 text-sm hover:bg-muted">
-            <span className="truncate">
-              {r.name || <span className="text-muted-foreground">(kein Name)</span>}{" "}
-              <span className="text-muted-foreground">#{r.vnum}</span>
+          <div key={r.vnum} className="flex items-center justify-between gap-2 px-2 py-1 text-sm hover:bg-muted">
+            <span className="flex min-w-0 items-center gap-2">
+              {renderLeading?.(r)}
+              <span className="truncate">
+                {r.name || <span className="text-muted-foreground">(kein Name)</span>}{" "}
+                <span className="text-muted-foreground">#{r.vnum}</span>
+                {renderTrailing?.(r)}
+              </span>
             </span>
             <Button size="sm" variant="outline" onClick={() => onPick(r)}>
               {pickLabel}

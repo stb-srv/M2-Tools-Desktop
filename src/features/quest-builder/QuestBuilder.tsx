@@ -25,6 +25,7 @@ import {
   HelpCircle,
 } from "lucide-react";
 import { openManual } from "@/lib/manual";
+import { EntityBrowser } from "@/features/shared/EntityBrowser";
 import {
   DEFAULT_FORM,
   DEFAULT_DUNGEON_FORM,
@@ -146,13 +147,11 @@ export function QuestBuilder() {
   const [createError, setCreateError] = useState<string | null>(null);
   const [creatingBusy, setCreatingBusy] = useState(false);
 
-  const [picker, setPicker] = useState<{ kind: PickerKind; onPick: (vnum: number) => void } | null>(
-    null,
-  );
-  const [pickerQuery, setPickerQuery] = useState("");
-  const [pickerResults, setPickerResults] = useState<PickResult[]>([]);
-  const [pickerSearching, setPickerSearching] = useState(false);
-  const [pickerError, setPickerError] = useState<string | null>(null);
+  const [picker, setPicker] = useState<{
+    kind: PickerKind;
+    onPick: (vnum: number) => void;
+    initialQuery?: string;
+  } | null>(null);
 
   const [deploying, setDeploying] = useState(false);
   const [deployLog, setDeployLog] = useState<string[]>([]);
@@ -444,32 +443,7 @@ export function QuestBuilder() {
   }
 
   function openPicker(kind: PickerKind, onPick: (vnum: number) => void, initialQuery?: string) {
-    setPicker({ kind, onPick });
-    setPickerQuery(initialQuery ?? "");
-    setPickerResults([]);
-    setPickerError(null);
-    if (initialQuery?.trim()) {
-      // Sucht direkt mit der übergebenen Anfrage statt auf den (noch
-      // veralteten) State zu warten - vermeidet ein Timing-Problem
-      // zwischen setPickerQuery und einem sofortigen Suchaufruf.
-      void runPickerSearch(kind, initialQuery);
-    }
-  }
-
-  async function runPickerSearch(kindOverride?: PickerKind, queryOverride?: string) {
-    const kind = kindOverride ?? picker?.kind;
-    const query = (queryOverride ?? pickerQuery).trim();
-    if (!kind || !query) return;
-    const command = kind === "item" ? "search_items" : "search_mobs";
-    await runAsyncAction(() => invoke<PickResult[]>(command, { query }), {
-      onStart: () => {
-        setPickerSearching(true);
-        setPickerError(null);
-      },
-      onSuccess: setPickerResults,
-      onError: setPickerError,
-      onFinally: () => setPickerSearching(false),
-    });
+    setPicker({ kind, onPick, initialQuery });
   }
 
   function pickValue(vnum: number) {
@@ -1718,51 +1692,14 @@ export function QuestBuilder() {
       {/* NPC/Mob/Item-Picker */}
       {picker && (
         <Modal onClose={() => setPicker(null)}>
-          <div className="space-y-2">
-            <div className="flex gap-2">
-              <input
-                autoFocus
-                value={pickerQuery}
-                onChange={(e) => setPickerQuery(e.target.value)}
-                onKeyDown={(e) => e.key === "Enter" && runPickerSearch()}
-                placeholder={
-                  picker.kind === "mob"
-                    ? "Monster nach Name oder VNUM suchen…"
-                    : picker.kind === "npc"
-                      ? "NPC nach Name oder VNUM suchen (mob_proto)…"
-                      : "Item nach Name oder VNUM suchen…"
-                }
-                className="flex-1 rounded-md border border-border bg-background px-2 py-1 text-sm"
-              />
-              <Button variant="outline" onClick={() => runPickerSearch()} disabled={pickerSearching}>
-                <Search className="size-4" />
-              </Button>
-            </div>
-            {pickerError && (
-              <p className="flex items-start gap-2 text-sm text-destructive">
-                <AlertTriangle className="mt-0.5 size-4 shrink-0" />
-                <span>{pickerError}</span>
-              </p>
-            )}
-            <div className="max-h-64 space-y-1 overflow-y-auto">
-              {pickerResults.map((r) => (
-                <div
-                  key={r.vnum}
-                  className="flex items-center justify-between rounded-md px-2 py-1 text-sm hover:bg-muted"
-                >
-                  <span>
-                    {r.name} <span className="text-muted-foreground">#{r.vnum}</span>
-                  </span>
-                  <Button size="sm" onClick={() => pickValue(r.vnum)}>
-                    Übernehmen
-                  </Button>
-                </div>
-              ))}
-              {pickerResults.length === 0 && !pickerSearching && !pickerError && (
-                <p className="p-2 text-sm text-muted-foreground">Noch keine Suche.</p>
-              )}
-            </div>
-          </div>
+          <EntityBrowser
+            kind={picker.kind === "item" ? "item" : "mob"}
+            pickLabel="Übernehmen"
+            autoFocus
+            maxHeightClass="max-h-64"
+            initialQuery={picker.initialQuery}
+            onPick={(r) => pickValue(r.vnum)}
+          />
         </Modal>
       )}
 

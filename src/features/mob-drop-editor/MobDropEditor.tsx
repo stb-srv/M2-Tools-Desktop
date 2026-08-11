@@ -1,7 +1,6 @@
 import { useEffect, useMemo, useState } from "react";
 import { invoke } from "@tauri-apps/api/core";
 import { open } from "@tauri-apps/plugin-dialog";
-import { runAsyncAction } from "@/lib/asyncAction";
 import { Button } from "@/components/ui/button";
 import {
   Search,
@@ -19,6 +18,7 @@ import {
 import { SERVER_NOTES } from "./serverNotes";
 import { formatRealDropChance } from "./dropChance";
 import { openManual } from "@/lib/manual";
+import { EntityBrowser } from "@/features/shared/EntityBrowser";
 
 interface MobDropItem {
   item_vnum: number;
@@ -60,10 +60,6 @@ export function MobDropEditor() {
   const [icons, setIcons] = useState<Record<number, string | null>>({});
 
   const [itemPicker, setItemPicker] = useState(false);
-  const [itemQuery, setItemQuery] = useState("");
-  const [itemResults, setItemResults] = useState<ItemSearchResult[]>([]);
-  const [itemSearching, setItemSearching] = useState(false);
-  const [itemSearchError, setItemSearchError] = useState<string | null>(null);
 
   const [creating, setCreating] = useState(false);
   const [newName, setNewName] = useState("");
@@ -94,10 +90,6 @@ export function MobDropEditor() {
   // Öffnen bereits die komplette Datei enthält (ein einzelnes File, kein
   // Mob-für-Mob-Nachladen nötig).
   const [reverseLookupOpen, setReverseLookupOpen] = useState(false);
-  const [reverseQuery, setReverseQuery] = useState("");
-  const [reverseResults, setReverseResults] = useState<ItemSearchResult[]>([]);
-  const [reverseSearching, setReverseSearching] = useState(false);
-  const [reverseSearchError, setReverseSearchError] = useState<string | null>(null);
   const [reverseSelectedItem, setReverseSelectedItem] = useState<ItemSearchResult | null>(null);
 
   useEffect(() => {
@@ -209,11 +201,6 @@ export function MobDropEditor() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [groups, selectedIndex]);
 
-  useEffect(() => {
-    ensureIcons(itemResults.map((r) => r.vnum));
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [itemResults]);
-
   function updateGroup(index: number, patch: Partial<MobDropGroup>) {
     setGroups((prev) => prev!.map((g, i) => (i === index ? { ...g, ...patch } : g)));
   }
@@ -236,28 +223,9 @@ export function MobDropEditor() {
     );
   }
 
-  async function runReverseSearch() {
-    if (!reverseQuery.trim()) return;
-    await runAsyncAction(
-      () => invoke<ItemSearchResult[]>("search_items", { query: reverseQuery.trim() }),
-      {
-        onStart: () => {
-          setReverseSearching(true);
-          setReverseSearchError(null);
-        },
-        onSuccess: setReverseResults,
-        onError: setReverseSearchError,
-        onFinally: () => setReverseSearching(false),
-      },
-    );
-  }
-
   function closeReverseLookup() {
     setReverseLookupOpen(false);
-    setReverseQuery("");
-    setReverseResults([]);
     setReverseSelectedItem(null);
-    setReverseSearchError(null);
   }
 
   const reverseMatches = useMemo(() => {
@@ -266,22 +234,6 @@ export function MobDropEditor() {
       .map((g, index) => ({ g, index, drop: g.items.find((it) => it.item_vnum === reverseSelectedItem.vnum) }))
       .filter((m): m is { g: MobDropGroup; index: number; drop: MobDropItem } => !!m.drop);
   }, [groups, reverseSelectedItem]);
-
-  async function runItemSearch() {
-    if (!itemQuery.trim()) return;
-    await runAsyncAction(
-      () => invoke<ItemSearchResult[]>("search_items", { query: itemQuery.trim() }),
-      {
-        onStart: () => {
-          setItemSearching(true);
-          setItemSearchError(null);
-        },
-        onSuccess: setItemResults,
-        onError: setItemSearchError,
-        onFinally: () => setItemSearching(false),
-      },
-    );
-  }
 
   function addItem(item: ItemSearchResult) {
     if (selectedIndex === null) return;
@@ -293,8 +245,6 @@ export function MobDropEditor() {
       ),
     );
     setItemPicker(false);
-    setItemQuery("");
-    setItemResults([]);
   }
 
   function submitNewGroup() {
@@ -358,6 +308,7 @@ export function MobDropEditor() {
     if (!groups) return;
     setSaving(true);
     setSaveError(null);
+    setSaveOk(null);
     setSaveConfirm(false);
     try {
       const backup =
@@ -624,14 +575,7 @@ export function MobDropEditor() {
                   <h2 className="text-sm font-medium text-muted-foreground">
                     Drops ({selected.items.length})
                   </h2>
-                  <Button
-                    size="sm"
-                    variant="outline"
-                    onClick={() => {
-                      setItemPicker(true);
-                      setItemSearchError(null);
-                    }}
-                  >
+                  <Button size="sm" variant="outline" onClick={() => setItemPicker(true)}>
                     <Plus className="size-3.5" />
                     Item hinzufügen
                   </Button>
@@ -844,49 +788,19 @@ export function MobDropEditor() {
       {/* Item-Picker */}
       {itemPicker && (
         <Modal onClose={() => setItemPicker(false)}>
-          <div className="space-y-2">
-            <div className="flex gap-2">
-              <input
-                autoFocus
-                value={itemQuery}
-                onChange={(e) => setItemQuery(e.target.value)}
-                onKeyDown={(e) => e.key === "Enter" && runItemSearch()}
-                placeholder="Item nach Name oder VNUM suchen…"
-                className="flex-1 rounded-md border border-border bg-background px-2 py-1 text-sm"
-              />
-              <Button variant="outline" onClick={runItemSearch} disabled={itemSearching}>
-                <Search className="size-4" />
-              </Button>
-            </div>
-            {itemSearchError && (
-              <p className="flex items-start gap-2 text-sm text-destructive">
-                <AlertTriangle className="mt-0.5 size-4 shrink-0" />
-                <span>{itemSearchError}</span>
-              </p>
-            )}
-            <div className="max-h-64 space-y-1 overflow-y-auto">
-              {itemResults.map((item) => (
-                <div
-                  key={item.vnum}
-                  className="flex items-center justify-between rounded-md px-2 py-1 text-sm hover:bg-muted"
-                >
-                  <span className="flex items-center gap-2">
-                    {icons[item.vnum] && (
-                      <img
-                        src={icons[item.vnum]!}
-                        alt=""
-                        className="size-6 object-contain [image-rendering:pixelated]"
-                      />
-                    )}
-                    {item.name} <span className="text-muted-foreground">#{item.vnum}</span>
-                  </span>
-                  <Button size="sm" onClick={() => addItem(item)}>
-                    Hinzufügen
-                  </Button>
-                </div>
-              ))}
-            </div>
-          </div>
+          <EntityBrowser
+            kind="item"
+            pickLabel="Hinzufügen"
+            autoFocus
+            maxHeightClass="max-h-64"
+            onPick={addItem}
+            onRowsChange={(rows) => ensureIcons(rows.map((r) => r.vnum))}
+            renderLeading={(r) =>
+              icons[r.vnum] ? (
+                <img src={icons[r.vnum]!} alt="" className="size-6 shrink-0 object-contain [image-rendering:pixelated]" />
+              ) : null
+            }
+          />
         </Modal>
       )}
 
@@ -895,45 +809,15 @@ export function MobDropEditor() {
         <Modal onClose={closeReverseLookup}>
           <div className="space-y-2">
             <p className="text-sm font-medium">Wer droppt dieses Item?</p>
-            <div className="flex gap-2">
-              <input
-                autoFocus
-                value={reverseQuery}
-                onChange={(e) => setReverseQuery(e.target.value)}
-                onKeyDown={(e) => e.key === "Enter" && runReverseSearch()}
-                placeholder="Item nach Name oder VNUM suchen…"
-                className="flex-1 rounded-md border border-border bg-background px-2 py-1 text-sm"
-              />
-              <Button variant="outline" onClick={runReverseSearch} disabled={reverseSearching}>
-                <Search className="size-4" />
-              </Button>
-            </div>
-            {reverseSearchError && (
-              <p className="flex items-start gap-2 text-sm text-destructive">
-                <AlertTriangle className="mt-0.5 size-4 shrink-0" />
-                <span>{reverseSearchError}</span>
-              </p>
-            )}
 
             {!reverseSelectedItem && (
-              <div className="max-h-64 space-y-1 overflow-y-auto">
-                {reverseResults.map((item) => (
-                  <div
-                    key={item.vnum}
-                    className="flex items-center justify-between rounded-md px-2 py-1 text-sm hover:bg-muted"
-                  >
-                    <span>
-                      {item.name} <span className="text-muted-foreground">#{item.vnum}</span>
-                    </span>
-                    <Button size="sm" onClick={() => setReverseSelectedItem(item)}>
-                      Auswählen
-                    </Button>
-                  </div>
-                ))}
-                {reverseResults.length === 0 && !reverseSearching && (
-                  <p className="p-2 text-sm text-muted-foreground">Noch keine Suche.</p>
-                )}
-              </div>
+              <EntityBrowser
+                kind="item"
+                pickLabel="Auswählen"
+                autoFocus
+                maxHeightClass="max-h-64"
+                onPick={setReverseSelectedItem}
+              />
             )}
 
             {reverseSelectedItem && (
@@ -946,11 +830,7 @@ export function MobDropEditor() {
                   </p>
                   <button
                     className="text-xs text-muted-foreground underline hover:text-foreground"
-                    onClick={() => {
-                      setReverseSelectedItem(null);
-                      setReverseResults([]);
-                      setReverseQuery("");
-                    }}
+                    onClick={() => setReverseSelectedItem(null)}
                   >
                     Anderes Item
                   </button>

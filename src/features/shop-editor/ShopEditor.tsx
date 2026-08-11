@@ -8,6 +8,7 @@ import { Gr2Canvas } from "@/features/model-viewer/Gr2Canvas";
 import type { Gr2ModelInfo } from "@/features/model-viewer/types";
 import { Minus, Plus, Search, Trash2, AlertTriangle, X, RefreshCw, HelpCircle } from "lucide-react";
 import { openManual } from "@/lib/manual";
+import { EntityBrowser } from "@/features/shared/EntityBrowser";
 
 interface ShopSummary {
   vnum: number;
@@ -110,9 +111,6 @@ export function ShopEditor() {
   const [npcModelLoading, setNpcModelLoading] = useState(false);
 
   const [cell, setCell] = useState<CellSelection | null>(null);
-  const [searchQuery, setSearchQuery] = useState("");
-  const [searchResults, setSearchResults] = useState<ItemSearchResult[]>([]);
-  const [searching, setSearching] = useState(false);
 
   const [syncConfirm, setSyncConfirm] = useState(false);
   const [syncing, setSyncing] = useState(false);
@@ -207,10 +205,6 @@ export function ShopEditor() {
     ensureIcons(shopItems.map((i) => i.item_vnum));
   }, [shopItems]);
 
-  useEffect(() => {
-    ensureIcons(searchResults.map((r) => r.vnum));
-  }, [searchResults]);
-
   function updateColumns(next: number) {
     const clamped = Math.max(1, Math.min(MAX_SLOTS, next));
     const newRows = clamped * rows > MAX_SLOTS ? Math.max(1, Math.floor(MAX_SLOTS / clamped)) : rows;
@@ -269,6 +263,7 @@ export function ShopEditor() {
 
   async function changeCount(item: ShopItem, delta: number) {
     if (!selectedShop) return;
+    const previousCount = item.count;
     const nextCount = Math.max(1, item.count + delta);
     setShopItems((prev) =>
       prev.map((i) => (i.item_vnum === item.item_vnum ? { ...i, count: nextCount } : i)),
@@ -281,6 +276,13 @@ export function ShopEditor() {
       });
     } catch (e) {
       setError(String(e));
+      // Revert the optimistic update - without this, the grid kept showing
+      // the new, unsaved count after a failed write until the shop was
+      // reselected or the page reloaded, misleading the admin into thinking
+      // the change had actually persisted.
+      setShopItems((prev) =>
+        prev.map((i) => (i.item_vnum === item.item_vnum ? { ...i, count: previousCount } : i)),
+      );
     }
   }
 
@@ -308,28 +310,8 @@ export function ShopEditor() {
       });
       await selectShop(selectedShop);
       setCell(null);
-      setSearchQuery("");
-      setSearchResults([]);
     } catch (e) {
       setError(String(e));
-    }
-  }
-
-  async function runSearch() {
-    if (!searchQuery.trim()) {
-      setSearchResults([]);
-      return;
-    }
-    setSearching(true);
-    try {
-      const results = await invoke<ItemSearchResult[]>("search_items", {
-        query: searchQuery.trim(),
-      });
-      setSearchResults(results);
-    } catch (e) {
-      setError(String(e));
-    } finally {
-      setSearching(false);
     }
   }
 
@@ -697,43 +679,19 @@ export function ShopEditor() {
               </Button>
             </div>
           ) : (
-            <div className="space-y-2">
-              <div className="flex gap-2">
-                <input
-                  autoFocus
-                  value={searchQuery}
-                  onChange={(e) => setSearchQuery(e.target.value)}
-                  onKeyDown={(e) => e.key === "Enter" && runSearch()}
-                  placeholder="Item nach Name oder VNUM suchen…"
-                  className="flex-1 rounded-md border border-border bg-background px-2 py-1 text-sm"
-                />
-                <Button variant="outline" onClick={runSearch} disabled={searching}>
-                  <Search className="size-4" />
-                </Button>
-              </div>
-              <div className="max-h-64 space-y-1 overflow-y-auto">
-                {searchResults.map((item) => (
-                  <div
-                    key={item.vnum}
-                    className="flex items-center justify-between rounded-md px-2 py-1 text-sm hover:bg-muted"
-                  >
-                    <span className="flex items-center gap-2">
-                      {icons[item.vnum] && (
-                        <img
-                          src={icons[item.vnum]!}
-                          alt={item.name}
-                          className="size-6 object-contain [image-rendering:pixelated]"
-                        />
-                      )}
-                      {item.name} <span className="text-muted-foreground">#{item.vnum}</span>
-                    </span>
-                    <Button size="sm" onClick={() => addItem(item)}>
-                      Hinzufügen
-                    </Button>
-                  </div>
-                ))}
-              </div>
-            </div>
+            <EntityBrowser
+              kind="item"
+              pickLabel="Hinzufügen"
+              autoFocus
+              maxHeightClass="max-h-64"
+              onPick={addItem}
+              onRowsChange={(rows) => ensureIcons(rows.map((r) => r.vnum))}
+              renderLeading={(r) =>
+                icons[r.vnum] ? (
+                  <img src={icons[r.vnum]!} alt="" className="size-6 shrink-0 object-contain [image-rendering:pixelated]" />
+                ) : null
+              }
+            />
           )}
         </Modal>
       )}

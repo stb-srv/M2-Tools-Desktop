@@ -108,6 +108,7 @@ function MaterialSourceHint({
   const [open, setOpen] = useState(false);
   const [shopSources, setShopSources] = useState<ShopSource[] | null>(null);
   const [shopLoading, setShopLoading] = useState(false);
+  const [shopError, setShopError] = useState<string | null>(null);
 
   async function toggle() {
     const next = !open;
@@ -116,8 +117,15 @@ function MaterialSourceHint({
     if (!mobDrops) loadMobDrops();
     if (shopSources === null) {
       setShopLoading(true);
+      setShopError(null);
       try {
         setShopSources(await invoke<ShopSource[]>("find_refine_shop_sources", { vnum: material.vnum }));
+      } catch (e) {
+        // shopSources stays null on failure - without this, it would render
+        // identically to a genuine "no shop sells this" result (real bug:
+        // (shopSources?.length ?? 0) === 0 below can't tell "empty" from
+        // "never successfully loaded" apart).
+        setShopError(String(e));
       } finally {
         setShopLoading(false);
       }
@@ -159,7 +167,8 @@ function MaterialSourceHint({
               <Store className="size-3" /> Shops
             </p>
             {shopLoading && <p className="text-muted-foreground">Lade…</p>}
-            {!shopLoading && (shopSources?.length ?? 0) === 0 && <p className="text-muted-foreground">Kein Shop gefunden.</p>}
+            {!shopLoading && shopError && <p className="text-destructive">Fehler: {shopError}</p>}
+            {!shopLoading && !shopError && (shopSources?.length ?? 0) === 0 && <p className="text-muted-foreground">Kein Shop gefunden.</p>}
             {shopSources?.map((s) => (
               <p key={s.shop_vnum}>
                 {s.shop_name} <span className="text-muted-foreground">(NPC #{s.npc_vnum})</span>

@@ -676,6 +676,25 @@ pub fn parse_mob_drop_text(content: String) -> Result<Vec<mobdrop::MobDropGroup>
     mobdrop::parse(&content)
 }
 
+/// Guards against a caller-supplied `relative_path` escaping the trusted
+/// base directory it gets joined onto (`{dir}/{relative_path}`) via `..`
+/// segments or an absolute path - used by every quest/regen file command
+/// that takes a `relative_path` directly from the frontend (read/write/
+/// delete quest file, read/write regen file). `create_quest_file` builds its
+/// own `relative_path` from already-sanitized `category`/`name` and doesn't
+/// need this. Without it, a malformed or malicious value could read,
+/// overwrite, or delete an arbitrary file on the server outside the
+/// intended quest/regen directory.
+fn safe_relative_path(relative_path: &str) -> Result<&str, String> {
+    if relative_path.is_empty()
+        || relative_path.starts_with('/')
+        || relative_path.split('/').any(|seg| seg.is_empty() || seg == "..")
+    {
+        return Err(format!("Ungültiger relativer Pfad: \"{relative_path}\"."));
+    }
+    Ok(relative_path)
+}
+
 // ---- Quest Builder ----
 //
 // Source layout verified directly on the user's dev server over SFTP (see
@@ -705,6 +724,7 @@ pub async fn read_quest_file(
     state: State<'_, AppState>,
     relative_path: String,
 ) -> Result<String, String> {
+    let relative_path = safe_relative_path(&relative_path)?;
     let (config, auth) = stored_ssh_auth(&state)?;
     let dir = quest_dir(&state)?;
     ssh::read_remote_file(&config, &auth, &format!("{dir}/{relative_path}")).await
@@ -716,6 +736,7 @@ pub async fn write_quest_file(
     relative_path: String,
     content: String,
 ) -> Result<Option<String>, String> {
+    let relative_path = safe_relative_path(&relative_path)?;
     let (config, auth) = stored_ssh_auth(&state)?;
     let dir = quest_dir(&state)?;
     ssh::write_remote_file_with_backup(&config, &auth, &format!("{dir}/{relative_path}"), &content)
@@ -769,12 +790,13 @@ pub async fn delete_quest_file(
     state: State<'_, AppState>,
     relative_path: String,
 ) -> Result<(), String> {
+    let relative_path = safe_relative_path(&relative_path)?;
     let (config, auth) = stored_ssh_auth(&state)?;
     let dir = quest_dir(&state)?;
 
     let list_path = format!("{dir}/quest_list");
     let list_content = ssh::read_remote_file(&config, &auth, &list_path).await?;
-    let updated_list = quest::quest_list_remove(&list_content, &relative_path);
+    let updated_list = quest::quest_list_remove(&list_content, relative_path);
     ssh::write_remote_file_with_backup(&config, &auth, &list_path, &updated_list).await?;
 
     ssh::delete_remote_file_with_backup(&config, &auth, &format!("{dir}/{relative_path}")).await?;
@@ -905,8 +927,13 @@ pub async fn restore_remote_backup(
     let (config, auth) = stored_ssh_auth(&state)?;
     let target_path = backups::target_path_for_backup(&backup_path)?;
 
-    let content = ssh::read_remote_file(&config, &auth, &backup_path).await?;
-    ssh::write_remote_file_with_backup(&config, &auth, &target_path, &content).await?;
+    // Byte-exact, no text decode/encode round-trip - a backup file this app
+    // itself listed could be anything a *different* editor wrote there (or
+    // even something a user manually dropped into the same m2manager_backups
+    // convention), and interpreting it as UTF-8/Windows-1252 text is lossy
+    // for genuine binary content (see ssh::encode_matching's own doc).
+    let content = ssh::read_remote_file_bytes(&config, &auth, &backup_path).await?;
+    ssh::write_remote_file_bytes_with_backup(&config, &auth, &target_path, &content).await?;
     Ok(target_path)
 }
 
@@ -920,13 +947,17 @@ pub async fn diff_remote_backup(
     let (config, auth) = stored_ssh_auth(&state)?;
     let target_path = backups::target_path_for_backup(&backup_path)?;
 
-    let backup_content = ssh::read_remote_file(&config, &auth, &backup_path).await?;
-    let current_content =
-        ssh::read_remote_file_if_exists(&config, &auth, &target_path).await?;
+    let backup_bytes = ssh::read_remote_file_bytes(&config, &auth, &backup_path).await?;
+    let current_bytes = ssh::read_remote_file_bytes_if_exists(&config, &auth, &target_path).await?;
+
+    let is_binary = ssh::looks_binary(&backup_bytes)
+        || current_bytes.as_deref().is_some_and(ssh::looks_binary);
+
     Ok(backups::BackupDiff {
         target_path,
-        backup_content,
-        current_content,
+        backup_content: ssh::decode_bytes(backup_bytes),
+        current_content: current_bytes.map(ssh::decode_bytes),
+        is_binary,
     })
 }
 
@@ -950,6 +981,7 @@ pub async fn read_regen_file(
     state: State<'_, AppState>,
     relative_path: String,
 ) -> Result<Vec<regen::RegenLine>, String> {
+    let relative_path = safe_relative_path(&relative_path)?;
     let (config, auth) = stored_ssh_auth(&state)?;
     let base = regen_base_dir(&state)?;
     let content = ssh::read_remote_file(&config, &auth, &format!("{base}/{relative_path}")).await?;
@@ -962,6 +994,7 @@ pub async fn write_regen_file(
     relative_path: String,
     lines: Vec<regen::RegenLine>,
 ) -> Result<Option<String>, String> {
+    let relative_path = safe_relative_path(&relative_path)?;
     let (config, auth) = stored_ssh_auth(&state)?;
     let base = regen_base_dir(&state)?;
     let content = regen::serialize(&lines);
@@ -2098,11 +2131,17 @@ async fn write_target_with_backup(
         }
         TargetKind::LocalClientSource | TargetKind::LocalClientInstall => {
             let p = std::path::Path::new(path);
+            // Read before backup_file() renames the file away, same
+            // rationale as write_remote_file_with_backup - a local client
+            // source/install file can be Windows-1252 (see ssh::encode_matching)
+            // just as easily as a remote one.
+            let original_bytes = std::fs::read(p).ok();
             let backup = packtools::backup_file(p)?;
             if let Some(parent) = p.parent() {
                 std::fs::create_dir_all(parent).map_err(|e| e.to_string())?;
             }
-            std::fs::write(p, content).map_err(|e| e.to_string())?;
+            std::fs::write(p, ssh::encode_matching(content, original_bytes.as_deref()))
+                .map_err(|e| e.to_string())?;
             Ok(backup.map(|b| b.display().to_string()))
         }
     }
@@ -2133,8 +2172,11 @@ async fn restore_from_backup(
     match category {
         TargetKind::LiveServer => {
             let (config, auth) = stored_ssh_auth(state)?;
-            let content = ssh::read_remote_file(&config, &auth, backup_path).await?;
-            ssh::write_remote_file_with_backup(&config, &auth, target_path, &content).await?;
+            // Byte-exact, same reasoning as restore_remote_backup above -
+            // this is a straight "put the backup back" operation, no text
+            // interpretation needed or wanted.
+            let content = ssh::read_remote_file_bytes(&config, &auth, backup_path).await?;
+            ssh::write_remote_file_bytes_with_backup(&config, &auth, target_path, &content).await?;
             Ok(())
         }
         TargetKind::LocalClientSource | TargetKind::LocalClientInstall => {
@@ -2393,6 +2435,21 @@ pub async fn undo_system_install(state: State<'_, AppState>, id: i64) -> Result<
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    // Regression test for a real finding: read_quest_file/write_quest_file/
+    // delete_quest_file/read_regen_file/write_regen_file all joined a
+    // caller-supplied relative_path directly onto a trusted base dir with no
+    // validation - a "../" segment could escape the intended quest/regen
+    // directory entirely.
+    #[test]
+    fn safe_relative_path_rejects_traversal_and_absolute_paths() {
+        assert!(safe_relative_path("Biologie/Biochecker.lua").is_ok());
+        assert!(safe_relative_path("../../../etc/passwd").is_err());
+        assert!(safe_relative_path("Biologie/../../../etc/passwd").is_err());
+        assert!(safe_relative_path("/etc/passwd").is_err());
+        assert!(safe_relative_path("").is_err());
+        assert!(safe_relative_path("Biologie//Biochecker.lua").is_err());
+    }
 
     async fn real_pool() -> sqlx::MySqlPool {
         let conn = rusqlite::Connection::open(
