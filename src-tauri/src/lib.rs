@@ -3,11 +3,15 @@
 #![allow(linker_messages)]
 
 mod backups;
+mod bans;
 mod broadcast;
 mod build_deploy;
 mod commands;
 mod credentials;
+mod cube;
 mod db;
+mod drop_item_group;
+mod etc_drop;
 mod gr2;
 mod icons;
 mod imageconv;
@@ -39,11 +43,31 @@ mod weather;
 use state::AppState;
 use tauri::Manager;
 
+// Der Lese-Token für die privaten GitHub-Release-Assets wird nur zur
+// Build-Zeit eingebettet (`option_env!`, bewusst NICHT `env!` - `env!` würde
+// jeden lokalen `cargo check`/Dev-Build ohne gesetzte Variable hart brechen).
+// Ohne gesetzten `GH_RELEASE_TOKEN` (z.B. bei einem normalen lokalen
+// Dev-Build) bleibt der Header einfach weg - eine Update-Prüfung schlägt
+// dann erwartungsgemäß fehl (401/404 auf das private Repo), die App stürzt
+// dabei aber nicht ab. Nur der offizielle CI-Release-Build
+// (.github/workflows/release.yml) setzt diese Variable wirklich.
+fn build_updater_plugin<R: tauri::Runtime>() -> tauri::plugin::TauriPlugin<R, tauri_plugin_updater::Config> {
+    let mut builder = tauri_plugin_updater::Builder::new();
+    if let Some(token) = option_env!("GH_RELEASE_TOKEN") {
+        builder = builder
+            .header("Authorization", format!("Bearer {token}"))
+            .expect("GH_RELEASE_TOKEN must be a valid HTTP header value");
+    }
+    builder.build()
+}
+
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
     tauri::Builder::default()
         .plugin(tauri_plugin_opener::init())
         .plugin(tauri_plugin_dialog::init())
+        .plugin(build_updater_plugin())
+        .plugin(tauri_plugin_process::init())
         .setup(|app| {
             let app_data_dir = app
                 .path()
@@ -66,9 +90,12 @@ pub fn run() {
             commands::read_special_item_group_file,
             commands::write_special_item_group_file,
             commands::sanitize_special_item_group_name,
+            commands::read_cube_file,
+            commands::write_cube_file,
             commands::read_local_text_file,
             commands::parse_mob_drop_text,
             commands::write_local_mob_drop_file,
+            commands::export_text_file,
             commands::convert_image_to_tga,
             commands::preview_image_file,
             commands::run_server_command,
@@ -92,7 +119,21 @@ pub fn run() {
             commands::list_accounts,
             commands::count_accounts,
             commands::create_account,
+            commands::read_common_drop_file,
+            commands::write_common_drop_file,
+            commands::read_etc_drop_file,
+            commands::write_etc_drop_file,
+            commands::read_drop_item_group_file,
+            commands::write_drop_item_group_file,
+            commands::get_item_internal_name,
+            commands::find_item_by_internal_name,
             commands::reset_account_password,
+            commands::ban_account,
+            commands::unban_account,
+            commands::list_account_bans,
+            commands::process_due_bans,
+            commands::adjust_player_gold,
+            commands::adjust_account_numeric_column,
             commands::list_databases,
             commands::list_tables,
             commands::get_table_columns,
@@ -102,6 +143,7 @@ pub fn run() {
             commands::get_shop_items,
             commands::search_items,
             commands::browse_items,
+            commands::browse_item_proto,
             commands::update_shop_item_count,
             commands::add_shop_item,
             commands::remove_shop_item,

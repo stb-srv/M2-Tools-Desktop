@@ -1,11 +1,13 @@
 import "@/i18n";
 import { lazy, Suspense, useEffect, useState } from "react";
 import { invoke } from "@tauri-apps/api/core";
+import { check } from "@tauri-apps/plugin-updater";
 import { autoConnectMysql } from "@/lib/mysqlConnect";
 import { Sidebar } from "@/components/layout/Sidebar";
 import { CommandPalette } from "@/components/CommandPalette";
 import { CrashWatch } from "@/components/CrashWatch";
 import { useNavigationStore } from "@/store/navigation";
+import { useUpdateStore } from "@/store/updateStore";
 import { Dashboard } from "@/features/dashboard/Dashboard";
 import { SetupWizard } from "@/features/setup/SetupWizard";
 
@@ -21,11 +23,14 @@ const ServerEvents = lazy(() => import("@/features/server-events/ServerEvents").
 const DbExplorer = lazy(() => import("@/features/db-explorer/DbExplorer").then((m) => ({ default: m.DbExplorer })));
 const ShopEditor = lazy(() => import("@/features/shop-editor/ShopEditor").then((m) => ({ default: m.ShopEditor })));
 const ItemEditor = lazy(() => import("@/features/item-editor/ItemEditor").then((m) => ({ default: m.ItemEditor })));
+const ItemProtoExplorer = lazy(() => import("@/features/item-proto-explorer/ItemProtoExplorer").then((m) => ({ default: m.ItemProtoExplorer })));
 const ModuleImporter = lazy(() => import("@/features/module-importer/ModuleImporter").then((m) => ({ default: m.ModuleImporter })));
 const MobProtoEditor = lazy(() => import("@/features/mob-proto-editor/MobProtoEditor").then((m) => ({ default: m.MobProtoEditor })));
 const MobDropEditor = lazy(() => import("@/features/mob-drop-editor/MobDropEditor").then((m) => ({ default: m.MobDropEditor })));
+const DropGenerator = lazy(() => import("@/features/drop-generator/DropGenerator").then((m) => ({ default: m.DropGenerator })));
 const RefineEditor = lazy(() => import("@/features/refine-editor/RefineEditor").then((m) => ({ default: m.RefineEditor })));
 const BoxEditor = lazy(() => import("@/features/box-editor/BoxEditor").then((m) => ({ default: m.BoxEditor })));
+const CubeEditor = lazy(() => import("@/features/cube-editor/CubeEditor").then((m) => ({ default: m.CubeEditor })));
 const QuestBuilder = lazy(() => import("@/features/quest-builder/QuestBuilder").then((m) => ({ default: m.QuestBuilder })));
 const RegenEditor = lazy(() => import("@/features/regen-editor/RegenEditor").then((m) => ({ default: m.RegenEditor })));
 const LocaleEditor = lazy(() => import("@/features/locale-editor/LocaleEditor").then((m) => ({ default: m.LocaleEditor })));
@@ -35,6 +40,7 @@ const TgaConverter = lazy(() => import("@/features/tga-converter/TgaConverter").
 const IconBrowser = lazy(() => import("@/features/icon-browser/IconBrowser").then((m) => ({ default: m.IconBrowser })));
 const ModelViewer = lazy(() => import("@/features/model-viewer/ModelViewer").then((m) => ({ default: m.ModelViewer })));
 const AccountManager = lazy(() => import("@/features/account-manager/AccountManager").then((m) => ({ default: m.AccountManager })));
+const GmManager = lazy(() => import("@/features/gm-manager/GmManager").then((m) => ({ default: m.GmManager })));
 const SystemInstaller = lazy(() => import("@/features/system-installer/SystemInstaller").then((m) => ({ default: m.SystemInstaller })));
 const BroadcastSystem = lazy(() => import("@/features/broadcast/BroadcastSystem").then((m) => ({ default: m.BroadcastSystem })));
 const WeatherControl = lazy(() => import("@/features/weather/WeatherControl").then((m) => ({ default: m.WeatherControl })));
@@ -65,6 +71,22 @@ function App() {
     autoConnectMysql().finally(() => setMysqlChecked(true));
   }, [setupChecked, setupCompleted]);
 
+  // Leiser Hintergrund-Check beim Start - zeigt bei Erfolg nur den kleinen
+  // Punkt am Einstellungen-Eintrag (siehe Sidebar.tsx/updateStore.ts), keine
+  // Zwangsinstallation. Schlägt lautlos fehl (privates Repo ohne Token in
+  // lokalen Dev-Builds, kein Internet, o.ä.) - siehe build_updater_plugin()
+  // in lib.rs für die Token-Einbettung.
+  useEffect(() => {
+    if (!setupChecked || !setupCompleted) return;
+    check()
+      .then((update) => {
+        if (update) {
+          useUpdateStore.getState().setAvailable({ version: update.version, notes: update.body ?? null });
+        }
+      })
+      .catch(() => {});
+  }, [setupChecked, setupCompleted]);
+
   if (!setupChecked) {
     return <div className="h-screen bg-background" />;
   }
@@ -91,11 +113,14 @@ function App() {
           {section === "db-explorer" && <DbExplorer />}
           {section === "shop-editor" && <ShopEditor />}
           {section === "item-editor" && <ItemEditor />}
+          {section === "item-proto-explorer" && <ItemProtoExplorer />}
           {section === "module-importer" && <ModuleImporter />}
           {section === "mob-proto-editor" && <MobProtoEditor />}
           {section === "mob-drop-editor" && <MobDropEditor />}
+          {section === "drop-generator" && <DropGenerator />}
           {section === "refine-editor" && <RefineEditor />}
           {section === "box-editor" && <BoxEditor />}
+          {section === "cube-editor" && <CubeEditor />}
           {section === "quest-builder" && <QuestBuilder />}
           {section === "regen-editor" && <RegenEditor />}
           {section === "locale-editor" && <LocaleEditor />}
@@ -105,6 +130,7 @@ function App() {
           {section === "icon-browser" && <IconBrowser />}
           {section === "model-viewer" && <ModelViewer />}
           {section === "account-manager" && <AccountManager />}
+          {section === "gm-manager" && <GmManager />}
           {section === "system-installer" && <SystemInstaller />}
           {section === "broadcast-system" && <BroadcastSystem />}
           {section === "weather-control" && <WeatherControl />}

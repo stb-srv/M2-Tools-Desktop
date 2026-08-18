@@ -14,11 +14,13 @@ import {
   FolderOpen,
   Crosshair,
   HelpCircle,
+  Download,
 } from "lucide-react";
 import { SERVER_NOTES } from "./serverNotes";
-import { formatRealDropChance } from "./dropChance";
+import { formatRealDropChance, realDropChancePercent } from "./dropChance";
 import { openManual } from "@/lib/manual";
 import { EntityBrowser } from "@/features/shared/EntityBrowser";
+import { exportRowsAsCsv } from "@/lib/exportCsv";
 
 interface MobDropItem {
   item_vnum: number;
@@ -85,6 +87,8 @@ export function MobDropEditor() {
   const [saveOk, setSaveOk] = useState<string | null>(null);
 
   const [serverInfoOpen, setServerInfoOpen] = useState(false);
+  const [exporting, setExporting] = useState(false);
+  const [exportError, setExportError] = useState<string | null>(null);
 
   // Reverse-Suche "wer droppt Item X" - rein clientseitig, da `groups` beim
   // Öffnen bereits die komplette Datei enthält (ein einzelnes File, kein
@@ -323,6 +327,42 @@ export function MobDropEditor() {
     }
   }
 
+  // Exportiert genau die Mobs, die die aktuelle Suche (Name/VNUM) gerade
+  // zeigt - z.B. "Metin" eintippen und alle Metin-Mobs samt ihren Drops als
+  // CSV rausschreiben, statt jeden einzeln manuell abzuschreiben.
+  async function exportFiltered() {
+    setExportError(null);
+    setExporting(true);
+    try {
+      const rows = filteredGroups.flatMap(({ g }) =>
+        g.items.length > 0
+          ? g.items.map((item) => [
+              g.name,
+              g.mob_vnum,
+              g.drop_type,
+              item.item_vnum,
+              item.count,
+              item.percent,
+              realDropChancePercent(item.percent).toFixed(4),
+            ])
+          : [[g.name, g.mob_vnum, g.drop_type, "", "", "", ""]],
+      );
+      await exportRowsAsCsv("mob_drop_export.csv", [
+        "Gruppe",
+        "Mob-VNUM",
+        "Drop-Typ",
+        "Item-VNUM",
+        "Anzahl",
+        "Prozent (Datei)",
+        "Prozent (real)",
+      ], rows);
+    } catch (e) {
+      setExportError(String(e));
+    } finally {
+      setExporting(false);
+    }
+  }
+
   function reload() {
     if (source === "server") loadFromServer();
     else if (localPath) loadLocalContent(localPath);
@@ -417,6 +457,15 @@ export function MobDropEditor() {
           </Button>
           <Button
             variant="outline"
+            onClick={exportFiltered}
+            disabled={!groups || exporting || filteredGroups.length === 0}
+            title="Exportiert die aktuell gefilterte Mob-Liste (siehe Suchfeld) als CSV"
+          >
+            <Download className="size-4" />
+            {exporting ? "Exportiere…" : "Exportieren"}
+          </Button>
+          <Button
+            variant="outline"
             onClick={reload}
             disabled={loading || (source === "local" && !localPath)}
           >
@@ -445,6 +494,7 @@ export function MobDropEditor() {
       </div>
 
       {saveError && <p className="text-sm text-destructive">{saveError}</p>}
+      {exportError && <p className="text-sm text-destructive">{exportError}</p>}
 
       {source === "local" && localPath && (
         <p className="text-xs text-muted-foreground">

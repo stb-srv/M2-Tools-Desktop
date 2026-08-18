@@ -13,7 +13,8 @@ interface EntityBrowsePage {
   total: number;
 }
 
-const PAGE_SIZE = 20;
+const PAGE_SIZE_OPTIONS = [20, 50, 100, 200] as const;
+const DEFAULT_PAGE_SIZE = 20;
 
 // Vorher hatten Item Editor/Aufwertungs-Editor/Mob-Proto-Editor je ihre
 // eigene, reine Such-Anzeige: eine Zahlen-Suche wie "7000" ohne exakten
@@ -58,6 +59,7 @@ export function EntityBrowser({
 }) {
   const [query, setQuery] = useState(initialQuery ?? "");
   const [page, setPage] = useState(0);
+  const [pageSize, setPageSize] = useState(DEFAULT_PAGE_SIZE);
   // Bumped by runSearch() so a manual re-search always re-triggers the
   // effect below, even when page is already 0 and wouldn't otherwise change.
   // Real bug this replaced: runSearch() used to fire its own separate
@@ -81,8 +83,8 @@ export function EntityBrowser({
     setError(null);
     invoke<EntityBrowsePage>(command, {
       query: query.trim() || null,
-      offset: page * PAGE_SIZE,
-      limit: PAGE_SIZE,
+      offset: page * pageSize,
+      limit: pageSize,
     })
       .then((result) => {
         if (cancelled) return;
@@ -102,7 +104,7 @@ export function EntityBrowser({
       cancelled = true;
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [command, page, refreshKey]);
+  }, [command, page, pageSize, refreshKey]);
 
   useEffect(() => {
     onRowsChange?.(rows);
@@ -114,7 +116,12 @@ export function EntityBrowser({
     setRefreshKey((k) => k + 1);
   }
 
-  const totalPages = Math.max(1, Math.ceil(total / PAGE_SIZE));
+  function changePageSize(next: number) {
+    setPageSize(next);
+    setPage(0);
+  }
+
+  const totalPages = Math.max(1, Math.ceil(total / pageSize));
 
   return (
     <div className="space-y-2">
@@ -160,28 +167,47 @@ export function EntityBrowser({
         ))}
       </div>
 
-      {total > PAGE_SIZE && (
+      {total > 0 && (
         <div className="flex items-center justify-between text-xs text-muted-foreground">
           <span>
-            {total.toLocaleString("de-DE")} Treffer · Seite {page + 1}/{totalPages}
+            {total.toLocaleString("de-DE")} Treffer
+            {totalPages > 1 && ` · Seite ${page + 1}/${totalPages}`}
           </span>
-          <div className="flex gap-1">
-            <Button
-              variant="outline"
-              size="icon-sm"
-              onClick={() => setPage((p) => Math.max(0, p - 1))}
-              disabled={page === 0 || loading}
-            >
-              <ChevronLeft className="size-3.5" />
-            </Button>
-            <Button
-              variant="outline"
-              size="icon-sm"
-              onClick={() => setPage((p) => Math.min(totalPages - 1, p + 1))}
-              disabled={page >= totalPages - 1 || loading}
-            >
-              <ChevronRight className="size-3.5" />
-            </Button>
+          <div className="flex items-center gap-2">
+            <label className="flex items-center gap-1">
+              pro Seite
+              <select
+                value={pageSize}
+                onChange={(e) => changePageSize(Number(e.target.value))}
+                className="rounded-md border border-border bg-background px-1 py-0.5 text-xs"
+              >
+                {PAGE_SIZE_OPTIONS.map((size) => (
+                  <option key={size} value={size}>
+                    {size}
+                  </option>
+                ))}
+              </select>
+            </label>
+            {totalPages > 1 && (
+              <div className="flex gap-1">
+                <Button
+                  variant="outline"
+                  size="icon-sm"
+                  onClick={() => setPage((p) => Math.max(0, p - 1))}
+                  disabled={page === 0 || loading}
+                >
+                  <ChevronLeft className="size-3.5" />
+                </Button>
+                <Button
+                  variant="outline"
+                  size="icon-sm"
+                  onClick={() => setPage((p) => Math.min(totalPages - 1, p + 1))}
+                  disabled={page >= totalPages - 1 || loading}
+                >
+                  <ChevronRight className="size-3.5" />
+                </Button>
+              </div>
+            )}
           </div>
         </div>
       )}

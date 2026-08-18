@@ -131,6 +131,76 @@ pub async fn reset_password(pool: &MySqlPool, id: i32, new_password: &str) -> Re
     Ok(())
 }
 
+/// Setzt `account.account.status` auf einen beliebigen String. Der
+/// Login-Server vergleicht beim Anmelden nur `status == "OK"` (verifiziert:
+/// `game-src/source/game/src/db.cpp:367`, `input_db.cpp:121-130`) - jeder
+/// andere Wert sperrt das Konto, UND wird wörtlich als Fehlermeldung am
+/// Login-Screen angezeigt. Es gibt keine feste Werte-Liste im Quellcode
+/// (kein Enum, kein "BLOCK"/"BANNED") und keine serverseitige
+/// Zeitsteuerung - das übernimmt `bans.rs` rein lokal in M2Manager.
+pub async fn set_status(pool: &MySqlPool, id: i32, status: &str) -> Result<(), String> {
+    let result = sqlx::query("UPDATE account.account SET status = ? WHERE id = ?")
+        .bind(status)
+        .bind(id)
+        .execute(pool)
+        .await
+        .map_err(|e| e.to_string())?;
+    if result.rows_affected() == 0 {
+        return Err(format!("Account #{id} nicht gefunden."));
+    }
+    Ok(())
+}
+
+/// Yang ist `player.player.gold` (verifiziert: `char.h:342`
+/// `long long gold;`, Accessoren `char.h:913-914`), pro Charakter, nicht pro
+/// Account. Additiv statt Lesen+Schreiben vom Client aus - atomar und ohne
+/// Rundungs-/Race-Risiko bei einem Geldwert.
+pub async fn adjust_player_gold(pool: &MySqlPool, player_id: i32, delta: i64) -> Result<i64, String> {
+    let result = sqlx::query("UPDATE player.player SET gold = gold + ? WHERE id = ?")
+        .bind(delta)
+        .bind(player_id)
+        .execute(pool)
+        .await
+        .map_err(|e| e.to_string())?;
+    if result.rows_affected() == 0 {
+        return Err(format!("Spieler #{player_id} nicht gefunden."));
+    }
+    let new_value: i64 = sqlx::query_scalar("SELECT gold FROM player.player WHERE id = ?")
+        .bind(player_id)
+        .fetch_one(pool)
+        .await
+        .map_err(|e| e.to_string())?;
+    Ok(new_value)
+}
+
+/// Additive Anpassung einer beliebigen numerischen Konto-Spalte (z.B. eine
+/// unverifizierte Zusatzwährung wie "Drachenmünzen"/"Drachenmarken", falls
+/// eine solche Spalte auf diesem Core existiert - im Server-Quellcode nicht
+/// gefunden, siehe Recherche-Notiz). `column` MUSS vorher vom Aufrufer gegen
+/// eine frisch per `get_table_columns` geholte, echte Spaltenliste geprüft
+/// worden sein (siehe `commands::adjust_account_numeric_column`) - ein
+/// Spaltenname lässt sich nicht parametrisiert binden, ungeprüftes
+/// Interpolieren wäre SQL-Injection.
+pub async fn adjust_account_numeric_column(pool: &MySqlPool, account_id: i32, column: &str, delta: i64) -> Result<i64, String> {
+    let sql = format!("UPDATE account.account SET `{column}` = `{column}` + ? WHERE id = ?");
+    let result = sqlx::query(&sql)
+        .bind(delta)
+        .bind(account_id)
+        .execute(pool)
+        .await
+        .map_err(|e| e.to_string())?;
+    if result.rows_affected() == 0 {
+        return Err(format!("Account #{account_id} nicht gefunden."));
+    }
+    let select = format!("SELECT `{column}` FROM account.account WHERE id = ?");
+    let new_value: i64 = sqlx::query_scalar(&select)
+        .bind(account_id)
+        .fetch_one(pool)
+        .await
+        .map_err(|e| e.to_string())?;
+    Ok(new_value)
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;

@@ -25,3 +25,11 @@ dist-ssr
 
 # External reference tools (large binaries, not project source)
 RegenEditor/*.exe
+
+# Sicherheitsnetz: falls ein "~"-Pfad je wieder wörtlich statt als
+# Home-Verzeichnis interpretiert wird (passiert in cmd.exe, nicht in
+# PowerShell/Bash) - verhindert, dass ein privater Signierschlüssel o.ä.
+# versehentlich im Repo landet und committed wird.
+*.key
+*.key.pub
+/~/

@@ -24,6 +24,10 @@ import {
   Sparkles,
   Megaphone,
   Moon,
+  Table2,
+  Beaker,
+  Shield,
+  Dices,
 } from "lucide-react";
 
 export type Section =
@@ -34,11 +38,14 @@ export type Section =
   | "db-explorer"
   | "shop-editor"
   | "item-editor"
+  | "item-proto-explorer"
   | "module-importer"
   | "mob-proto-editor"
   | "mob-drop-editor"
+  | "drop-generator"
   | "refine-editor"
   | "box-editor"
+  | "cube-editor"
   | "quest-builder"
   | "regen-editor"
   | "locale-editor"
@@ -48,6 +55,7 @@ export type Section =
   | "icon-browser"
   | "model-viewer"
   | "account-manager"
+  | "gm-manager"
   | "system-installer"
   | "broadcast-system"
   | "weather-control"
@@ -103,17 +111,21 @@ export const NAV_ITEMS: { section: Section; icon: typeof LayoutDashboard; labelK
   { section: "server-control", icon: Terminal, labelKey: "nav.serverControl", category: "overview" },
   { section: "build-deploy", icon: Wrench, labelKey: "nav.buildDeploy", category: "overview" },
   { section: "item-editor", icon: PackagePlus, labelKey: "nav.itemEditor", category: "items" },
+  { section: "item-proto-explorer", icon: Table2, labelKey: "nav.itemProtoExplorer", category: "items" },
   { section: "module-importer", icon: PackageSearch, labelKey: "nav.moduleImporter", category: "items" },
   { section: "refine-editor", icon: Hammer, labelKey: "nav.refineEditor", category: "items" },
   { section: "box-editor", icon: Package, labelKey: "nav.boxEditor", category: "items" },
+  { section: "cube-editor", icon: Beaker, labelKey: "nav.cubeEditor", category: "items" },
   { section: "shop-editor", icon: Store, labelKey: "nav.shopEditor", category: "shopsMonsters" },
   { section: "mob-proto-editor", icon: PawPrint, labelKey: "nav.mobProtoEditor", category: "shopsMonsters" },
   { section: "mob-drop-editor", icon: Skull, labelKey: "nav.mobDropEditor", category: "shopsMonsters" },
+  { section: "drop-generator", icon: Dices, labelKey: "nav.dropGenerator", category: "shopsMonsters" },
   { section: "quest-builder", icon: ScrollText, labelKey: "nav.questBuilder", category: "questsWorld" },
   { section: "regen-editor", icon: Sprout, labelKey: "nav.regenEditor", category: "questsWorld" },
   { section: "locale-editor", icon: Languages, labelKey: "nav.localeEditor", category: "questsWorld" },
   { section: "server-events", icon: Sparkles, labelKey: "nav.serverEvents", category: "serverAdmin" },
   { section: "account-manager", icon: Users, labelKey: "nav.accountManager", category: "serverAdmin" },
+  { section: "gm-manager", icon: Shield, labelKey: "nav.gmManager", category: "serverAdmin" },
   { section: "db-explorer", icon: Database, labelKey: "nav.dbExplorer", category: "serverAdmin" },
   { section: "broadcast-system", icon: Megaphone, labelKey: "nav.broadcastSystem", category: "serverAdmin" },
   { section: "weather-control", icon: Moon, labelKey: "nav.weatherControl", category: "serverAdmin" },

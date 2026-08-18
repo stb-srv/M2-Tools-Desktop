@@ -76,7 +76,30 @@ const SEASONAL_FLAGS: SeasonalFlagDef[] = [
   { name: "horse_skill_book_drop", label: "Pferde-Skillbuch-Drop", hint: "Zusätzlicher Sonder-Drop.", min: 1000, fallbackDefault: 1000000 },
 ];
 
-const CURATED_NAMES = new Set([...RATE_FLAGS, ...RATE_FLAGS_PREMIUM, ...SEASONAL_FLAGS].map((f) => f.name));
+// Nicht Teil des Drop-Rate/Saison-Mechanismus - eigene Hooks direkt in
+// `SetEventFlag` (questmanager.cpp:1132 -> xmas_event.cpp:13
+// ProcessEventFlag), mit echten Sichtbarkeits-/Spawn-Effekten statt nur
+// einer Drop-Chance. Wert 1 = an, 0 = aus (kein Prozent-Multiplikator wie
+// bei den Rate-Flags oben).
+const SPECIAL_EVENT_FLAGS: FlagDef[] = [
+  { name: "xmas_snow", label: "Schneefall (visuell)", hint: "Rein clientseitiger Effekt, kein Spawn - 1 = an, 0 = aus." },
+  { name: "xmas_song", label: "Weihnachtsmusik (visuell)", hint: "Rein clientseitiger Effekt, kein Spawn - 1 = an, 0 = aus." },
+  {
+    name: "xmas_boom",
+    label: "Event-Helfer-NPC",
+    hint: "Spawnt/entfernt den Event-Helfer-NPC (dieselbe Funktion, die auch der GM-Befehl event_helper auslöst) - 1 = an, 0 = aus.",
+  },
+  {
+    name: "xmas_tree",
+    label: "Weihnachtsbaum-Mob",
+    hint: "Spawnt/entfernt einen echten Mob (MOB_XMAS_TREE) an einer festen Koordinate auf Map 61 - 1 = an, 0 = aus.",
+  },
+  { name: "eclipse", label: "Sonnenfinsternis", hint: "Reines Flag (derselbe Effekt wie der GM-Befehl eclipse) - 1 = an, 0 = aus." },
+];
+
+const CURATED_NAMES = new Set(
+  [...RATE_FLAGS, ...RATE_FLAGS_PREMIUM, ...SEASONAL_FLAGS, ...SPECIAL_EVENT_FLAGS].map((f) => f.name),
+);
 
 function gmCommand(name: string, value: string) {
   return `eventflag ${name} ${value || 0}`;
@@ -312,6 +335,24 @@ export function ServerEvents() {
             def={def}
             currentValue={flagMap.get(def.name)}
             unsetHint={`Nicht gesetzt - Event ist aus. Server-Vorgabewert, falls unterhalb von ${def.min} gesetzt: ${def.fallbackDefault}.`}
+            onSave={saveFlag}
+            onReset={resetFlag}
+            busy={busyName === def.name}
+          />
+        ))}
+      </Section>
+
+      <Section title="Sichtbare Events (Sound/Schnee/NPC/Mob-Spawn)" defaultOpen={false}>
+        <p className="mb-2 text-xs text-muted-foreground">
+          Kein separates Event-System - dieselben Flags wie oben, aber mit echten Spawn-/
+          Sichtbarkeits-Effekten statt einer Drop-Chance. 1 = an, 0 = aus.
+        </p>
+        {SPECIAL_EVENT_FLAGS.map((def) => (
+          <FlagRow
+            key={def.name}
+            def={def}
+            currentValue={flagMap.get(def.name)}
+            unsetHint="Nicht gesetzt - aus."
             onSave={saveFlag}
             onReset={resetFlag}
             busy={busyName === def.name}

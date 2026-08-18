@@ -27,3 +27,24 @@ Schnelle Navigation über alle Editor-Tabs und evtl. auch direkte Aktionen (z.B.
 
 ## Icon-/Textur-Browser
 Visuelles Durchblättern aller Icons in `icon.epk`, um beim Anlegen eines Items ein Icon auszuwählen statt die vnum-Zuordnung schon zu kennen.
+
+---
+
+## Gesammelt am 2026-08-14
+
+**Alle 5 Ideen unten wurden noch am selben Tag umgesetzt** — Details siehe `STATUS.md` ("Alle 5 Ideen aus einer neuen Ideen-Session umgesetzt"). Diese Datei bleibt als historische Ideensammlung erhalten.
+
+## Konfigurierbare/höhere Seitengröße im EntityBrowser
+Nutzerkritik: aktuell sieht man pro Seite nur wenige Treffer (`EntityBrowser.tsx`s `PAGE_SIZE = 20`, vom Nutzer als "maximal 10" wahrgenommen — tatsächlicher Wert noch zu verifizieren gegen das, was live im UI ankommt). Wunsch: einstellbar (z.B. Dropdown 20/50/100) statt fest verdrahtet. Betrifft Item Editor, Aufwertungs-Editor, Mob-Proto-Editor (alle nutzen den geteilten `EntityBrowser`).
+
+## Export-Funktion für Suchergebnisse
+Beispiel-Anwendungsfall des Nutzers: im Mob Drop Editor nach "Metin" suchen und sich alle Treffer (alle Mobs, deren Drops das gesuchte Item enthalten, bzw. alle Mobs mit "Metin" im Namen) exportieren lassen. Vermutlich CSV/JSON-Export einer aktuell angezeigten (gefilterten) Ergebnisliste — noch zu klären, für welche Module das zuerst gebaut werden soll (Mob Drop Editor, EntityBrowser, DB Explorer sind Kandidaten).
+
+## Item-Proto-Explorer
+Ein durchblätterbarer/durchsuchbarer Überblick über die komplette `item_proto`-Tabelle (ähnlich DB Explorer, aber item-spezifisch aufbereitet — vermutlich mit Icons/Namen/Typ statt Rohspalten). Abgrenzung zum bereits vorhandenen DB Explorer und EntityBrowser noch zu klären.
+
+## Cube.txt-Editor ("Verwandlung"/Kombinations-System)
+Liegt laut Nutzer auf dem Server. Format/Speicherort (Datei vs. DB-Tabelle) und Boot-Time-only-vs.-reload-fähig sind noch nicht gegen den echten Server-Quellcode verifiziert (Recherche läuft) — ähnliches Muster wie beim Kisten-Editor/Aufwertungs-Editor, wo die reale Mechanik erst im Quellcode nachgewiesen wurde, bevor gebaut wurde.
+
+## Schnelleres GM-Anlegen
+Modul, um neue GM-Accounts schneller anzulegen als über die bestehende Account-Verwaltung. Wie GM-Rechte auf diesem Server tatsächlich vergeben werden (Spalte in `account`, oder eine separate serverseitige Konfigurationsdatei mit Account-Namen+Level) ist noch nicht verifiziert (Recherche läuft) — sensibler Bereich, da er Berechtigungen vergibt, ähnlich vorsichtig zu behandeln wie die bestehende Account-Verwaltung.

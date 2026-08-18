@@ -1,6 +1,6 @@
 [package]
 name = "m2manager"
-version = "0.14.0"
+version = "0.15.0"
 description = "M2Manager - Metin2 Server Management Desktop App"
 authors = ["you"]
 edition = "2021"
@@ -28,6 +28,8 @@ rusqlite = { version = "0.32", features = ["bundled"] }
 keyring = { version = "3", features = ["windows-native"] }
 tokio = { version = "1", features = ["full"] }
 tauri-plugin-dialog = "2.7.2"
+tauri-plugin-updater = "2"
+tauri-plugin-process = "2"
 encoding_rs = "0.8.35"
 image = { version = "0.25.10", default-features = false, features = ["tga", "png", "jpeg", "bmp", "gif"] }
 base64 = "0.23.0"

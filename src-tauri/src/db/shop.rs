@@ -30,7 +30,7 @@ pub struct ItemSearchResult {
 // item_proto/mob_proto .name/.locale_name columns are `varbinary` holding
 // Windows-1252-encoded text (umlauts etc. aren't valid UTF-8 start bytes),
 // so decode explicitly rather than assuming UTF-8.
-fn decode_name(bytes: &[u8]) -> String {
+pub(crate) fn decode_name(bytes: &[u8]) -> String {
     let trimmed = bytes
         .split(|&b| b == 0)
         .next()

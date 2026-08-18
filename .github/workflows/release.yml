@@ -1,0 +1,65 @@
+name: Release
+
+# Ausgelöst durch einen gepushten Git-Tag "vX.Y.Z" (siehe howtorelease.md).
+# Baut, signiert und veröffentlicht komplett automatisch - siehe
+# ~/.claude/plans/immutable-mapping-snowglobe.md für die volle Herleitung,
+# insbesondere warum latest.json nach dem Bauen noch einmal nachbearbeitet
+# wird (privates Repo, api.github.com-Asset-URLs statt browser_download_url).
+on:
+  push:
+    tags:
+      - "v*"
+
+permissions:
+  contents: write
+
+jobs:
+  build-and-release:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+
+      - uses: dtolnay/rust-toolchain@stable
+
+      - uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: "src-tauri -> target"
+
+      - name: Install frontend dependencies
+        run: npm ci
+
+      - name: Build, sign and publish the GitHub Release
+        id: tauri-action
+        uses: tauri-apps/tauri-action@v0
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
+          TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY_PASSWORD }}
+          # Wird nur beim Rust-Compile-Schritt gebraucht (option_env! in
+          # lib.rs) - macht den Auth-Header fürs private Repo Teil der
+          # ausgelieferten .exe. Lokale Dev-Builds ohne diese Variable
+          # kompilieren weiterhin normal (siehe lib.rs-Kommentar).
+          GH_RELEASE_TOKEN: ${{ secrets.GH_RELEASE_TOKEN }}
+        with:
+          tagName: ${{ github.ref_name }}
+          releaseName: "M2Manager ${{ github.ref_name }}"
+          generateReleaseNotes: true
+          releaseDraft: false
+          prerelease: false
+
+      - name: Rewrite latest.json to use authenticated api.github.com asset URLs
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: node .github/scripts/rewrite-latest-json.mjs "${{ steps.tauri-action.outputs.releaseId }}"
+
+      - name: Commit updater/latest.json
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git add updater/latest.json
+          git diff --cached --quiet || git commit -m "chore: update updater/latest.json for ${{ github.ref_name }}"
+          git push origin HEAD:master

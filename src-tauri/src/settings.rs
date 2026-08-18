@@ -56,6 +56,15 @@ pub fn init_db(app_data_dir: &Path) -> Result<Connection, String> {
             night_enabled INTEGER NOT NULL DEFAULT 0,
             snow_enabled INTEGER NOT NULL DEFAULT 0,
             revision INTEGER NOT NULL DEFAULT 1
+        );
+        CREATE TABLE IF NOT EXISTS account_bans (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            account_id INTEGER NOT NULL,
+            login TEXT NOT NULL,
+            reason TEXT NOT NULL,
+            banned_at TEXT NOT NULL,
+            unban_at TEXT,
+            active INTEGER NOT NULL DEFAULT 1
         );",
     )
     .map_err(|e| e.to_string())?;

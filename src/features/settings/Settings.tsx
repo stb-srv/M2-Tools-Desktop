@@ -2,7 +2,11 @@ import { useEffect, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { invoke } from "@tauri-apps/api/core";
 import { open } from "@tauri-apps/plugin-dialog";
+import { getVersion } from "@tauri-apps/api/app";
+import { check, type Update } from "@tauri-apps/plugin-updater";
+import { relaunch } from "@tauri-apps/plugin-process";
 import { useThemeStore, type Theme } from "@/store/theme";
+import { useUpdateStore } from "@/store/updateStore";
 import { Button } from "@/components/ui/button";
 import { PasswordInput } from "@/components/ui/password-input";
 import { cn } from "@/lib/utils";
@@ -29,6 +33,11 @@ export function Settings() {
   const [mysql2protoDir, setMysql2protoDir] = useState("");
   const [vnumRangeStart, setVnumRangeStart] = useState("500000");
   const [mobDropFilePath, setMobDropFilePath] = useState("");
+  const [commonDropFilePath, setCommonDropFilePath] = useState("");
+  const [etcDropFilePath, setEtcDropFilePath] = useState("");
+  const [dropItemGroupFilePath, setDropItemGroupFilePath] = useState("");
+  const [specialItemGroupFilePath, setSpecialItemGroupFilePath] = useState("");
+  const [cubeFilePath, setCubeFilePath] = useState("");
   const [questDir, setQuestDir] = useState("");
   const [regenBaseDir, setRegenBaseDir] = useState("");
   const [localeFilePath, setLocaleFilePath] = useState("");
@@ -79,6 +88,21 @@ export function Settings() {
       .catch(() => {});
     invoke<string | null>("get_setting", { key: "mob_drop_file_path" })
       .then((v) => setMobDropFilePath(v ?? "/usr/home/game/share/mob_drop_item.txt"))
+      .catch(() => {});
+    invoke<string | null>("get_setting", { key: "common_drop_file_path" })
+      .then((v) => setCommonDropFilePath(v ?? "/usr/home/game/share/common_drop_item.txt"))
+      .catch(() => {});
+    invoke<string | null>("get_setting", { key: "etc_drop_file_path" })
+      .then((v) => setEtcDropFilePath(v ?? "/usr/home/game/share/etc_drop_item.txt"))
+      .catch(() => {});
+    invoke<string | null>("get_setting", { key: "drop_item_group_file_path" })
+      .then((v) => setDropItemGroupFilePath(v ?? "/usr/home/game/share/drop_item_group.txt"))
+      .catch(() => {});
+    invoke<string | null>("get_setting", { key: "special_item_group_file_path" })
+      .then((v) => setSpecialItemGroupFilePath(v ?? "/usr/home/game/share/special_item_group.txt"))
+      .catch(() => {});
+    invoke<string | null>("get_setting", { key: "cube_file_path" })
+      .then((v) => setCubeFilePath(v ?? "/usr/home/game/share/cube.txt"))
       .catch(() => {});
     invoke<string | null>("get_setting", { key: "quest_dir" })
       .then((v) => setQuestDir(v ?? "/usr/home/game/share/quest"))
@@ -209,6 +233,36 @@ export function Settings() {
   async function commitMobDropFilePath() {
     if (mobDropFilePath.trim()) {
       await save("mob_drop_file_path", mobDropFilePath.trim(), "Mob-Drop-Dateipfad gespeichert");
+    }
+  }
+
+  async function commitCommonDropFilePath() {
+    if (commonDropFilePath.trim()) {
+      await save("common_drop_file_path", commonDropFilePath.trim(), "Common-Drop-Dateipfad gespeichert");
+    }
+  }
+
+  async function commitEtcDropFilePath() {
+    if (etcDropFilePath.trim()) {
+      await save("etc_drop_file_path", etcDropFilePath.trim(), "Etc-Drop-Dateipfad gespeichert");
+    }
+  }
+
+  async function commitDropItemGroupFilePath() {
+    if (dropItemGroupFilePath.trim()) {
+      await save("drop_item_group_file_path", dropItemGroupFilePath.trim(), "Zufalls-Gruppen-Dateipfad gespeichert");
+    }
+  }
+
+  async function commitSpecialItemGroupFilePath() {
+    if (specialItemGroupFilePath.trim()) {
+      await save("special_item_group_file_path", specialItemGroupFilePath.trim(), "Item-Gruppen-Dateipfad gespeichert");
+    }
+  }
+
+  async function commitCubeFilePath() {
+    if (cubeFilePath.trim()) {
+      await save("cube_file_path", cubeFilePath.trim(), "Cube-Dateipfad gespeichert");
     }
   }
 
@@ -397,6 +451,9 @@ export function Settings() {
         </section>
       </div>
 
+      {/* ---------------- Updates ---------------- */}
+      <UpdateSection />
+
       {/* ---------------- Server ---------------- */}
       <div className="space-y-4">
         <h2 className="text-base font-semibold">Server</h2>
@@ -547,7 +604,82 @@ export function Settings() {
             />
           </label>
           <p className="text-xs text-muted-foreground">
-            Wird per SFTP über die obige SSH-Verbindung geladen/gespeichert (Mob Drop Editor).
+            Wird per SFTP über die obige SSH-Verbindung geladen/gespeichert (Mob Drop Editor / Drop-Generator).
+          </p>
+        </section>
+
+        <section className="space-y-1">
+          <label className="flex items-center gap-2 text-sm">
+            Pfad der Common-Drop-Datei auf dem Server
+            <input
+              value={commonDropFilePath}
+              onChange={(e) => setCommonDropFilePath(e.target.value)}
+              onBlur={commitCommonDropFilePath}
+              className="w-80 rounded-md border border-border bg-background px-2 py-1 text-sm"
+            />
+          </label>
+          <p className="text-xs text-muted-foreground">
+            Level-Bracket-Drops pro Mob-Rang, wird per SFTP geladen/gespeichert (Drop-Generator).
+          </p>
+        </section>
+
+        <section className="space-y-1">
+          <label className="flex items-center gap-2 text-sm">
+            Pfad der Etc-Drop-Datei auf dem Server
+            <input
+              value={etcDropFilePath}
+              onChange={(e) => setEtcDropFilePath(e.target.value)}
+              onBlur={commitEtcDropFilePath}
+              className="w-80 rounded-md border border-border bg-background px-2 py-1 text-sm"
+            />
+          </label>
+          <p className="text-xs text-muted-foreground">
+            Item→Prozent-Tabelle (mob-unabhängig), wird per SFTP geladen/gespeichert (Drop-Generator).
+          </p>
+        </section>
+
+        <section className="space-y-1">
+          <label className="flex items-center gap-2 text-sm">
+            Pfad der Zufalls-Gruppen-Datei (drop_item_group.txt) auf dem Server
+            <input
+              value={dropItemGroupFilePath}
+              onChange={(e) => setDropItemGroupFilePath(e.target.value)}
+              onBlur={commitDropItemGroupFilePath}
+              className="w-80 rounded-md border border-border bg-background px-2 py-1 text-sm"
+            />
+          </label>
+          <p className="text-xs text-muted-foreground">
+            Unabhängig würfelnde Item-Pools pro Mob, wird per SFTP geladen/gespeichert (Drop-Generator).
+          </p>
+        </section>
+
+        <section className="space-y-1">
+          <label className="flex items-center gap-2 text-sm">
+            Pfad der Item-Gruppen-Datei (special_item_group.txt) auf dem Server
+            <input
+              value={specialItemGroupFilePath}
+              onChange={(e) => setSpecialItemGroupFilePath(e.target.value)}
+              onBlur={commitSpecialItemGroupFilePath}
+              className="w-80 rounded-md border border-border bg-background px-2 py-1 text-sm"
+            />
+          </label>
+          <p className="text-xs text-muted-foreground">
+            Wird per SFTP über die obige SSH-Verbindung geladen/gespeichert (Kisten-Editor / Drop-Generator).
+          </p>
+        </section>
+
+        <section className="space-y-1">
+          <label className="flex items-center gap-2 text-sm">
+            Pfad der Cube-Datei (cube.txt) auf dem Server
+            <input
+              value={cubeFilePath}
+              onChange={(e) => setCubeFilePath(e.target.value)}
+              onBlur={commitCubeFilePath}
+              className="w-80 rounded-md border border-border bg-background px-2 py-1 text-sm"
+            />
+          </label>
+          <p className="text-xs text-muted-foreground">
+            Wird per SFTP über die obige SSH-Verbindung geladen/gespeichert (Cube-Editor).
           </p>
         </section>
 
@@ -807,4 +939,114 @@ function ConnStatusIcon({ state }: { state: TestState }) {
   if (state === "ok") return <CheckCircle2 className="size-4 text-green-600" />;
   if (state === "error") return <XCircle className="size-4 text-destructive" />;
   return null;
+}
+
+type UpdateStatus = "idle" | "checking" | "upToDate" | "error" | "available";
+
+// Nutzt die Plugin-API direkt (check()/Update.downloadAndInstall()) statt
+// eigener Tauri-Commands - der Authorization-Header fürs private Repo wird
+// bereits einmalig beim Plugin-Setup gesetzt (siehe build_updater_plugin()
+// in lib.rs), gilt automatisch für jede Anfrage dieses Plugins.
+function UpdateSection() {
+  const [currentVersion, setCurrentVersion] = useState("");
+  const [status, setStatus] = useState<UpdateStatus>("idle");
+  const [error, setError] = useState<string | null>(null);
+  const [update, setUpdate] = useState<Update | null>(null);
+  const [downloading, setDownloading] = useState(false);
+  const [downloadedBytes, setDownloadedBytes] = useState(0);
+  const [totalBytes, setTotalBytes] = useState<number | null>(null);
+  const [installed, setInstalled] = useState(false);
+  const [restarting, setRestarting] = useState(false);
+
+  useEffect(() => {
+    getVersion()
+      .then(setCurrentVersion)
+      .catch(() => {});
+  }, []);
+
+  async function runCheck() {
+    setStatus("checking");
+    setError(null);
+    setInstalled(false);
+    try {
+      const result = await check();
+      setUpdate(result);
+      if (result) {
+        setStatus("available");
+        useUpdateStore.getState().setAvailable({ version: result.version, notes: result.body ?? null });
+      } else {
+        setStatus("upToDate");
+        useUpdateStore.getState().setAvailable(null);
+      }
+    } catch (e) {
+      setStatus("error");
+      setError(String(e));
+    }
+  }
+
+  async function installNow() {
+    if (!update) return;
+    setDownloading(true);
+    setDownloadedBytes(0);
+    setTotalBytes(null);
+    setError(null);
+    try {
+      await update.downloadAndInstall((event) => {
+        if (event.event === "Started") setTotalBytes(event.data.contentLength ?? null);
+        else if (event.event === "Progress") setDownloadedBytes((b) => b + event.data.chunkLength);
+        else if (event.event === "Finished") setInstalled(true);
+      });
+      setInstalled(true);
+    } catch (e) {
+      setError(String(e));
+    } finally {
+      setDownloading(false);
+    }
+  }
+
+  async function restart() {
+    setRestarting(true);
+    await relaunch();
+  }
+
+  return (
+    <div className="space-y-4">
+      <h2 className="text-base font-semibold">Updates</h2>
+      <section className="space-y-3 rounded-lg border border-border bg-card p-4">
+        <p className="text-sm text-muted-foreground">
+          Aktuelle Version: <span className="font-medium text-foreground">{currentVersion || "…"}</span>
+        </p>
+        <Button variant="outline" onClick={runCheck} disabled={status === "checking" || downloading}>
+          {status === "checking" ? "Suche…" : "Nach Updates suchen"}
+        </Button>
+
+        {status === "upToDate" && <p className="text-sm text-green-600">Du hast bereits die neueste Version.</p>}
+        {status === "error" && <p className="text-sm text-destructive">{error}</p>}
+
+        {status === "available" && update && !installed && (
+          <div className="space-y-2 rounded-md border border-blue-500/40 bg-blue-500/10 p-3">
+            <p className="text-sm font-medium">Update verfügbar: v{update.version}</p>
+            {update.body && <p className="whitespace-pre-wrap text-xs text-muted-foreground">{update.body}</p>}
+            {!downloading ? (
+              <Button onClick={installNow}>Jetzt installieren</Button>
+            ) : (
+              <p className="text-xs text-muted-foreground">
+                Lade herunter…{" "}
+                {totalBytes ? `${Math.round((downloadedBytes / totalBytes) * 100)}%` : `${downloadedBytes} Bytes`}
+              </p>
+            )}
+          </div>
+        )}
+
+        {installed && (
+          <div className="space-y-2 rounded-md border border-green-500/40 bg-green-500/10 p-3">
+            <p className="text-sm">Installiert. Neustart nötig, um die neue Version zu verwenden.</p>
+            <Button onClick={restart} disabled={restarting}>
+              {restarting ? "Starte neu…" : "Jetzt neu starten"}
+            </Button>
+          </div>
+        )}
+      </section>
+    </div>
+  );
 }

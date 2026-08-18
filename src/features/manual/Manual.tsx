@@ -9,17 +9,21 @@ import dashboardMd from "./docs/uebersicht/dashboard.md?raw";
 import serverControlMd from "./docs/uebersicht/server-control.md?raw";
 import buildDeployMd from "./docs/uebersicht/build-deploy.md?raw";
 import itemEditorMd from "./docs/items/item-editor.md?raw";
+import itemProtoExplorerMd from "./docs/items/item-proto-explorer.md?raw";
 import moduleImporterMd from "./docs/items/module-importer.md?raw";
 import refineEditorMd from "./docs/items/refine-editor.md?raw";
 import boxEditorMd from "./docs/items/box-editor.md?raw";
+import cubeEditorMd from "./docs/items/cube-editor.md?raw";
 import shopEditorMd from "./docs/shops-monster/shop-editor.md?raw";
 import mobProtoEditorMd from "./docs/shops-monster/mob-proto-editor.md?raw";
 import mobDropEditorMd from "./docs/shops-monster/mob-drop-editor.md?raw";
+import dropGeneratorMd from "./docs/shops-monster/drop-generator.md?raw";
 import questBuilderMd from "./docs/quests-welt/quest-builder.md?raw";
 import regenEditorMd from "./docs/quests-welt/regen-editor.md?raw";
 import localeEditorMd from "./docs/quests-welt/locale-editor.md?raw";
 import serverEventsMd from "./docs/server-accounts/server-events.md?raw";
 import accountManagerMd from "./docs/server-accounts/account-manager.md?raw";
+import gmManagerMd from "./docs/server-accounts/gm-manager.md?raw";
 import dbExplorerMd from "./docs/server-accounts/db-explorer.md?raw";
 import broadcastSystemMd from "./docs/server-accounts/broadcast-system.md?raw";
 import weatherControlMd from "./docs/server-accounts/weather-control.md?raw";
@@ -40,17 +44,21 @@ const PAGES: Record<string, string> = {
   "server-control": serverControlMd,
   "build-deploy": buildDeployMd,
   "item-editor": itemEditorMd,
+  "item-proto-explorer": itemProtoExplorerMd,
   "module-importer": moduleImporterMd,
   "refine-editor": refineEditorMd,
   "box-editor": boxEditorMd,
+  "cube-editor": cubeEditorMd,
   "shop-editor": shopEditorMd,
   "mob-proto-editor": mobProtoEditorMd,
   "mob-drop-editor": mobDropEditorMd,
+  "drop-generator": dropGeneratorMd,
   "quest-builder": questBuilderMd,
   "regen-editor": regenEditorMd,
   "locale-editor": localeEditorMd,
   "server-events": serverEventsMd,
   "account-manager": accountManagerMd,
+  "gm-manager": gmManagerMd,
   "db-explorer": dbExplorerMd,
   "broadcast-system": broadcastSystemMd,
   "weather-control": weatherControlMd,
@@ -83,9 +91,11 @@ const NAV: NavEntry[] = [
     label: "Items & Ausrüstung",
     children: [
       { id: "item-editor", label: "Item Editor" },
+      { id: "item-proto-explorer", label: "Item-Proto-Explorer" },
       { id: "module-importer", label: "Modul-Importer" },
       { id: "refine-editor", label: "Aufwertungs-Editor" },
       { id: "box-editor", label: "Kisten-Editor" },
+      { id: "cube-editor", label: "Cube-Editor" },
     ],
   },
   {
@@ -94,6 +104,7 @@ const NAV: NavEntry[] = [
       { id: "shop-editor", label: "Shop-Editor" },
       { id: "mob-proto-editor", label: "Mob-Proto-Editor" },
       { id: "mob-drop-editor", label: "Mob Drop Editor" },
+      { id: "drop-generator", label: "Drop-Generator" },
     ],
   },
   {
@@ -109,6 +120,7 @@ const NAV: NavEntry[] = [
     children: [
       { id: "server-events", label: "Server-Events" },
       { id: "account-manager", label: "Account-Verwaltung" },
+      { id: "gm-manager", label: "GM-Verwaltung" },
       { id: "db-explorer", label: "Datenbank-Explorer" },
       { id: "broadcast-system", label: "Broadcast-System" },
       { id: "weather-control", label: "Tag/Nacht & Schnee" },

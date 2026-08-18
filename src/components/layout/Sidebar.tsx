@@ -7,6 +7,7 @@ import {
   CATEGORY_LABEL_KEYS,
   type Section,
 } from "@/store/navigation";
+import { useUpdateStore } from "@/store/updateStore";
 import { cn } from "@/lib/utils";
 
 function NavRow({ section }: { section: Section }) {
@@ -17,6 +18,7 @@ function NavRow({ section }: { section: Section }) {
   const favorites = useNavigationStore((s) => s.favorites);
   const toggleFavorite = useNavigationStore((s) => s.toggleFavorite);
   const dirty = useNavigationStore((s) => !!s.dirtySections[section]);
+  const updateAvailable = useUpdateStore((s) => (section === "settings" ? s.available : null));
   if (!item) return null;
 
   const Icon = item.icon;
@@ -40,6 +42,15 @@ function NavRow({ section }: { section: Section }) {
             className={cn(
               "size-1.5 shrink-0 rounded-full",
               isActive ? "bg-primary-foreground" : "bg-amber-500"
+            )}
+          />
+        )}
+        {updateAvailable && (
+          <span
+            title={`Update verfügbar: v${updateAvailable.version}`}
+            className={cn(
+              "size-1.5 shrink-0 rounded-full",
+              isActive ? "bg-primary-foreground" : "bg-blue-500"
             )}
           />
         )}

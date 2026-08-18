@@ -24,4 +24,12 @@ export const SERVER_NOTES: ServerNote[] = [
       "Das GM-Privileg PRIV_ITEM_DROP erhöht die Chance zusätzlich.",
     ],
   },
+  {
+    title: "Live neu ladbar per GM-Befehl",
+    intro:
+      "Verifiziert im Server-Quellcode (cmd_gm.cpp:2085-2099) - anders als die meisten anderen Server-Dateien in dieser App (special_item_group.txt, cube.txt, ...) verlangt mob_drop_item.txt keinen kompletten Server-Neustart.",
+    bullets: [
+      "Als GM ingame `/reload m` eintippen lädt mob_drop_item.txt sofort neu (ITEM_MANAGER::DestroyMobDropItem() + erneutes Einlesen) - nach dem Speichern hier reicht dieser eine Befehl, kein Neustart von DB/Game/Login nötig.",
+    ],
+  },
 ];

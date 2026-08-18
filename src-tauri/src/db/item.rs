@@ -346,6 +346,56 @@ pub async fn delete_item_proto(pool: &MySqlPool, vnum: u32) -> Result<(), String
     Ok(())
 }
 
+#[derive(Debug, Clone, Serialize)]
+pub struct ItemBrief {
+    pub vnum: u32,
+    pub locale_name: String,
+}
+
+fn encode_name(value: &str) -> Vec<u8> {
+    let (bytes, _, _) = encoding_rs::WINDOWS_1252.encode(value);
+    bytes.into_owned()
+}
+
+/// Resolves an item's internal `item_proto.name` (NOT `locale_name`) by
+/// vnum - needed for `etc_drop_item.txt`, which the real server can only
+/// resolve by this exact internal name (`GetVnumByOriginalName`, no numeric
+/// fallback, see `etc_drop.rs` module doc). Used when the Drop-Generator's
+/// Etc-Drops editor writes a row picked via `EntityBrowser` (which only
+/// gives a vnum).
+pub async fn get_item_internal_name(pool: &MySqlPool, vnum: u32) -> Result<String, String> {
+    let name_raw: Option<Vec<u8>> = sqlx::query_scalar("SELECT name FROM player.item_proto WHERE vnum = ?")
+        .bind(vnum)
+        .fetch_optional(pool)
+        .await
+        .map_err(|e| e.to_string())?;
+    let name_raw = name_raw.ok_or_else(|| format!("Item #{vnum} nicht gefunden."))?;
+    Ok(decode_name(&name_raw))
+}
+
+/// Reverse lookup for displaying an `etc_drop_item.txt` entry: given the raw
+/// internal name stored in the file, find the real vnum/locale_name so the
+/// UI can show a human-readable label instead of the raw name string.
+/// Returns `None` (not an error) if the name doesn't resolve - the caller
+/// shows a "not found" warning rather than failing to load the whole file,
+/// since a stale/broken entry in an existing file is exactly the kind of
+/// thing this editor should surface, not hide.
+pub async fn find_item_by_internal_name(pool: &MySqlPool, name: &str) -> Result<Option<ItemBrief>, String> {
+    let row = sqlx::query("SELECT vnum, locale_name FROM player.item_proto WHERE name = ? LIMIT 1")
+        .bind(encode_name(name))
+        .fetch_optional(pool)
+        .await
+        .map_err(|e| e.to_string())?;
+    let Some(row) = row else {
+        return Ok(None);
+    };
+    let locale_name_raw: Vec<u8> = row.try_get("locale_name").unwrap_or_default();
+    Ok(Some(ItemBrief {
+        vnum: row.try_get("vnum").unwrap_or_default(),
+        locale_name: decode_name(&locale_name_raw),
+    }))
+}
+
 /// Fetches a full item_proto row, used to pre-fill the "create from
 /// reference item" flow in the Item Editor.
 pub async fn get_item_proto(pool: &MySqlPool, vnum: u32) -> Result<Option<ItemProtoFull>, String> {

@@ -3,7 +3,10 @@ use crate::db::account;
 use crate::db::event_flags;
 use crate::db::mysql::{self, MysqlConfig};
 use crate::db::explorer::{self, ColumnInfo, TableInfo, TableRows};
-use crate::db::item::{self, ItemProtoFull, ItemProtoInput};
+use crate::db::item::{self, ItemBrief, ItemProtoFull, ItemProtoInput};
+use crate::drop_item_group;
+use crate::etc_drop;
+use crate::db::item_explorer::{self, ItemProtoPage};
 use crate::db::shop::{self, DatabaseStats, EntityBrowsePage, ItemSearchResult, ShopItem, ShopSummary};
 use crate::gr2::{self, ModelInfo};
 use crate::icons;
@@ -14,6 +17,7 @@ use crate::modulescan::{self, ScannedModule};
 use crate::msm;
 use crate::packtools;
 use crate::backups;
+use crate::bans;
 use crate::broadcast;
 use crate::build_deploy;
 use crate::locale;
@@ -26,6 +30,7 @@ use crate::regen;
 use crate::resources;
 use crate::webhook;
 use crate::settings;
+use crate::cube;
 use crate::special_item_group;
 use crate::ssh::{self, SshAuth, SshConfig};
 use russh_sftp::client::SftpSession;
@@ -665,6 +670,159 @@ pub fn sanitize_special_item_group_name(name: String) -> String {
     special_item_group::sanitize_group_name(&name)
 }
 
+// ---- Cube-Editor (cube.txt - Verwandlung/Kombinations-Rezepte) ----
+//
+// Shares `LocaleService_GetBasePath()` with special_item_group.txt (both
+// verified in source/game/src/{cube.cpp,item_manager_read_tables.cpp}), so
+// this defaults to the sibling path of the already-known-real
+// special_item_group.txt default rather than a guessed location.
+
+fn cube_file_path(state: &State<'_, AppState>) -> Result<String, String> {
+    let conn = state.settings_db.lock().map_err(|e| e.to_string())?;
+    Ok(settings::get_path(&conn, "cube_file_path")?
+        .filter(|v| !v.is_empty())
+        .unwrap_or_else(|| "/usr/home/game/share/cube.txt".to_string()))
+}
+
+#[tauri::command]
+pub async fn read_cube_file(state: State<'_, AppState>) -> Result<Vec<cube::CubeRecipe>, String> {
+    let (config, auth) = stored_ssh_auth(&state)?;
+    let path = cube_file_path(&state)?;
+    let content = ssh::read_remote_file(&config, &auth, &path).await?;
+    cube::parse(&content)
+}
+
+#[tauri::command]
+pub async fn write_cube_file(
+    state: State<'_, AppState>,
+    recipes: Vec<cube::CubeRecipe>,
+) -> Result<Option<String>, String> {
+    let (config, auth) = stored_ssh_auth(&state)?;
+    let path = cube_file_path(&state)?;
+    let content = cube::serialize(&recipes);
+    // Same round-trip sanity check as every other server-file editor here -
+    // refuse to upload something we couldn't parse back ourselves.
+    cube::parse(&content)?;
+    ssh::write_remote_file_with_backup(&config, &auth, &path, &content).await
+}
+
+// ---- Drop-Generator: common_drop_item.txt / etc_drop_item.txt /
+// drop_item_group.txt (siehe common_drop.rs/etc_drop.rs/drop_item_group.rs
+// für die verifizierten Datei-Formate) - gleiches SFTP-Lade/Speicher-Muster
+// wie cube.txt/special_item_group.txt: Rundreise-Sanity-Check vor jedem
+// Hochladen, Backup vor jedem Überschreiben (`write_remote_file_with_backup`).
+
+fn common_drop_file_path(state: &State<'_, AppState>) -> Result<String, String> {
+    let conn = state.settings_db.lock().map_err(|e| e.to_string())?;
+    Ok(settings::get_path(&conn, "common_drop_file_path")?
+        .filter(|v| !v.is_empty())
+        .unwrap_or_else(|| "/usr/home/game/share/common_drop_item.txt".to_string()))
+}
+
+// Live gegen den echten Dev-Server verifiziert (2026-08-18, nach einem
+// realen Ladefehler): entgegen der ursprünglichen, aus dem generischen
+// game-src-Checkout abgeleiteten Annahme (24-Tab-Felder-pro-Zeile,
+// Rang-Level-Brackets - `ReadCommonDropItemFile` in
+// `item_manager_read_tables.cpp`) benutzt dieser Fork für
+// `common_drop_item.txt` tatsächlich **dieselbe Group/Mob/Type-Grammatik
+// wie `mob_drop_item.txt`** (echter Datei-Inhalt: `Group\tMetinStein1\n{\n
+// \tMob\t8001\n\tType\tdrop\n\t1\t19\t1\t100\n}`) - der generische
+// Quellcode-Checkout entspricht an dieser Stelle offenbar nicht dem, was auf
+// diesem Server tatsächlich läuft (individuelle Fork-Anpassung). Wiederverwendet
+// deshalb direkt `mobdrop::parse`/`serialize` (identischer `MobDropGroup`-Typ)
+// statt eines eigenen, nachweislich falschen Parsers.
+#[tauri::command]
+pub async fn read_common_drop_file(state: State<'_, AppState>) -> Result<Vec<mobdrop::MobDropGroup>, String> {
+    let (config, auth) = stored_ssh_auth(&state)?;
+    let path = common_drop_file_path(&state)?;
+    let content = ssh::read_remote_file(&config, &auth, &path).await?;
+    mobdrop::parse(&content)
+}
+
+#[tauri::command]
+pub async fn write_common_drop_file(
+    state: State<'_, AppState>,
+    groups: Vec<mobdrop::MobDropGroup>,
+) -> Result<Option<String>, String> {
+    let (config, auth) = stored_ssh_auth(&state)?;
+    let path = common_drop_file_path(&state)?;
+    let content = mobdrop::serialize(&groups);
+    mobdrop::parse(&content)?;
+    ssh::write_remote_file_with_backup(&config, &auth, &path, &content).await
+}
+
+fn etc_drop_file_path(state: &State<'_, AppState>) -> Result<String, String> {
+    let conn = state.settings_db.lock().map_err(|e| e.to_string())?;
+    Ok(settings::get_path(&conn, "etc_drop_file_path")?
+        .filter(|v| !v.is_empty())
+        .unwrap_or_else(|| "/usr/home/game/share/etc_drop_item.txt".to_string()))
+}
+
+#[tauri::command]
+pub async fn read_etc_drop_file(state: State<'_, AppState>) -> Result<Vec<etc_drop::EtcDropEntry>, String> {
+    let (config, auth) = stored_ssh_auth(&state)?;
+    let path = etc_drop_file_path(&state)?;
+    let content = ssh::read_remote_file(&config, &auth, &path).await?;
+    etc_drop::parse(&content)
+}
+
+#[tauri::command]
+pub async fn write_etc_drop_file(
+    state: State<'_, AppState>,
+    entries: Vec<etc_drop::EtcDropEntry>,
+) -> Result<Option<String>, String> {
+    let (config, auth) = stored_ssh_auth(&state)?;
+    let path = etc_drop_file_path(&state)?;
+    let content = etc_drop::serialize(&entries);
+    etc_drop::parse(&content)?;
+    ssh::write_remote_file_with_backup(&config, &auth, &path, &content).await
+}
+
+fn drop_item_group_file_path(state: &State<'_, AppState>) -> Result<String, String> {
+    let conn = state.settings_db.lock().map_err(|e| e.to_string())?;
+    Ok(settings::get_path(&conn, "drop_item_group_file_path")?
+        .filter(|v| !v.is_empty())
+        .unwrap_or_else(|| "/usr/home/game/share/drop_item_group.txt".to_string()))
+}
+
+#[tauri::command]
+pub async fn read_drop_item_group_file(
+    state: State<'_, AppState>,
+) -> Result<Vec<drop_item_group::DropItemGroup>, String> {
+    let (config, auth) = stored_ssh_auth(&state)?;
+    let path = drop_item_group_file_path(&state)?;
+    let content = ssh::read_remote_file(&config, &auth, &path).await?;
+    drop_item_group::parse(&content)
+}
+
+#[tauri::command]
+pub async fn write_drop_item_group_file(
+    state: State<'_, AppState>,
+    groups: Vec<drop_item_group::DropItemGroup>,
+) -> Result<Option<String>, String> {
+    let (config, auth) = stored_ssh_auth(&state)?;
+    let path = drop_item_group_file_path(&state)?;
+    let content = drop_item_group::serialize(&groups);
+    drop_item_group::parse(&content)?;
+    ssh::write_remote_file_with_backup(&config, &auth, &path, &content).await
+}
+
+/// Löst die per `EntityBrowser` gewählte vnum in den echten internen
+/// `item_proto.name` auf - für Etc-Drops, siehe `etc_drop.rs`.
+#[tauri::command]
+pub async fn get_item_internal_name(state: State<'_, AppState>, vnum: u32) -> Result<String, String> {
+    let pool = require_pool(&state).await?;
+    item::get_item_internal_name(&pool, vnum).await
+}
+
+/// Rückwärtssuche für die Anzeige bestehender Etc-Drop-Einträge - siehe
+/// `etc_drop.rs`.
+#[tauri::command]
+pub async fn find_item_by_internal_name(state: State<'_, AppState>, name: String) -> Result<Option<ItemBrief>, String> {
+    let pool = require_pool(&state).await?;
+    item::find_item_by_internal_name(&pool, &name).await
+}
+
 // ---- Mob Drop Editor: local file variant (syntax check/repair tab) ----
 
 #[tauri::command]
@@ -675,6 +833,17 @@ pub fn read_local_text_file(path: String) -> Result<String, String> {
 #[tauri::command]
 pub fn parse_mob_drop_text(content: String) -> Result<Vec<mobdrop::MobDropGroup>, String> {
     mobdrop::parse(&content)
+}
+
+/// Writes arbitrary text to a local path the user picked via a save dialog -
+/// used for CSV exports of search/filter results. Unlike the various
+/// `write_local_*` commands above, this makes no assumption about the
+/// content's format (no parse-back check), since the destination is always a
+/// fresh export file the user is about to create, not an existing config
+/// file being overwritten.
+#[tauri::command]
+pub fn export_text_file(path: String, content: String) -> Result<(), String> {
+    std::fs::write(&path, content).map_err(|e| format!("Datei konnte nicht geschrieben werden: {e}"))
 }
 
 /// Guards against a caller-supplied `relative_path` escaping the trusted
@@ -1257,6 +1426,126 @@ pub async fn reset_account_password(
     account::reset_password(&pool, id, &new_password).await
 }
 
+// ---- Zeitgesteuerte Sperren (siehe bans.rs) ----
+//
+// Serverseitig gibt es dafür keinen Mechanismus - `status` ist ein freier
+// String, den der Login-Server nur gegen "OK" vergleicht und sonst wörtlich
+// als Fehlermeldung zeigt (siehe db/account.rs::set_status). Die
+// Zeitsteuerung selbst ist rein lokal in M2Manager (SQLite `account_bans`)
+// und greift nur, solange/wann immer die App läuft - kein Server-Cron.
+
+/// Prüft die reale Spaltenbreite von `account.account.status` (nicht
+/// geraten) und lehnt eine zu lange Sperr-Nachricht vorher ab, statt sie
+/// stillschweigend von MySQL abschneiden zu lassen.
+async fn validate_status_length(pool: &sqlx::MySqlPool, value: &str) -> Result<(), String> {
+    let columns = explorer::get_columns(pool, "account", "account").await?;
+    let Some(status_col) = columns.iter().find(|c| c.name == "status") else {
+        return Ok(());
+    };
+    if let Some(max) = status_col
+        .data_type
+        .split('(')
+        .nth(1)
+        .and_then(|s| s.split(')').next())
+        .and_then(|s| s.parse::<usize>().ok())
+    {
+        if value.chars().count() > max {
+            return Err(format!(
+                "Nachricht ist zu lang ({} Zeichen, die Spalte erlaubt maximal {}).",
+                value.chars().count(),
+                max
+            ));
+        }
+    }
+    Ok(())
+}
+
+#[tauri::command]
+pub async fn ban_account(
+    state: State<'_, AppState>,
+    account_id: i32,
+    login: String,
+    message: String,
+    days: Option<i64>,
+) -> Result<(), String> {
+    if message.trim().is_empty() {
+        return Err("Sperr-Nachricht darf nicht leer sein.".to_string());
+    }
+    let pool = require_pool(&state).await?;
+    validate_status_length(&pool, &message).await?;
+    account::set_status(&pool, account_id, &message).await?;
+    let conn = state.settings_db.lock().map_err(|e| e.to_string())?;
+    bans::create_ban(&conn, account_id as i64, &login, &message, days)?;
+    Ok(())
+}
+
+#[tauri::command]
+pub async fn unban_account(state: State<'_, AppState>, account_id: i32, ban_id: Option<i64>) -> Result<(), String> {
+    let pool = require_pool(&state).await?;
+    account::set_status(&pool, account_id, "OK").await?;
+    if let Some(ban_id) = ban_id {
+        let conn = state.settings_db.lock().map_err(|e| e.to_string())?;
+        bans::deactivate_ban(&conn, ban_id)?;
+    }
+    Ok(())
+}
+
+#[tauri::command]
+pub fn list_account_bans(state: State<'_, AppState>) -> Result<Vec<bans::BanRecord>, String> {
+    let conn = state.settings_db.lock().map_err(|e| e.to_string())?;
+    bans::list_bans(&conn)
+}
+
+/// Setzt jede fällige Sperre automatisch zurück - aufgerufen beim Öffnen des
+/// Account-Managers (siehe AccountManager.tsx), nicht per Hintergrunddienst.
+#[tauri::command]
+pub async fn process_due_bans(state: State<'_, AppState>) -> Result<u32, String> {
+    let pool = require_pool(&state).await?;
+    let due = {
+        let conn = state.settings_db.lock().map_err(|e| e.to_string())?;
+        bans::due_bans(&conn)?
+    };
+    let count = due.len() as u32;
+    for record in due {
+        account::set_status(&pool, record.account_id as i32, "OK").await?;
+        let conn = state.settings_db.lock().map_err(|e| e.to_string())?;
+        bans::deactivate_ban(&conn, record.id)?;
+    }
+    Ok(count)
+}
+
+// ---- Guthaben anpassen (Yang / unverifizierte Konto-Zusatzwährung) ----
+
+#[tauri::command]
+pub async fn adjust_player_gold(state: State<'_, AppState>, player_id: i32, delta: i64) -> Result<i64, String> {
+    let pool = require_pool(&state).await?;
+    account::adjust_player_gold(&pool, player_id, delta).await
+}
+
+/// `column` wird hier - nicht erst in db/account.rs - gegen eine frisch
+/// geholte, echte Spaltenliste von `account.account` geprüft (Name UND
+/// numerischer Typ), bevor sie in SQL interpoliert wird.
+#[tauri::command]
+pub async fn adjust_account_numeric_column(
+    state: State<'_, AppState>,
+    account_id: i32,
+    column: String,
+    delta: i64,
+) -> Result<i64, String> {
+    let pool = require_pool(&state).await?;
+    let columns = explorer::get_columns(&pool, "account", "account").await?;
+    const NUMERIC_TYPE_PREFIXES: &[&str] = &["int", "tinyint", "smallint", "mediumint", "bigint", "decimal", "float", "double"];
+    let is_valid = columns.iter().any(|c| {
+        c.name == column
+            && !c.is_primary_key
+            && NUMERIC_TYPE_PREFIXES.iter().any(|p| c.data_type.to_lowercase().starts_with(p))
+    });
+    if !is_valid {
+        return Err(format!("Spalte '{column}' existiert nicht oder ist nicht numerisch."));
+    }
+    account::adjust_account_numeric_column(&pool, account_id, &column, delta).await
+}
+
 #[tauri::command]
 pub async fn list_databases(state: State<'_, AppState>) -> Result<Vec<String>, String> {
     let pool = require_pool(&state).await?;
@@ -1419,6 +1708,18 @@ pub async fn browse_mobs(
 ) -> Result<EntityBrowsePage, String> {
     let pool = require_pool(&state).await?;
     shop::browse_mobs(&pool, query.as_deref(), offset, limit).await
+}
+
+#[tauri::command]
+pub async fn browse_item_proto(
+    state: State<'_, AppState>,
+    query: Option<String>,
+    type_filter: Option<i8>,
+    offset: i64,
+    limit: i64,
+) -> Result<ItemProtoPage, String> {
+    let pool = require_pool(&state).await?;
+    item_explorer::browse_item_proto(&pool, query.as_deref(), type_filter, offset, limit).await
 }
 
 #[tauri::command]
