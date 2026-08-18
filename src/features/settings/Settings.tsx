@@ -22,9 +22,19 @@ const LANGUAGES = [
 type TestState = "idle" | "testing" | "ok" | "error";
 type SshAuthMode = "password" | "key";
 
+type SettingsTab = "general" | "updates" | "server" | "notifications" | "client";
+const SETTINGS_TABS: { id: SettingsTab; label: string }[] = [
+  { id: "general", label: "Allgemein" },
+  { id: "updates", label: "Updates" },
+  { id: "server", label: "Server" },
+  { id: "notifications", label: "Benachrichtigungen" },
+  { id: "client", label: "Client" },
+];
+
 export function Settings() {
   const { t, i18n } = useTranslation();
   const { theme, setTheme } = useThemeStore();
+  const [tab, setTab] = useState<SettingsTab>("general");
 
   const [clientPath, setClientPath] = useState("");
   const [binarySrcPath, setBinarySrcPath] = useState("");
@@ -406,8 +416,10 @@ export function Settings() {
     }
   }
 
+  const updateAvailable = useUpdateStore((s) => s.available);
+
   return (
-    <div className="max-w-2xl space-y-10">
+    <div className="max-w-2xl space-y-6">
       <div className="flex items-center gap-2">
         <h1 className="text-2xl font-semibold">{t("settings.title")}</h1>
         <Button variant="ghost" size="icon-sm" title="Hilfe zu diesem Modul" onClick={() => openManual("settings")}>
@@ -415,8 +427,28 @@ export function Settings() {
         </Button>
       </div>
 
+      <div className="flex flex-wrap gap-1 border-b border-border">
+        {SETTINGS_TABS.map((tabDef) => (
+          <button
+            key={tabDef.id}
+            onClick={() => setTab(tabDef.id)}
+            className={cn(
+              "flex items-center gap-1.5 rounded-t-md px-3 py-2 text-sm font-medium transition-colors",
+              tab === tabDef.id
+                ? "border-b-2 border-primary text-foreground"
+                : "text-muted-foreground hover:text-foreground",
+            )}
+          >
+            {tabDef.label}
+            {tabDef.id === "updates" && updateAvailable && (
+              <span className="size-1.5 shrink-0 rounded-full bg-blue-500" />
+            )}
+          </button>
+        ))}
+      </div>
+
       {/* ---------------- Allgemein ---------------- */}
-      <div className="space-y-4">
+      <div className={cn("space-y-4", tab !== "general" && "hidden")}>
         <h2 className="text-base font-semibold">Allgemein</h2>
 
         <section className="space-y-2">
@@ -452,10 +484,12 @@ export function Settings() {
       </div>
 
       {/* ---------------- Updates ---------------- */}
-      <UpdateSection />
+      <div className={cn(tab !== "updates" && "hidden")}>
+        <UpdateSection />
+      </div>
 
       {/* ---------------- Server ---------------- */}
-      <div className="space-y-4">
+      <div className={cn("space-y-4", tab !== "server" && "hidden")}>
         <h2 className="text-base font-semibold">Server</h2>
 
         <section className="space-y-2 rounded-lg border border-border bg-card p-4">
@@ -798,7 +832,7 @@ export function Settings() {
       </div>
 
       {/* ---------------- Benachrichtigungen ---------------- */}
-      <div className="space-y-4">
+      <div className={cn("space-y-4", tab !== "notifications" && "hidden")}>
         <h2 className="text-base font-semibold">Benachrichtigungen</h2>
         <section className="space-y-1">
           <label className="flex items-center gap-2 text-sm">
@@ -831,7 +865,7 @@ export function Settings() {
       </div>
 
       {/* ---------------- Client ---------------- */}
-      <div className="space-y-4">
+      <div className={cn("space-y-4", tab !== "client" && "hidden")}>
         <h2 className="text-base font-semibold">Client</h2>
 
         <section className="space-y-1">
