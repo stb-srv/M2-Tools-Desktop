@@ -1,47 +1,22 @@
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useState } from "react";
 import { invoke } from "@tauri-apps/api/core";
 import { open } from "@tauri-apps/plugin-dialog";
 import { Button } from "@/components/ui/button";
-import {
-  Search,
-  Plus,
-  Trash2,
-  X,
-  RefreshCw,
-  AlertTriangle,
-  CheckCircle2,
-  Info,
-  FolderOpen,
-  Crosshair,
-  HelpCircle,
-  Download,
-} from "lucide-react";
-import { SERVER_NOTES } from "./serverNotes";
+import { RefreshCw, AlertTriangle, CheckCircle2, FolderOpen, Crosshair, HelpCircle, Download } from "lucide-react";
 import { formatRealDropChance, realDropChancePercent } from "./dropChance";
 import { openManual } from "@/lib/manual";
-import { EntityBrowser } from "@/features/shared/EntityBrowser";
+import type { EntityRow } from "@/features/shared/EntityBrowser";
 import { exportRowsAsCsv } from "@/lib/exportCsv";
+import type { MobDropGroup, MobDropItem } from "./types";
+import { clampPercent } from "./components/shared";
+import { ServerInfoPopover } from "./components/ServerInfoPopover";
+import { GroupSidebar } from "./components/GroupSidebar";
+import { MobDetailPanel } from "./components/MobDetailPanel";
+import { BulkEditPanel, type BulkEditParams } from "./components/BulkEditPanel";
+import { ItemPickerModal } from "./components/ItemPickerModal";
+import { ReverseLookupModal } from "./components/ReverseLookupModal";
+import { CreateMobModal } from "./components/CreateMobModal";
 
-interface MobDropItem {
-  item_vnum: number;
-  count: number;
-  percent: number;
-}
-
-interface MobDropGroup {
-  name: string;
-  mob_vnum: number;
-  drop_type: string;
-  items: MobDropItem[];
-}
-
-interface ItemSearchResult {
-  vnum: number;
-  name: string;
-}
-
-type BulkMode = "delta" | "fixed" | "random" | "specific-item";
-type BulkScope = "global" | "current";
 type Source = "server" | "local";
 
 export function MobDropEditor() {
@@ -62,39 +37,18 @@ export function MobDropEditor() {
   const [icons, setIcons] = useState<Record<number, string | null>>({});
 
   const [itemPicker, setItemPicker] = useState(false);
-
   const [creating, setCreating] = useState(false);
-  const [newName, setNewName] = useState("");
-  const [newNamePreview, setNewNamePreview] = useState("");
-  const [newMobVnum, setNewMobVnum] = useState("");
-  const [newType, setNewType] = useState("drop");
-
   const [deleteConfirm, setDeleteConfirm] = useState<number | null>(null);
-
-  const [bulkScope, setBulkScope] = useState<BulkScope>("current");
-  const [bulkMode, setBulkMode] = useState<BulkMode>("delta");
-  const [deltaValue, setDeltaValue] = useState(0);
-  const [fixedValue, setFixedValue] = useState(0);
-  const [randomMin, setRandomMin] = useState(0);
-  const [randomMax, setRandomMax] = useState(30);
-  const [specificItemVnum, setSpecificItemVnum] = useState("");
-  const [specificItemPercent, setSpecificItemPercent] = useState(0);
-  const [bulkConfirm, setBulkConfirm] = useState(false);
 
   const [saving, setSaving] = useState(false);
   const [saveConfirm, setSaveConfirm] = useState(false);
   const [saveError, setSaveError] = useState<string | null>(null);
   const [saveOk, setSaveOk] = useState<string | null>(null);
 
-  const [serverInfoOpen, setServerInfoOpen] = useState(false);
   const [exporting, setExporting] = useState(false);
   const [exportError, setExportError] = useState<string | null>(null);
 
-  // Reverse-Suche "wer droppt Item X" - rein clientseitig, da `groups` beim
-  // Öffnen bereits die komplette Datei enthält (ein einzelnes File, kein
-  // Mob-für-Mob-Nachladen nötig).
   const [reverseLookupOpen, setReverseLookupOpen] = useState(false);
-  const [reverseSelectedItem, setReverseSelectedItem] = useState<ItemSearchResult | null>(null);
 
   useEffect(() => {
     loadFromServer();
@@ -112,17 +66,6 @@ export function MobDropEditor() {
     setSaveError(null);
     if (next === "server") loadFromServer();
   }
-
-  useEffect(() => {
-    if (!creating) return;
-    if (!newName.trim()) {
-      setNewNamePreview("");
-      return;
-    }
-    invoke<string>("sanitize_mob_drop_group_name", { name: newName })
-      .then(setNewNamePreview)
-      .catch(() => setNewNamePreview(""));
-  }, [newName, creating]);
 
   async function loadFromServer() {
     setLoading(true);
@@ -227,19 +170,7 @@ export function MobDropEditor() {
     );
   }
 
-  function closeReverseLookup() {
-    setReverseLookupOpen(false);
-    setReverseSelectedItem(null);
-  }
-
-  const reverseMatches = useMemo(() => {
-    if (!groups || !reverseSelectedItem) return [];
-    return groups
-      .map((g, index) => ({ g, index, drop: g.items.find((it) => it.item_vnum === reverseSelectedItem.vnum) }))
-      .filter((m): m is { g: MobDropGroup; index: number; drop: MobDropItem } => !!m.drop);
-  }, [groups, reverseSelectedItem]);
-
-  function addItem(item: ItemSearchResult) {
+  function addItem(item: EntityRow) {
     if (selectedIndex === null) return;
     setGroups((prev) =>
       prev!.map((g, gi) =>
@@ -251,19 +182,10 @@ export function MobDropEditor() {
     setItemPicker(false);
   }
 
-  function submitNewGroup() {
-    const mobVnum = Number(newMobVnum);
-    if (!newNamePreview || !Number.isFinite(mobVnum) || mobVnum <= 0) return;
-    setGroups((prev) => [
-      ...(prev ?? []),
-      { name: newNamePreview, mob_vnum: mobVnum, drop_type: newType.trim() || "drop", items: [] },
-    ]);
+  function handleMobCreated(group: MobDropGroup) {
+    setGroups((prev) => [...(prev ?? []), group]);
     setSelectedIndex(groups ? groups.length : 0);
     setCreating(false);
-    setNewName("");
-    setNewNamePreview("");
-    setNewMobVnum("");
-    setNewType("drop");
   }
 
   function confirmDeleteGroup() {
@@ -276,36 +198,31 @@ export function MobDropEditor() {
     setDeleteConfirm(null);
   }
 
-  function clampPercent(value: number) {
-    return Math.max(0, Math.min(100, Math.round(value * 10000) / 10000));
-  }
-
   // See dropChance.ts for the full derivation against the server source and
   // the regression this fixes (previously off by a factor of 100).
   const realChance = formatRealDropChance;
 
-  function applyBulkEdit() {
-    const specificVnum = Number(specificItemVnum);
+  function applyBulkEdit(params: BulkEditParams) {
     setGroups((prev) =>
       prev!.map((g, gi) => {
-        if (bulkScope === "current" && gi !== selectedIndex) return g;
+        if (params.scope === "current" && gi !== selectedIndex) return g;
         return {
           ...g,
           items: g.items.map((item) => {
-            if (bulkMode === "specific-item") {
-              if (!Number.isFinite(specificVnum) || item.item_vnum !== specificVnum) return item;
-              return { ...item, percent: clampPercent(specificItemPercent) };
+            if (params.mode === "specific-item") {
+              if (!Number.isFinite(params.specificVnum) || item.item_vnum !== params.specificVnum) return item;
+              return { ...item, percent: clampPercent(params.specificPercent) };
             }
             let percent = item.percent;
-            if (bulkMode === "delta") percent = item.percent + deltaValue;
-            else if (bulkMode === "fixed") percent = fixedValue;
-            else if (bulkMode === "random") percent = randomMin + Math.random() * (randomMax - randomMin);
+            if (params.mode === "delta") percent = item.percent + params.delta;
+            else if (params.mode === "fixed") percent = params.fixed;
+            else if (params.mode === "random")
+              percent = params.randomMin + Math.random() * (params.randomMax - params.randomMin);
             return { ...item, percent: clampPercent(percent) };
           }),
         };
       }),
     );
-    setBulkConfirm(false);
   }
 
   async function saveFile() {
@@ -407,43 +324,7 @@ export function MobDropEditor() {
           <Button variant="ghost" size="icon-sm" title="Hilfe zu diesem Modul" onClick={() => openManual("mob-drop-editor")}>
             <HelpCircle className="size-4" />
           </Button>
-          <div className="relative">
-            <Button
-              variant="ghost"
-              size="icon-sm"
-              onClick={() => setServerInfoOpen((v) => !v)}
-              title="Wie Prozentwerte auf diesem Server wirken"
-            >
-              <Info className="size-4" />
-            </Button>
-            {serverInfoOpen && (
-              <div className="absolute left-0 top-full z-10 mt-1 w-96 space-y-3 rounded-lg border border-border bg-card p-3 shadow-lg">
-                {SERVER_NOTES.map((note, i) => (
-                  <div key={i} className="space-y-1.5">
-                    <p className="text-sm font-semibold">{note.title}</p>
-                    {note.intro && (
-                      <p className="text-xs text-muted-foreground">{note.intro}</p>
-                    )}
-                    {note.formula && (
-                      <p className="rounded-md bg-muted/60 px-2 py-1 text-xs font-medium">
-                        {note.formula}
-                      </p>
-                    )}
-                    {note.bullets && (
-                      <ul className="list-disc space-y-1 pl-4 text-xs text-muted-foreground">
-                        {note.bullets.map((b, bi) => (
-                          <li key={bi}>{b}</li>
-                        ))}
-                      </ul>
-                    )}
-                  </div>
-                ))}
-                <Button variant="outline" size="sm" onClick={() => setServerInfoOpen(false)}>
-                  Schließen
-                </Button>
-              </div>
-            )}
-          </div>
+          <ServerInfoPopover />
         </div>
         <div className="flex items-center gap-2">
           {saveOk && (
@@ -545,419 +426,65 @@ export function MobDropEditor() {
       {groups && (
       <>
       <div className="flex min-h-0 flex-1 gap-4">
-        <div className="flex w-72 shrink-0 flex-col gap-2">
-          <div className="flex gap-2">
-            <div className="relative flex-1">
-              <Search className="absolute left-2 top-1/2 size-3.5 -translate-y-1/2 text-muted-foreground" />
-              <input
-                value={groupSearch}
-                onChange={(e) => setGroupSearch(e.target.value)}
-                placeholder="Mob suchen (Name/VNUM)…"
-                className="w-full rounded-md border border-border bg-background py-1 pl-7 pr-2 text-sm"
-              />
-            </div>
-            <Button variant="outline" size="icon" onClick={() => setCreating(true)}>
-              <Plus className="size-4" />
-            </Button>
-          </div>
-          <div className="flex-1 space-y-1 overflow-y-auto">
-            {filteredGroups.map(({ g, index }) => (
-              <div
-                key={index}
-                onClick={() => setSelectedIndex(index)}
-                className={`cursor-pointer rounded-md border border-border p-2 text-sm hover:bg-muted ${
-                  selectedIndex === index ? "bg-muted" : ""
-                }`}
-              >
-                <div className="font-medium">{g.name}</div>
-                <div className="text-xs text-muted-foreground">
-                  Mob: {g.mob_vnum} · {g.items.length} Drops
-                </div>
-              </div>
-            ))}
-            {filteredGroups.length === 0 && (
-              <p className="p-2 text-sm text-muted-foreground">Keine Mobs in der Datei.</p>
-            )}
-          </div>
-        </div>
+        <GroupSidebar
+          filteredGroups={filteredGroups}
+          groupSearch={groupSearch}
+          onSearchChange={setGroupSearch}
+          selectedIndex={selectedIndex}
+          onSelect={setSelectedIndex}
+          onCreateClick={() => setCreating(true)}
+        />
 
         <div className="min-w-0 flex-1 space-y-4 overflow-y-auto">
           {!selected && (
             <p className="text-sm text-muted-foreground">Wähle links einen Mob aus.</p>
           )}
           {selected && selectedIndex !== null && (
-            <>
-              <div className="flex items-start justify-between rounded-lg border border-border p-3">
-                <div className="flex flex-wrap items-end gap-3">
-                  <Field label="Gruppenname">
-                    <input
-                      value={selected.name}
-                      onChange={(e) => updateGroup(selectedIndex, { name: e.target.value })}
-                      className="w-48 rounded-md border border-border bg-background px-2 py-1 text-sm"
-                    />
-                  </Field>
-                  <Field label="Mob-VNUM">
-                    <input
-                      type="number"
-                      value={selected.mob_vnum}
-                      onChange={(e) =>
-                        updateGroup(selectedIndex, { mob_vnum: Number(e.target.value) || 0 })
-                      }
-                      className="w-24 rounded-md border border-border bg-background px-2 py-1 text-sm"
-                    />
-                  </Field>
-                  <Field label="Type">
-                    <input
-                      value={selected.drop_type}
-                      onChange={(e) => updateGroup(selectedIndex, { drop_type: e.target.value })}
-                      className="w-24 rounded-md border border-border bg-background px-2 py-1 text-sm"
-                    />
-                  </Field>
-                </div>
-                <Button variant="destructive" size="sm" onClick={() => setDeleteConfirm(selectedIndex)}>
-                  <Trash2 className="size-4" />
-                  Mob löschen
-                </Button>
-              </div>
-
-              <div className="space-y-2 rounded-lg border border-border p-3">
-                <div className="flex items-center justify-between">
-                  <h2 className="text-sm font-medium text-muted-foreground">
-                    Drops ({selected.items.length})
-                  </h2>
-                  <Button size="sm" variant="outline" onClick={() => setItemPicker(true)}>
-                    <Plus className="size-3.5" />
-                    Item hinzufügen
-                  </Button>
-                </div>
-                <div className="space-y-1">
-                  {selected.items.map((item, itemIndex) => (
-                    <div
-                      key={itemIndex}
-                      className="flex items-center gap-3 rounded-md border border-border p-2"
-                    >
-                      <div className="flex size-9 shrink-0 items-center justify-center rounded-md border border-border bg-muted/40">
-                        {icons[item.item_vnum] ? (
-                          <img
-                            src={icons[item.item_vnum]!}
-                            alt=""
-                            className="max-h-full w-7 object-contain [image-rendering:pixelated]"
-                          />
-                        ) : (
-                          <span className="text-[10px] text-muted-foreground">{item.item_vnum}</span>
-                        )}
-                      </div>
-                      <span className="w-20 shrink-0 text-xs text-muted-foreground">
-                        #{item.item_vnum}
-                      </span>
-                      <Field label="Anzahl">
-                        <input
-                          type="number"
-                          min={1}
-                          value={item.count}
-                          onChange={(e) =>
-                            updateItem(selectedIndex, itemIndex, {
-                              count: Math.max(1, Number(e.target.value) || 1),
-                            })
-                          }
-                          className="w-16 rounded-md border border-border bg-background px-2 py-1 text-sm"
-                        />
-                      </Field>
-                      <Field label="Prozent">
-                        <input
-                          type="number"
-                          min={0}
-                          max={100}
-                          step={0.01}
-                          value={item.percent}
-                          onChange={(e) =>
-                            updateItem(selectedIndex, itemIndex, {
-                              percent: clampPercent(Number(e.target.value) || 0),
-                            })
-                          }
-                          className="w-20 rounded-md border border-border bg-background px-2 py-1 text-sm"
-                        />
-                      </Field>
-                      <span className="text-xs text-muted-foreground" title="Reale Drop-Chance auf diesem Server (siehe i-Info oben)">
-                        ≈{realChance(item.percent)}
-                      </span>
-                      <Button
-                        variant="ghost"
-                        size="icon-sm"
-                        className="ml-auto"
-                        onClick={() => removeItem(selectedIndex, itemIndex)}
-                      >
-                        <X className="size-4" />
-                      </Button>
-                    </div>
-                  ))}
-                  {selected.items.length === 0 && (
-                    <p className="text-sm text-muted-foreground">Noch keine Drops.</p>
-                  )}
-                </div>
-              </div>
-            </>
+            <MobDetailPanel
+              selected={selected}
+              selectedIndex={selectedIndex}
+              icons={icons}
+              realChance={realChance}
+              onUpdateGroup={updateGroup}
+              onUpdateItem={updateItem}
+              onRemoveItem={removeItem}
+              onDeleteClick={() => setDeleteConfirm(selectedIndex)}
+              onAddItemClick={() => setItemPicker(true)}
+            />
           )}
 
-          {/* Bulk-Änderung */}
-          <div className="space-y-3 rounded-lg border border-border p-3">
-            <h2 className="text-sm font-medium text-muted-foreground">
-              Prozentwerte in einem Rutsch ändern
-            </h2>
-
-            <div className="flex overflow-hidden rounded-md border border-border text-sm w-fit">
-              <button
-                onClick={() => setBulkScope("global")}
-                className={`px-3 py-1 ${bulkScope === "global" ? "bg-primary text-primary-foreground" : ""}`}
-              >
-                Global (alle Mobs)
-              </button>
-              <button
-                onClick={() => setBulkScope("current")}
-                disabled={!selected}
-                className={`px-3 py-1 disabled:opacity-40 ${bulkScope === "current" ? "bg-primary text-primary-foreground" : ""}`}
-              >
-                Nur dieser Mob
-              </button>
-            </div>
-
-            <div className="flex flex-wrap gap-2 text-sm">
-              {(
-                [
-                  ["delta", "Addieren/Subtrahieren"],
-                  ["fixed", "Fester Wert"],
-                  ["random", "Zufall in Bereich"],
-                  ["specific-item", "Bestimmtes Item überall"],
-                ] as const
-              ).map(([mode, label]) => (
-                <button
-                  key={mode}
-                  onClick={() => setBulkMode(mode)}
-                  className={`rounded-md border border-border px-3 py-1 ${
-                    bulkMode === mode ? "bg-primary text-primary-foreground" : ""
-                  }`}
-                >
-                  {label}
-                </button>
-              ))}
-            </div>
-
-            {bulkMode === "delta" && (
-              <Field label="Betrag (z.B. -5 oder 5)">
-                <input
-                  type="number"
-                  value={deltaValue}
-                  onChange={(e) => setDeltaValue(Number(e.target.value) || 0)}
-                  className="w-24 rounded-md border border-border bg-background px-2 py-1 text-sm"
-                />
-              </Field>
-            )}
-            {bulkMode === "fixed" && (
-              <div className="flex items-end gap-2">
-                <Field label="Neuer Wert für alle">
-                  <input
-                    type="number"
-                    min={0}
-                    max={100}
-                    value={fixedValue}
-                    onChange={(e) => setFixedValue(Number(e.target.value) || 0)}
-                    className="w-24 rounded-md border border-border bg-background px-2 py-1 text-sm"
-                  />
-                </Field>
-                <span className="pb-1.5 text-xs text-muted-foreground">≈{realChance(fixedValue)} real</span>
-              </div>
-            )}
-            {bulkMode === "random" && (
-              <div className="flex items-end gap-3">
-                <Field label="Min">
-                  <input
-                    type="number"
-                    min={0}
-                    max={100}
-                    value={randomMin}
-                    onChange={(e) => setRandomMin(Number(e.target.value) || 0)}
-                    className="w-20 rounded-md border border-border bg-background px-2 py-1 text-sm"
-                  />
-                </Field>
-                <Field label="Max">
-                  <input
-                    type="number"
-                    min={0}
-                    max={100}
-                    value={randomMax}
-                    onChange={(e) => setRandomMax(Number(e.target.value) || 0)}
-                    className="w-20 rounded-md border border-border bg-background px-2 py-1 text-sm"
-                  />
-                </Field>
-                <span className="pb-1.5 text-xs text-muted-foreground">
-                  ≈{realChance(randomMin)}–{realChance(randomMax)} real
-                </span>
-              </div>
-            )}
-            {bulkMode === "specific-item" && (
-              <div className="flex items-end gap-2">
-                <Field label="Item-VNUM">
-                  <input
-                    type="number"
-                    value={specificItemVnum}
-                    onChange={(e) => setSpecificItemVnum(e.target.value)}
-                    className="w-24 rounded-md border border-border bg-background px-2 py-1 text-sm"
-                  />
-                </Field>
-                <Field label="Prozent">
-                  <input
-                    type="number"
-                    min={0}
-                    max={100}
-                    value={specificItemPercent}
-                    onChange={(e) => setSpecificItemPercent(Number(e.target.value) || 0)}
-                    className="w-20 rounded-md border border-border bg-background px-2 py-1 text-sm"
-                  />
-                </Field>
-                <span className="pb-1.5 text-xs text-muted-foreground">
-                  ≈{realChance(specificItemPercent)} real
-                </span>
-              </div>
-            )}
-
-            <Button
-              variant="outline"
-              onClick={() => setBulkConfirm(true)}
-              disabled={!groups || groups.length === 0 || (bulkScope === "current" && !selected)}
-            >
-              Anwenden
-            </Button>
-            <p className="text-xs text-muted-foreground">
-              Wirkt zunächst nur auf die geladenen Daten - erst "Speichern" oben schreibt sie in die
-              Datei.
-            </p>
-          </div>
+          <BulkEditPanel
+            hasGroups={!!groups && groups.length > 0}
+            hasSelection={!!selected}
+            selectedName={selected?.name}
+            realChance={realChance}
+            onApply={applyBulkEdit}
+          />
         </div>
       </div>
 
-      {/* Item-Picker */}
       {itemPicker && (
-        <Modal onClose={() => setItemPicker(false)}>
-          <EntityBrowser
-            kind="item"
-            pickLabel="Hinzufügen"
-            autoFocus
-            maxHeightClass="max-h-64"
-            onPick={addItem}
-            onRowsChange={(rows) => ensureIcons(rows.map((r) => r.vnum))}
-            renderLeading={(r) =>
-              icons[r.vnum] ? (
-                <img src={icons[r.vnum]!} alt="" className="size-6 shrink-0 object-contain [image-rendering:pixelated]" />
-              ) : null
-            }
-          />
-        </Modal>
+        <ItemPickerModal
+          onClose={() => setItemPicker(false)}
+          onPick={addItem}
+          icons={icons}
+          onRowsChange={(rows) => ensureIcons(rows.map((r) => r.vnum))}
+        />
       )}
 
-      {/* Reverse-Suche: wer droppt Item X */}
       {reverseLookupOpen && (
-        <Modal onClose={closeReverseLookup}>
-          <div className="space-y-2">
-            <p className="text-sm font-medium">Wer droppt dieses Item?</p>
-
-            {!reverseSelectedItem && (
-              <EntityBrowser
-                kind="item"
-                pickLabel="Auswählen"
-                autoFocus
-                maxHeightClass="max-h-64"
-                onPick={setReverseSelectedItem}
-              />
-            )}
-
-            {reverseSelectedItem && (
-              <div className="space-y-2">
-                <div className="flex items-center justify-between">
-                  <p className="text-sm">
-                    <strong>{reverseSelectedItem.name}</strong>{" "}
-                    <span className="text-muted-foreground">#{reverseSelectedItem.vnum}</span> wird
-                    von {reverseMatches.length} Mob(s) gedroppt:
-                  </p>
-                  <button
-                    className="text-xs text-muted-foreground underline hover:text-foreground"
-                    onClick={() => setReverseSelectedItem(null)}
-                  >
-                    Anderes Item
-                  </button>
-                </div>
-                <div className="max-h-72 space-y-1 overflow-y-auto">
-                  {reverseMatches.map(({ g, index, drop }) => (
-                    <button
-                      key={index}
-                      onClick={() => {
-                        setSelectedIndex(index);
-                        closeReverseLookup();
-                      }}
-                      className="flex w-full items-center justify-between rounded-md border border-border px-2 py-1 text-left text-sm hover:bg-muted"
-                    >
-                      <span>
-                        {g.name} <span className="text-muted-foreground">(Mob #{g.mob_vnum})</span>
-                      </span>
-                      <span className="text-xs text-muted-foreground">
-                        Anzahl {drop.count} · {drop.percent}% (≈{realChance(drop.percent)} real)
-                      </span>
-                    </button>
-                  ))}
-                  {reverseMatches.length === 0 && (
-                    <p className="p-2 text-sm text-muted-foreground">
-                      Kein geladener Mob droppt dieses Item.
-                    </p>
-                  )}
-                </div>
-              </div>
-            )}
-          </div>
-        </Modal>
+        <ReverseLookupModal
+          groups={groups}
+          realChance={realChance}
+          onSelectMob={(index) => {
+            setSelectedIndex(index);
+            setReverseLookupOpen(false);
+          }}
+          onClose={() => setReverseLookupOpen(false)}
+        />
       )}
 
-      {/* Neuer Mob */}
-      {creating && (
-        <Modal onClose={() => setCreating(false)}>
-          <div className="space-y-3">
-            <p className="text-sm font-medium">Neuen Mob-Eintrag anlegen</p>
-            <Field label="Name">
-              <input
-                autoFocus
-                value={newName}
-                onChange={(e) => setNewName(e.target.value)}
-                placeholder="z.B. Wildhund"
-                className="w-full rounded-md border border-border bg-background px-2 py-1 text-sm"
-              />
-            </Field>
-            {newName.trim() && (
-              <p className="text-xs text-muted-foreground">
-                Wird gespeichert als: <code>{newNamePreview || "…"}</code>
-              </p>
-            )}
-            <Field label="Mob-VNUM">
-              <input
-                type="number"
-                value={newMobVnum}
-                onChange={(e) => setNewMobVnum(e.target.value)}
-                className="w-full rounded-md border border-border bg-background px-2 py-1 text-sm"
-              />
-            </Field>
-            <Field label="Type">
-              <input
-                value={newType}
-                onChange={(e) => setNewType(e.target.value)}
-                className="w-full rounded-md border border-border bg-background px-2 py-1 text-sm"
-              />
-            </Field>
-            <Button
-              onClick={submitNewGroup}
-              disabled={!newNamePreview || !newMobVnum}
-            >
-              Anlegen
-            </Button>
-          </div>
-        </Modal>
-      )}
+      {creating && <CreateMobModal onClose={() => setCreating(false)} onCreate={handleMobCreated} />}
 
       {deleteConfirm !== null && groups && (
         <div className="fixed inset-0 flex items-center justify-center bg-black/50">
@@ -973,23 +500,6 @@ export function MobDropEditor() {
               <Button variant="destructive" onClick={confirmDeleteGroup}>
                 Entfernen
               </Button>
-            </div>
-          </div>
-        </div>
-      )}
-
-      {bulkConfirm && (
-        <div className="fixed inset-0 flex items-center justify-center bg-black/50">
-          <div className="w-96 space-y-3 rounded-lg border border-border bg-card p-4">
-            <p className="text-sm">
-              Prozentwerte {bulkScope === "global" ? "aller Mobs" : `von "${selected?.name}"`} jetzt
-              ändern? Das betrifft nur die geladenen Daten, bis du speicherst.
-            </p>
-            <div className="flex justify-end gap-2">
-              <Button variant="outline" onClick={() => setBulkConfirm(false)}>
-                Abbrechen
-              </Button>
-              <Button onClick={applyBulkEdit}>Anwenden</Button>
             </div>
           </div>
         </div>
@@ -1017,30 +527,6 @@ export function MobDropEditor() {
       )}
       </>
       )}
-    </div>
-  );
-}
-
-function Field({ label, children }: { label: string; children: React.ReactNode }) {
-  return (
-    <label className="flex flex-col gap-1 text-xs text-muted-foreground">
-      {label}
-      {children}
-    </label>
-  );
-}
-
-function Modal({ children, onClose }: { children: React.ReactNode; onClose: () => void }) {
-  return (
-    <div className="fixed inset-0 flex items-center justify-center bg-black/50">
-      <div className="w-96 rounded-lg border border-border bg-card p-4">
-        <div className="mb-2 flex justify-end">
-          <button onClick={onClose} className="text-muted-foreground hover:text-foreground">
-            <X className="size-4" />
-          </button>
-        </div>
-        {children}
-      </div>
     </div>
   );
 }
