@@ -1,9 +1,10 @@
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { invoke } from "@tauri-apps/api/core";
 import { open } from "@tauri-apps/plugin-dialog";
 import { Button } from "@/components/ui/button";
-import { RefreshCw, AlertTriangle, CheckCircle2, FolderOpen, Crosshair, HelpCircle, Download } from "lucide-react";
+import { RefreshCw, AlertTriangle, CheckCircle2, FolderOpen, Crosshair, HelpCircle, Download, Copy } from "lucide-react";
 import { formatRealDropChance, realDropChancePercent } from "./dropChance";
+import { findDuplicateItemsInMobs, findDuplicateMobs } from "./duplicates";
 import { openManual } from "@/lib/manual";
 import type { EntityRow } from "@/features/shared/EntityBrowser";
 import { exportRowsAsCsv } from "@/lib/exportCsv";
@@ -16,6 +17,7 @@ import { BulkEditPanel, type BulkEditParams } from "./components/BulkEditPanel";
 import { ItemPickerModal } from "./components/ItemPickerModal";
 import { ReverseLookupModal } from "./components/ReverseLookupModal";
 import { CreateMobModal } from "./components/CreateMobModal";
+import { DuplicatesModal } from "./components/DuplicatesModal";
 
 type Source = "server" | "local";
 
@@ -49,6 +51,10 @@ export function MobDropEditor() {
   const [exportError, setExportError] = useState<string | null>(null);
 
   const [reverseLookupOpen, setReverseLookupOpen] = useState(false);
+  const [duplicatesOpen, setDuplicatesOpen] = useState(false);
+
+  const duplicateItems = useMemo(() => findDuplicateItemsInMobs(groups ?? []), [groups]);
+  const duplicateMobs = useMemo(() => findDuplicateMobs(groups ?? []), [groups]);
 
   useEffect(() => {
     loadFromServer();
@@ -186,6 +192,16 @@ export function MobDropEditor() {
     setGroups((prev) => [...(prev ?? []), group]);
     setSelectedIndex(groups ? groups.length : 0);
     setCreating(false);
+  }
+
+  function navigateToDuplicateGroup(groupIndex: number) {
+    setSelectedIndex(groupIndex);
+    setDuplicatesOpen(false);
+  }
+
+  function deleteDuplicateGroup(groupIndex: number) {
+    setDuplicatesOpen(false);
+    setDeleteConfirm(groupIndex);
   }
 
   function confirmDeleteGroup() {
@@ -377,6 +393,27 @@ export function MobDropEditor() {
       {saveError && <p className="text-sm text-destructive">{saveError}</p>}
       {exportError && <p className="text-sm text-destructive">{exportError}</p>}
 
+      {(duplicateItems.length > 0 || duplicateMobs.length > 0) && (
+        <div className="flex items-center justify-between gap-2 rounded-md border border-amber-500/40 bg-amber-500/10 p-2 text-sm text-amber-700 dark:text-amber-400">
+          <span className="flex items-center gap-2">
+            <Copy className="size-4 shrink-0" />
+            {duplicateItems.length > 0 && `${duplicateItems.length} Mob(s) mit doppelten Items`}
+            {duplicateItems.length > 0 && duplicateMobs.length > 0 && ", "}
+            {duplicateMobs.length > 0 && `${duplicateMobs.length} doppelte(r) Mob-Eintrag`}
+          </span>
+          <Button
+            size="sm"
+            variant="outline"
+            onClick={() => {
+              ensureIcons(duplicateItems.map((f) => f.itemVnum));
+              setDuplicatesOpen(true);
+            }}
+          >
+            Anzeigen
+          </Button>
+        </div>
+      )}
+
       {source === "local" && localPath && (
         <p className="text-xs text-muted-foreground">
           Datei: <code>{localPath}</code>
@@ -485,6 +522,19 @@ export function MobDropEditor() {
       )}
 
       {creating && <CreateMobModal onClose={() => setCreating(false)} onCreate={handleMobCreated} />}
+
+      {duplicatesOpen && (
+        <DuplicatesModal
+          duplicateItems={duplicateItems}
+          duplicateMobs={duplicateMobs}
+          groups={groups}
+          icons={icons}
+          onNavigateToGroup={navigateToDuplicateGroup}
+          onDeleteItemOccurrence={removeItem}
+          onDeleteGroup={deleteDuplicateGroup}
+          onClose={() => setDuplicatesOpen(false)}
+        />
+      )}
 
       {deleteConfirm !== null && groups && (
         <div className="fixed inset-0 flex items-center justify-center bg-black/50">
