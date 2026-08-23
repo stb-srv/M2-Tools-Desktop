@@ -24,6 +24,7 @@ const DbExplorer = lazy(() => import("@/features/db-explorer/DbExplorer").then((
 const ShopEditor = lazy(() => import("@/features/shop-editor/ShopEditor").then((m) => ({ default: m.ShopEditor })));
 const ItemEditor = lazy(() => import("@/features/item-editor/ItemEditor").then((m) => ({ default: m.ItemEditor })));
 const ItemProtoExplorer = lazy(() => import("@/features/item-proto-explorer/ItemProtoExplorer").then((m) => ({ default: m.ItemProtoExplorer })));
+const ItemViewer = lazy(() => import("@/features/item-viewer/ItemViewer").then((m) => ({ default: m.ItemViewer })));
 const ModuleImporter = lazy(() => import("@/features/module-importer/ModuleImporter").then((m) => ({ default: m.ModuleImporter })));
 const MobProtoEditor = lazy(() => import("@/features/mob-proto-editor/MobProtoEditor").then((m) => ({ default: m.MobProtoEditor })));
 const MobDropEditor = lazy(() => import("@/features/mob-drop-editor/MobDropEditor").then((m) => ({ default: m.MobDropEditor })));
@@ -114,6 +115,7 @@ function App() {
           {section === "shop-editor" && <ShopEditor />}
           {section === "item-editor" && <ItemEditor />}
           {section === "item-proto-explorer" && <ItemProtoExplorer />}
+          {section === "item-viewer" && <ItemViewer />}
           {section === "module-importer" && <ModuleImporter />}
           {section === "mob-proto-editor" && <MobProtoEditor />}
           {section === "mob-drop-editor" && <MobDropEditor />}

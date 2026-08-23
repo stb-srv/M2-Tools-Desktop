@@ -28,6 +28,7 @@ import {
   Beaker,
   Shield,
   Dices,
+  LayoutGrid,
 } from "lucide-react";
 
 export type Section =
@@ -39,6 +40,7 @@ export type Section =
   | "shop-editor"
   | "item-editor"
   | "item-proto-explorer"
+  | "item-viewer"
   | "module-importer"
   | "mob-proto-editor"
   | "mob-drop-editor"
@@ -112,6 +114,7 @@ export const NAV_ITEMS: { section: Section; icon: typeof LayoutDashboard; labelK
   { section: "build-deploy", icon: Wrench, labelKey: "nav.buildDeploy", category: "overview" },
   { section: "item-editor", icon: PackagePlus, labelKey: "nav.itemEditor", category: "items" },
   { section: "item-proto-explorer", icon: Table2, labelKey: "nav.itemProtoExplorer", category: "items" },
+  { section: "item-viewer", icon: LayoutGrid, labelKey: "nav.itemViewer", category: "items" },
   { section: "module-importer", icon: PackageSearch, labelKey: "nav.moduleImporter", category: "items" },
   { section: "refine-editor", icon: Hammer, labelKey: "nav.refineEditor", category: "items" },
   { section: "box-editor", icon: Package, labelKey: "nav.boxEditor", category: "items" },

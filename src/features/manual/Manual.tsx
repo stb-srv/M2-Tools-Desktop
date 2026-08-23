@@ -10,6 +10,7 @@ import serverControlMd from "./docs/uebersicht/server-control.md?raw";
 import buildDeployMd from "./docs/uebersicht/build-deploy.md?raw";
 import itemEditorMd from "./docs/items/item-editor.md?raw";
 import itemProtoExplorerMd from "./docs/items/item-proto-explorer.md?raw";
+import itemViewerMd from "./docs/items/item-viewer.md?raw";
 import moduleImporterMd from "./docs/items/module-importer.md?raw";
 import refineEditorMd from "./docs/items/refine-editor.md?raw";
 import boxEditorMd from "./docs/items/box-editor.md?raw";
@@ -45,6 +46,7 @@ const PAGES: Record<string, string> = {
   "build-deploy": buildDeployMd,
   "item-editor": itemEditorMd,
   "item-proto-explorer": itemProtoExplorerMd,
+  "item-viewer": itemViewerMd,
   "module-importer": moduleImporterMd,
   "refine-editor": refineEditorMd,
   "box-editor": boxEditorMd,
@@ -92,6 +94,7 @@ const NAV: NavEntry[] = [
     children: [
       { id: "item-editor", label: "Item Editor" },
       { id: "item-proto-explorer", label: "Item-Proto-Explorer" },
+      { id: "item-viewer", label: "Item-Viewer" },
       { id: "module-importer", label: "Modul-Importer" },
       { id: "refine-editor", label: "Aufwertungs-Editor" },
       { id: "box-editor", label: "Kisten-Editor" },
