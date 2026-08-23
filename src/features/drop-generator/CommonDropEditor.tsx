@@ -5,6 +5,7 @@ import { Button } from "@/components/ui/button";
 import { AlertTriangle, Info, Plus, Trash2, RefreshCw, CheckCircle2, X } from "lucide-react";
 import { EntityBrowser, type EntityRow } from "@/features/shared/EntityBrowser";
 import { formatRealDropChance } from "@/features/mob-drop-editor/dropChance";
+import { MAX_DROP_PERCENT } from "@/features/mob-drop-editor/components/shared";
 
 interface MobDropItem {
   item_vnum: number;
@@ -129,7 +130,7 @@ export function CommonDropEditor() {
   }
 
   function clampPercent(value: number) {
-    return Math.max(0, Math.min(100, Math.round(value * 10000) / 10000));
+    return Math.max(0, Math.min(MAX_DROP_PERCENT, Math.round(value * 10000) / 10000));
   }
 
   async function save() {
@@ -275,7 +276,7 @@ export function CommonDropEditor() {
                         <input
                           type="number"
                           min={0}
-                          max={100}
+                          max={MAX_DROP_PERCENT}
                           step={0.01}
                           value={item.percent}
                           onChange={(e) => updateItem(selectedIndex, itemIdx, { percent: clampPercent(Number(e.target.value) || 0) })}

@@ -1,7 +1,7 @@
 import { useState } from "react";
 import { Button } from "@/components/ui/button";
 import type { BulkMode, BulkScope } from "../types";
-import { Field } from "./shared";
+import { Field, MAX_DROP_PERCENT } from "./shared";
 
 export interface BulkEditParams {
   scope: BulkScope;
@@ -108,7 +108,7 @@ export function BulkEditPanel({
             <input
               type="number"
               min={0}
-              max={100}
+              max={MAX_DROP_PERCENT}
               value={fixed}
               onChange={(e) => setFixed(Number(e.target.value) || 0)}
               className="w-24 rounded-md border border-border bg-background px-2 py-1 text-sm"
@@ -123,7 +123,7 @@ export function BulkEditPanel({
             <input
               type="number"
               min={0}
-              max={100}
+              max={MAX_DROP_PERCENT}
               value={randomMin}
               onChange={(e) => setRandomMin(Number(e.target.value) || 0)}
               className="w-20 rounded-md border border-border bg-background px-2 py-1 text-sm"
@@ -133,7 +133,7 @@ export function BulkEditPanel({
             <input
               type="number"
               min={0}
-              max={100}
+              max={MAX_DROP_PERCENT}
               value={randomMax}
               onChange={(e) => setRandomMax(Number(e.target.value) || 0)}
               className="w-20 rounded-md border border-border bg-background px-2 py-1 text-sm"
@@ -158,7 +158,7 @@ export function BulkEditPanel({
             <input
               type="number"
               min={0}
-              max={100}
+              max={MAX_DROP_PERCENT}
               value={specificPercent}
               onChange={(e) => setSpecificPercent(Number(e.target.value) || 0)}
               className="w-20 rounded-md border border-border bg-background px-2 py-1 text-sm"

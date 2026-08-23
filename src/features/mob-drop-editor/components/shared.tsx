@@ -1,7 +1,11 @@
 import { X } from "lucide-react";
 
+// The file value / 4 = real drop chance (see dropChance.ts), so a file
+// value of 400 is needed for a real 100% chance - not 100.
+export const MAX_DROP_PERCENT = 400;
+
 export function clampPercent(value: number) {
-  return Math.max(0, Math.min(100, Math.round(value * 10000) / 10000));
+  return Math.max(0, Math.min(MAX_DROP_PERCENT, Math.round(value * 10000) / 10000));
 }
 
 export function Field({ label, children }: { label: string; children: React.ReactNode }) {

@@ -1,7 +1,7 @@
 import { Button } from "@/components/ui/button";
 import { Plus, Trash2, X } from "lucide-react";
 import type { MobDropGroup, MobDropItem } from "../types";
-import { Field, clampPercent } from "./shared";
+import { Field, MAX_DROP_PERCENT, clampPercent } from "./shared";
 
 export function MobDetailPanel({
   selected,
@@ -97,7 +97,7 @@ export function MobDetailPanel({
                 <input
                   type="number"
                   min={0}
-                  max={100}
+                  max={MAX_DROP_PERCENT}
                   step={0.01}
                   value={item.percent}
                   onChange={(e) =>
