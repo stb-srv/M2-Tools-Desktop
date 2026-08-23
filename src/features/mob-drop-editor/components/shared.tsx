@@ -13,10 +13,18 @@ export function Field({ label, children }: { label: string; children: React.Reac
   );
 }
 
-export function Modal({ children, onClose }: { children: React.ReactNode; onClose: () => void }) {
+export function Modal({
+  children,
+  onClose,
+  widthClassName = "w-96",
+}: {
+  children: React.ReactNode;
+  onClose: () => void;
+  widthClassName?: string;
+}) {
   return (
     <div className="fixed inset-0 flex items-center justify-center bg-black/50">
-      <div className="w-96 rounded-lg border border-border bg-card p-4">
+      <div className={`${widthClassName} rounded-lg border border-border bg-card p-4`}>
         <div className="mb-2 flex justify-end">
           <button onClick={onClose} className="text-muted-foreground hover:text-foreground">
             <X className="size-4" />

@@ -29,8 +29,8 @@ export function DuplicatesModal({
   onClose: () => void;
 }) {
   return (
-    <Modal onClose={onClose}>
-      <div className="max-h-[70vh] w-[32rem] space-y-4 overflow-y-auto">
+    <Modal onClose={onClose} widthClassName="w-[36rem]">
+      <div className="max-h-[70vh] space-y-4 overflow-y-auto">
         <p className="text-sm font-medium">Duplikate</p>
 
         <div className="space-y-2">
