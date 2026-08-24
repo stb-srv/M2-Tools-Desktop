@@ -1,12 +1,15 @@
 import { useEffect, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { invoke } from "@tauri-apps/api/core";
+import { runAsyncAction } from "@/lib/asyncAction";
 import { Button } from "@/components/ui/button";
 import { useNavigationStore } from "@/store/navigation";
 import { openManual } from "@/lib/manual";
 import {
   CheckCircle2,
   XCircle,
+  AlertTriangle,
+  MinusCircle,
   RefreshCw,
   Terminal,
   Store,
@@ -16,7 +19,15 @@ import {
   MemoryStick,
   HardDrive,
   HelpCircle,
+  Stethoscope,
 } from "lucide-react";
+
+interface HealthCheckResult {
+  label: string;
+  kind: "connection" | "local-path" | "remote-path";
+  status: "ok" | "warning" | "error" | "skipped";
+  detail: string;
+}
 
 interface DatabaseStats {
   accounts: number;
@@ -77,6 +88,22 @@ export function Dashboard() {
   const [overview, setOverview] = useState<ServerOverview | null>(null);
   const [overviewError, setOverviewError] = useState<string | null>(null);
   const [refreshing, setRefreshing] = useState(false);
+
+  const [healthResults, setHealthResults] = useState<HealthCheckResult[] | null>(null);
+  const [healthRunning, setHealthRunning] = useState(false);
+  const [healthError, setHealthError] = useState<string | null>(null);
+
+  async function runHealthCheck() {
+    await runAsyncAction(() => invoke<HealthCheckResult[]>("run_health_check"), {
+      onStart: () => {
+        setHealthRunning(true);
+        setHealthError(null);
+      },
+      onSuccess: setHealthResults,
+      onError: setHealthError,
+      onFinally: () => setHealthRunning(false),
+    });
+  }
 
   async function refresh() {
     setRefreshing(true);
@@ -299,6 +326,35 @@ export function Dashboard() {
       )}
 
       <section className="space-y-2">
+        <div className="flex items-center justify-between">
+          <h2 className="text-sm font-medium text-muted-foreground">System-Diagnose</h2>
+          <Button variant="outline" size="sm" onClick={runHealthCheck} disabled={healthRunning}>
+            <Stethoscope className={`size-3.5 ${healthRunning ? "animate-pulse" : ""}`} />
+            {healthRunning ? "Prüfe…" : "Diagnose starten"}
+          </Button>
+        </div>
+        <p className="text-xs text-muted-foreground">
+          Prüft SSH-/MySQL-Konnektivität und alle konfigurierten lokalen/entfernten Pfade auf
+          einmal, statt dass ein falscher Pfad erst beim Nutzen eines Moduls als stiller
+          Fehlschlag auffällt.
+        </p>
+        {healthError && <p className="text-sm text-destructive">{healthError}</p>}
+        {healthResults && (
+          <div className="divide-y divide-border rounded-lg border border-border">
+            {healthResults.map((r, i) => (
+              <div key={i} className="flex items-center justify-between gap-3 px-3 py-1.5 text-sm">
+                <span className="flex min-w-0 items-center gap-2">
+                  <HealthStatusIcon status={r.status} />
+                  <span className="truncate">{r.label}</span>
+                </span>
+                <span className="truncate text-xs text-muted-foreground">{r.detail}</span>
+              </div>
+            ))}
+          </div>
+        )}
+      </section>
+
+      <section className="space-y-2">
         <h2 className="text-sm font-medium text-muted-foreground">Schnellzugriff</h2>
         <div className="flex flex-wrap gap-2">
           <QuickAction
@@ -370,6 +426,19 @@ function StatusCard({
       )}
     </div>
   );
+}
+
+function HealthStatusIcon({ status }: { status: HealthCheckResult["status"] }) {
+  switch (status) {
+    case "ok":
+      return <CheckCircle2 className="size-4 shrink-0 text-green-600" />;
+    case "warning":
+      return <AlertTriangle className="size-4 shrink-0 text-amber-500" />;
+    case "error":
+      return <XCircle className="size-4 shrink-0 text-destructive" />;
+    case "skipped":
+      return <MinusCircle className="size-4 shrink-0 text-muted-foreground" />;
+  }
 }
 
 function StatCard({ label, value }: { label: string; value: number }) {

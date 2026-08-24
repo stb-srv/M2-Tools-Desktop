@@ -30,6 +30,7 @@ import broadcastSystemMd from "./docs/server-accounts/broadcast-system.md?raw";
 import weatherControlMd from "./docs/server-accounts/weather-control.md?raw";
 import backupBrowserMd from "./docs/backups/backup-browser.md?raw";
 import dbBackupsMd from "./docs/backups/db-backups.md?raw";
+import activityLogMd from "./docs/backups/activity-log.md?raw";
 import tgaConverterMd from "./docs/assets/tga-converter.md?raw";
 import iconBrowserMd from "./docs/assets/icon-browser.md?raw";
 import modelViewerMd from "./docs/assets/model-viewer.md?raw";
@@ -66,6 +67,7 @@ const PAGES: Record<string, string> = {
   "weather-control": weatherControlMd,
   "backup-browser": backupBrowserMd,
   "db-backups": dbBackupsMd,
+  "activity-log": activityLogMd,
   "tga-converter": tgaConverterMd,
   "icon-browser": iconBrowserMd,
   "model-viewer": modelViewerMd,
@@ -134,6 +136,7 @@ const NAV: NavEntry[] = [
     children: [
       { id: "backup-browser", label: "Backup-Browser" },
       { id: "db-backups", label: "Datenbank-Backups" },
+      { id: "activity-log", label: "Änderungsprotokoll" },
     ],
   },
   {

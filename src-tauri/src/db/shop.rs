@@ -27,6 +27,13 @@ pub struct ItemSearchResult {
     pub name: String,
 }
 
+#[derive(Debug, Clone, Serialize)]
+pub struct ShopUsage {
+    pub shop_vnum: i32,
+    pub shop_name: String,
+    pub count: u16,
+}
+
 // item_proto/mob_proto .name/.locale_name columns are `varbinary` holding
 // Windows-1252-encoded text (umlauts etc. aren't valid UTF-8 start bytes),
 // so decode explicitly rather than assuming UTF-8.
@@ -155,6 +162,33 @@ pub async fn get_shop_items(pool: &MySqlPool, shop_vnum: i32) -> Result<Vec<Shop
         .collect())
 }
 
+/// Inverse of `get_shop_items` - which shops sell a given item, for the
+/// item-usage ("wo wird das benutzt?") lookup.
+pub async fn find_shops_selling_item(pool: &MySqlPool, item_vnum: u32) -> Result<Vec<ShopUsage>, String> {
+    let rows = sqlx::query(
+        "SELECT s.vnum, s.name, si.count \
+         FROM player.shop_item si \
+         JOIN player.shop s ON s.vnum = si.shop_vnum \
+         WHERE si.item_vnum = ? ORDER BY s.vnum",
+    )
+    .bind(item_vnum)
+    .fetch_all(pool)
+    .await
+    .map_err(|e| e.to_string())?;
+
+    Ok(rows
+        .into_iter()
+        .map(|row| {
+            let name_raw: Vec<u8> = row.try_get("name").unwrap_or_default();
+            ShopUsage {
+                shop_vnum: row.try_get("vnum").unwrap_or_default(),
+                shop_name: decode_name(&name_raw),
+                count: row.try_get("count").unwrap_or_default(),
+            }
+        })
+        .collect())
+}
+
 pub async fn search_items(
     pool: &MySqlPool,
     query: &str,
@@ -233,6 +267,22 @@ pub async fn browse_mobs(
     limit: i64,
 ) -> Result<EntityBrowsePage, String> {
     browse_table(pool, "mob_proto", query, offset, limit).await
+}
+
+/// Every `vnum`+`locale_name` row of `item_proto`/`mob_proto`, no pagination -
+/// feeds the local entity cache (`entity_cache.rs`), which needs the whole
+/// table to mirror it, not one page at a time.
+pub async fn fetch_all_entity_names(pool: &MySqlPool, table: &str) -> Result<Vec<(u32, String)>, String> {
+    let sql = format!("SELECT vnum, locale_name FROM player.{table} ORDER BY vnum");
+    let rows = sqlx::query(&sql).fetch_all(pool).await.map_err(|e| e.to_string())?;
+    Ok(rows
+        .into_iter()
+        .map(|row| {
+            let name_raw: Vec<u8> = row.try_get("locale_name").unwrap_or_default();
+            let vnum: u32 = row.try_get("vnum").unwrap_or_default();
+            (vnum, decode_name(&name_raw))
+        })
+        .collect())
 }
 
 // `table` is always one of the two hardcoded literals above, never

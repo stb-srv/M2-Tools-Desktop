@@ -1,6 +1,8 @@
 import { useEffect, useMemo, useState } from "react";
 import { invoke } from "@tauri-apps/api/core";
 import { runAsyncAction } from "@/lib/asyncAction";
+import { logActivity } from "@/lib/logActivity";
+import type { Section } from "@/store/navigation";
 import { Button } from "@/components/ui/button";
 import { AlertTriangle, CheckCircle2, Undo2 } from "lucide-react";
 
@@ -43,12 +45,18 @@ export function GenericRowEditor({
   pkValue,
   onClose,
   onSaved,
+  activityModule,
 }: {
   database: string;
   table: string;
   pkValue: string;
   onClose: () => void;
   onSaved?: () => void;
+  /** Wenn gesetzt, wird ein erfolgreiches Speichern ins zentrale
+   * Änderungsprotokoll geschrieben (siehe src/lib/logActivity.ts) - fehlt
+   * bewusst kein Aufrufer, da dies der einzige Schreibweg für mob_proto/
+   * gmlist/account/player ist (alle über diese eine Komponente). */
+  activityModule?: Section;
 }) {
   const [columns, setColumns] = useState<ColumnInfo[] | null>(null);
   const [loadError, setLoadError] = useState<string | null>(null);
@@ -142,6 +150,15 @@ export function GenericRowEditor({
           setLastSaved(original);
           setOriginal(values);
           setSaveOk(true);
+          if (activityModule) {
+            logActivity(
+              activityModule,
+              "update",
+              `${table} (${pkValue}) aktualisiert: ${changedColumns.join(", ")}`,
+              table,
+              pkValue,
+            );
+          }
           onSaved?.();
         },
         onError: setSaveError,

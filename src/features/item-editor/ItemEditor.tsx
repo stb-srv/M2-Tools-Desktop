@@ -3,10 +3,13 @@ import { invoke } from "@tauri-apps/api/core";
 import { listen } from "@tauri-apps/api/event";
 import { open } from "@tauri-apps/plugin-dialog";
 import { Button } from "@/components/ui/button";
-import { Image as ImageIcon, AlertTriangle, CheckCircle2, Copy, Images, HelpCircle } from "lucide-react";
+import { Image as ImageIcon, AlertTriangle, CheckCircle2, Copy, Images, HelpCircle, Link2 } from "lucide-react";
 import { IconBrowserModal } from "@/features/icon-browser/IconBrowser";
 import { EntityBrowser } from "@/features/shared/EntityBrowser";
 import { openManual } from "@/lib/manual";
+import { logActivity } from "@/lib/logActivity";
+import { useNavigationStore } from "@/store/navigation";
+import { ItemUsageModal } from "@/features/shared/ItemUsageModal";
 import { ITEM_TYPES, SUBTYPES_BY_TYPE } from "./itemFlags";
 import { type ItemProtoInput, type ItemDescEntry, type StepStatus, type Mode, emptyItem } from "./types";
 import { Field, StepRow } from "./components/shared";
@@ -19,6 +22,7 @@ export function ItemEditor() {
   const [originalItem, setOriginalItem] = useState<ItemProtoInput | null>(null);
   const [vnumTaken, setVnumTaken] = useState<boolean | null>(null);
   const [checkingVnum, setCheckingVnum] = useState(false);
+  const [usageVnum, setUsageVnum] = useState<number | null>(null);
 
   const [iconSourcePath, setIconSourcePath] = useState("");
   const [iconPreview, setIconPreview] = useState<string | null>(null);
@@ -58,6 +62,15 @@ export function ItemEditor() {
       .catch(() => {});
     // Only intended to run once for the initial suggested vnum on first
     // mount in create mode, not every time the user switches back to it.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  // Globale Suche (Strg+Umschalt+F) springt hierher mit einer vnum als
+  // pendingSelection - Konsumieren-beim-Lesen verhindert erneutes Auslösen,
+  // wenn man später wieder zu diesem Bereich zurückwechselt.
+  useEffect(() => {
+    const targetRef = useNavigationStore.getState().consumePendingSelection("item-editor");
+    if (targetRef) loadForEdit(Number(targetRef));
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
@@ -307,6 +320,13 @@ export function ItemEditor() {
       });
       setDone(true);
       if (mode === "edit") setOriginalItem(item);
+      logActivity(
+        "item-editor",
+        mode === "create" ? "create" : "update",
+        `Item ${item.vnum} ('${item.locale_name || item.name}') ${mode === "create" ? "angelegt" : "aktualisiert"}`,
+        "item",
+        String(item.vnum),
+      );
     } catch (e) {
       let message = String(e);
       // A failure after the DB write would otherwise leave a half-finished
@@ -393,12 +413,19 @@ export function ItemEditor() {
                 Anderes Item wählen
               </button>
             </p>
-            <Button variant="outline" size="sm" onClick={duplicateAsNew}>
-              <Copy className="size-3.5" />
-              Als neues Item duplizieren
-            </Button>
+            <div className="flex gap-2">
+              <Button variant="outline" size="sm" onClick={() => setUsageVnum(item.vnum)}>
+                <Link2 className="size-3.5" />
+                Verwendung prüfen
+              </Button>
+              <Button variant="outline" size="sm" onClick={duplicateAsNew}>
+                <Copy className="size-3.5" />
+                Als neues Item duplizieren
+              </Button>
+            </div>
           </div>
         )}
+        {usageVnum !== null && <ItemUsageModal vnum={usageVnum} onClose={() => setUsageVnum(null)} />}
       </section>
 
       {mode === "create" || originalItem ? (

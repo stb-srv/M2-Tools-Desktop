@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useState } from "react";
 import { invoke } from "@tauri-apps/api/core";
+import { logActivity } from "@/lib/logActivity";
 import { Button } from "@/components/ui/button";
 import {
   Search,
@@ -245,6 +246,13 @@ function RecipeEditor({
         materials: activeMaterials.map((m) => ({ vnum: m.vnum, count: m.count, locale_name: null })),
       });
       await invoke("set_item_refine_link", { vnum: node.vnum, refineSet: newId, refinedVnum: targetVnum });
+      logActivity(
+        "refine-editor",
+        "save-recipe",
+        `Aufwertungs-Rezept #${newId} für Item ${node.vnum} gespeichert (→ ${targetVnum})`,
+        "item",
+        String(node.vnum),
+      );
       onSaved();
     } catch (e) {
       setError(String(e));
@@ -259,6 +267,13 @@ function RecipeEditor({
     setError(null);
     try {
       await invoke("set_item_refine_link", { vnum: node.vnum, refineSet: reusePreview.id, refinedVnum: targetVnum });
+      logActivity(
+        "refine-editor",
+        "reuse-recipe",
+        `Item ${node.vnum} mit Rezept #${reusePreview.id} verknüpft (→ ${targetVnum})`,
+        "item",
+        String(node.vnum),
+      );
       onSaved();
     } catch (e) {
       setError(String(e));
@@ -272,6 +287,7 @@ function RecipeEditor({
     setError(null);
     try {
       await invoke("set_item_refine_link", { vnum: node.vnum, refineSet: 0, refinedVnum: targetVnum });
+      logActivity("refine-editor", "clear-recipe", `Aufwertungs-Rezept für Item ${node.vnum} entfernt`, "item", String(node.vnum));
       onSaved();
     } catch (e) {
       setError(String(e));

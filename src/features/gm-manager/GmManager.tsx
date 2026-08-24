@@ -4,6 +4,7 @@ import { runAsyncAction } from "@/lib/asyncAction";
 import { Button } from "@/components/ui/button";
 import { Shield, Plus, Trash2, RefreshCw, AlertTriangle, Info, HelpCircle, Search } from "lucide-react";
 import { openManual } from "@/lib/manual";
+import { logActivity } from "@/lib/logActivity";
 import { GenericRowEditor } from "@/features/shared/GenericRowEditor";
 
 interface ColumnInfo {
@@ -150,6 +151,7 @@ function NewGmDialog({
         setError(null);
       },
       onSuccess: () => {
+        logActivity("gm-manager", "create", `GM '${name}' (${authority}) für Account '${account}' angelegt`, "gmlist", name);
         onCreated();
         onClose();
       },
@@ -282,6 +284,7 @@ export function GmManager() {
       {
         onStart: () => setDeleteError(null),
         onSuccess: async () => {
+          logActivity("gm-manager", "delete", `GM-Rechte für '${deleteTarget.label}' entzogen`, "gmlist", deleteTarget.pk);
           setDeleteTarget(null);
           await loadRows();
         },
@@ -401,6 +404,7 @@ export function GmManager() {
           pkValue={editingPk}
           onClose={() => setEditingPk(null)}
           onSaved={loadRows}
+          activityModule="gm-manager"
         />
       )}
 

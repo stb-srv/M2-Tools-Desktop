@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useState } from "react";
 import { invoke } from "@tauri-apps/api/core";
+import { logActivity } from "@/lib/logActivity";
 import { Button } from "@/components/ui/button";
 import { Search, Plus, X, Wand2, Sparkles } from "lucide-react";
 import { EntityBrowser } from "@/features/shared/EntityBrowser";
@@ -203,6 +204,7 @@ export function CreateQuestModal({
         content: preview,
         extension: templateType === "dungeon" ? "quest" : "lua",
       });
+      logActivity("quest-builder", "create", `Quest '${path}' angelegt`, "quest", path);
       onClose();
       await onCreated(path);
     } catch (e) {

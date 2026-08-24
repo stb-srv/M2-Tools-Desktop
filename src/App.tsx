@@ -5,6 +5,7 @@ import { check } from "@tauri-apps/plugin-updater";
 import { autoConnectMysql } from "@/lib/mysqlConnect";
 import { Sidebar } from "@/components/layout/Sidebar";
 import { CommandPalette } from "@/components/CommandPalette";
+import { GlobalSearch } from "@/components/GlobalSearch";
 import { CrashWatch } from "@/components/CrashWatch";
 import { useNavigationStore } from "@/store/navigation";
 import { useUpdateStore } from "@/store/updateStore";
@@ -37,6 +38,7 @@ const RegenEditor = lazy(() => import("@/features/regen-editor/RegenEditor").the
 const LocaleEditor = lazy(() => import("@/features/locale-editor/LocaleEditor").then((m) => ({ default: m.LocaleEditor })));
 const BackupBrowser = lazy(() => import("@/features/backup-browser/BackupBrowser").then((m) => ({ default: m.BackupBrowser })));
 const DbBackups = lazy(() => import("@/features/db-backups/DbBackups").then((m) => ({ default: m.DbBackups })));
+const ActivityLog = lazy(() => import("@/features/activity-log/ActivityLog").then((m) => ({ default: m.ActivityLog })));
 const TgaConverter = lazy(() => import("@/features/tga-converter/TgaConverter").then((m) => ({ default: m.TgaConverter })));
 const IconBrowser = lazy(() => import("@/features/icon-browser/IconBrowser").then((m) => ({ default: m.IconBrowser })));
 const ModelViewer = lazy(() => import("@/features/model-viewer/ModelViewer").then((m) => ({ default: m.ModelViewer })));
@@ -103,6 +105,7 @@ function App() {
   return (
     <div className="flex h-screen bg-background text-foreground">
       <CommandPalette />
+      <GlobalSearch />
       <CrashWatch />
       <Sidebar />
       <main className="flex-1 overflow-y-auto p-6">
@@ -128,6 +131,7 @@ function App() {
           {section === "locale-editor" && <LocaleEditor />}
           {section === "backup-browser" && <BackupBrowser />}
           {section === "db-backups" && <DbBackups />}
+          {section === "activity-log" && <ActivityLog />}
           {section === "tga-converter" && <TgaConverter />}
           {section === "icon-browser" && <IconBrowser />}
           {section === "model-viewer" && <ModelViewer />}

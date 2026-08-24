@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { invoke } from "@tauri-apps/api/core";
 import { runAsyncAction } from "@/lib/asyncAction";
+import { logActivity } from "@/lib/logActivity";
 import { reportSectionDirty } from "@/store/navigation";
 import { Button } from "@/components/ui/button";
 import { RegenMapView, type MapFolderInfo, type RegenMapImage } from "./RegenMapView";
@@ -281,6 +282,7 @@ export function RegenEditor() {
         onSuccess: (backup) => {
           setSaveOk(backup ? `Gespeichert. Backup: ${backup}` : "Gespeichert.");
           setDirty(false);
+          logActivity("regen-editor", "update", `Regen-Datei '${selectedPath}' gespeichert`, "regen-file", selectedPath);
         },
         onError: setSaveError,
         onFinally: () => setSaving(false),

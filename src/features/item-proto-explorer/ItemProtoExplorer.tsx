@@ -1,11 +1,12 @@
 import { useEffect, useState } from "react";
 import { invoke } from "@tauri-apps/api/core";
 import { Button } from "@/components/ui/button";
-import { Search, ChevronLeft, ChevronRight, Loader2, HelpCircle, Download, Table2 } from "lucide-react";
+import { Search, ChevronLeft, ChevronRight, Loader2, HelpCircle, Download, Table2, Link2 } from "lucide-react";
 import { openManual } from "@/lib/manual";
 import { exportRowsAsCsv } from "@/lib/exportCsv";
 import { useNavigationStore } from "@/store/navigation";
 import { ITEM_TYPES } from "@/features/item-editor/itemFlags";
+import { ItemUsageModal } from "@/features/shared/ItemUsageModal";
 
 interface ItemProtoSummary {
   vnum: number;
@@ -42,6 +43,7 @@ export function ItemProtoExplorer() {
 
   const [exporting, setExporting] = useState(false);
   const [exportError, setExportError] = useState<string | null>(null);
+  const [usageVnum, setUsageVnum] = useState<number | null>(null);
 
   useEffect(() => {
     let cancelled = false;
@@ -211,6 +213,10 @@ export function ItemProtoExplorer() {
                 <td className="p-2">{TYPE_LABEL[r.item_type] ?? r.item_type}</td>
                 <td className="p-2 text-muted-foreground">{r.subtype}</td>
                 <td className="p-2 text-right">
+                  <Button variant="outline" size="sm" onClick={() => setUsageVnum(r.vnum)}>
+                    <Link2 className="size-3.5" />
+                    Verwendung prüfen
+                  </Button>{" "}
                   <Button variant="outline" size="sm" onClick={() => setSection("item-editor")}>
                     Im Item Editor öffnen
                   </Button>
@@ -279,6 +285,8 @@ export function ItemProtoExplorer() {
           </div>
         </div>
       )}
+
+      {usageVnum !== null && <ItemUsageModal vnum={usageVnum} onClose={() => setUsageVnum(null)} />}
     </div>
   );
 }

@@ -1,7 +1,7 @@
 import { useEffect, useState } from "react";
 import { invoke } from "@tauri-apps/api/core";
 import { Button } from "@/components/ui/button";
-import { Search, ChevronLeft, ChevronRight, Loader2 } from "lucide-react";
+import { Search, ChevronLeft, ChevronRight, Loader2, Zap, Wifi, RefreshCw } from "lucide-react";
 
 export interface EntityRow {
   vnum: number;
@@ -11,6 +11,12 @@ export interface EntityRow {
 interface EntityBrowsePage {
   rows: EntityRow[];
   total: number;
+}
+
+interface CacheMeta {
+  kind: string;
+  synced_at: string;
+  row_count: number;
 }
 
 const PAGE_SIZE_OPTIONS = [20, 50, 100, 200] as const;
@@ -75,13 +81,47 @@ export function EntityBrowser({
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  const command = kind === "item" ? "browse_items" : "browse_mobs";
+  // Lokaler Cache (Idee #4, 2026-08-24): standardmäßig IMMER live - ein
+  // veralteter Name in dieser Liste wäre irreführend. Der Umschalter ist erst
+  // sichtbar/aktivierbar, sobald mindestens einmal synchronisiert wurde.
+  const [useCache, setUseCache] = useState(false);
+  const [cacheMeta, setCacheMeta] = useState<CacheMeta | null>(null);
+  const [syncing, setSyncing] = useState(false);
+  const [syncError, setSyncError] = useState<string | null>(null);
+
+  useEffect(() => {
+    invoke<CacheMeta | null>("get_entity_cache_meta", { kind })
+      .then(setCacheMeta)
+      .catch(() => setCacheMeta(null));
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [kind]);
+
+  async function syncCache() {
+    setSyncing(true);
+    setSyncError(null);
+    try {
+      const meta = await invoke<CacheMeta>("sync_entity_cache", { kind });
+      setCacheMeta(meta);
+      if (useCache) setRefreshKey((k) => k + 1);
+    } catch (e) {
+      setSyncError(String(e));
+    } finally {
+      setSyncing(false);
+    }
+  }
+
+  const command = useCache
+    ? "browse_entities_cached"
+    : kind === "item"
+      ? "browse_items"
+      : "browse_mobs";
 
   useEffect(() => {
     let cancelled = false;
     setLoading(true);
     setError(null);
     invoke<EntityBrowsePage>(command, {
+      kind,
       query: query.trim() || null,
       offset: page * pageSize,
       limit: pageSize,
@@ -137,6 +177,37 @@ export function EntityBrowser({
         <Button variant="outline" onClick={runSearch} disabled={loading}>
           <Search className="size-4" />
         </Button>
+      </div>
+
+      <div className="flex flex-wrap items-center gap-2 text-xs text-muted-foreground">
+        {cacheMeta && (
+          <button
+            type="button"
+            onClick={() => {
+              setUseCache((v) => !v);
+              setPage(0);
+            }}
+            className={`flex items-center gap-1 rounded-full border px-2 py-0.5 ${
+              useCache ? "border-amber-500/50 bg-amber-500/10 text-amber-700 dark:text-amber-400" : "border-border"
+            }`}
+            title="Zwischen Live-Daten und dem lokalen Cache umschalten"
+          >
+            {useCache ? <Zap className="size-3" /> : <Wifi className="size-3" />}
+            {useCache
+              ? `Cache (Stand ${new Date(cacheMeta.synced_at).toLocaleTimeString("de-DE")})`
+              : "Live"}
+          </button>
+        )}
+        <button
+          type="button"
+          onClick={syncCache}
+          disabled={syncing}
+          className="flex items-center gap-1 hover:text-foreground disabled:opacity-60"
+        >
+          <RefreshCw className={`size-3 ${syncing ? "animate-spin" : ""}`} />
+          {syncing ? "Synchronisiere…" : "Cache jetzt synchronisieren"}
+        </button>
+        {syncError && <span className="text-destructive">{syncError}</span>}
       </div>
 
       {error && <p className="text-xs text-destructive">{error}</p>}

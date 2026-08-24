@@ -1,6 +1,7 @@
 import { useState } from "react";
 import { invoke } from "@tauri-apps/api/core";
 import { runAsyncAction } from "@/lib/asyncAction";
+import { logActivity } from "@/lib/logActivity";
 import { Button } from "@/components/ui/button";
 import { Plus, Trash2, AlertTriangle } from "lucide-react";
 import { EntityBrowser } from "@/features/shared/EntityBrowser";
@@ -92,7 +93,10 @@ export function GiveItemSection() {
           setSaving(true);
           setSaveError(null);
         },
-        onSuccess: () => setSaveOk(true),
+        onSuccess: () => {
+          setSaveOk(true);
+          logActivity("account-manager", "give-item", `Neue Zeile in player.item eingefügt (${entries.length} Spalte(n) gesetzt)`, "item");
+        },
         onError: setSaveError,
         onFinally: () => setSaving(false),
       },
@@ -114,7 +118,10 @@ export function GiveItemSection() {
           setDeleteBusy(true);
           setDeleteError(null);
         },
-        onSuccess: () => setDeleteOk(true),
+        onSuccess: () => {
+          setDeleteOk(true);
+          logActivity("account-manager", "remove-item", `Zeile in player.item gelöscht (${deleteColumn}=${deleteId})`, "item", deleteId);
+        },
         onError: setDeleteError,
         onFinally: () => setDeleteBusy(false),
       },

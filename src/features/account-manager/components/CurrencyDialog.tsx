@@ -1,6 +1,7 @@
 import { useState } from "react";
 import { invoke } from "@tauri-apps/api/core";
 import { runAsyncAction } from "@/lib/asyncAction";
+import { logActivity } from "@/lib/logActivity";
 import { Button } from "@/components/ui/button";
 import { CheckCircle2 } from "lucide-react";
 import type { AccountSummary, ColumnInfo } from "../shared";
@@ -34,7 +35,16 @@ export function CurrencyDialog({
           setError(null);
           setNewValue(null);
         },
-        onSuccess: setNewValue,
+        onSuccess: (v) => {
+          setNewValue(v);
+          logActivity(
+            "account-manager",
+            "adjust-currency",
+            `Guthaben-Spalte '${column}' für Account '${account.login}' um ${delta} angepasst (neu: ${v})`,
+            "account",
+            String(account.id),
+          );
+        },
         onError: setError,
         onFinally: () => setBusy(false),
       },

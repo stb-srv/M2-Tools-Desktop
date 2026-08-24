@@ -1,6 +1,7 @@
 import { useState } from "react";
 import { invoke } from "@tauri-apps/api/core";
 import { runAsyncAction } from "@/lib/asyncAction";
+import { logActivity } from "@/lib/logActivity";
 import { Button } from "@/components/ui/button";
 import { CheckCircle2 } from "lucide-react";
 import type { AccountSummary } from "../shared";
@@ -21,7 +22,10 @@ export function ResetPasswordDialog({ account, onClose }: { account: AccountSumm
         setBusy(true);
         setError(null);
       },
-      onSuccess: () => setOk(true),
+      onSuccess: () => {
+        setOk(true);
+        logActivity("account-manager", "reset-password", `Passwort für Account '${account.login}' zurückgesetzt`, "account", String(account.id));
+      },
       onError: setError,
       onFinally: () => setBusy(false),
     });

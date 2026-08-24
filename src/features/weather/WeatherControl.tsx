@@ -2,6 +2,7 @@ import { useEffect, useRef, useState } from "react";
 import { invoke } from "@tauri-apps/api/core";
 import { listen } from "@tauri-apps/api/event";
 import { runAsyncAction } from "@/lib/asyncAction";
+import { logActivity } from "@/lib/logActivity";
 import { openManual } from "@/lib/manual";
 import { Button } from "@/components/ui/button";
 import { Moon, Sun, Snowflake, HelpCircle, RefreshCw, PlayCircle, Eraser, Info, Copy, X } from "lucide-react";
@@ -71,7 +72,10 @@ export function WeatherControl() {
           setBusy(true);
           setError(null);
         },
-        onSuccess: setState,
+        onSuccess: (result) => {
+          setState(result);
+          logActivity("weather-control", "set", `Wetter gesetzt: Nacht=${result.night_enabled}, Schnee=${result.snow_enabled}`);
+        },
         onError: setError,
         onFinally: () => setBusy(false),
       },

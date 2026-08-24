@@ -2,6 +2,7 @@ import { useEffect, useRef, useState } from "react";
 import { invoke } from "@tauri-apps/api/core";
 import { listen } from "@tauri-apps/api/event";
 import { runAsyncAction } from "@/lib/asyncAction";
+import { logActivity } from "@/lib/logActivity";
 import { openManual } from "@/lib/manual";
 import { Button } from "@/components/ui/button";
 import {
@@ -75,6 +76,10 @@ export function BroadcastSystem() {
     logRef.current?.scrollTo({ top: logRef.current.scrollHeight });
   }, [deployLog]);
 
+  function truncate(s: string, max = 40): string {
+    return s.length > max ? `${s.slice(0, max)}…` : s;
+  }
+
   function resetForm() {
     setEditingId(null);
     setText("");
@@ -100,6 +105,11 @@ export function BroadcastSystem() {
       {
         onStart: () => setError(null),
         onSuccess: async () => {
+          if (editingId !== null) {
+            logActivity("broadcast-system", "update", `Broadcast-Nachricht aktualisiert: '${truncate(trimmed)}'`, "broadcast-message", String(editingId));
+          } else {
+            logActivity("broadcast-system", "create", `Broadcast-Nachricht angelegt: '${truncate(trimmed)}'`, "broadcast-message");
+          }
           resetForm();
           await load();
         },
@@ -116,7 +126,16 @@ export function BroadcastSystem() {
           setBusyId(message.id);
           setError(null);
         },
-        onSuccess: load,
+        onSuccess: async () => {
+          logActivity(
+            "broadcast-system",
+            message.enabled ? "disable" : "enable",
+            `Broadcast-Nachricht '${truncate(message.text)}' ${message.enabled ? "deaktiviert" : "aktiviert"}`,
+            "broadcast-message",
+            String(message.id),
+          );
+          await load();
+        },
         onError: setError,
         onFinally: () => setBusyId(null),
       },
@@ -124,12 +143,14 @@ export function BroadcastSystem() {
   }
 
   async function deleteMessage(id: number) {
+    const target = (messages ?? []).find((m) => m.id === id);
     await runAsyncAction(() => invoke("delete_broadcast_message", { id }), {
       onStart: () => {
         setBusyId(id);
         setError(null);
       },
       onSuccess: async () => {
+        logActivity("broadcast-system", "delete", `Broadcast-Nachricht gelöscht: '${truncate(target?.text ?? "")}'`, "broadcast-message", String(id));
         if (editingId === id) resetForm();
         await load();
       },

@@ -7,12 +7,16 @@
 mod support;
 
 mod account;
+mod activity_log;
 mod backups;
 mod box_special_item;
 mod broadcast_weather;
 mod credentials_settings;
 mod db_explorer;
+mod entity_cache;
+mod health_check;
 mod item;
+mod item_usage;
 mod locale;
 mod misc;
 mod mob_drop;
@@ -25,12 +29,16 @@ mod ssh_server;
 mod system_installer;
 
 pub use account::*;
+pub use activity_log::*;
 pub use backups::*;
 pub use box_special_item::*;
 pub use broadcast_weather::*;
 pub use credentials_settings::*;
 pub use db_explorer::*;
+pub use entity_cache::*;
+pub use health_check::*;
 pub use item::*;
+pub use item_usage::*;
 pub use locale::*;
 pub use misc::*;
 pub use mob_drop::*;

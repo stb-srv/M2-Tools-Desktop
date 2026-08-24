@@ -65,6 +65,28 @@ pub fn init_db(app_data_dir: &Path) -> Result<Connection, String> {
             banned_at TEXT NOT NULL,
             unban_at TEXT,
             active INTEGER NOT NULL DEFAULT 1
+        );
+        CREATE TABLE IF NOT EXISTS activity_log (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            created_at TEXT NOT NULL,
+            module TEXT NOT NULL,
+            action TEXT NOT NULL,
+            target_kind TEXT,
+            target_ref TEXT,
+            summary TEXT NOT NULL
+        );
+        CREATE TABLE IF NOT EXISTS entity_cache_item (
+            vnum INTEGER PRIMARY KEY,
+            name TEXT NOT NULL
+        );
+        CREATE TABLE IF NOT EXISTS entity_cache_mob (
+            vnum INTEGER PRIMARY KEY,
+            name TEXT NOT NULL
+        );
+        CREATE TABLE IF NOT EXISTS entity_cache_meta (
+            kind TEXT PRIMARY KEY,
+            synced_at TEXT NOT NULL,
+            row_count INTEGER NOT NULL
         );",
     )
     .map_err(|e| e.to_string())?;

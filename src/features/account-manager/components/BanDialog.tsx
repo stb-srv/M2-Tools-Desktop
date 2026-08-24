@@ -1,6 +1,7 @@
 import { useState } from "react";
 import { invoke } from "@tauri-apps/api/core";
 import { runAsyncAction } from "@/lib/asyncAction";
+import { logActivity } from "@/lib/logActivity";
 import { Button } from "@/components/ui/button";
 import { AlertTriangle } from "lucide-react";
 import type { AccountSummary } from "../shared";
@@ -39,7 +40,17 @@ export function BanDialog({
           setBusy(true);
           setError(null);
         },
-        onSuccess: onBanned,
+        onSuccess: () => {
+          const duration = days.trim() ? `${days.trim()} Tag(e)` : "dauerhaft";
+          logActivity(
+            "account-manager",
+            "ban",
+            `Account '${account.login}' gesperrt (${duration}): ${message.trim()}`,
+            "account",
+            String(account.id),
+          );
+          onBanned();
+        },
         onError: setError,
         onFinally: () => setBusy(false),
       },

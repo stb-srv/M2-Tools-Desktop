@@ -29,6 +29,7 @@ import {
   Shield,
   Dices,
   LayoutGrid,
+  Activity,
 } from "lucide-react";
 
 export type Section =
@@ -53,6 +54,7 @@ export type Section =
   | "locale-editor"
   | "backup-browser"
   | "db-backups"
+  | "activity-log"
   | "tga-converter"
   | "icon-browser"
   | "model-viewer"
@@ -134,6 +136,7 @@ export const NAV_ITEMS: { section: Section; icon: typeof LayoutDashboard; labelK
   { section: "weather-control", icon: Moon, labelKey: "nav.weatherControl", category: "serverAdmin" },
   { section: "backup-browser", icon: History, labelKey: "nav.backupBrowser", category: "backups" },
   { section: "db-backups", icon: DatabaseBackup, labelKey: "nav.dbBackups", category: "backups" },
+  { section: "activity-log", icon: Activity, labelKey: "nav.activityLog", category: "backups" },
   { section: "tga-converter", icon: ImagePlus, labelKey: "nav.tgaConverter", category: "assets" },
   { section: "icon-browser", icon: Images, labelKey: "nav.iconBrowser", category: "assets" },
   { section: "model-viewer", icon: Box, labelKey: "nav.modelViewer", category: "assets" },
@@ -166,6 +169,15 @@ function saveJson(key: string, value: unknown) {
 
 const VALID_SECTIONS = new Set(NAV_ITEMS.map((item) => item.section));
 
+/** A search result waiting to be picked up by the module it navigates to -
+ * e.g. an item vnum from the global search modal. `targetRef` is opaque to
+ * the store itself (a vnum as a string, a quest relative_path, ...); only
+ * the receiving module's own `useEffect` knows how to interpret it. */
+export interface PendingSelection {
+  section: Section;
+  targetRef: string;
+}
+
 interface NavigationState {
   section: Section;
   setSection: (section: Section) => void;
@@ -180,9 +192,22 @@ interface NavigationState {
 
   dirtySections: Partial<Record<Section, boolean>>;
   setSectionDirty: (section: Section, dirty: boolean) => void;
+
+  pendingSelection: PendingSelection | null;
+  /** Switches to `section` AND leaves a payload for it to pick up on mount -
+   * the only cross-module "navigate with data" mechanism in the app (before
+   * this, "Im X öffnen"-buttons only ever switched sections, never carried a
+   * vnum/path along - see the Item-Proto-Explorer's pre-existing button for
+   * the gap this closes). */
+  goToWithSelection: (section: Section, targetRef: string) => void;
+  /** Reads and clears `pendingSelection` in one step - "consume once" so
+   * navigating away and back doesn't re-trigger the same selection. Returns
+   * the payload only if it matches `section` (a module should ignore a
+   * pending selection meant for a different section). */
+  consumePendingSelection: (section: Section) => string | null;
 }
 
-export const useNavigationStore = create<NavigationState>((set) => ({
+export const useNavigationStore = create<NavigationState>((set, get) => ({
   section: "dashboard",
   setSection: (section) =>
     set((state) => {
@@ -220,6 +245,23 @@ export const useNavigationStore = create<NavigationState>((set) => ({
       if (!!state.dirtySections[section] === dirty) return state;
       return { dirtySections: { ...state.dirtySections, [section]: dirty } };
     }),
+
+  pendingSelection: null,
+  goToWithSelection: (section, targetRef) =>
+    set((state) => {
+      const recent = [state.section, ...state.recent.filter((s) => s !== state.section && s !== section)].slice(
+        0,
+        RECENT_LIMIT
+      );
+      saveJson(RECENT_KEY, recent);
+      return { section, recent, pendingSelection: { section, targetRef } };
+    }),
+  consumePendingSelection: (section): string | null => {
+    const current = get().pendingSelection;
+    if (!current || current.section !== section) return null;
+    set({ pendingSelection: null });
+    return current.targetRef;
+  },
 }));
 
 // Convenience hook for feature editors: mirrors a local `dirty` boolean into

@@ -2,6 +2,7 @@ import { useEffect, useMemo, useState } from "react";
 import { invoke } from "@tauri-apps/api/core";
 import { diffLines, type Change } from "diff";
 import { runAsyncAction } from "@/lib/asyncAction";
+import { logActivity } from "@/lib/logActivity";
 import { Button } from "@/components/ui/button";
 import {
   Folder,
@@ -126,7 +127,10 @@ export function BackupBrowser() {
           setRestoring(true);
           setRestoreError(null);
         },
-        onSuccess: (target) => setRestoreOk(`Wiederhergestellt nach: ${target}`),
+        onSuccess: (target) => {
+          setRestoreOk(`Wiederhergestellt nach: ${target}`);
+          logActivity("backup-browser", "restore", `Backup wiederhergestellt: '${backupPath}' → '${target}'`, "file", target);
+        },
         onError: setRestoreError,
         onFinally: () => setRestoring(false),
       },

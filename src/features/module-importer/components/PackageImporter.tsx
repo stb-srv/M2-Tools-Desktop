@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from "react";
 import { invoke } from "@tauri-apps/api/core";
 import { listen } from "@tauri-apps/api/event";
+import { logActivity } from "@/lib/logActivity";
 import { open } from "@tauri-apps/plugin-dialog";
 import { Button } from "@/components/ui/button";
 import { CheckCircle2, AlertTriangle, Info, FolderOpen, Image as ImageIcon } from "lucide-react";
@@ -419,6 +420,13 @@ export function PackageImporter({ onImported }: { onImported: () => void }) {
         for (const vnum of createdVnumsRef.current) {
           try {
             await invoke("rollback_created_item", { vnum });
+            logActivity(
+              "module-importer",
+              "rollback-item",
+              `Neu angelegtes Item zurückgenommen (vnum ${vnum}, Rollback nach fehlgeschlagenem Import)`,
+              "item",
+              String(vnum),
+            );
           } catch {
             failed.push(vnum);
           }

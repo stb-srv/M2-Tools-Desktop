@@ -1,6 +1,7 @@
 import { useState } from "react";
 import { invoke } from "@tauri-apps/api/core";
 import { runAsyncAction } from "@/lib/asyncAction";
+import { logActivity } from "@/lib/logActivity";
 import { Button } from "@/components/ui/button";
 import { AlertTriangle, Info, Plus, Trash2, RefreshCw, CheckCircle2, X } from "lucide-react";
 import { EntityBrowser, type EntityRow } from "@/features/shared/EntityBrowser";
@@ -141,7 +142,10 @@ export function CommonDropEditor() {
         setSaving(true);
         setSaveError(null);
       },
-      onSuccess: () => setSaveOk(true),
+      onSuccess: () => {
+        setSaveOk(true);
+        logActivity("drop-generator", "save", `common_drop_item.txt gespeichert (${groups.length} Gruppe(n))`, "common_drop_item.txt");
+      },
       onError: setSaveError,
       onFinally: () => setSaving(false),
     });

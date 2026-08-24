@@ -163,6 +163,7 @@ export function TableSearchSection({
           table={target.table}
           pkValue={editingPk}
           onClose={() => setEditingPk(null)}
+          activityModule="account-manager"
         />
       )}
 

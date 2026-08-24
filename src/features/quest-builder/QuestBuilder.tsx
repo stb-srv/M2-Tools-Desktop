@@ -6,7 +6,8 @@ import CodeMirror, { type ReactCodeMirrorRef } from "@uiw/react-codemirror";
 import { StreamLanguage } from "@codemirror/language";
 import { lua } from "@codemirror/legacy-modes/mode/lua";
 import { runAsyncAction } from "@/lib/asyncAction";
-import { reportSectionDirty } from "@/store/navigation";
+import { logActivity } from "@/lib/logActivity";
+import { reportSectionDirty, useNavigationStore } from "@/store/navigation";
 import { Button } from "@/components/ui/button";
 import {
   Search,
@@ -106,6 +107,14 @@ export function QuestBuilder() {
     loadFiles();
   }, []);
 
+  // Globale Suche (Strg+Umschalt+F) springt hierher mit dem relative_path
+  // eines Quest-Treffers.
+  useEffect(() => {
+    const targetRef = useNavigationStore.getState().consumePendingSelection("quest-builder");
+    if (targetRef) openFile(targetRef);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
   useEffect(() => {
     const unlisten = listen<string>("server-output", (event) => {
       setDeployLog((prev) => [...prev, event.payload]);
@@ -178,6 +187,7 @@ export function QuestBuilder() {
       });
       setSaveOk(backup ? `Gespeichert. Backup: ${backup}` : "Gespeichert.");
       setDirty(false);
+      logActivity("quest-builder", "update", `Quest '${selectedPath}' gespeichert`, "quest", selectedPath);
     } catch (e) {
       setSaveError(String(e));
     } finally {
@@ -190,6 +200,7 @@ export function QuestBuilder() {
     setDeleteConfirm(false);
     try {
       await invoke("delete_quest_file", { relativePath: selectedPath });
+      logActivity("quest-builder", "delete", `Quest '${selectedPath}' gelöscht`, "quest", selectedPath);
       setSelectedPath(null);
       setContent("");
       await loadFiles();

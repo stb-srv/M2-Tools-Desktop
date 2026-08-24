@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 import { invoke } from "@tauri-apps/api/core";
 import { runAsyncAction } from "@/lib/asyncAction";
+import { logActivity } from "@/lib/logActivity";
 import { Button } from "@/components/ui/button";
 import {
   Search,
@@ -134,6 +135,7 @@ export function AccountSection() {
     const activeBan = bans.find((b) => b.account_id === account.id && b.active);
     await runAsyncAction(() => invoke("unban_account", { accountId: account.id, banId: activeBan?.id ?? null }), {
       onSuccess: async () => {
+        logActivity("account-manager", "unban", `Account '${account.login}' entsperrt`, "account", String(account.id));
         await Promise.all([load(), loadBans()]);
       },
       onError: setLoadError,
@@ -154,6 +156,7 @@ export function AccountSection() {
           setCreateError(null);
         },
         onSuccess: async () => {
+          logActivity("account-manager", "create", `Account '${newLogin.trim()}' angelegt`, "account", newLogin.trim());
           setCreating(false);
           setNewLogin("");
           setNewPassword("");
@@ -218,6 +221,7 @@ export function AccountSection() {
                   onClick={() =>
                     runAsyncAction(() => invoke("unban_account", { accountId: b.account_id, banId: b.id }), {
                       onSuccess: async () => {
+                        logActivity("account-manager", "unban", `Account '${b.login}' entsperrt`, "account", String(b.account_id));
                         await Promise.all([load(), loadBans()]);
                       },
                       onError: setLoadError,
@@ -322,6 +326,7 @@ export function AccountSection() {
           pkValue={editingPk}
           onClose={() => setEditingPk(null)}
           onSaved={load}
+          activityModule="account-manager"
         />
       )}
 

@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 import { invoke } from "@tauri-apps/api/core";
 import { runAsyncAction } from "@/lib/asyncAction";
+import { logActivity } from "@/lib/logActivity";
 import { Button } from "@/components/ui/button";
 import { Search, Plus, Trash2, RefreshCw, CheckCircle2, AlertTriangle, Info, Package, HelpCircle } from "lucide-react";
 import { useNavigationStore } from "@/store/navigation";
@@ -481,6 +482,7 @@ export function BoxEditor() {
       },
       onSuccess: (backupPath) => {
         setSaveOk(backupPath ? `Gespeichert (Backup: ${backupPath})` : "Gespeichert.");
+        logActivity("box-editor", "save", `special_item_group.txt gespeichert (${groups?.length ?? 0} Gruppe(n))`, "file");
       },
       onError: setSaveError,
       onFinally: () => setSaving(false),

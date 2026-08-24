@@ -1,12 +1,19 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { Button } from "@/components/ui/button";
 import { PawPrint, HelpCircle } from "lucide-react";
 import { GenericRowEditor } from "@/features/shared/GenericRowEditor";
 import { EntityBrowser } from "@/features/shared/EntityBrowser";
 import { openManual } from "@/lib/manual";
+import { useNavigationStore } from "@/store/navigation";
 
 export function MobProtoEditor() {
   const [editingVnum, setEditingVnum] = useState<number | null>(null);
+
+  // Globale Suche (Strg+Umschalt+F) springt hierher mit einer vnum.
+  useEffect(() => {
+    const targetRef = useNavigationStore.getState().consumePendingSelection("mob-proto-editor");
+    if (targetRef) setEditingVnum(Number(targetRef));
+  }, []);
 
   return (
     <div className="max-w-3xl space-y-4">
@@ -40,6 +47,7 @@ export function MobProtoEditor() {
           table="mob_proto"
           pkValue={String(editingVnum)}
           onClose={() => setEditingVnum(null)}
+          activityModule="mob-proto-editor"
         />
       )}
     </div>

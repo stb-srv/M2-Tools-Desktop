@@ -6,6 +6,7 @@ import { RefreshCw, AlertTriangle, CheckCircle2, FolderOpen, Crosshair, HelpCirc
 import { formatRealDropChance, realDropChancePercent } from "./dropChance";
 import { findDuplicateItemsInMobs, findDuplicateMobs } from "./duplicates";
 import { openManual } from "@/lib/manual";
+import { logActivity } from "@/lib/logActivity";
 import type { EntityRow } from "@/features/shared/EntityBrowser";
 import { exportRowsAsCsv } from "@/lib/exportCsv";
 import type { MobDropGroup, MobDropItem } from "./types";
@@ -253,6 +254,14 @@ export function MobDropEditor() {
           ? await invoke<string | null>("write_mob_drop_file", { groups })
           : await invoke<string | null>("write_local_mob_drop_file", { path: localPath, groups });
       setSaveOk(backup ? `Gespeichert. Backup: ${backup}` : "Gespeichert.");
+      logActivity(
+        "mob-drop-editor",
+        "save",
+        source === "server"
+          ? `mob_drop_item.txt auf dem Server gespeichert (${groups.length} Gruppe(n))`
+          : `Lokale mob_drop_item.txt-Kopie gespeichert (${groups.length} Gruppe(n))`,
+        "mob_drop_item.txt",
+      );
     } catch (e) {
       setSaveError(String(e));
     } finally {

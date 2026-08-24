@@ -2,6 +2,7 @@
 // when building the cdylib's import lib - harmless, just noisy.
 #![allow(linker_messages)]
 
+mod activity_log;
 mod backups;
 mod bans;
 mod broadcast;
@@ -11,6 +12,7 @@ mod credentials;
 mod cube;
 mod db;
 mod drop_item_group;
+mod entity_cache;
 mod etc_drop;
 mod gr2;
 mod icons;
@@ -242,6 +244,13 @@ pub fn run() {
             commands::delete_broadcast_message,
             commands::get_weather_state,
             commands::set_weather_state,
+            commands::log_activity,
+            commands::list_activity_feed,
+            commands::sync_entity_cache,
+            commands::get_entity_cache_meta,
+            commands::browse_entities_cached,
+            commands::run_health_check,
+            commands::find_item_usages,
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");

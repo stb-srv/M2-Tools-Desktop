@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 import { invoke } from "@tauri-apps/api/core";
 import { runAsyncAction } from "@/lib/asyncAction";
+import { logActivity } from "@/lib/logActivity";
 import { useNavigationStore } from "@/store/navigation";
 import { Button } from "@/components/ui/button";
 import {
@@ -231,7 +232,10 @@ export function ServerEvents() {
         setBusyName(name);
         setError(null);
       },
-      onSuccess: load,
+      onSuccess: async () => {
+        logActivity("server-events", "set", `Event-Flag '${name}' auf ${value} gesetzt`, "event-flag", name);
+        await load();
+      },
       onError: setError,
       onFinally: () => setBusyName(null),
     });
@@ -243,7 +247,10 @@ export function ServerEvents() {
         setBusyName(name);
         setError(null);
       },
-      onSuccess: load,
+      onSuccess: async () => {
+        logActivity("server-events", "reset", `Event-Flag '${name}' zurückgesetzt`, "event-flag", name);
+        await load();
+      },
       onError: setError,
       onFinally: () => setBusyName(null),
     });

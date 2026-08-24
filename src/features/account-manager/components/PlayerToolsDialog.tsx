@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 import { invoke } from "@tauri-apps/api/core";
 import { runAsyncAction } from "@/lib/asyncAction";
+import { logActivity } from "@/lib/logActivity";
 import { Button } from "@/components/ui/button";
 import { CheckCircle2 } from "lucide-react";
 import type { ColumnInfo, TableRows } from "../shared";
@@ -77,6 +78,13 @@ export function PlayerToolsDialog({
           setGoldError(null);
         },
         onSuccess: (v) => {
+          logActivity(
+            "account-manager",
+            "adjust-gold",
+            `Yang für Spieler #${playerId} (${playerLabel}) um ${goldDelta} angepasst (neu: ${v})`,
+            "player",
+            playerId,
+          );
           setGoldNewValue(v);
           setGoldDelta("");
         },
@@ -108,6 +116,14 @@ export function PlayerToolsDialog({
           setPosSaveError(null);
         },
         onSuccess: () => {
+          const detail = positionChanged.map((f) => `${f}=${position?.[f]}`).join(", ");
+          logActivity(
+            "account-manager",
+            "unstick",
+            `Position für Spieler #${playerId} (${playerLabel}) gesetzt (${detail})`,
+            "player",
+            playerId,
+          );
           setPositionOriginal(position);
           setPosSaveOk(true);
         },

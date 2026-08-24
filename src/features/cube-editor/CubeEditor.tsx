@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 import { invoke } from "@tauri-apps/api/core";
 import { runAsyncAction } from "@/lib/asyncAction";
+import { logActivity } from "@/lib/logActivity";
 import { Button } from "@/components/ui/button";
 import { Plus, Trash2, RefreshCw, CheckCircle2, AlertTriangle, Info, Beaker, HelpCircle, Search } from "lucide-react";
 import { openManual } from "@/lib/manual";
@@ -187,7 +188,10 @@ export function CubeEditor() {
         setSaving(true);
         setSaveError(null);
       },
-      onSuccess: (backupPath) => setSaveOk(backupPath ? `Gespeichert (Backup: ${backupPath})` : "Gespeichert."),
+      onSuccess: (backupPath) => {
+        setSaveOk(backupPath ? `Gespeichert (Backup: ${backupPath})` : "Gespeichert.");
+        logActivity("cube-editor", "save", `cube.txt gespeichert (${recipes?.length ?? 0} Rezept(e))`, "file");
+      },
       onError: setSaveError,
       onFinally: () => setSaving(false),
     });

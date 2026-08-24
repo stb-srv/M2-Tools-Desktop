@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 import { invoke } from "@tauri-apps/api/core";
 import { runAsyncAction } from "@/lib/asyncAction";
+import { logActivity } from "@/lib/logActivity";
 import { reportSectionDirty } from "@/store/navigation";
 import { Button } from "@/components/ui/button";
 import { Search, Plus, Trash2, X, RefreshCw, CheckCircle2, AlertTriangle, HelpCircle } from "lucide-react";
@@ -125,6 +126,7 @@ export function LocaleEditor() {
         onSuccess: (backup) => {
           setSaveOk(backup ? `Gespeichert. Backup: ${backup}` : "Gespeichert.");
           setDirty(false);
+          logActivity("locale-editor", "update", `Locale-Namespace '${selected}' gespeichert`, "locale-namespace", selected);
         },
         onError: setSaveError,
         onFinally: () => setSaving(false),
@@ -138,6 +140,7 @@ export function LocaleEditor() {
     setCreateError(null);
     try {
       await invoke("create_locale_namespace", { namespace: newNsPreview });
+      logActivity("locale-editor", "create", `Locale-Namespace '${newNsPreview}' angelegt`, "locale-namespace", newNsPreview);
       setCreating(false);
       setNewNsName("");
       await loadNamespaces();

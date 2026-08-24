@@ -1,5 +1,6 @@
 import { useState } from "react";
 import { invoke } from "@tauri-apps/api/core";
+import { logActivity } from "@/lib/logActivity";
 import { Button } from "@/components/ui/button";
 import { CheckCircle2, Search, Trash2 } from "lucide-react";
 import type { ItemSearchResult } from "../shared";
@@ -31,6 +32,7 @@ export function QuickRemoveItem() {
       await invoke("remove_single_item", { vnum });
       setResults((prev) => prev.filter((r) => r.vnum !== vnum));
       setLastRemoved(vnum);
+      logActivity("module-importer", "remove-item", `Einzelnes importiertes Item entfernt (vnum ${vnum})`, "item", String(vnum));
     } catch (e) {
       setError(String(e));
     } finally {

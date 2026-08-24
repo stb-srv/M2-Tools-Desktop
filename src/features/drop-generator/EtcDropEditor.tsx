@@ -1,6 +1,7 @@
 import { useState } from "react";
 import { invoke } from "@tauri-apps/api/core";
 import { runAsyncAction } from "@/lib/asyncAction";
+import { logActivity } from "@/lib/logActivity";
 import { Button } from "@/components/ui/button";
 import { AlertTriangle, Info, Plus, Trash2, RefreshCw, CheckCircle2 } from "lucide-react";
 import { EntityBrowser, type EntityRow } from "@/features/shared/EntityBrowser";
@@ -77,7 +78,10 @@ export function EtcDropEditor() {
         setSaving(true);
         setSaveError(null);
       },
-      onSuccess: () => setSaveOk(true),
+      onSuccess: () => {
+        setSaveOk(true);
+        logActivity("drop-generator", "save", `etc_drop_item.txt gespeichert (${entries.length} Eintrag/Einträge)`, "etc_drop_item.txt");
+      },
       onError: setSaveError,
       onFinally: () => setSaving(false),
     });

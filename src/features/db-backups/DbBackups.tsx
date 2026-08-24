@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 import { invoke } from "@tauri-apps/api/core";
 import { runAsyncAction } from "@/lib/asyncAction";
+import { logActivity } from "@/lib/logActivity";
 import { Button } from "@/components/ui/button";
 import {
   DatabaseBackup,
@@ -81,6 +82,7 @@ export function DbBackups() {
       },
       onSuccess: (path) => {
         setCreateOk(`Backup erstellt: ${path}`);
+        logActivity("db-backups", "create", `Datenbank-Backup erstellt: '${path}'`, "backup", path);
         load(undefined);
       },
       onError: setCreateError,
@@ -98,7 +100,10 @@ export function DbBackups() {
         setRestoreError(null);
         setRestoreOk(null);
       },
-      onSuccess: () => setRestoreOk(`Wiederhergestellt aus: ${path}`),
+      onSuccess: () => {
+        setRestoreOk(`Wiederhergestellt aus: ${path}`);
+        logActivity("db-backups", "restore", `Datenbank-Backup wiederhergestellt: '${path}' (überschreibt Live-DB)`, "backup", path);
+      },
       onError: setRestoreError,
       onFinally: () => setRestoring(false),
     });
@@ -113,7 +118,10 @@ export function DbBackups() {
         setDeleting(true);
         setDeleteError(null);
       },
-      onSuccess: () => load(undefined),
+      onSuccess: () => {
+        logActivity("db-backups", "delete", `Datenbank-Backup gelöscht: '${path}'`, "backup", path);
+        load(undefined);
+      },
       onError: setDeleteError,
       onFinally: () => setDeleting(false),
     });

@@ -8,6 +8,7 @@ import { Gr2Canvas } from "@/features/model-viewer/Gr2Canvas";
 import type { Gr2ModelInfo } from "@/features/model-viewer/types";
 import { Minus, Plus, Search, Trash2, AlertTriangle, X, RefreshCw, HelpCircle } from "lucide-react";
 import { openManual } from "@/lib/manual";
+import { logActivity } from "@/lib/logActivity";
 import { EntityBrowser } from "@/features/shared/EntityBrowser";
 
 interface ShopSummary {
@@ -274,6 +275,13 @@ export function ShopEditor() {
         itemVnum: item.item_vnum,
         count: nextCount,
       });
+      logActivity(
+        "shop-editor",
+        "update-count",
+        `Stückzahl von Item ${item.item_vnum} in Shop '${selectedShop.name}' auf ${nextCount} gesetzt`,
+        "shop",
+        String(selectedShop.vnum),
+      );
     } catch (e) {
       setError(String(e));
       // Revert the optimistic update - without this, the grid kept showing
@@ -293,6 +301,13 @@ export function ShopEditor() {
         shopVnum: selectedShop.vnum,
         itemVnum: item.item_vnum,
       });
+      logActivity(
+        "shop-editor",
+        "remove-item",
+        `Item ${item.item_vnum} aus Shop '${selectedShop.name}' entfernt`,
+        "shop",
+        String(selectedShop.vnum),
+      );
       setShopItems((prev) => prev.filter((i) => i.item_vnum !== item.item_vnum));
       setCell(null);
     } catch (e) {
@@ -308,6 +323,13 @@ export function ShopEditor() {
         itemVnum: item.vnum,
         count: maxValue,
       });
+      logActivity(
+        "shop-editor",
+        "add-item",
+        `Item ${item.vnum} zu Shop '${selectedShop.name}' hinzugefügt`,
+        "shop",
+        String(selectedShop.vnum),
+      );
       await selectShop(selectedShop);
       setCell(null);
     } catch (e) {
@@ -319,6 +341,7 @@ export function ShopEditor() {
     if (!deleteConfirm) return;
     try {
       await invoke("delete_shop", { shopVnum: deleteConfirm.vnum });
+      logActivity("shop-editor", "delete", `Shop '${deleteConfirm.name}' gelöscht`, "shop", String(deleteConfirm.vnum));
       setShops((prev) => prev.filter((s) => s.vnum !== deleteConfirm.vnum));
       if (selectedShop?.vnum === deleteConfirm.vnum) {
         setSelectedShop(null);
@@ -351,6 +374,8 @@ export function ShopEditor() {
         shopVnum: mode === "pro-shop" ? (selectedShop?.vnum ?? null) : null,
         count: maxValue,
       });
+      const scope = mode === "pro-shop" && selectedShop ? `Shop '${selectedShop.name}'` : "alle Shops";
+      logActivity("shop-editor", "sync-stack-sizes", `Stückzahlen für ${scope} synchronisiert (${affected} Zeile(n))`, "shop");
       setSyncResult(affected);
       await refreshShops();
       if (selectedShop) await selectShop(selectedShop);
@@ -369,6 +394,13 @@ export function ShopEditor() {
     }
     try {
       await invoke("rename_shop", { shopVnum: selectedShop.vnum, name: nameDraft.trim() });
+      logActivity(
+        "shop-editor",
+        "rename",
+        `Shop '${selectedShop.name}' umbenannt zu '${nameDraft.trim()}'`,
+        "shop",
+        String(selectedShop.vnum),
+      );
       const updated = { ...selectedShop, name: nameDraft.trim() };
       setSelectedShop(updated);
       setShops((prev) => prev.map((s) => (s.vnum === updated.vnum ? updated : s)));
@@ -384,6 +416,7 @@ export function ShopEditor() {
     if (!newShopName.trim() || !Number.isFinite(npcVnum)) return;
     try {
       await invoke("create_shop", { name: newShopName.trim(), npcVnum });
+      logActivity("shop-editor", "create", `Shop '${newShopName.trim()}' angelegt (NPC ${npcVnum})`, "shop");
       await refreshShops();
       setCreating(false);
       setNewShopName("");
