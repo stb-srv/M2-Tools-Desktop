@@ -14,7 +14,7 @@ use crate::state::AppState;
 use crate::webhook;
 use tauri::State;
 
-use super::support::{notify_webhook_best_effort, stored_ssh_auth, webhook_url};
+use super::support::{notify_webhook_best_effort, require_pool, stored_ssh_auth, webhook_url};
 
 /// Generic "send this message" command - callers (Server Control failures,
 /// DB-backup failures, the frontend crash-watch) all go through this rather
@@ -49,7 +49,7 @@ fn db_backup_settings(state: &State<'_, AppState>) -> Result<(String, Vec<String
         .unwrap_or_else(|| "/usr/home/game/m2manager_db_backups".to_string());
     let databases = settings::get_path(&conn, "db_backup_databases")?
         .filter(|v| !v.is_empty())
-        .unwrap_or_else(|| "account common player log website".to_string())
+        .unwrap_or_else(|| "account common player log".to_string())
         .split_whitespace()
         .map(|s| s.to_string())
         .collect();
@@ -76,10 +76,26 @@ fn mysql_connection_settings(state: &State<'_, AppState>) -> Result<(String, u16
 #[tauri::command]
 pub async fn create_database_backup(state: State<'_, AppState>) -> Result<String, String> {
     let (config, auth) = stored_ssh_auth(&state)?;
-    let (dir, databases) = db_backup_settings(&state)?;
+    let (dir, configured_databases) = db_backup_settings(&state)?;
     let (host, port, username) = mysql_connection_settings(&state)?;
     let password = credentials::get_secret("mysql_password")
         .map_err(|_| "Kein MySQL-Passwort im Credential-Manager gefunden.".to_string())?;
+
+    // mysqldump --databases aborts the *entire* dump the moment even one
+    // named database doesn't exist (real live failure: the default guess
+    // included "website", not present on this server) - check against what
+    // actually exists first so a stale/wrong name only drops that one
+    // database instead of failing the whole backup.
+    let pool = require_pool(&state).await?;
+    let real_databases = crate::db::explorer::list_databases(&pool).await?;
+    let (databases, skipped) =
+        db_backup::split_existing_databases(&configured_databases, &real_databases);
+    if databases.is_empty() {
+        return Err(format!(
+            "Keine der konfigurierten Datenbanken existiert auf diesem Server: {}",
+            configured_databases.join(", ")
+        ));
+    }
 
     let filename = db_backup::backup_filename(chrono::Local::now());
     let command = db_backup::build_dump_command(
@@ -88,7 +104,17 @@ pub async fn create_database_backup(state: State<'_, AppState>) -> Result<String
 
     let result = ssh::run_command_streaming(&config, &auth, &command, |_| {}).await;
     match result {
-        Ok(r) if r.exit_status == Some(0) => Ok(format!("{dir}/{filename}")),
+        Ok(r) if r.exit_status == Some(0) => {
+            let path = format!("{dir}/{filename}");
+            if skipped.is_empty() {
+                Ok(path)
+            } else {
+                Ok(format!(
+                    "{path} (übersprungen, da auf diesem Server nicht vorhanden: {})",
+                    skipped.join(", ")
+                ))
+            }
+        }
         Ok(r) => {
             let message = format!(
                 "M2Manager: Datenbank-Backup fehlgeschlagen (Exit-Code {:?}):\n{}",
@@ -148,6 +174,20 @@ pub async fn list_remote_dir(
 ) -> Result<Vec<ssh::RemoteEntry>, String> {
     let (config, auth) = stored_ssh_auth(&state)?;
     ssh::list_remote_dir(&config, &auth, &path).await
+}
+
+/// Used by the DB-Backups page to list its own backup folder - see
+/// `ssh::list_remote_dir_or_empty` for why a missing folder isn't an error
+/// there specifically (unlike the generic `list_remote_dir` above, still
+/// used by Regen-Datei-Editor/Backup-Browser where a missing user-configured
+/// path really could be a typo worth surfacing).
+#[tauri::command]
+pub async fn list_backup_dir(
+    state: State<'_, AppState>,
+    path: String,
+) -> Result<Vec<ssh::RemoteEntry>, String> {
+    let (config, auth) = stored_ssh_auth(&state)?;
+    ssh::list_remote_dir_or_empty(&config, &auth, &path).await
 }
 
 /// Restores a `m2manager_backups/<name>.<timestamp>.bak`/`.deleted` file

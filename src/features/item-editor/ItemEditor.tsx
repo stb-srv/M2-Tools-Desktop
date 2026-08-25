@@ -16,6 +16,7 @@ import { type ItemProtoInput, type ItemDescEntry, type StepStatus, type Mode, em
 import { Field, StepRow } from "./components/shared";
 import { ItemFlagsSection } from "./components/ItemFlagsSection";
 import { ConfirmPipelineDialog } from "./components/ConfirmPipelineDialog";
+import { ItemPresetsSection } from "./components/ItemPresetsSection";
 
 export function ItemEditor() {
   const [mode, setMode] = useState<Mode>("create");
@@ -227,6 +228,16 @@ export function ItemEditor() {
     // type 1 (weapon) - armor models live in the much larger per-race
     // pc_* character trees and aren't supported here.
     setRefModelVnum(full && full.type === 1 ? vnum : null);
+    setCopyModel(false);
+    setDirty(true);
+  }
+
+  // A preset has no real vnum/model on disk to reuse (unlike a reference
+  // item), so it only ever prefills field values - same "keep the current
+  // vnum" behavior as loadReference above.
+  function loadPreset(preset: ItemProtoInput) {
+    setItem((prev) => ({ ...preset, vnum: prev.vnum }));
+    setRefModelVnum(null);
     setCopyModel(false);
     setDirty(true);
   }
@@ -648,6 +659,9 @@ export function ItemEditor() {
           </p>
         )}
       </section>
+
+      {/* Vorlagen */}
+      {mode === "create" && <ItemPresetsSection currentItem={item} onLoad={loadPreset} />}
 
       {/* Referenz-Item */}
       {mode === "create" && (

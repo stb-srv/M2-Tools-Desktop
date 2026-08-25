@@ -3,8 +3,15 @@ import { useTranslation } from "react-i18next";
 import { invoke } from "@tauri-apps/api/core";
 import { listen } from "@tauri-apps/api/event";
 import { Button } from "@/components/ui/button";
-import { Play, Square, Trash2, RefreshCw, RotateCcw, Settings2, Eraser, HelpCircle } from "lucide-react";
+import { Play, Square, Trash2, RefreshCw, RotateCcw, Settings2, Eraser, HelpCircle, Search } from "lucide-react";
 import { openManual } from "@/lib/manual";
+import { runAsyncAction } from "@/lib/asyncAction";
+
+interface LogSearchHit {
+  file: string;
+  line: number;
+  text: string;
+}
 
 type ActionId = "start" | "stop" | "clearLogs" | "reloadQuests";
 
@@ -81,6 +88,12 @@ export function ServerControl() {
   const [confirmAction, setConfirmAction] = useState<ServerAction | null>(null);
   const [restartConfirm, setRestartConfirm] = useState(false);
   const [restartDelay, setRestartDelay] = useState("5");
+
+  const [logSearchOpen, setLogSearchOpen] = useState(false);
+  const [logSearchQuery, setLogSearchQuery] = useState("");
+  const [logSearchHits, setLogSearchHits] = useState<LogSearchHit[] | null>(null);
+  const [logSearchLoading, setLogSearchLoading] = useState(false);
+  const [logSearchError, setLogSearchError] = useState<string | null>(null);
 
   const logRef = useRef<HTMLPreElement>(null);
 
@@ -194,6 +207,22 @@ export function ServerControl() {
     }
   }
 
+  async function runLogSearch() {
+    if (!logSearchQuery.trim()) return;
+    await runAsyncAction(
+      () => invoke<LogSearchHit[]>("search_server_logs", { pattern: logSearchQuery.trim() }),
+      {
+        onStart: () => {
+          setLogSearchLoading(true);
+          setLogSearchError(null);
+        },
+        onSuccess: setLogSearchHits,
+        onError: setLogSearchError,
+        onFinally: () => setLogSearchLoading(false),
+      },
+    );
+  }
+
   async function resetToDefaults() {
     for (const action of ACTIONS) {
       await saveCommand(action.id, defaultCommand(workdir, DEFAULT_CHOICE[action.id]));
@@ -305,6 +334,65 @@ export function ServerControl() {
         >
           {log.length ? log.join("") : "Noch keine Ausgabe."}
         </pre>
+      </div>
+
+      <div className="space-y-2 rounded-lg border border-border bg-card p-3">
+        <button
+          onClick={() => setLogSearchOpen((v) => !v)}
+          className="flex w-full items-center justify-between text-sm font-medium"
+        >
+          <span className="flex items-center gap-2">
+            <Search className="size-4" />
+            Log-Archiv durchsuchen
+          </span>
+          <span className="text-xs text-muted-foreground">{logSearchOpen ? "Ausblenden" : "Anzeigen"}</span>
+        </button>
+        {logSearchOpen && (
+          <div className="space-y-2">
+            <p className="text-xs text-muted-foreground">
+              Durchsucht die echten Server-Log-Dateien (<code>syserr</code>/<code>syslog</code>/
+              <code>stdout</code>, über alle Channels und archivierten Ordner hinweg) im
+              konfigurierten Arbeitsverzeichnis - nicht die obige Live-Ausgabe. Reiner Text, keine
+              Regex nötig.
+            </p>
+            <div className="flex gap-2">
+              <input
+                value={logSearchQuery}
+                onChange={(e) => setLogSearchQuery(e.target.value)}
+                onKeyDown={(e) => e.key === "Enter" && runLogSearch()}
+                placeholder="z.B. SPEEDHACK, ein Spielername, eine Fehlermeldung…"
+                className="flex-1 rounded-md border border-border bg-background px-2 py-1 text-sm"
+              />
+              <Button size="sm" onClick={runLogSearch} disabled={logSearchLoading || !logSearchQuery.trim()}>
+                <Search className="size-3.5" />
+                {logSearchLoading ? "Suche…" : "Suchen"}
+              </Button>
+            </div>
+            {logSearchError && (
+              <p className="whitespace-pre-wrap text-sm text-destructive">{logSearchError}</p>
+            )}
+            {logSearchHits && (
+              <div className="max-h-64 space-y-1 overflow-auto rounded-md border border-border p-1">
+                {logSearchHits.length === 0 && (
+                  <p className="p-2 text-sm text-muted-foreground">Keine Treffer.</p>
+                )}
+                {logSearchHits.length >= 500 && (
+                  <p className="p-1 text-xs text-amber-600">
+                    500 Treffer erreicht - Ergebnis wurde begrenzt, ggf. genauer eingrenzen.
+                  </p>
+                )}
+                {logSearchHits.map((hit, i) => (
+                  <div key={i} className="rounded-md px-2 py-1 text-xs hover:bg-muted">
+                    <div className="font-mono text-muted-foreground">
+                      {hit.file}:{hit.line}
+                    </div>
+                    <div className="whitespace-pre-wrap break-all font-mono">{hit.text}</div>
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+        )}
       </div>
 
       {confirmAction && (

@@ -89,7 +89,7 @@ export function ServerTab({ onSaved }: { onSaved: (label: string) => void }) {
       .then((v) => setDbBackupDir(v ?? "/usr/home/game/m2manager_db_backups"))
       .catch(() => {});
     invoke<string | null>("get_setting", { key: "db_backup_databases" })
-      .then((v) => setDbBackupDatabases(v ?? "account common player log website"))
+      .then((v) => setDbBackupDatabases(v ?? "account common player log"))
       .catch(() => {});
   }, []);
 

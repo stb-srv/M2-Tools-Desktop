@@ -46,6 +46,23 @@ pub fn sanitize_special_item_group_name(name: String) -> String {
     special_item_group::sanitize_group_name(&name)
 }
 
+/// "Letzte Änderung rückgängig machen" - `write_special_item_group_file`
+/// already backs up the previous file version before every overwrite (see
+/// `ssh::write_remote_file_with_backup`), so undo just means finding and
+/// restoring the newest of those backups. Reuses the existing restore
+/// command (itself backs up the *current* state first, so this can never
+/// destroy data without its own recovery trail).
+#[tauri::command]
+pub async fn undo_special_item_group_write(state: State<'_, AppState>) -> Result<String, String> {
+    let path = special_item_group_file_path(&state)?;
+    let (config, auth) = stored_ssh_auth(&state)?;
+    let backup_path = ssh::latest_own_backup(&config, &auth, &path)
+        .await?
+        .ok_or_else(|| "Keine frühere Sicherung von special_item_group.txt gefunden.".to_string())?;
+    super::backups::restore_remote_backup(state, backup_path.clone()).await?;
+    Ok(backup_path)
+}
+
 // ---- Cube-Editor (cube.txt - Verwandlung/Kombinations-Rezepte) ----
 //
 // Shares `LocaleService_GetBasePath()` with special_item_group.txt (both
@@ -80,4 +97,17 @@ pub async fn write_cube_file(
     // refuse to upload something we couldn't parse back ourselves.
     cube::parse(&content)?;
     ssh::write_remote_file_with_backup(&config, &auth, &path, &content).await
+}
+
+/// Same "restore the newest own backup" undo as
+/// `undo_special_item_group_write`, for `cube.txt`.
+#[tauri::command]
+pub async fn undo_cube_write(state: State<'_, AppState>) -> Result<String, String> {
+    let path = cube_file_path(&state)?;
+    let (config, auth) = stored_ssh_auth(&state)?;
+    let backup_path = ssh::latest_own_backup(&config, &auth, &path)
+        .await?
+        .ok_or_else(|| "Keine frühere Sicherung von cube.txt gefunden.".to_string())?;
+    super::backups::restore_remote_backup(state, backup_path.clone()).await?;
+    Ok(backup_path)
 }

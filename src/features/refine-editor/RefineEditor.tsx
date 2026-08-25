@@ -19,6 +19,7 @@ import {
   Store,
   Loader2,
   HelpCircle,
+  Undo2,
 } from "lucide-react";
 import { useNavigationStore, reportSectionDirty } from "@/store/navigation";
 import { openManual } from "@/lib/manual";
@@ -295,6 +296,32 @@ function RecipeEditor({
 
   useSaveShortcut("refine-editor", dirty && !saving, () => saveNewOrUpdate(false));
 
+  // "Letzte Änderung rückgängig machen" - refine_proto ist reine DB-Zeilen
+  // ohne Datei-Backup (anders als Kisten-/Cube-Editor), deshalb speichert
+  // undo_last_refine_change serverseitig den vorherigen Zeilenstand statt
+  // eine Backup-Datei wiederherzustellen (siehe refine_undo.rs). Wirkt auf
+  // die zuletzt geänderte Zeile insgesamt, nicht nur auf das gerade
+  // geöffnete Item - nach jedem Speichern/Löschen/Anlegen hier ist das aber
+  // ohnehin dieselbe Zeile.
+  const [undoing, setUndoing] = useState(false);
+  const [undoResult, setUndoResult] = useState<string | null>(null);
+
+  async function undoLastChange() {
+    setUndoing(true);
+    setError(null);
+    setUndoResult(null);
+    try {
+      const message = await invoke<string>("undo_last_refine_change");
+      setUndoResult(message);
+      logActivity("refine-editor", "undo", message, "item", String(node.vnum));
+      onSaved();
+    } catch (e) {
+      setError(String(e));
+    } finally {
+      setUndoing(false);
+    }
+  }
+
   async function clearRecipe() {
     setSaving(true);
     setError(null);
@@ -434,7 +461,11 @@ function RecipeEditor({
             Rezept entfernen
           </Button>
         )}
+        <Button size="sm" variant="outline" disabled={undoing} onClick={undoLastChange} title="Setzt die zuletzt hier gespeicherte/angelegte/gelöschte Rezept-Zeile zurück">
+          <Undo2 className="size-3.5" /> {undoing ? "Setze zurück…" : "Letzte Änderung rückgängig machen"}
+        </Button>
       </div>
+      {undoResult && <p className="text-xs text-green-600">{undoResult}</p>}
 
       <details className="border-t border-border pt-2">
         <summary className="cursor-pointer text-xs text-muted-foreground">Stattdessen bestehendes Rezept per ID wiederverwenden…</summary>

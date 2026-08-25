@@ -64,6 +64,26 @@ pub fn backup_filename(now: chrono::DateTime<chrono::Local>) -> String {
     format!("m2manager_backup_{}.sql", now.format("%Y%m%d_%H%M%S"))
 }
 
+/// Splits the configured/default database list into ones that actually exist
+/// on the server and ones that don't. Real bug hit live: the hardcoded
+/// default guessed a `website` database that isn't present on every server,
+/// and `mysqldump --databases` aborts the *entire* dump the moment even one
+/// named database is missing - checking against the real live list first
+/// (via `db::explorer::list_databases`) means a stale/wrong name only drops
+/// that one database instead of failing the whole backup.
+pub fn split_existing_databases(configured: &[String], real: &[String]) -> (Vec<String>, Vec<String>) {
+    let mut existing = Vec::new();
+    let mut missing = Vec::new();
+    for db in configured {
+        if real.iter().any(|r| r == db) {
+            existing.push(db.clone());
+        } else {
+            missing.push(db.clone());
+        }
+    }
+    (existing, missing)
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -105,5 +125,32 @@ mod tests {
     fn backup_filename_uses_timestamp() {
         let dt = chrono::Local.with_ymd_and_hms(2026, 1, 2, 3, 4, 5).unwrap();
         assert_eq!(backup_filename(dt), "m2manager_backup_20260102_030405.sql");
+    }
+
+    #[test]
+    fn split_existing_databases_drops_only_the_missing_ones() {
+        let configured = vec!["account".to_string(), "player".to_string(), "website".to_string()];
+        let real = vec!["account".to_string(), "player".to_string(), "common".to_string()];
+        let (existing, missing) = split_existing_databases(&configured, &real);
+        assert_eq!(existing, vec!["account".to_string(), "player".to_string()]);
+        assert_eq!(missing, vec!["website".to_string()]);
+    }
+
+    #[test]
+    fn split_existing_databases_all_present() {
+        let configured = vec!["account".to_string()];
+        let real = vec!["account".to_string(), "player".to_string()];
+        let (existing, missing) = split_existing_databases(&configured, &real);
+        assert_eq!(existing, configured);
+        assert!(missing.is_empty());
+    }
+
+    #[test]
+    fn split_existing_databases_none_present() {
+        let configured = vec!["ghost".to_string()];
+        let real = vec!["account".to_string()];
+        let (existing, missing) = split_existing_databases(&configured, &real);
+        assert!(existing.is_empty());
+        assert_eq!(missing, configured);
     }
 }

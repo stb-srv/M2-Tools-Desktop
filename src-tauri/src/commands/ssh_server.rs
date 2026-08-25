@@ -392,3 +392,137 @@ pub async fn get_resource_history(
     let conn = state.settings_db.lock().map_err(|e| e.to_string())?;
     crate::resource_history::list_recent(&conn, limit)
 }
+
+// ---- Durchsuchbares Server-Log-Archiv ----
+//
+// The existing "Live-Log-Streaming" in Server Control is NOT a persistent
+// log file - it's just the live stdout of index.sh's start/stop/reload
+// commands (see run_server_command above). The game server's own runtime
+// logs are separate real files: `libthecore/src/log.cpp` (game-src) writes
+// the live `syserr`/`syslog` file directly in each channel's working
+// directory, and rotates the previous hour's file into a `log/YYYYMMDD/`
+// subfolder next to it (`log_file_set_dir("./log")`) as `syserr.HH` etc.
+// Exactly where that ends up per channel was not live-verified against this
+// server (a project memory note paraphrases the "clear logs" menu option as
+// targeting a plural `logs/` folder, which doesn't quite match the `./log`
+// default in source - the discrepancy was never resolved live), so rather
+// than hardcode a guessed subpath, this searches recursively from the
+// configured `server_workdir` and lets the filename pattern (not the
+// directory) find the right files wherever they actually live.
+
+#[derive(serde::Serialize)]
+pub struct LogSearchHit {
+    pub file: String,
+    pub line: u32,
+    pub text: String,
+}
+
+fn server_workdir(state: &State<'_, AppState>) -> Result<String, String> {
+    let conn = state.settings_db.lock().map_err(|e| e.to_string())?;
+    Ok(settings::get_path(&conn, "server_workdir")?
+        .filter(|v| !v.is_empty())
+        .unwrap_or_else(|| "/usr/home/game".to_string()))
+}
+
+/// `-F` (fixed string) matches what a plain search box implies - a user
+/// typing an error message shouldn't have to escape regex metacharacters.
+/// `-I` skips binary files (core dumps sit right next to these logs). `--`
+/// guards against a pattern that happens to start with `-` being parsed as a
+/// grep flag - shell-quoting alone stops shell injection but not grep's own
+/// argument parsing. Capped to 500 hits so a very common term can't return
+/// unbounded output.
+pub fn build_log_search_command(workdir: &str, pattern: &str) -> String {
+    format!(
+        "cd {workdir} && grep -rnIF --include='syserr*' --include='syslog*' --include='stdout*' -- {pattern} . 2>/dev/null | head -n 500",
+        workdir = crate::db_backup::shell_single_quote(workdir),
+        pattern = crate::db_backup::shell_single_quote(pattern),
+    )
+}
+
+/// Parses `grep -rn` output (`./relative/path:123:matched text`) into
+/// structured hits. A line that doesn't fit the expected shape is dropped
+/// rather than erroring the whole search - grep can emit the odd stray
+/// stderr-ish line (e.g. "binary file matches" would already be filtered by
+/// `-I`, but this stays defensive against anything else that slips through).
+pub fn parse_log_search_output(output: &str) -> Vec<LogSearchHit> {
+    output
+        .lines()
+        .filter_map(|line| {
+            let mut parts = line.splitn(3, ':');
+            let file = parts.next()?;
+            let line_no = parts.next()?.parse::<u32>().ok()?;
+            let text = parts.next()?;
+            Some(LogSearchHit {
+                file: file.trim_start_matches("./").to_string(),
+                line: line_no,
+                text: text.to_string(),
+            })
+        })
+        .collect()
+}
+
+#[tauri::command]
+pub async fn search_server_logs(
+    state: State<'_, AppState>,
+    pattern: String,
+) -> Result<Vec<LogSearchHit>, String> {
+    if pattern.trim().is_empty() {
+        return Err("Bitte einen Suchbegriff eingeben.".to_string());
+    }
+    let (config, auth) = stored_ssh_auth(&state)?;
+    let workdir = server_workdir(&state)?;
+    let command = build_log_search_command(&workdir, &pattern);
+    let result = ssh::run_command_streaming(&config, &auth, &command, |_| {}).await?;
+    // grep exits 1 when nothing matched at all - that's a valid empty
+    // result, not a failure.
+    match result.exit_status {
+        Some(0) | Some(1) => Ok(parse_log_search_output(&result.output)),
+        other => Err(format!(
+            "Log-Suche fehlgeschlagen (Exit-Code {other:?}):\n{}",
+            result.output
+        )),
+    }
+}
+
+#[cfg(test)]
+mod log_search_tests {
+    use super::*;
+
+    #[test]
+    fn build_log_search_command_escapes_shell_metacharacters_in_pattern() {
+        let cmd = build_log_search_command("/usr/home/game", "'; rm -rf / #");
+        // The dangerous characters must appear only inside the single-quoted
+        // pattern argument, never as an unescaped shell operator.
+        assert!(cmd.contains(r"'\''; rm -rf / #'"));
+        assert!(!cmd.contains("; rm -rf /'"));
+    }
+
+    #[test]
+    fn build_log_search_command_shell_quotes_workdir_and_pattern() {
+        let cmd = build_log_search_command("/usr/home/game", "SPEEDHACK");
+        assert_eq!(
+            cmd,
+            "cd '/usr/home/game' && grep -rnIF --include='syserr*' --include='syslog*' --include='stdout*' -- 'SPEEDHACK' . 2>/dev/null | head -n 500"
+        );
+    }
+
+    #[test]
+    fn parse_log_search_output_extracts_file_line_and_text() {
+        let output = "./Channel1/syserr:42:HACK_DETECT: SPEEDHACK by Foo\n./Channel2/log/20260101/syserr.03:7:HACK_DETECT: SPEEDHACK by Bar\n";
+        let hits = parse_log_search_output(output);
+        assert_eq!(hits.len(), 2);
+        assert_eq!(hits[0].file, "Channel1/syserr");
+        assert_eq!(hits[0].line, 42);
+        assert_eq!(hits[0].text, "HACK_DETECT: SPEEDHACK by Foo");
+        assert_eq!(hits[1].file, "Channel2/log/20260101/syserr.03");
+        assert_eq!(hits[1].line, 7);
+    }
+
+    #[test]
+    fn parse_log_search_output_ignores_malformed_lines() {
+        let output = "not a grep line at all\n./ok:1:fine\n";
+        let hits = parse_log_search_output(output);
+        assert_eq!(hits.len(), 1);
+        assert_eq!(hits[0].file, "ok");
+    }
+}

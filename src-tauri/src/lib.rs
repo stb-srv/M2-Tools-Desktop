@@ -18,6 +18,7 @@ mod gr2;
 mod icons;
 mod imageconv;
 mod import_history;
+mod item_presets;
 mod itemdesc;
 mod locale;
 mod mapdata;
@@ -27,6 +28,7 @@ mod msm;
 mod packtools;
 mod quest;
 mod refine;
+mod refine_undo;
 mod regen;
 mod resource_history;
 mod db_backup;
@@ -93,8 +95,10 @@ pub fn run() {
             commands::read_special_item_group_file,
             commands::write_special_item_group_file,
             commands::sanitize_special_item_group_name,
+            commands::undo_special_item_group_write,
             commands::read_cube_file,
             commands::write_cube_file,
+            commands::undo_cube_write,
             commands::read_local_text_file,
             commands::parse_mob_drop_text,
             commands::write_local_mob_drop_file,
@@ -138,6 +142,8 @@ pub fn run() {
             commands::adjust_player_gold,
             commands::adjust_account_numeric_column,
             commands::disband_guild,
+            commands::get_economy_stats,
+            commands::get_top_gold_holders,
             commands::list_databases,
             commands::list_tables,
             commands::get_table_columns,
@@ -178,6 +184,9 @@ pub fn run() {
             commands::write_item_desc,
             commands::regenerate_item_proto,
             commands::deploy_item_proto,
+            commands::save_item_preset,
+            commands::list_item_presets,
+            commands::delete_item_preset,
             commands::scan_module,
             commands::scan_icon_folder,
             commands::import_weapon_model,
@@ -195,6 +204,7 @@ pub fn run() {
             commands::get_refine_recipe,
             commands::save_refine_recipe,
             commands::delete_refine_recipe,
+            commands::undo_last_refine_change,
             commands::set_item_refine_link,
             commands::find_refine_shop_sources,
             commands::search_mobs,
@@ -206,6 +216,7 @@ pub fn run() {
             commands::delete_quest_file,
             commands::sanitize_quest_identifier,
             commands::list_remote_dir,
+            commands::list_backup_dir,
             commands::restore_remote_backup,
             commands::diff_remote_backup,
             commands::search_quest_files,
@@ -213,6 +224,7 @@ pub fn run() {
             commands::get_server_overview,
             commands::log_resource_snapshot,
             commands::get_resource_history,
+            commands::search_server_logs,
             commands::notify_webhook_message,
             commands::send_test_webhook,
             commands::create_database_backup,

@@ -95,6 +95,18 @@ pub fn init_db(app_data_dir: &Path) -> Result<Connection, String> {
             kind TEXT PRIMARY KEY,
             synced_at TEXT NOT NULL,
             row_count INTEGER NOT NULL
+        );
+        CREATE TABLE IF NOT EXISTS item_presets (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            name TEXT NOT NULL UNIQUE,
+            data TEXT NOT NULL
+        );
+        CREATE TABLE IF NOT EXISTS refine_undo (
+            id INTEGER PRIMARY KEY CHECK (id = 1),
+            recipe_id INTEGER NOT NULL,
+            action TEXT NOT NULL,
+            prior_json TEXT,
+            created_at TEXT NOT NULL
         );",
     )
     .map_err(|e| e.to_string())?;

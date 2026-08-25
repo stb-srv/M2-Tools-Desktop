@@ -291,6 +291,77 @@ pub async fn list_remote_dir(
     Ok(result)
 }
 
+/// Same as `list_remote_dir`, but a directory that doesn't exist yet is
+/// treated as an empty listing instead of an error. For directories this app
+/// owns and creates lazily itself (e.g. the DB-backup folder, only ever
+/// created by `mkdir -p` the first time a backup actually succeeds - see
+/// `db_backup.rs::build_dump_command`), "not found" just means "nothing
+/// written here yet", not a misconfiguration - showing a raw SFTP error on
+/// the very first visit to that page is just noise. Matches on the SFTP
+/// protocol's own `NoSuchFile` status rather than string-sniffing the error
+/// message, so it can't accidentally swallow an unrelated failure (wrong
+/// permissions, connection drop, etc.) that happens to also mention "file".
+pub async fn list_remote_dir_or_empty(
+    config: &SshConfig,
+    auth: &SshAuth,
+    path: &str,
+) -> Result<Vec<RemoteEntry>, String> {
+    let sftp = open_sftp(config, auth).await?;
+    match sftp.read_dir(path).await {
+        Ok(entries) => {
+            let mut result: Vec<RemoteEntry> = entries
+                .map(|entry| RemoteEntry {
+                    name: entry.file_name(),
+                    is_dir: entry.file_type().is_dir(),
+                })
+                .collect();
+            result.sort_by(|a, b| b.is_dir.cmp(&a.is_dir).then(a.name.cmp(&b.name)));
+            Ok(result)
+        }
+        Err(russh_sftp::client::error::Error::Status(status))
+            if status.status_code == russh_sftp::protocol::StatusCode::NoSuchFile =>
+        {
+            Ok(Vec::new())
+        }
+        Err(e) => Err(format!("Ordner konnte nicht gelesen werden ({path}): {e}")),
+    }
+}
+
+/// Finds the most recent "own" (`.bak`) backup this app created for `path`
+/// via `write_remote_file_with_backup`'s `m2manager_backups`-next-to-the-file
+/// convention (see `backups.rs`'s module doc for the exact naming scheme) -
+/// the shared lookup behind a "letzte Änderung rückgängig machen" button.
+/// Reuses `list_remote_dir_or_empty` so a file that was never edited before
+/// (no backups folder yet) just means "nothing to undo", not an error.
+pub async fn latest_own_backup(
+    config: &SshConfig,
+    auth: &SshAuth,
+    path: &str,
+) -> Result<Option<String>, String> {
+    let (dir, filename) = match path.rfind('/') {
+        Some(idx) => (&path[..idx], &path[idx + 1..]),
+        None => (".", path),
+    };
+    let backup_dir = format!("{dir}/m2manager_backups");
+    let entries = list_remote_dir_or_empty(config, auth, &backup_dir).await?;
+    Ok(pick_latest_backup(filename, &entries).map(|name| format!("{backup_dir}/{name}")))
+}
+
+/// Pure selection logic behind `latest_own_backup`, split out so it's
+/// testable without a live SFTP connection.
+fn pick_latest_backup(filename: &str, entries: &[RemoteEntry]) -> Option<String> {
+    let prefix = format!("{filename}.");
+    let mut candidates: Vec<&str> = entries
+        .iter()
+        .filter(|e| !e.is_dir && e.name.starts_with(&prefix) && e.name.ends_with(".bak"))
+        .map(|e| e.name.as_str())
+        .collect();
+    // The `<timestamp>.bak` suffix is `YYYYMMDD_HHMMSS.bak` (fixed width),
+    // so lexicographic order is chronological order.
+    candidates.sort();
+    candidates.last().map(|s| s.to_string())
+}
+
 /// Sucht rekursiv nach Dateien mit genau diesem Namen unter `root` - für den
 /// System-Installer, der aus einem Systempaket-Dateinamen (z.B. `cmd_gm.cpp`)
 /// erst noch den echten Pfad im Live-Quellbaum finden muss (die
@@ -660,6 +731,38 @@ pub async fn write_remote_file_bytes_with_backup(
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    fn entry(name: &str, is_dir: bool) -> RemoteEntry {
+        RemoteEntry { name: name.to_string(), is_dir }
+    }
+
+    #[test]
+    fn pick_latest_backup_returns_the_newest_matching_bak() {
+        let entries = vec![
+            entry("special_item_group.txt.20260801_090000.bak", false),
+            entry("special_item_group.txt.20260825_120000.bak", false),
+            entry("special_item_group.txt.20260810_150000.bak", false),
+        ];
+        assert_eq!(
+            pick_latest_backup("special_item_group.txt", &entries),
+            Some("special_item_group.txt.20260825_120000.bak".to_string())
+        );
+    }
+
+    #[test]
+    fn pick_latest_backup_ignores_deleted_backups_and_other_files() {
+        let entries = vec![
+            entry("special_item_group.txt.20260825_120000.deleted", false),
+            entry("cube.txt.20260825_130000.bak", false),
+            entry("special_item_group.txt.20260825_120000.bak", true), // a directory, not a file
+        ];
+        assert_eq!(pick_latest_backup("special_item_group.txt", &entries), None);
+    }
+
+    #[test]
+    fn pick_latest_backup_returns_none_when_no_backups_exist_yet() {
+        assert_eq!(pick_latest_backup("special_item_group.txt", &[]), None);
+    }
 
     #[test]
     fn decode_bytes_reads_clean_utf8_unchanged() {

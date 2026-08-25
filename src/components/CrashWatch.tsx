@@ -1,5 +1,6 @@
 import { useEffect, useRef } from "react";
 import { invoke } from "@tauri-apps/api/core";
+import { isBackupDue } from "@/features/db-backups/schedule";
 
 const POLL_INTERVAL_MS = 60_000;
 
@@ -33,12 +34,42 @@ interface ServerOverview {
  * was skipped without one, so history would silently never accumulate for
  * anyone who hasn't set up Discord notifications). The webhook check now
  * only gates the *notification*, not the underlying fetch.
+ *
+ * Also doubles as the trigger for scheduled DB backups (`db-backups`
+ * feature, see `schedule.ts`) - there is still no bundled background
+ * service, so "scheduled" only ever means "due the next time this tick
+ * happens to run while the app is open", never a true cron.
  */
 export function CrashWatch() {
   const wasRunning = useRef<boolean | null>(null);
 
   useEffect(() => {
     const interval = setInterval(async () => {
+      try {
+        const [scheduleHours, lastAutoAt] = await Promise.all([
+          invoke<string | null>("get_setting", { key: "db_backup_schedule_hours" }),
+          invoke<string | null>("get_setting", { key: "db_backup_last_auto_at" }),
+        ]);
+        const hours = Number(scheduleHours ?? 0);
+        if (isBackupDue(Date.now(), lastAutoAt, hours)) {
+          try {
+            await invoke<string>("create_database_backup");
+            await invoke("set_setting", {
+              key: "db_backup_last_auto_at",
+              value: new Date().toISOString(),
+            });
+          } catch (e) {
+            // create_database_backup already fires its own webhook
+            // notification on failure - don't double-notify, just skip this
+            // tick and try again next time (same "flaky connection isn't a
+            // real failure" stance as the crash-detection poll below).
+            void e;
+          }
+        }
+      } catch {
+        // Einstellungen nicht lesbar - geplantes Backup einfach überspringen.
+      }
+
       let processes: ProcessUsage[] | null = null;
       try {
         processes = await invoke<ProcessUsage[]>("get_server_resource_usage");

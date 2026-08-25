@@ -13,6 +13,7 @@ import {
   HelpCircle,
 } from "lucide-react";
 import { openManual } from "@/lib/manual";
+import { SCHEDULE_HOURS_OPTIONS, nextDueAt } from "./schedule";
 
 interface RemoteEntry {
   name: string;
@@ -51,17 +52,31 @@ export function DbBackups() {
   const [deleting, setDeleting] = useState(false);
   const [deleteError, setDeleteError] = useState<string | null>(null);
 
+  const [scheduleHours, setScheduleHours] = useState(0);
+  const [lastAutoAt, setLastAutoAt] = useState<string | null>(null);
+
   useEffect(() => {
     invoke<string | null>("get_setting", { key: "db_backup_dir" })
       .then((v) => setDir(v || DEFAULT_DIR))
       .catch(() => {})
       .finally(() => load(undefined));
+    invoke<string | null>("get_setting", { key: "db_backup_schedule_hours" })
+      .then((v) => setScheduleHours(Number(v ?? 0)))
+      .catch(() => {});
+    invoke<string | null>("get_setting", { key: "db_backup_last_auto_at" })
+      .then(setLastAutoAt)
+      .catch(() => {});
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
+  async function changeSchedule(hours: number) {
+    setScheduleHours(hours);
+    await invoke("set_setting", { key: "db_backup_schedule_hours", value: String(hours) }).catch(() => {});
+  }
+
   async function load(overrideDir: string | undefined) {
     const path = overrideDir ?? dir;
-    await runAsyncAction(() => invoke<RemoteEntry[]>("list_remote_dir", { path }), {
+    await runAsyncAction(() => invoke<RemoteEntry[]>("list_backup_dir", { path }), {
       onStart: () => {
         setLoading(true);
         setLoadError(null);
@@ -156,6 +171,37 @@ export function DbBackups() {
           <RefreshCw className={`size-4 ${loading ? "animate-spin" : ""}`} />
           Neu laden
         </Button>
+      </div>
+
+      <div className="space-y-1.5 rounded-md border border-border p-3">
+        <div className="flex items-center gap-2">
+          <label htmlFor="db-backup-schedule" className="text-sm font-medium">
+            Automatisches Backup
+          </label>
+          <select
+            id="db-backup-schedule"
+            value={scheduleHours}
+            onChange={(e) => changeSchedule(Number(e.target.value))}
+            className="rounded-md border border-border bg-background px-2 py-1 text-sm"
+          >
+            {SCHEDULE_HOURS_OPTIONS.map((h) => (
+              <option key={h} value={h}>
+                {h === 0 ? "Aus" : `Alle ${h} Stunden`}
+              </option>
+            ))}
+          </select>
+        </div>
+        <p className="text-xs text-muted-foreground">
+          Läuft nur, solange diese App geöffnet ist (kein echter Cron-Job auf dem Server) - wird
+          beim nächsten periodischen Check nachgeholt, sobald die App wieder läuft.
+          {scheduleHours > 0 && (
+            <>
+              {" "}
+              Nächstes automatisches Backup fällig: {nextDueAt(lastAutoAt, scheduleHours)?.toLocaleString("de-DE")}.
+            </>
+          )}
+          {lastAutoAt && <> Letztes automatisches Backup: {new Date(lastAutoAt).toLocaleString("de-DE")}.</>}
+        </p>
       </div>
 
       {createOk && (

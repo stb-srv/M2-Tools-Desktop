@@ -3,7 +3,7 @@ import { invoke } from "@tauri-apps/api/core";
 import { runAsyncAction } from "@/lib/asyncAction";
 import { logActivity } from "@/lib/logActivity";
 import { Button } from "@/components/ui/button";
-import { Search, Plus, Trash2, RefreshCw, CheckCircle2, AlertTriangle, Info, Package, HelpCircle } from "lucide-react";
+import { Search, Plus, Trash2, RefreshCw, CheckCircle2, AlertTriangle, Info, Package, HelpCircle, Undo2 } from "lucide-react";
 import { useNavigationStore, reportSectionDirty } from "@/store/navigation";
 import { useSaveShortcut } from "@/lib/useSaveShortcut";
 import { openManual } from "@/lib/manual";
@@ -396,6 +396,11 @@ export function BoxEditor() {
   const [saveError, setSaveError] = useState<string | null>(null);
   const [saveOk, setSaveOk] = useState<string | null>(null);
 
+  const [undoConfirm, setUndoConfirm] = useState(false);
+  const [undoing, setUndoing] = useState(false);
+  const [undoError, setUndoError] = useState<string | null>(null);
+  const [undoOk, setUndoOk] = useState<string | null>(null);
+
   const loadedSnapshot = useRef("");
   const dirty = groups !== null && JSON.stringify(groups) !== loadedSnapshot.current;
   useEffect(() => {
@@ -503,6 +508,34 @@ export function BoxEditor() {
 
   useSaveShortcut("box-editor", dirty && !saving, () => setSaveConfirm(true));
 
+  // "Letzte Änderung rückgängig machen" - jedes Speichern legt serverseitig
+  // schon ein Backup an (siehe write_special_item_group_file), das
+  // undo_special_item_group_write hier nur noch restauriert. Betrifft nur
+  // bereits gespeicherte Stände auf dem Server, nicht unfertige lokale
+  // Eingaben - dafür reicht "Neu laden" bzw. einfach nicht speichern.
+  async function undo() {
+    setUndoConfirm(false);
+    await runAsyncAction(() => invoke<string>("undo_special_item_group_write"), {
+      onStart: () => {
+        setUndoing(true);
+        setUndoError(null);
+        setUndoOk(null);
+      },
+      onSuccess: (backupPath) => {
+        setUndoOk(`Wiederhergestellt aus: ${backupPath}`);
+        logActivity(
+          "box-editor",
+          "restore",
+          `special_item_group.txt auf vorherigen Stand zurückgesetzt (${backupPath})`,
+          "file",
+        );
+        load();
+      },
+      onError: setUndoError,
+      onFinally: () => setUndoing(false),
+    });
+  }
+
   const selected = selectedIndex !== null ? groups?.[selectedIndex] : null;
 
   return (
@@ -550,14 +583,23 @@ export function BoxEditor() {
         <Button onClick={() => setSaveConfirm(true)} disabled={saving || !groups}>
           {saving ? "Speichere…" : "Speichern"}
         </Button>
+        <Button variant="outline" onClick={() => setUndoConfirm(true)} disabled={undoing || !groups}>
+          <Undo2 className="size-4" /> {undoing ? "Setze zurück…" : "Letzte Änderung rückgängig machen"}
+        </Button>
         {saveOk && (
           <span className="flex items-center gap-1 text-sm text-green-600">
             <CheckCircle2 className="size-4" /> {saveOk}
           </span>
         )}
+        {undoOk && (
+          <span className="flex items-center gap-1 text-sm text-green-600">
+            <CheckCircle2 className="size-4" /> {undoOk}
+          </span>
+        )}
       </div>
       {loadError && <p className="text-sm text-destructive">{loadError}</p>}
       {saveError && <p className="whitespace-pre-wrap text-sm text-destructive">{saveError}</p>}
+      {undoError && <p className="whitespace-pre-wrap text-sm text-destructive">{undoError}</p>}
 
       {creating && (
         <div className="fixed inset-0 flex items-center justify-center bg-black/50">
@@ -753,6 +795,30 @@ export function BoxEditor() {
                 Abbrechen
               </Button>
               <Button onClick={save}>Speichern</Button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {undoConfirm && (
+        <div className="fixed inset-0 flex items-center justify-center bg-black/50">
+          <div className="w-96 space-y-3 rounded-lg border border-border bg-card p-4">
+            <p className="flex items-start gap-2 text-sm font-medium">
+              <AlertTriangle className="mt-0.5 size-4 shrink-0 text-destructive" />
+              Letzte gespeicherte Änderung an special_item_group.txt rückgängig machen?
+            </p>
+            <p className="text-xs text-muted-foreground">
+              Stellt die zuletzt gesicherte Vorgängerversion wieder her (der aktuelle Stand wird dabei
+              selbst zuerst gesichert). Betrifft nur, was zuletzt tatsächlich gespeichert wurde - nicht
+              unfertige, noch ungespeicherte Eingaben hier im Editor.
+            </p>
+            <div className="flex justify-end gap-2">
+              <Button variant="outline" onClick={() => setUndoConfirm(false)}>
+                Abbrechen
+              </Button>
+              <Button variant="destructive" onClick={undo} disabled={undoing}>
+                {undoing ? "Setze zurück…" : "Rückgängig machen"}
+              </Button>
             </div>
           </div>
         </div>

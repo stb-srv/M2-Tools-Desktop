@@ -1,4 +1,5 @@
 pub mod account;
+pub mod economy;
 pub mod event_flags;
 pub mod explorer;
 pub mod guild;
