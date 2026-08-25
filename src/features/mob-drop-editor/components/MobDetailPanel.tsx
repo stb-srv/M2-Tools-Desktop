@@ -1,5 +1,5 @@
 import { Button } from "@/components/ui/button";
-import { Plus, Trash2, X } from "lucide-react";
+import { Dices, Plus, Trash2, X } from "lucide-react";
 import type { MobDropGroup, MobDropItem } from "../types";
 import { Field, MAX_DROP_PERCENT, clampPercent } from "./shared";
 
@@ -13,6 +13,7 @@ export function MobDetailPanel({
   onRemoveItem,
   onDeleteClick,
   onAddItemClick,
+  onSimulateClick,
 }: {
   selected: MobDropGroup;
   selectedIndex: number;
@@ -23,6 +24,7 @@ export function MobDetailPanel({
   onRemoveItem: (groupIndex: number, itemIndex: number) => void;
   onDeleteClick: () => void;
   onAddItemClick: () => void;
+  onSimulateClick: () => void;
 }) {
   return (
     <>
@@ -60,10 +62,22 @@ export function MobDetailPanel({
       <div className="space-y-2 rounded-lg border border-border p-3">
         <div className="flex items-center justify-between">
           <h2 className="text-sm font-medium text-muted-foreground">Drops ({selected.items.length})</h2>
-          <Button size="sm" variant="outline" onClick={onAddItemClick}>
-            <Plus className="size-3.5" />
-            Item hinzufügen
-          </Button>
+          <div className="flex gap-2">
+            <Button
+              size="sm"
+              variant="outline"
+              onClick={onSimulateClick}
+              disabled={selected.items.length === 0}
+              title="Erwartete Ausbeute über X Kills durchrechnen"
+            >
+              <Dices className="size-3.5" />
+              Simulieren
+            </Button>
+            <Button size="sm" variant="outline" onClick={onAddItemClick}>
+              <Plus className="size-3.5" />
+              Item hinzufügen
+            </Button>
+          </div>
         </div>
         <div className="space-y-1">
           {selected.items.map((item, itemIndex) => (

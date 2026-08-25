@@ -366,3 +366,29 @@ pub async fn get_server_overview(state: State<'_, AppState>) -> Result<ServerOve
         disk: system_info.disk,
     })
 }
+
+/// Called from the existing 60s poll in CrashWatch.tsx (not a new timer) to
+/// persist one data point of what that poll already fetched - see
+/// resource_history.rs. `cpu_percent` is the frontend's own aggregate of the
+/// process list it just received.
+#[tauri::command]
+pub async fn log_resource_snapshot(
+    state: State<'_, AppState>,
+    cpu_percent: f64,
+    ram_used_bytes: Option<i64>,
+    ram_total_bytes: Option<i64>,
+    disk_capacity_percent: Option<i64>,
+) -> Result<(), String> {
+    let conn = state.settings_db.lock().map_err(|e| e.to_string())?;
+    crate::resource_history::record(&conn, cpu_percent, ram_used_bytes, ram_total_bytes, disk_capacity_percent)?;
+    Ok(())
+}
+
+#[tauri::command]
+pub async fn get_resource_history(
+    state: State<'_, AppState>,
+    limit: i64,
+) -> Result<Vec<crate::resource_history::ResourceHistoryPoint>, String> {
+    let conn = state.settings_db.lock().map_err(|e| e.to_string())?;
+    crate::resource_history::list_recent(&conn, limit)
+}

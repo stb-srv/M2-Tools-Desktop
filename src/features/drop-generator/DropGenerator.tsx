@@ -1,7 +1,8 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Dices, HelpCircle } from "lucide-react";
 import { openManual } from "@/lib/manual";
+import { cn } from "@/lib/utils";
 import { MobDropEditor } from "@/features/mob-drop-editor/MobDropEditor";
 import { BoxEditor } from "@/features/box-editor/BoxEditor";
 import { CommonDropEditor } from "./CommonDropEditor";
@@ -25,6 +26,14 @@ const TABS: { id: Tab; label: string }[] = [
 // zusätzlich als eigene Sidebar-Punkte erreichbar (Nutzerentscheidung).
 export function DropGenerator() {
   const [tab, setTab] = useState<Tab>("mob");
+  // Same "stays mounted once visited, just hidden" fix as App.tsx's
+  // SectionSlot (see there for why) - these 5 tabs each do their own SFTP
+  // load on mount, so switching tabs used to silently discard any unsaved
+  // edit in the tab you left, exactly the bug this whole pass fixes.
+  const [visited, setVisited] = useState<Set<Tab>>(() => new Set(["mob"]));
+  useEffect(() => {
+    setVisited((prev) => (prev.has(tab) ? prev : new Set(prev).add(tab)));
+  }, [tab]);
 
   return (
     <div className="max-w-5xl space-y-4 pb-10">
@@ -58,11 +67,31 @@ export function DropGenerator() {
       </div>
 
       <div>
-        {tab === "mob" && <MobDropEditor />}
-        {tab === "common" && <CommonDropEditor />}
-        {tab === "etc" && <EtcDropEditor />}
-        {tab === "special" && <BoxEditor />}
-        {tab === "group" && <DropItemGroupEditor />}
+        {visited.has("mob") && (
+          <div className={cn(tab !== "mob" && "hidden")}>
+            <MobDropEditor />
+          </div>
+        )}
+        {visited.has("common") && (
+          <div className={cn(tab !== "common" && "hidden")}>
+            <CommonDropEditor />
+          </div>
+        )}
+        {visited.has("etc") && (
+          <div className={cn(tab !== "etc" && "hidden")}>
+            <EtcDropEditor />
+          </div>
+        )}
+        {visited.has("special") && (
+          <div className={cn(tab !== "special" && "hidden")}>
+            <BoxEditor />
+          </div>
+        )}
+        {visited.has("group") && (
+          <div className={cn(tab !== "group" && "hidden")}>
+            <DropItemGroupEditor />
+          </div>
+        )}
       </div>
     </div>
   );

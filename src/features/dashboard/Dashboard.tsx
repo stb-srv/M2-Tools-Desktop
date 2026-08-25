@@ -5,6 +5,7 @@ import { runAsyncAction } from "@/lib/asyncAction";
 import { Button } from "@/components/ui/button";
 import { useNavigationStore } from "@/store/navigation";
 import { openManual } from "@/lib/manual";
+import { ResourceHistoryChart } from "./components/ResourceHistoryChart";
 import {
   CheckCircle2,
   XCircle,
@@ -267,6 +268,13 @@ export function Dashboard() {
               </div>
             </div>
           )}
+        </section>
+      )}
+
+      {sshStatus === "ok" && (
+        <section className="space-y-2">
+          <h2 className="text-sm font-medium text-muted-foreground">{t("resourceHistory.title")}</h2>
+          <ResourceHistoryChart />
         </section>
       )}
 

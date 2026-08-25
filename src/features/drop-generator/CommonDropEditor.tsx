@@ -1,7 +1,9 @@
-import { useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { invoke } from "@tauri-apps/api/core";
 import { runAsyncAction } from "@/lib/asyncAction";
 import { logActivity } from "@/lib/logActivity";
+import { reportSectionDirty } from "@/store/navigation";
+import { useSaveShortcut } from "@/lib/useSaveShortcut";
 import { Button } from "@/components/ui/button";
 import { AlertTriangle, Info, Plus, Trash2, RefreshCw, CheckCircle2, X } from "lucide-react";
 import { EntityBrowser, type EntityRow } from "@/features/shared/EntityBrowser";
@@ -47,6 +49,13 @@ export function CommonDropEditor() {
   const [newName, setNewName] = useState("");
   const [newMobVnum, setNewMobVnum] = useState("");
 
+  const loadedSnapshot = useRef("");
+  const dirty = groups !== null && JSON.stringify(groups) !== loadedSnapshot.current;
+  useEffect(() => {
+    reportSectionDirty("drop-generator", dirty);
+    return () => reportSectionDirty("drop-generator", false);
+  }, [dirty]);
+
   async function resolveLabels(list: MobDropGroup[]) {
     const vnums = new Set<number>();
     list.forEach((g) => g.items.forEach((it) => vnums.add(it.item_vnum)));
@@ -73,6 +82,7 @@ export function CommonDropEditor() {
       },
       onSuccess: async (list) => {
         setGroups(list);
+        loadedSnapshot.current = JSON.stringify(list);
         await resolveLabels(list);
       },
       onError: setLoadError,
@@ -144,12 +154,15 @@ export function CommonDropEditor() {
       },
       onSuccess: () => {
         setSaveOk(true);
+        loadedSnapshot.current = JSON.stringify(groups);
         logActivity("drop-generator", "save", `common_drop_item.txt gespeichert (${groups.length} Gruppe(n))`, "common_drop_item.txt");
       },
       onError: setSaveError,
       onFinally: () => setSaving(false),
     });
   }
+
+  useSaveShortcut("drop-generator", dirty && !saving, () => setConfirmOpen(true));
 
   const selected = selectedIndex !== null ? (groups?.[selectedIndex] ?? null) : null;
 

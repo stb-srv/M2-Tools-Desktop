@@ -26,6 +26,7 @@
     "iconBrowser": "Icon Browser",
     "modelViewer": "3D Model Viewer",
     "accountManager": "Account Manager",
+    "guildManager": "Guild Manager",
     "gmManager": "GM Manager",
     "systemInstaller": "System Installer",
     "broadcastSystem": "Broadcast System",
@@ -86,6 +87,13 @@
     "clientPath": "Game Client Path",
     "serverPath": "Server Path",
     "workingDirectory": "Working Directory"
+  },
+  "resourceHistory": {
+    "title": "Resource History",
+    "cpu": "CPU",
+    "ram": "RAM",
+    "range": "{{from}} – {{to}}",
+    "notEnoughData": "Not enough data yet - fills in on its own after a few minutes (one new point every 60s)."
   },
   "common": {
     "cancel": "Cancel",

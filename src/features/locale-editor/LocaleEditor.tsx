@@ -2,14 +2,36 @@ import { useEffect, useState } from "react";
 import { invoke } from "@tauri-apps/api/core";
 import { runAsyncAction } from "@/lib/asyncAction";
 import { logActivity } from "@/lib/logActivity";
-import { reportSectionDirty } from "@/store/navigation";
+import { reportSectionDirty, useNavigationStore } from "@/store/navigation";
 import { Button } from "@/components/ui/button";
-import { Search, Plus, Trash2, X, RefreshCw, CheckCircle2, AlertTriangle, HelpCircle } from "lucide-react";
+import {
+  Search,
+  Plus,
+  Trash2,
+  X,
+  RefreshCw,
+  CheckCircle2,
+  AlertTriangle,
+  HelpCircle,
+  ListChecks,
+} from "lucide-react";
 import { openManual } from "@/lib/manual";
 
 interface LocaleEntry {
   key: string;
   value: string;
+}
+
+interface LocaleReference {
+  namespace: string;
+  key: string;
+  file: string;
+  line: number;
+}
+
+interface LocaleCompletenessReport {
+  missing: LocaleReference[];
+  orphaned: string[];
 }
 
 // "[ENTER]" is the game's own literal in-game line-break marker (same
@@ -50,6 +72,11 @@ export function LocaleEditor() {
   const [newNsPreview, setNewNsPreview] = useState("");
   const [createError, setCreateError] = useState<string | null>(null);
   const [creatingBusy, setCreatingBusy] = useState(false);
+
+  const [completenessOpen, setCompletenessOpen] = useState(false);
+  const [completenessLoading, setCompletenessLoading] = useState(false);
+  const [completenessError, setCompletenessError] = useState<string | null>(null);
+  const [completeness, setCompleteness] = useState<LocaleCompletenessReport | null>(null);
 
   useEffect(() => {
     loadNamespaces();
@@ -152,6 +179,30 @@ export function LocaleEditor() {
     }
   }
 
+  async function runCompletenessCheck() {
+    setCompletenessOpen(true);
+    await runAsyncAction(() => invoke<LocaleCompletenessReport>("check_locale_completeness"), {
+      onStart: () => {
+        setCompletenessLoading(true);
+        setCompletenessError(null);
+      },
+      onSuccess: setCompleteness,
+      onError: setCompletenessError,
+      onFinally: () => setCompletenessLoading(false),
+    });
+  }
+
+  function jumpToMissingReference(ref: LocaleReference) {
+    useNavigationStore.getState().goToWithSelection("quest-builder", ref.file);
+    setCompletenessOpen(false);
+  }
+
+  async function jumpToOrphanedNamespace(entry: string) {
+    const namespace = entry.split(".")[0];
+    setCompletenessOpen(false);
+    await openNamespace(namespace);
+  }
+
   const filtered = (namespaces ?? []).filter((n) =>
     n.toLowerCase().includes(search.toLowerCase()),
   );
@@ -163,6 +214,10 @@ export function LocaleEditor() {
           <h1 className="text-2xl font-semibold">Locale-String-Verwaltung</h1>
           <Button variant="ghost" size="icon-sm" title="Hilfe zu diesem Modul" onClick={() => openManual("locale-editor")}>
             <HelpCircle className="size-4" />
+          </Button>
+          <Button variant="outline" size="sm" className="ml-auto gap-1.5" onClick={runCompletenessCheck}>
+            <ListChecks className="size-3.5" />
+            Vollständigkeit prüfen
           </Button>
         </div>
         <p className="text-sm text-muted-foreground">
@@ -302,6 +357,78 @@ export function LocaleEditor() {
             <Button onClick={submitCreate} disabled={!newNsPreview || creatingBusy}>
               {creatingBusy ? "Lege an…" : "Anlegen"}
             </Button>
+          </div>
+        </Modal>
+      )}
+
+      {completenessOpen && (
+        <Modal onClose={() => setCompletenessOpen(false)}>
+          <div className="max-h-[70vh] w-[32rem] max-w-full space-y-4 overflow-y-auto">
+            <p className="text-sm font-medium">Vollständigkeit von translate.lua</p>
+            {completenessLoading && (
+              <p className="text-sm text-muted-foreground">
+                Lese alle Quest-Dateien und translate.lua - kann bei vielen Quests einen Moment dauern…
+              </p>
+            )}
+            {completenessError && <p className="text-sm text-destructive">{completenessError}</p>}
+
+            {completeness && (
+              <>
+                <div className="space-y-1">
+                  <p className="flex items-center gap-1.5 text-sm font-medium">
+                    <AlertTriangle className="size-3.5 text-destructive" />
+                    Fehlende Keys ({completeness.missing.length})
+                  </p>
+                  <p className="text-xs text-muted-foreground">
+                    Von einer Quest referenziert, aber in translate.lua nicht definiert - zeigt im Client
+                    vermutlich einen leeren/Fallback-Text.
+                  </p>
+                  {completeness.missing.length === 0 ? (
+                    <p className="text-xs text-muted-foreground">Keine gefunden.</p>
+                  ) : (
+                    <div className="space-y-1">
+                      {completeness.missing.map((ref, i) => (
+                        <button
+                          key={i}
+                          onClick={() => jumpToMissingReference(ref)}
+                          className="block w-full truncate rounded-md border border-border px-2 py-1 text-left text-xs hover:bg-muted"
+                          title={`${ref.file}:${ref.line}`}
+                        >
+                          <code>
+                            gameforge.{ref.namespace}.{ref.key}
+                          </code>
+                          <span className="text-muted-foreground"> — {ref.file}:{ref.line}</span>
+                        </button>
+                      ))}
+                    </div>
+                  )}
+                </div>
+
+                <div className="space-y-1">
+                  <p className="text-sm font-medium">Verwaiste Keys ({completeness.orphaned.length})</p>
+                  <p className="text-xs text-muted-foreground">
+                    In translate.lua definiert, aber von keiner gescannten Quest-Datei referenziert - nicht
+                    zwingend falsch (könnte anderswo z.B. clientseitig genutzt werden), aber ein
+                    Aufräum-Kandidat.
+                  </p>
+                  {completeness.orphaned.length === 0 ? (
+                    <p className="text-xs text-muted-foreground">Keine gefunden.</p>
+                  ) : (
+                    <div className="space-y-1">
+                      {completeness.orphaned.map((entry) => (
+                        <button
+                          key={entry}
+                          onClick={() => jumpToOrphanedNamespace(entry)}
+                          className="block w-full truncate rounded-md border border-border px-2 py-1 text-left text-xs hover:bg-muted"
+                        >
+                          <code>gameforge.{entry}</code>
+                        </button>
+                      ))}
+                    </div>
+                  )}
+                </div>
+              </>
+            )}
           </div>
         </Modal>
       )}

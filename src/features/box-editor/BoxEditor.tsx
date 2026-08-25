@@ -1,10 +1,11 @@
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { invoke } from "@tauri-apps/api/core";
 import { runAsyncAction } from "@/lib/asyncAction";
 import { logActivity } from "@/lib/logActivity";
 import { Button } from "@/components/ui/button";
 import { Search, Plus, Trash2, RefreshCw, CheckCircle2, AlertTriangle, Info, Package, HelpCircle } from "lucide-react";
-import { useNavigationStore } from "@/store/navigation";
+import { useNavigationStore, reportSectionDirty } from "@/store/navigation";
+import { useSaveShortcut } from "@/lib/useSaveShortcut";
 import { openManual } from "@/lib/manual";
 import { EntityBrowser } from "@/features/shared/EntityBrowser";
 
@@ -395,6 +396,13 @@ export function BoxEditor() {
   const [saveError, setSaveError] = useState<string | null>(null);
   const [saveOk, setSaveOk] = useState<string | null>(null);
 
+  const loadedSnapshot = useRef("");
+  const dirty = groups !== null && JSON.stringify(groups) !== loadedSnapshot.current;
+  useEffect(() => {
+    reportSectionDirty("box-editor", dirty);
+    return () => reportSectionDirty("box-editor", false);
+  }, [dirty]);
+
   useEffect(() => {
     load();
   }, []);
@@ -418,7 +426,10 @@ export function BoxEditor() {
         setLoading(true);
         setLoadError(null);
       },
-      onSuccess: setGroups,
+      onSuccess: (loadedGroups) => {
+        setGroups(loadedGroups);
+        loadedSnapshot.current = JSON.stringify(loadedGroups);
+      },
       onError: setLoadError,
       onFinally: () => setLoading(false),
     });
@@ -482,12 +493,15 @@ export function BoxEditor() {
       },
       onSuccess: (backupPath) => {
         setSaveOk(backupPath ? `Gespeichert (Backup: ${backupPath})` : "Gespeichert.");
+        loadedSnapshot.current = JSON.stringify(groups);
         logActivity("box-editor", "save", `special_item_group.txt gespeichert (${groups?.length ?? 0} Gruppe(n))`, "file");
       },
       onError: setSaveError,
       onFinally: () => setSaving(false),
     });
   }
+
+  useSaveShortcut("box-editor", dirty && !saving, () => setSaveConfirm(true));
 
   const selected = selectedIndex !== null ? groups?.[selectedIndex] : null;
 

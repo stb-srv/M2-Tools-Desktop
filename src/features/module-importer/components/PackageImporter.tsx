@@ -2,6 +2,8 @@ import { useEffect, useRef, useState } from "react";
 import { invoke } from "@tauri-apps/api/core";
 import { listen } from "@tauri-apps/api/event";
 import { logActivity } from "@/lib/logActivity";
+import { reportSectionDirty } from "@/store/navigation";
+import { useSaveShortcut } from "@/lib/useSaveShortcut";
 import { open } from "@tauri-apps/plugin-dialog";
 import { Button } from "@/components/ui/button";
 import { CheckCircle2, AlertTriangle, Info, FolderOpen, Image as ImageIcon } from "lucide-react";
@@ -77,6 +79,15 @@ export function PackageImporter({ onImported }: { onImported: () => void }) {
   const [batchError, setBatchError] = useState<string | null>(null);
   const [batchDone, setBatchDone] = useState<number[] | null>(null);
   const [confirm, setConfirm] = useState(false);
+
+  // A scanned package with rows configured but not yet imported counts as
+  // unsaved work-in-progress (see setScanResult/setBatchDone call sites -
+  // a fresh scan or a finished import always resets one of the two).
+  const dirty = scanResult !== null && batchDone === null;
+  useEffect(() => {
+    reportSectionDirty("module-importer", dirty);
+    return () => reportSectionDirty("module-importer", false);
+  }, [dirty]);
 
   const createdVnumsRef = useRef<number[]>([]);
   const logRef = useRef<HTMLPreElement>(null);
@@ -239,6 +250,8 @@ export function PackageImporter({ onImported }: { onImported: () => void }) {
     baseName.trim().length > 0 &&
     baseLocaleName.trim().length > 0 &&
     selectedWeapons.every((v) => weaponRows[v.key]?.subtype !== -1);
+
+  useSaveShortcut("module-importer", dirty && canImport && !running, () => setConfirm(true));
 
   async function runImport() {
     setConfirm(false);

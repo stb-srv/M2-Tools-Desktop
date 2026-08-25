@@ -1,6 +1,7 @@
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { invoke } from "@tauri-apps/api/core";
 import { logActivity } from "@/lib/logActivity";
+import { useSaveShortcut } from "@/lib/useSaveShortcut";
 import { Button } from "@/components/ui/button";
 import {
   Search,
@@ -19,7 +20,7 @@ import {
   Loader2,
   HelpCircle,
 } from "lucide-react";
-import { useNavigationStore } from "@/store/navigation";
+import { useNavigationStore, reportSectionDirty } from "@/store/navigation";
 import { openManual } from "@/lib/manual";
 import { EntityBrowser } from "@/features/shared/EntityBrowser";
 
@@ -211,6 +212,16 @@ function RecipeEditor({
   const [error, setError] = useState<string | null>(null);
   const [materialPickerIndex, setMaterialPickerIndex] = useState<number | null>(null);
 
+  // Snapshot at mount (useRef's initializer only runs once) - compared
+  // against live state below to detect unsaved edits without instrumenting
+  // every individual field setter.
+  const initialSnapshot = useRef(JSON.stringify({ targetVnum: node.refined_vnum, cost, prob, materials }));
+  const dirty = JSON.stringify({ targetVnum, cost, prob, materials }) !== initialSnapshot.current;
+  useEffect(() => {
+    reportSectionDirty("refine-editor", dirty);
+    return () => reportSectionDirty("refine-editor", false);
+  }, [dirty]);
+
   const usedByOthers = (node.recipe?.used_by_count ?? 0) > 1;
 
   async function loadReusePreview() {
@@ -281,6 +292,8 @@ function RecipeEditor({
       setSaving(false);
     }
   }
+
+  useSaveShortcut("refine-editor", dirty && !saving, () => saveNewOrUpdate(false));
 
   async function clearRecipe() {
     setSaving(true);

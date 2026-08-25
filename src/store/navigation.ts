@@ -30,6 +30,7 @@ import {
   Dices,
   LayoutGrid,
   Activity,
+  Castle,
 } from "lucide-react";
 
 export type Section =
@@ -59,6 +60,7 @@ export type Section =
   | "icon-browser"
   | "model-viewer"
   | "account-manager"
+  | "guild-manager"
   | "gm-manager"
   | "system-installer"
   | "broadcast-system"
@@ -130,6 +132,7 @@ export const NAV_ITEMS: { section: Section; icon: typeof LayoutDashboard; labelK
   { section: "locale-editor", icon: Languages, labelKey: "nav.localeEditor", category: "questsWorld" },
   { section: "server-events", icon: Sparkles, labelKey: "nav.serverEvents", category: "serverAdmin" },
   { section: "account-manager", icon: Users, labelKey: "nav.accountManager", category: "serverAdmin" },
+  { section: "guild-manager", icon: Castle, labelKey: "nav.guildManager", category: "serverAdmin" },
   { section: "gm-manager", icon: Shield, labelKey: "nav.gmManager", category: "serverAdmin" },
   { section: "db-explorer", icon: Database, labelKey: "nav.dbExplorer", category: "serverAdmin" },
   { section: "broadcast-system", icon: Megaphone, labelKey: "nav.broadcastSystem", category: "serverAdmin" },

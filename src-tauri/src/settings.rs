@@ -75,6 +75,14 @@ pub fn init_db(app_data_dir: &Path) -> Result<Connection, String> {
             target_ref TEXT,
             summary TEXT NOT NULL
         );
+        CREATE TABLE IF NOT EXISTS resource_history (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            created_at TEXT NOT NULL,
+            cpu_percent REAL NOT NULL,
+            ram_used_bytes INTEGER,
+            ram_total_bytes INTEGER,
+            disk_capacity_percent INTEGER
+        );
         CREATE TABLE IF NOT EXISTS entity_cache_item (
             vnum INTEGER PRIMARY KEY,
             name TEXT NOT NULL

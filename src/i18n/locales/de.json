@@ -26,6 +26,7 @@
     "iconBrowser": "Icon-Browser",
     "modelViewer": "3D-Modell-Viewer",
     "accountManager": "Account-Verwaltung",
+    "guildManager": "Gilden-Verwaltung",
     "gmManager": "GM-Verwaltung",
     "systemInstaller": "System-Installer",
     "broadcastSystem": "Broadcast-System",
@@ -86,6 +87,13 @@
     "clientPath": "Client-Pfad",
     "serverPath": "Server-Pfad",
     "workingDirectory": "Arbeitsverzeichnis"
+  },
+  "resourceHistory": {
+    "title": "Ressourcen-Verlauf",
+    "cpu": "CPU",
+    "ram": "RAM",
+    "range": "{{from}} – {{to}}",
+    "notEnoughData": "Noch nicht genug Daten - kommt nach ein paar Minuten von selbst dazu (alle 60s ein neuer Punkt)."
   },
   "common": {
     "cancel": "Abbrechen",

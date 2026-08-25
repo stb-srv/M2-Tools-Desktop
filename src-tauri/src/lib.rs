@@ -28,6 +28,7 @@ mod packtools;
 mod quest;
 mod refine;
 mod regen;
+mod resource_history;
 mod db_backup;
 mod deploy_history;
 mod resources;
@@ -136,6 +137,7 @@ pub fn run() {
             commands::process_due_bans,
             commands::adjust_player_gold,
             commands::adjust_account_numeric_column,
+            commands::disband_guild,
             commands::list_databases,
             commands::list_tables,
             commands::get_table_columns,
@@ -209,6 +211,8 @@ pub fn run() {
             commands::search_quest_files,
             commands::get_server_resource_usage,
             commands::get_server_overview,
+            commands::log_resource_snapshot,
+            commands::get_resource_history,
             commands::notify_webhook_message,
             commands::send_test_webhook,
             commands::create_database_backup,
@@ -229,6 +233,7 @@ pub fn run() {
             commands::write_locale_namespace,
             commands::create_locale_namespace,
             commands::sanitize_locale_namespace,
+            commands::check_locale_completeness,
             commands::scan_system_package,
             commands::find_system_target,
             commands::find_system_targets_batch,

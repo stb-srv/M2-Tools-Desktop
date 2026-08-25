@@ -18,6 +18,8 @@ import {
   Info,
 } from "lucide-react";
 import { generateBroadcastQuest, type BroadcastMessage } from "./broadcastQuest";
+import { reportSectionDirty } from "@/store/navigation";
+import { useSaveShortcut } from "@/lib/useSaveShortcut";
 
 const QUEST_RELATIVE_PATH = "Broadcast/Broadcast_System.lua";
 
@@ -39,6 +41,12 @@ export function BroadcastSystem() {
   const [deploying, setDeploying] = useState(false);
   const [deployLog, setDeployLog] = useState<string[]>([]);
   const [deployOpen, setDeployOpen] = useState(false);
+
+  const dirty = editingId !== null || text.trim() !== "";
+  useEffect(() => {
+    reportSectionDirty("broadcast-system", dirty);
+    return () => reportSectionDirty("broadcast-system", false);
+  }, [dirty]);
   const logRef = useRef<HTMLPreElement>(null);
 
   async function load() {
@@ -117,6 +125,9 @@ export function BroadcastSystem() {
       },
     );
   }
+
+  const canSaveMessage = text.trim() !== "" && Number.isFinite(Number(intervalMinutes)) && Number(intervalMinutes) >= 1;
+  useSaveShortcut("broadcast-system", dirty && canSaveMessage, saveMessage);
 
   async function toggleEnabled(message: BroadcastMessage) {
     await runAsyncAction(

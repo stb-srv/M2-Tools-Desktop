@@ -1,5 +1,5 @@
 import "@/i18n";
-import { lazy, Suspense, useEffect, useState } from "react";
+import { lazy, Suspense, useEffect, useState, type ReactNode } from "react";
 import { invoke } from "@tauri-apps/api/core";
 import { check } from "@tauri-apps/plugin-updater";
 import { autoConnectMysql } from "@/lib/mysqlConnect";
@@ -7,10 +7,11 @@ import { Sidebar } from "@/components/layout/Sidebar";
 import { CommandPalette } from "@/components/CommandPalette";
 import { GlobalSearch } from "@/components/GlobalSearch";
 import { CrashWatch } from "@/components/CrashWatch";
-import { useNavigationStore } from "@/store/navigation";
+import { useNavigationStore, type Section } from "@/store/navigation";
 import { useUpdateStore } from "@/store/updateStore";
 import { Dashboard } from "@/features/dashboard/Dashboard";
 import { SetupWizard } from "@/features/setup/SetupWizard";
+import { cn } from "@/lib/utils";
 
 // Lazy-loaded: each of these pulls in its own chunk (three.js for the model
 // viewer/shop preview, CodeMirror for the quest builder, ...) - eagerly
@@ -43,6 +44,7 @@ const TgaConverter = lazy(() => import("@/features/tga-converter/TgaConverter").
 const IconBrowser = lazy(() => import("@/features/icon-browser/IconBrowser").then((m) => ({ default: m.IconBrowser })));
 const ModelViewer = lazy(() => import("@/features/model-viewer/ModelViewer").then((m) => ({ default: m.ModelViewer })));
 const AccountManager = lazy(() => import("@/features/account-manager/AccountManager").then((m) => ({ default: m.AccountManager })));
+const GuildManager = lazy(() => import("@/features/guild-manager/GuildManager").then((m) => ({ default: m.GuildManager })));
 const GmManager = lazy(() => import("@/features/gm-manager/GmManager").then((m) => ({ default: m.GmManager })));
 const SystemInstaller = lazy(() => import("@/features/system-installer/SystemInstaller").then((m) => ({ default: m.SystemInstaller })));
 const BroadcastSystem = lazy(() => import("@/features/broadcast/BroadcastSystem").then((m) => ({ default: m.BroadcastSystem })));
@@ -57,8 +59,38 @@ function LoadingFallback() {
   );
 }
 
+// Once a section has been visited it stays mounted (just hidden via CSS)
+// instead of unmounting - previously switching sections destroyed every
+// editor's local React state, so any unsaved form was gone the moment you
+// left the page. Each slot gets its OWN Suspense boundary (not one shared
+// one across all 27 sections) - with a single shared boundary, opening a
+// not-yet-loaded lazy chunk would re-suspend the whole boundary and flash
+// every already-rendered, merely-hidden section back to the loading spinner.
+function SectionSlot({
+  section,
+  active,
+  visited,
+  children,
+}: {
+  section: Section;
+  active: Section;
+  visited: Set<Section>;
+  children: ReactNode;
+}) {
+  if (!visited.has(section)) return null;
+  return (
+    <div className={cn("h-full", section !== active && "hidden")}>
+      <Suspense fallback={<LoadingFallback />}>{children}</Suspense>
+    </div>
+  );
+}
+
 function App() {
   const section = useNavigationStore((state) => state.section);
+  const [visited, setVisited] = useState<Set<Section>>(() => new Set(["dashboard"]));
+  useEffect(() => {
+    setVisited((prev) => (prev.has(section) ? prev : new Set(prev).add(section)));
+  }, [section]);
   const [setupChecked, setSetupChecked] = useState(false);
   const [setupCompleted, setSetupCompleted] = useState(true);
   const [mysqlChecked, setMysqlChecked] = useState(false);
@@ -109,39 +141,40 @@ function App() {
       <CrashWatch />
       <Sidebar />
       <main className="flex-1 overflow-y-auto p-6">
-        {section === "dashboard" && <Dashboard />}
-        <Suspense fallback={<LoadingFallback />}>
-          {section === "server-control" && <ServerControl />}
-          {section === "build-deploy" && <BuildDeploy />}
-          {section === "server-events" && <ServerEvents />}
-          {section === "db-explorer" && <DbExplorer />}
-          {section === "shop-editor" && <ShopEditor />}
-          {section === "item-editor" && <ItemEditor />}
-          {section === "item-proto-explorer" && <ItemProtoExplorer />}
-          {section === "item-viewer" && <ItemViewer />}
-          {section === "module-importer" && <ModuleImporter />}
-          {section === "mob-proto-editor" && <MobProtoEditor />}
-          {section === "mob-drop-editor" && <MobDropEditor />}
-          {section === "drop-generator" && <DropGenerator />}
-          {section === "refine-editor" && <RefineEditor />}
-          {section === "box-editor" && <BoxEditor />}
-          {section === "cube-editor" && <CubeEditor />}
-          {section === "quest-builder" && <QuestBuilder />}
-          {section === "regen-editor" && <RegenEditor />}
-          {section === "locale-editor" && <LocaleEditor />}
-          {section === "backup-browser" && <BackupBrowser />}
-          {section === "db-backups" && <DbBackups />}
-          {section === "activity-log" && <ActivityLog />}
-          {section === "tga-converter" && <TgaConverter />}
-          {section === "icon-browser" && <IconBrowser />}
-          {section === "model-viewer" && <ModelViewer />}
-          {section === "account-manager" && <AccountManager />}
-          {section === "gm-manager" && <GmManager />}
-          {section === "system-installer" && <SystemInstaller />}
-          {section === "broadcast-system" && <BroadcastSystem />}
-          {section === "weather-control" && <WeatherControl />}
-          {section === "settings" && <Settings />}
-        </Suspense>
+        <div className={cn("h-full", section !== "dashboard" && "hidden")}>
+          <Dashboard />
+        </div>
+        <SectionSlot section="server-control" active={section} visited={visited}><ServerControl /></SectionSlot>
+        <SectionSlot section="build-deploy" active={section} visited={visited}><BuildDeploy /></SectionSlot>
+        <SectionSlot section="server-events" active={section} visited={visited}><ServerEvents /></SectionSlot>
+        <SectionSlot section="db-explorer" active={section} visited={visited}><DbExplorer /></SectionSlot>
+        <SectionSlot section="shop-editor" active={section} visited={visited}><ShopEditor /></SectionSlot>
+        <SectionSlot section="item-editor" active={section} visited={visited}><ItemEditor /></SectionSlot>
+        <SectionSlot section="item-proto-explorer" active={section} visited={visited}><ItemProtoExplorer /></SectionSlot>
+        <SectionSlot section="item-viewer" active={section} visited={visited}><ItemViewer /></SectionSlot>
+        <SectionSlot section="module-importer" active={section} visited={visited}><ModuleImporter /></SectionSlot>
+        <SectionSlot section="mob-proto-editor" active={section} visited={visited}><MobProtoEditor /></SectionSlot>
+        <SectionSlot section="mob-drop-editor" active={section} visited={visited}><MobDropEditor /></SectionSlot>
+        <SectionSlot section="drop-generator" active={section} visited={visited}><DropGenerator /></SectionSlot>
+        <SectionSlot section="refine-editor" active={section} visited={visited}><RefineEditor /></SectionSlot>
+        <SectionSlot section="box-editor" active={section} visited={visited}><BoxEditor /></SectionSlot>
+        <SectionSlot section="cube-editor" active={section} visited={visited}><CubeEditor /></SectionSlot>
+        <SectionSlot section="quest-builder" active={section} visited={visited}><QuestBuilder /></SectionSlot>
+        <SectionSlot section="regen-editor" active={section} visited={visited}><RegenEditor /></SectionSlot>
+        <SectionSlot section="locale-editor" active={section} visited={visited}><LocaleEditor /></SectionSlot>
+        <SectionSlot section="backup-browser" active={section} visited={visited}><BackupBrowser /></SectionSlot>
+        <SectionSlot section="db-backups" active={section} visited={visited}><DbBackups /></SectionSlot>
+        <SectionSlot section="activity-log" active={section} visited={visited}><ActivityLog /></SectionSlot>
+        <SectionSlot section="tga-converter" active={section} visited={visited}><TgaConverter /></SectionSlot>
+        <SectionSlot section="icon-browser" active={section} visited={visited}><IconBrowser /></SectionSlot>
+        <SectionSlot section="model-viewer" active={section} visited={visited}><ModelViewer /></SectionSlot>
+        <SectionSlot section="account-manager" active={section} visited={visited}><AccountManager /></SectionSlot>
+        <SectionSlot section="guild-manager" active={section} visited={visited}><GuildManager /></SectionSlot>
+        <SectionSlot section="gm-manager" active={section} visited={visited}><GmManager /></SectionSlot>
+        <SectionSlot section="system-installer" active={section} visited={visited}><SystemInstaller /></SectionSlot>
+        <SectionSlot section="broadcast-system" active={section} visited={visited}><BroadcastSystem /></SectionSlot>
+        <SectionSlot section="weather-control" active={section} visited={visited}><WeatherControl /></SectionSlot>
+        <SectionSlot section="settings" active={section} visited={visited}><Settings /></SectionSlot>
       </main>
     </div>
   );

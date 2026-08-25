@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { invoke } from "@tauri-apps/api/core";
 import { runAsyncAction } from "@/lib/asyncAction";
 import { logActivity } from "@/lib/logActivity";
@@ -6,6 +6,8 @@ import { Button } from "@/components/ui/button";
 import { Plus, Trash2, RefreshCw, CheckCircle2, AlertTriangle, Info, Beaker, HelpCircle, Search } from "lucide-react";
 import { openManual } from "@/lib/manual";
 import { EntityBrowser } from "@/features/shared/EntityBrowser";
+import { reportSectionDirty } from "@/store/navigation";
+import { useSaveShortcut } from "@/lib/useSaveShortcut";
 
 interface CubeValue {
   vnum: number;
@@ -141,6 +143,13 @@ export function CubeEditor() {
   const [saveError, setSaveError] = useState<string | null>(null);
   const [saveOk, setSaveOk] = useState<string | null>(null);
 
+  const loadedSnapshot = useRef("");
+  const dirty = recipes !== null && JSON.stringify(recipes) !== loadedSnapshot.current;
+  useEffect(() => {
+    reportSectionDirty("cube-editor", dirty);
+    return () => reportSectionDirty("cube-editor", false);
+  }, [dirty]);
+
   useEffect(() => {
     load();
   }, []);
@@ -153,7 +162,10 @@ export function CubeEditor() {
         setLoading(true);
         setLoadError(null);
       },
-      onSuccess: setRecipes,
+      onSuccess: (loaded) => {
+        setRecipes(loaded);
+        loadedSnapshot.current = JSON.stringify(loaded);
+      },
       onError: setLoadError,
       onFinally: () => setLoading(false),
     });
@@ -190,12 +202,15 @@ export function CubeEditor() {
       },
       onSuccess: (backupPath) => {
         setSaveOk(backupPath ? `Gespeichert (Backup: ${backupPath})` : "Gespeichert.");
+        loadedSnapshot.current = JSON.stringify(recipes);
         logActivity("cube-editor", "save", `cube.txt gespeichert (${recipes?.length ?? 0} Rezept(e))`, "file");
       },
       onError: setSaveError,
       onFinally: () => setSaving(false),
     });
   }
+
+  useSaveShortcut("cube-editor", dirty && !saving, () => setSaveConfirm(true));
 
   const selected = selectedIndex !== null ? recipes?.[selectedIndex] : null;
 

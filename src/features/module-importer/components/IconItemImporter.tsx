@@ -2,6 +2,8 @@ import { useEffect, useRef, useState } from "react";
 import { invoke } from "@tauri-apps/api/core";
 import { open } from "@tauri-apps/plugin-dialog";
 import { logActivity } from "@/lib/logActivity";
+import { reportSectionDirty } from "@/store/navigation";
+import { useSaveShortcut } from "@/lib/useSaveShortcut";
 import { Button } from "@/components/ui/button";
 import { AlertTriangle, CheckCircle2, FolderOpen, Image as ImageIcon, Info } from "lucide-react";
 import { SUBTYPES_BY_TYPE, WEAR_FLAGS, ITEM_TYPES, VALUE_LABELS_BY_TYPE, VALUE_HINTS } from "@/features/item-editor/itemFlags";
@@ -85,6 +87,14 @@ export function IconItemImporter({ onImported }: { onImported: () => void }) {
   const [batchError, setBatchError] = useState<string | null>(null);
   const [batchDone, setBatchDone] = useState<number[] | null>(null);
   const [confirm, setConfirm] = useState(false);
+
+  // Same "unsaved work-in-progress" proxy as PackageImporter: a scanned
+  // folder with rows configured but not yet imported.
+  const dirty = iconPaths !== null && batchDone === null;
+  useEffect(() => {
+    reportSectionDirty("module-importer", dirty);
+    return () => reportSectionDirty("module-importer", false);
+  }, [dirty]);
   const createdVnumsRef = useRef<number[]>([]);
 
   useEffect(() => {
@@ -152,6 +162,8 @@ export function IconItemImporter({ onImported }: { onImported: () => void }) {
   const canImport =
     selectedPaths.length > 0 &&
     selectedPaths.every((p) => rows[p]?.name.trim() && rows[p]?.localeName.trim());
+
+  useSaveShortcut("module-importer", dirty && canImport && !running, () => setConfirm(true));
 
   async function runImport() {
     setConfirm(false);

@@ -8,7 +8,8 @@ import { IconBrowserModal } from "@/features/icon-browser/IconBrowser";
 import { EntityBrowser } from "@/features/shared/EntityBrowser";
 import { openManual } from "@/lib/manual";
 import { logActivity } from "@/lib/logActivity";
-import { useNavigationStore } from "@/store/navigation";
+import { useNavigationStore, reportSectionDirty } from "@/store/navigation";
+import { useSaveShortcut } from "@/lib/useSaveShortcut";
 import { ItemUsageModal } from "@/features/shared/ItemUsageModal";
 import { ITEM_TYPES, SUBTYPES_BY_TYPE } from "./itemFlags";
 import { type ItemProtoInput, type ItemDescEntry, type StepStatus, type Mode, emptyItem } from "./types";
@@ -47,6 +48,12 @@ export function ItemEditor() {
   const [createdInDb, setCreatedInDb] = useState(false);
   const [updatedInDb, setUpdatedInDb] = useState(false);
   const [done, setDone] = useState(false);
+
+  const [dirty, setDirty] = useState(false);
+  useEffect(() => {
+    reportSectionDirty("item-editor", dirty);
+    return () => reportSectionDirty("item-editor", false);
+  }, [dirty]);
 
   const logRef = useRef<HTMLPreElement>(null);
 
@@ -89,6 +96,7 @@ export function ItemEditor() {
 
   function set<K extends keyof ItemProtoInput>(key: K, value: ItemProtoInput[K]) {
     setItem((prev) => ({ ...prev, [key]: value }));
+    setDirty(true);
   }
 
   function num(value: string) {
@@ -143,6 +151,7 @@ export function ItemEditor() {
     setSummary("");
     setOrigDescription("");
     setOrigSummary("");
+    setDirty(false);
   }
 
   async function loadForEdit(vnum: number) {
@@ -163,6 +172,7 @@ export function ItemEditor() {
     setSummary(desc?.summary ?? "");
     setOrigDescription(desc?.description ?? "");
     setOrigSummary(desc?.summary ?? "");
+    setDirty(false);
   }
 
   async function pickIcon() {
@@ -174,6 +184,7 @@ export function ItemEditor() {
     if (typeof selected === "string") {
       setIconSourcePath(selected);
       setIconPreview(null);
+      setDirty(true);
     }
   }
 
@@ -202,6 +213,8 @@ export function ItemEditor() {
     // to empty since the new vnum has no itemdesc.txt row of its own yet.
     setOrigDescription("");
     setOrigSummary("");
+    // A pre-filled but never-yet-saved draft - counts as unsaved work.
+    setDirty(true);
   }
 
   async function loadReference(vnum: number) {
@@ -215,6 +228,7 @@ export function ItemEditor() {
     // pc_* character trees and aren't supported here.
     setRefModelVnum(full && full.type === 1 ? vnum : null);
     setCopyModel(false);
+    setDirty(true);
   }
 
   function toggleFlag(key: "wearflag" | "antiflag" | "immuneflag" | "flag", bit: number) {
@@ -230,6 +244,10 @@ export function ItemEditor() {
     item.name.trim().length > 0 &&
     item.locale_name.trim().length > 0 &&
     (mode === "edit" || (hasNewIcon && vnumTaken !== true));
+
+  useSaveShortcut("item-editor", dirty && canCreate && Object.keys(steps).length === 0, () =>
+    setConfirmPipeline(true),
+  );
 
   async function runStep(key: string, fn: () => Promise<void>) {
     setSteps((prev) => ({ ...prev, [key]: "running" }));
@@ -319,6 +337,7 @@ export function ItemEditor() {
         await invoke("deploy_item_proto", { generatedProtoPath: generated });
       });
       setDone(true);
+      setDirty(false);
       if (mode === "edit") setOriginalItem(item);
       logActivity(
         "item-editor",
@@ -548,14 +567,20 @@ export function ItemEditor() {
           <Field label="Beschreibung (Tooltip-Text)">
             <textarea
               value={description}
-              onChange={(e) => setDescription(e.target.value)}
+              onChange={(e) => {
+                setDescription(e.target.value);
+                setDirty(true);
+              }}
               className="h-16 w-72 rounded-md border border-border bg-background px-2 py-1 text-sm"
             />
           </Field>
           <Field label="Kurzbeschreibung">
             <textarea
               value={summary}
-              onChange={(e) => setSummary(e.target.value)}
+              onChange={(e) => {
+                setSummary(e.target.value);
+                setDirty(true);
+              }}
               className="h-16 w-56 rounded-md border border-border bg-background px-2 py-1 text-sm"
             />
           </Field>
@@ -640,7 +665,10 @@ export function ItemEditor() {
               <input
                 type="checkbox"
                 checked={copyModel}
-                onChange={(e) => setCopyModel(e.target.checked)}
+                onChange={(e) => {
+                  setCopyModel(e.target.checked);
+                  setDirty(true);
+                }}
               />
               3D-Modell von vnum {refModelVnum} übernehmen (Waffe sieht dann identisch aus)
             </label>
@@ -725,6 +753,7 @@ export function ItemEditor() {
           onPick={(path) => {
             setIconSourcePath(path);
             setIconPreview(null);
+            setDirty(true);
           }}
           onClose={() => setIconBrowserOpen(false)}
         />

@@ -19,6 +19,8 @@ import { ItemPickerModal } from "./components/ItemPickerModal";
 import { ReverseLookupModal } from "./components/ReverseLookupModal";
 import { CreateMobModal } from "./components/CreateMobModal";
 import { DuplicatesModal } from "./components/DuplicatesModal";
+import { SimulatorModal } from "./components/SimulatorModal";
+import { reportSectionDirty, useNavigationStore } from "@/store/navigation";
 
 type Source = "server" | "local";
 
@@ -53,6 +55,13 @@ export function MobDropEditor() {
 
   const [reverseLookupOpen, setReverseLookupOpen] = useState(false);
   const [duplicatesOpen, setDuplicatesOpen] = useState(false);
+  const [simulatorOpen, setSimulatorOpen] = useState(false);
+
+  const [dirty, setDirty] = useState(false);
+  useEffect(() => {
+    reportSectionDirty("mob-drop-editor", dirty);
+    return () => reportSectionDirty("mob-drop-editor", false);
+  }, [dirty]);
 
   // Diagnostic-only, captured once at load time from the raw file content
   // (see mobdrop::check_numbering) - not recomputed from `groups` like the
@@ -91,6 +100,7 @@ export function MobDropEditor() {
       const result = await invoke<MobDropLoadResult>("read_mob_drop_file");
       setGroups(result.groups);
       setNumberingIssues(result.numbering_issues);
+      setDirty(false);
     } catch (e) {
       setLoadError(String(e));
     } finally {
@@ -124,6 +134,7 @@ export function MobDropEditor() {
         const parsed = await invoke<MobDropLoadResult>("parse_mob_drop_text", { content });
         setGroups(parsed.groups);
         setNumberingIssues(parsed.numbering_issues);
+        setDirty(false);
       } catch (parseError) {
         setRawRecovery({ content, error: String(parseError) });
       }
@@ -143,6 +154,7 @@ export function MobDropEditor() {
       });
       setGroups(parsed.groups);
       setNumberingIssues(parsed.numbering_issues);
+      setDirty(false);
       setRawRecovery(null);
     } catch (e) {
       setRawRecovery({ content: rawRecovery.content, error: String(e) });
@@ -169,6 +181,7 @@ export function MobDropEditor() {
 
   function updateGroup(index: number, patch: Partial<MobDropGroup>) {
     setGroups((prev) => prev!.map((g, i) => (i === index ? { ...g, ...patch } : g)));
+    setDirty(true);
   }
 
   function updateItem(groupIndex: number, itemIndex: number, patch: Partial<MobDropItem>) {
@@ -179,6 +192,7 @@ export function MobDropEditor() {
           : { ...g, items: g.items.map((it, ii) => (ii === itemIndex ? { ...it, ...patch } : it)) },
       ),
     );
+    setDirty(true);
   }
 
   function removeItem(groupIndex: number, itemIndex: number) {
@@ -187,6 +201,7 @@ export function MobDropEditor() {
         gi !== groupIndex ? g : { ...g, items: g.items.filter((_, ii) => ii !== itemIndex) },
       ),
     );
+    setDirty(true);
   }
 
   function addItem(item: EntityRow) {
@@ -198,12 +213,14 @@ export function MobDropEditor() {
           : { ...g, items: [...g.items, { item_vnum: item.vnum, count: 1, percent: 0 }] },
       ),
     );
+    setDirty(true);
     setItemPicker(false);
   }
 
   function handleMobCreated(group: MobDropGroup) {
     setGroups((prev) => [...(prev ?? []), group]);
     setSelectedIndex(groups ? groups.length : 0);
+    setDirty(true);
     setCreating(false);
   }
 
@@ -224,6 +241,7 @@ export function MobDropEditor() {
     else if (selectedIndex !== null && selectedIndex > deleteConfirm) {
       setSelectedIndex(selectedIndex - 1);
     }
+    setDirty(true);
     setDeleteConfirm(null);
   }
 
@@ -232,6 +250,7 @@ export function MobDropEditor() {
   const realChance = formatRealDropChance;
 
   function applyBulkEdit(params: BulkEditParams) {
+    setDirty(true);
     setGroups((prev) =>
       prev!.map((g, gi) => {
         if (params.scope === "current" && gi !== selectedIndex) return g;
@@ -266,6 +285,7 @@ export function MobDropEditor() {
           ? await invoke<string | null>("write_mob_drop_file", { groups })
           : await invoke<string | null>("write_local_mob_drop_file", { path: localPath, groups });
       setSaveOk(backup ? `Gespeichert. Backup: ${backup}` : "Gespeichert.");
+      setDirty(false);
       logActivity(
         "mob-drop-editor",
         "save",
@@ -321,6 +341,21 @@ export function MobDropEditor() {
     if (source === "server") loadFromServer();
     else if (localPath) loadLocalContent(localPath);
   }
+
+  // Sections stay mounted (just hidden) once visited (see App.tsx), so this
+  // listener would keep firing while the user is on a completely different
+  // page unless it checks it's actually the active section first.
+  useEffect(() => {
+    function onKeyDown(e: KeyboardEvent) {
+      if (useNavigationStore.getState().section !== "mob-drop-editor") return;
+      if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === "s") {
+        e.preventDefault();
+        if (dirty && !saving && groups) setSaveConfirm(true);
+      }
+    }
+    window.addEventListener("keydown", onKeyDown);
+    return () => window.removeEventListener("keydown", onKeyDown);
+  }, [dirty, saving, groups]);
 
   const filteredGroups = (groups ?? [])
     .map((g, index) => ({ g, index }))
@@ -390,7 +425,7 @@ export function MobDropEditor() {
             <RefreshCw className={`size-4 ${loading ? "animate-spin" : ""}`} />
             Neu laden
           </Button>
-          <Button onClick={() => setSaveConfirm(true)} disabled={saving || !groups}>
+          <Button onClick={() => setSaveConfirm(true)} disabled={saving || !groups || !dirty}>
             {saving ? "Speichere…" : "Speichern"}
           </Button>
         </div>
@@ -512,6 +547,7 @@ export function MobDropEditor() {
               onRemoveItem={removeItem}
               onDeleteClick={() => setDeleteConfirm(selectedIndex)}
               onAddItemClick={() => setItemPicker(true)}
+              onSimulateClick={() => setSimulatorOpen(true)}
             />
           )}
 
@@ -547,6 +583,10 @@ export function MobDropEditor() {
       )}
 
       {creating && <CreateMobModal onClose={() => setCreating(false)} onCreate={handleMobCreated} />}
+
+      {simulatorOpen && selected && (
+        <SimulatorModal group={selected} icons={icons} onClose={() => setSimulatorOpen(false)} />
+      )}
 
       {duplicatesOpen && (
         <DuplicatesModal

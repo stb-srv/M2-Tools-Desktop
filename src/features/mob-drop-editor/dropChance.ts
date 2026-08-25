@@ -27,3 +27,32 @@ export function formatRealDropChance(percent: number): string {
     .replace(/\.$/, "");
   return `${fixed || "0"}%`;
 }
+
+export interface DropSimulationResult {
+  item_vnum: number;
+  /** 0..100 - probability of at least one drop over the simulated kill count. */
+  chanceAtLeastOne: number;
+  /** Mean number of drops over the simulated kill count. */
+  expectedCount: number;
+}
+
+// Reuses realDropChancePercent (above) as the per-kill, per-item probability
+// - the same number this editor already shows as "≈X% real" on every drop
+// row, so the simulator can't drift from what's displayed elsewhere. Each
+// kill is treated as an independent Bernoulli trial with that probability
+// (binomial model): P(at least one in N kills) = 1 - (1 - p)^N,
+// E[count in N kills] = N * p.
+export function simulateDrops(
+  items: { item_vnum: number; percent: number }[],
+  kills: number,
+): DropSimulationResult[] {
+  const n = Math.max(0, Math.floor(kills) || 0);
+  return items.map(({ item_vnum, percent }) => {
+    const p = Math.min(1, Math.max(0, realDropChancePercent(percent) / 100));
+    return {
+      item_vnum,
+      chanceAtLeastOne: n === 0 ? 0 : (1 - Math.pow(1 - p, n)) * 100,
+      expectedCount: p * n,
+    };
+  });
+}

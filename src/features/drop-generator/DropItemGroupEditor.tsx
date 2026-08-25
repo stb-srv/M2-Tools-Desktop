@@ -1,7 +1,9 @@
-import { useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { invoke } from "@tauri-apps/api/core";
 import { runAsyncAction } from "@/lib/asyncAction";
 import { logActivity } from "@/lib/logActivity";
+import { reportSectionDirty } from "@/store/navigation";
+import { useSaveShortcut } from "@/lib/useSaveShortcut";
 import { Button } from "@/components/ui/button";
 import { AlertTriangle, Info, Plus, Trash2, RefreshCw, CheckCircle2 } from "lucide-react";
 import { EntityBrowser, type EntityRow } from "@/features/shared/EntityBrowser";
@@ -57,6 +59,13 @@ export function DropItemGroupEditor() {
   const [mobPickerFor, setMobPickerFor] = useState<number | null>(null);
   const [itemPickerFor, setItemPickerFor] = useState<{ group: number; item: number } | null>(null);
 
+  const loadedSnapshot = useRef("");
+  const dirty = groups !== null && JSON.stringify(groups) !== loadedSnapshot.current;
+  useEffect(() => {
+    reportSectionDirty("drop-generator", dirty);
+    return () => reportSectionDirty("drop-generator", false);
+  }, [dirty]);
+
   async function resolveAllLabels(list: DropItemGroup[]) {
     const mobEntries = await Promise.all(
       Array.from(new Set(list.map((g) => g.mob_vnum))).map(async (v) => [v, await resolveMobLabel(v)] as const),
@@ -87,6 +96,7 @@ export function DropItemGroupEditor() {
       },
       onSuccess: async (list) => {
         setGroups(list);
+        loadedSnapshot.current = JSON.stringify(list);
         await resolveAllLabels(list);
       },
       onError: setLoadError,
@@ -154,12 +164,15 @@ export function DropItemGroupEditor() {
       },
       onSuccess: () => {
         setSaveOk(true);
+        loadedSnapshot.current = JSON.stringify(groups);
         logActivity("drop-generator", "save", `drop_item_group.txt gespeichert (${groups.length} Gruppe(n))`, "drop_item_group.txt");
       },
       onError: setSaveError,
       onFinally: () => setSaving(false),
     });
   }
+
+  useSaveShortcut("drop-generator", dirty && canSave && !saving, () => setConfirmOpen(true));
 
   return (
     <div className="max-w-4xl space-y-4 pb-10">

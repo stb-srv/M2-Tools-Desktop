@@ -59,6 +59,12 @@ export function Gr2Canvas({ model, className }: Gr2CanvasProps) {
     let frameId = 0;
     const animate = () => {
       frameId = requestAnimationFrame(animate);
+      // Sections now stay mounted (hidden via `display:none`) when the user
+      // navigates away instead of unmounting - skip the render/update work
+      // while hidden so a background tab doesn't keep burning GPU on an
+      // invisible canvas. `offsetParent` is null exactly when the element
+      // (or an ancestor) is display:none - cheap to check every frame.
+      if (container.offsetParent === null) return;
       controls.update();
       renderer.render(scene, camera);
     };

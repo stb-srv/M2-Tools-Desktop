@@ -2,7 +2,8 @@ import { useEffect, useMemo, useState } from "react";
 import { invoke } from "@tauri-apps/api/core";
 import { runAsyncAction } from "@/lib/asyncAction";
 import { logActivity } from "@/lib/logActivity";
-import type { Section } from "@/store/navigation";
+import { reportSectionDirty, type Section } from "@/store/navigation";
+import { useSaveShortcut } from "@/lib/useSaveShortcut";
 import { Button } from "@/components/ui/button";
 import { AlertTriangle, CheckCircle2, Undo2 } from "lucide-react";
 
@@ -126,6 +127,18 @@ export function GenericRowEditor({
   const changedColumns = useMemo(
     () => Object.keys(values).filter((k) => values[k] !== original[k]),
     [values, original],
+  );
+
+  useEffect(() => {
+    if (!activityModule) return;
+    reportSectionDirty(activityModule, changedColumns.length > 0);
+    return () => reportSectionDirty(activityModule, false);
+  }, [activityModule, changedColumns.length]);
+
+  useSaveShortcut(
+    activityModule ?? "dashboard",
+    !!activityModule && changedColumns.length > 0 && !saving,
+    () => setConfirmOpen(true),
   );
 
   async function save() {

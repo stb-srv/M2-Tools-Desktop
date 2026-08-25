@@ -1,7 +1,9 @@
-import { useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { invoke } from "@tauri-apps/api/core";
 import { runAsyncAction } from "@/lib/asyncAction";
 import { logActivity } from "@/lib/logActivity";
+import { reportSectionDirty } from "@/store/navigation";
+import { useSaveShortcut } from "@/lib/useSaveShortcut";
 import { Button } from "@/components/ui/button";
 import { AlertTriangle, Info, Plus, Trash2, RefreshCw, CheckCircle2 } from "lucide-react";
 import { EntityBrowser, type EntityRow } from "@/features/shared/EntityBrowser";
@@ -28,6 +30,13 @@ export function EtcDropEditor() {
   const [confirmOpen, setConfirmOpen] = useState(false);
   const [pickerFor, setPickerFor] = useState<number | null>(null);
 
+  const loadedSnapshot = useRef("");
+  const dirty = entries !== null && JSON.stringify(entries) !== loadedSnapshot.current;
+  useEffect(() => {
+    reportSectionDirty("drop-generator", dirty);
+    return () => reportSectionDirty("drop-generator", false);
+  }, [dirty]);
+
   async function resolveLabels(list: EtcDropEntry[]) {
     const entries = await Promise.all(
       list.map(async (e) => {
@@ -51,6 +60,7 @@ export function EtcDropEditor() {
       },
       onSuccess: async (list) => {
         setEntries(list);
+        loadedSnapshot.current = JSON.stringify(list);
         await resolveLabels(list);
       },
       onError: setLoadError,
@@ -80,12 +90,15 @@ export function EtcDropEditor() {
       },
       onSuccess: () => {
         setSaveOk(true);
+        loadedSnapshot.current = JSON.stringify(entries);
         logActivity("drop-generator", "save", `etc_drop_item.txt gespeichert (${entries.length} Eintrag/Einträge)`, "etc_drop_item.txt");
       },
       onError: setSaveError,
       onFinally: () => setSaving(false),
     });
   }
+
+  useSaveShortcut("drop-generator", dirty && canSave && !saving, () => setConfirmOpen(true));
 
   return (
     <div className="max-w-3xl space-y-4 pb-10">
