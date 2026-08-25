@@ -30,6 +30,82 @@ pub struct MobDropGroup {
     pub items: Vec<MobDropItem>,
 }
 
+// The real server loader (`ReadMonsterDropItemGroup` /
+// `item_manager_read_tables.cpp`) does not read item lines positionally -
+// for k in 1..256 it looks up the *literal string key* "1", "2", ... and
+// stops at the first missing key, silently discarding every remaining entry
+// in that group. So a file where the leading index has a gap, a duplicate,
+// or doesn't start at 1 doesn't fail to load - it silently loses drops on
+// the live server. `parse()` above never trusts this number for its own
+// data model (position always wins, see `serialize`), so this tool itself
+// can't produce such a file - but it can load one that already has the
+// problem (hand-edited, or from before this tool existed) and needs to
+// surface that before the user assumes what they see is what the server
+// sees. `group_index` matches the position of the group in `parse()`'s
+// output, so the frontend can point back at `groups[group_index]`.
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+pub struct NumberingIssue {
+    pub group_index: usize,
+    pub found: Vec<u32>,
+}
+
+/// Scans already-valid `mob_drop_item.txt` content for the numbering problem
+/// described above. Deliberately independent of `parse()`'s own line-by-line
+/// state machine (tracks braces instead of the Group/Mob/Type grammar) since
+/// it only needs the leading index of each item line, not the fields around
+/// it - kept simple on purpose rather than threading a second return value
+/// through every step of `parse()`.
+pub fn check_numbering(content: &str) -> Vec<NumberingIssue> {
+    let mut issues = Vec::new();
+    let mut group_index: Option<usize> = None;
+    let mut next_group_index: usize = 0;
+    let mut current: Vec<u32> = Vec::new();
+    let mut in_group = false;
+
+    for raw_line in content.lines() {
+        let line = raw_line.trim();
+        if line.is_empty() {
+            continue;
+        }
+        let tokens: Vec<&str> = line.split_whitespace().collect();
+        if tokens.len() == 2 && tokens[0] == "Group" {
+            group_index = Some(next_group_index);
+            next_group_index += 1;
+            current.clear();
+            in_group = false;
+            continue;
+        }
+        if line == "{" {
+            in_group = true;
+            continue;
+        }
+        if line == "}" {
+            if in_group {
+                if let Some(gi) = group_index {
+                    let mut sorted = current.clone();
+                    sorted.sort_unstable();
+                    let expected: Vec<u32> = (1..=current.len() as u32).collect();
+                    if sorted != expected {
+                        issues.push(NumberingIssue {
+                            group_index: gi,
+                            found: current.clone(),
+                        });
+                    }
+                }
+            }
+            in_group = false;
+            continue;
+        }
+        if in_group && tokens.len() == 4 {
+            if let Ok(idx) = tokens[0].parse::<u32>() {
+                current.push(idx);
+            }
+        }
+    }
+
+    issues
+}
+
 type Lines<'a> = std::iter::Peekable<std::iter::Enumerate<std::str::Lines<'a>>>;
 
 fn next_nonblank<'a>(lines: &mut Lines<'a>) -> Option<(usize, &'a str)> {
@@ -251,5 +327,54 @@ mod tests {
     fn sanitizes_group_names() {
         assert_eq!(sanitize_group_name("Stein der Willkür"), "Stein_der_Willkuer");
         assert_eq!(sanitize_group_name("Hungriger Wildhund"), "Hungriger_Wildhund");
+    }
+
+    #[test]
+    fn numbering_check_passes_the_real_sample() {
+        assert_eq!(check_numbering(SAMPLE), Vec::new());
+    }
+
+    #[test]
+    fn numbering_check_finds_a_gap() {
+        // "3" is missing - on the real server this silently drops every
+        // entry after it (see doc comment on `check_numbering`), even
+        // though this parses fine and shows all 4 items in this tool.
+        let broken = "Group\tWildhund\n{\n\tMob\t101\n\tType\tdrop\n\t1\t4006\t1\t10\n\t2\t46\t1\t10\n\t4\t56\t1\t10\n\t5\t1006\t1\t10\n}\n";
+        assert!(parse(broken).is_ok());
+        let issues = check_numbering(broken);
+        assert_eq!(issues.len(), 1);
+        assert_eq!(issues[0].group_index, 0);
+        assert_eq!(issues[0].found, vec![1, 2, 4, 5]);
+    }
+
+    #[test]
+    fn numbering_check_finds_a_duplicate() {
+        let broken = "Group\tWildhund\n{\n\tMob\t101\n\tType\tdrop\n\t1\t4006\t1\t10\n\t1\t46\t1\t10\n}\n";
+        let issues = check_numbering(broken);
+        assert_eq!(issues.len(), 1);
+        assert_eq!(issues[0].found, vec![1, 1]);
+    }
+
+    #[test]
+    fn numbering_check_finds_a_wrong_start() {
+        let broken = "Group\tWildhund\n{\n\tMob\t101\n\tType\tdrop\n\t2\t4006\t1\t10\n\t3\t46\t1\t10\n}\n";
+        let issues = check_numbering(broken);
+        assert_eq!(issues.len(), 1);
+        assert_eq!(issues[0].found, vec![2, 3]);
+    }
+
+    #[test]
+    fn numbering_check_reports_correct_group_index_among_several() {
+        // Only the second group ("Wildhund") is broken.
+        let content = "Group\tHungriger_Wildhund\n{\n\tMob\t171\n\tType\tdrop\n\t1\t4006\t1\t10\n}\n\nGroup\tWildhund\n{\n\tMob\t101\n\tType\tdrop\n\t1\t4006\t1\t10\n\t3\t46\t1\t10\n}\n";
+        let issues = check_numbering(content);
+        assert_eq!(issues.len(), 1);
+        assert_eq!(issues[0].group_index, 1);
+    }
+
+    #[test]
+    fn numbering_check_ignores_empty_groups() {
+        let content = "Group\tLeer\n{\n\tMob\t1\n\tType\tdrop\n}\n";
+        assert_eq!(check_numbering(content), Vec::new());
     }
 }

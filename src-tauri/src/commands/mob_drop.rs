@@ -17,6 +17,7 @@ use crate::state::AppState;
 use tauri::State;
 
 use super::support::require_pool;
+use serde::Serialize;
 
 fn mob_drop_file_path(state: &State<'_, AppState>) -> Result<String, String> {
     let conn = state.settings_db.lock().map_err(|e| e.to_string())?;
@@ -25,14 +26,24 @@ fn mob_drop_file_path(state: &State<'_, AppState>) -> Result<String, String> {
         .unwrap_or_else(|| "/usr/home/game/share/mob_drop_item.txt".to_string()))
 }
 
+// Bundles the parsed groups with the numbering diagnostic (see
+// `mobdrop::check_numbering`) so the frontend gets both from one round-trip
+// instead of needing the raw file content a second time just to re-run the
+// check itself.
+#[derive(Debug, Clone, Serialize)]
+pub struct MobDropLoadResult {
+    pub groups: Vec<mobdrop::MobDropGroup>,
+    pub numbering_issues: Vec<mobdrop::NumberingIssue>,
+}
+
 #[tauri::command]
-pub async fn read_mob_drop_file(
-    state: State<'_, AppState>,
-) -> Result<Vec<mobdrop::MobDropGroup>, String> {
+pub async fn read_mob_drop_file(state: State<'_, AppState>) -> Result<MobDropLoadResult, String> {
     let (config, auth) = stored_ssh_auth(&state)?;
     let path = mob_drop_file_path(&state)?;
     let content = ssh::read_remote_file(&config, &auth, &path).await?;
-    mobdrop::parse(&content)
+    let groups = mobdrop::parse(&content)?;
+    let numbering_issues = mobdrop::check_numbering(&content);
+    Ok(MobDropLoadResult { groups, numbering_issues })
 }
 
 #[tauri::command]
@@ -179,8 +190,10 @@ pub fn read_local_text_file(path: String) -> Result<String, String> {
 }
 
 #[tauri::command]
-pub fn parse_mob_drop_text(content: String) -> Result<Vec<mobdrop::MobDropGroup>, String> {
-    mobdrop::parse(&content)
+pub fn parse_mob_drop_text(content: String) -> Result<MobDropLoadResult, String> {
+    let groups = mobdrop::parse(&content)?;
+    let numbering_issues = mobdrop::check_numbering(&content);
+    Ok(MobDropLoadResult { groups, numbering_issues })
 }
 
 #[tauri::command]

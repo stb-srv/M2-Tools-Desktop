@@ -9,7 +9,7 @@ import { openManual } from "@/lib/manual";
 import { logActivity } from "@/lib/logActivity";
 import type { EntityRow } from "@/features/shared/EntityBrowser";
 import { exportRowsAsCsv } from "@/lib/exportCsv";
-import type { MobDropGroup, MobDropItem } from "./types";
+import type { MobDropGroup, MobDropItem, MobDropLoadResult, NumberingIssue } from "./types";
 import { clampPercent } from "./components/shared";
 import { ServerInfoPopover } from "./components/ServerInfoPopover";
 import { GroupSidebar } from "./components/GroupSidebar";
@@ -54,6 +54,13 @@ export function MobDropEditor() {
   const [reverseLookupOpen, setReverseLookupOpen] = useState(false);
   const [duplicatesOpen, setDuplicatesOpen] = useState(false);
 
+  // Diagnostic-only, captured once at load time from the raw file content
+  // (see mobdrop::check_numbering) - not recomputed from `groups` like the
+  // duplicate checks below, since editing in this tool (add/remove/reorder)
+  // has no bearing on it: any save always renumbers correctly regardless of
+  // what was found here.
+  const [numberingIssues, setNumberingIssues] = useState<NumberingIssue[]>([]);
+
   const duplicateItems = useMemo(() => findDuplicateItemsInMobs(groups ?? []), [groups]);
   const duplicateMobs = useMemo(() => findDuplicateMobs(groups ?? []), [groups]);
 
@@ -71,6 +78,7 @@ export function MobDropEditor() {
     setRawRecovery(null);
     setSaveOk(null);
     setSaveError(null);
+    setNumberingIssues([]);
     if (next === "server") loadFromServer();
   }
 
@@ -80,8 +88,9 @@ export function MobDropEditor() {
     setSelectedIndex(null);
     setSaveOk(null);
     try {
-      const result = await invoke<MobDropGroup[]>("read_mob_drop_file");
-      setGroups(result);
+      const result = await invoke<MobDropLoadResult>("read_mob_drop_file");
+      setGroups(result.groups);
+      setNumberingIssues(result.numbering_issues);
     } catch (e) {
       setLoadError(String(e));
     } finally {
@@ -108,11 +117,13 @@ export function MobDropEditor() {
     setSaveError(null);
     setGroups(null);
     setRawRecovery(null);
+    setNumberingIssues([]);
     try {
       const content = await invoke<string>("read_local_text_file", { path });
       try {
-        const parsed = await invoke<MobDropGroup[]>("parse_mob_drop_text", { content });
-        setGroups(parsed);
+        const parsed = await invoke<MobDropLoadResult>("parse_mob_drop_text", { content });
+        setGroups(parsed.groups);
+        setNumberingIssues(parsed.numbering_issues);
       } catch (parseError) {
         setRawRecovery({ content, error: String(parseError) });
       }
@@ -127,10 +138,11 @@ export function MobDropEditor() {
     if (!rawRecovery) return;
     setRawChecking(true);
     try {
-      const parsed = await invoke<MobDropGroup[]>("parse_mob_drop_text", {
+      const parsed = await invoke<MobDropLoadResult>("parse_mob_drop_text", {
         content: rawRecovery.content,
       });
-      setGroups(parsed);
+      setGroups(parsed.groups);
+      setNumberingIssues(parsed.numbering_issues);
       setRawRecovery(null);
     } catch (e) {
       setRawRecovery({ content: rawRecovery.content, error: String(e) });
@@ -402,13 +414,17 @@ export function MobDropEditor() {
       {saveError && <p className="text-sm text-destructive">{saveError}</p>}
       {exportError && <p className="text-sm text-destructive">{exportError}</p>}
 
-      {(duplicateItems.length > 0 || duplicateMobs.length > 0) && (
+      {(duplicateItems.length > 0 || duplicateMobs.length > 0 || numberingIssues.length > 0) && (
         <div className="flex items-center justify-between gap-2 rounded-md border border-amber-500/40 bg-amber-500/10 p-2 text-sm text-amber-700 dark:text-amber-400">
           <span className="flex items-center gap-2">
             <Copy className="size-4 shrink-0" />
-            {duplicateItems.length > 0 && `${duplicateItems.length} Mob(s) mit doppelten Items`}
-            {duplicateItems.length > 0 && duplicateMobs.length > 0 && ", "}
-            {duplicateMobs.length > 0 && `${duplicateMobs.length} doppelte(r) Mob-Eintrag`}
+            {[
+              duplicateItems.length > 0 && `${duplicateItems.length} Mob(s) mit doppelten Items`,
+              duplicateMobs.length > 0 && `${duplicateMobs.length} doppelte(r) Mob-Eintrag`,
+              numberingIssues.length > 0 && `${numberingIssues.length} Mob(s) mit fehlerhafter Nummerierung`,
+            ]
+              .filter(Boolean)
+              .join(", ")}
           </span>
           <Button
             size="sm"
@@ -536,6 +552,7 @@ export function MobDropEditor() {
         <DuplicatesModal
           duplicateItems={duplicateItems}
           duplicateMobs={duplicateMobs}
+          numberingIssues={numberingIssues}
           groups={groups}
           icons={icons}
           onNavigateToGroup={navigateToDuplicateGroup}

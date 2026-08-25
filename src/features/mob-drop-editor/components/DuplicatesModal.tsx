@@ -1,17 +1,19 @@
 import { Button } from "@/components/ui/button";
-import { Pencil, X } from "lucide-react";
-import type { MobDropGroup } from "../types";
+import { AlertTriangle, Pencil, X } from "lucide-react";
+import type { MobDropGroup, NumberingIssue } from "../types";
 import type { DuplicateItemFinding, DuplicateMobFinding } from "../duplicates";
 import { Modal } from "./shared";
 
-// Zeigt beide Duplikat-Prüfungen (siehe duplicates.ts) und bietet je Fund
-// zwei Aktionen: "Anpassen" springt zum betroffenen Mob im Haupteditor
+// Zeigt alle Prüfungen (Duplikate, siehe duplicates.ts, plus die
+// Nummerierungs-Prüfung aus mobdrop::check_numbering) und bietet je Fund
+// passende Aktionen: "Anpassen" springt zum betroffenen Mob im Haupteditor
 // (Item-VNUM ist dort nirgends inline editierbar, daher kein eigener
 // Bearbeiten-Dialog hier - Muster wie ReverseLookupModal.onSelectMob),
 // "Löschen" entfernt genau diese eine Dopplung.
 export function DuplicatesModal({
   duplicateItems,
   duplicateMobs,
+  numberingIssues,
   groups,
   icons,
   onNavigateToGroup,
@@ -21,6 +23,7 @@ export function DuplicatesModal({
 }: {
   duplicateItems: DuplicateItemFinding[];
   duplicateMobs: DuplicateMobFinding[];
+  numberingIssues: NumberingIssue[];
   groups: MobDropGroup[];
   icons: Record<number, string | null>;
   onNavigateToGroup: (groupIndex: number) => void;
@@ -31,7 +34,43 @@ export function DuplicatesModal({
   return (
     <Modal onClose={onClose} widthClassName="w-[36rem]">
       <div className="max-h-[70vh] space-y-4 overflow-y-auto">
-        <p className="text-sm font-medium">Duplikate</p>
+        <p className="text-sm font-medium">Prüfung</p>
+
+        <div className="space-y-2">
+          <p className="text-xs font-medium text-muted-foreground">
+            Fehlerhafte Nummerierung ({numberingIssues.length})
+          </p>
+          <p className="text-xs text-muted-foreground">
+            Der Server liest jeden Drop-Eintrag über seine laufende Nummer (1, 2, 3, …) - fehlt
+            eine Zahl, bricht das Einlesen an der Lücke ab und alle folgenden Einträge dieses Mobs
+            gehen auf dem Server verloren, auch wenn hier alles vollständig angezeigt wird.
+            Speichern behebt dies automatisch (die Nummerierung wird immer neu vergeben).
+          </p>
+          {numberingIssues.length === 0 && (
+            <p className="text-sm text-muted-foreground">Nummerierung überall korrekt.</p>
+          )}
+          {numberingIssues.map((issue) => {
+            const g = groups[issue.group_index];
+            return (
+              <div
+                key={issue.group_index}
+                className="flex items-center justify-between gap-2 rounded-md border border-border p-2"
+              >
+                <span className="flex items-start gap-2 text-sm">
+                  <AlertTriangle className="mt-0.5 size-3.5 shrink-0 text-amber-500" />
+                  <span>
+                    {g?.name} <span className="text-muted-foreground">(Mob #{g?.mob_vnum})</span> -
+                    gefunden: {issue.found.join(", ")}
+                  </span>
+                </span>
+                <Button size="sm" variant="outline" onClick={() => onNavigateToGroup(issue.group_index)}>
+                  <Pencil className="size-3.5" />
+                  Anpassen
+                </Button>
+              </div>
+            );
+          })}
+        </div>
 
         <div className="space-y-2">
           <p className="text-xs font-medium text-muted-foreground">
