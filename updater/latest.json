@@ -1,19 +1,19 @@
 {
-  "version": "0.15.6",
+  "version": "0.15.7",
   "notes": "",
-  "pub_date": "2026-08-24T19:58:52.996Z",
+  "pub_date": "2026-08-25T14:52:14.846Z",
   "platforms": {
     "windows-x86_64": {
-      "signature": "dW50cnVzdGVkIGNvbW1lbnQ6IHNpZ25hdHVyZSBmcm9tIHRhdXJpIHNlY3JldCBrZXkKUlVRUFlocnZlQ3hhVGo3UUhvUkVnazMvdkJQUzlKQmx3aXY1ZElTZld3OGhwd0hnN1hMR0Mwd0lQcWxtczRyZ3VMWlhKNm1UekFQb2ZabS9hYXNPZCtPUUdQVWNyRnJVMlFnPQp0cnVzdGVkIGNvbW1lbnQ6IHRpbWVzdGFtcDoxNzg3NjAxNTI3CWZpbGU6TTJNYW5hZ2VyXzAuMTUuNl94NjRfZW4tVVMubXNpCnd1NHA4YnZlU0gxZjA3MnowOXAzZm9MT3A1a3JrR25OV0tLRGtsbEdIYWFLOWlMT2MzNnpwQWZWT24yY1RweEErTzNCRkx0VUNqVzJYaXlzNHR2cUNnPT0K",
-      "url": "https://api.github.com/repos/stb-srv/M2-Tools-Desktop/releases/assets/528113972"
+      "signature": "dW50cnVzdGVkIGNvbW1lbnQ6IHNpZ25hdHVyZSBmcm9tIHRhdXJpIHNlY3JldCBrZXkKUlVRUFlocnZlQ3hhVG1lVDVTWk45SWI5ZFgzdzJoOUUxY0xEWnkzTFFxUTVJMjJPZE5tamxzbit6Q1VSZzd1eEx5RUp0N08wbnFHS3kxYnJKbUVUSUZpZStvSU0xems2akFnPQp0cnVzdGVkIGNvbW1lbnQ6IHRpbWVzdGFtcDoxNzg3NjY5NTMwCWZpbGU6TTJNYW5hZ2VyXzAuMTUuN194NjRfZW4tVVMubXNpClRsdlNWU050V0E1NWFlbmtFWk5oVTh3Z3gyOXZ1VUQyRVdpNGpZcWV1ZXBvajc1M1NJMFFIUW9XU1Z3bnp5amFUTmJVTC9mUVR4QlhDZVJheDZIV0JRPT0K",
+      "url": "https://api.github.com/repos/stb-srv/M2-Tools-Desktop/releases/assets/529346436"
     },
     "windows-x86_64-msi": {
-      "signature": "dW50cnVzdGVkIGNvbW1lbnQ6IHNpZ25hdHVyZSBmcm9tIHRhdXJpIHNlY3JldCBrZXkKUlVRUFlocnZlQ3hhVGo3UUhvUkVnazMvdkJQUzlKQmx3aXY1ZElTZld3OGhwd0hnN1hMR0Mwd0lQcWxtczRyZ3VMWlhKNm1UekFQb2ZabS9hYXNPZCtPUUdQVWNyRnJVMlFnPQp0cnVzdGVkIGNvbW1lbnQ6IHRpbWVzdGFtcDoxNzg3NjAxNTI3CWZpbGU6TTJNYW5hZ2VyXzAuMTUuNl94NjRfZW4tVVMubXNpCnd1NHA4YnZlU0gxZjA3MnowOXAzZm9MT3A1a3JrR25OV0tLRGtsbEdIYWFLOWlMT2MzNnpwQWZWT24yY1RweEErTzNCRkx0VUNqVzJYaXlzNHR2cUNnPT0K",
-      "url": "https://api.github.com/repos/stb-srv/M2-Tools-Desktop/releases/assets/528113972"
+      "signature": "dW50cnVzdGVkIGNvbW1lbnQ6IHNpZ25hdHVyZSBmcm9tIHRhdXJpIHNlY3JldCBrZXkKUlVRUFlocnZlQ3hhVG1lVDVTWk45SWI5ZFgzdzJoOUUxY0xEWnkzTFFxUTVJMjJPZE5tamxzbit6Q1VSZzd1eEx5RUp0N08wbnFHS3kxYnJKbUVUSUZpZStvSU0xems2akFnPQp0cnVzdGVkIGNvbW1lbnQ6IHRpbWVzdGFtcDoxNzg3NjY5NTMwCWZpbGU6TTJNYW5hZ2VyXzAuMTUuN194NjRfZW4tVVMubXNpClRsdlNWU050V0E1NWFlbmtFWk5oVTh3Z3gyOXZ1VUQyRVdpNGpZcWV1ZXBvajc1M1NJMFFIUW9XU1Z3bnp5amFUTmJVTC9mUVR4QlhDZVJheDZIV0JRPT0K",
+      "url": "https://api.github.com/repos/stb-srv/M2-Tools-Desktop/releases/assets/529346436"
     },
     "windows-x86_64-nsis": {
-      "signature": "dW50cnVzdGVkIGNvbW1lbnQ6IHNpZ25hdHVyZSBmcm9tIHRhdXJpIHNlY3JldCBrZXkKUlVRUFlocnZlQ3hhVHRualdnTmxCbC9UQjlScldBWDVGZERvN2pKT0ZRYldlZzBZaTZoR3g4aGxTU1BDMjdnYm5ZalpuZlFXMDdYVzZCbFd0Q0M2ZkFZckw5MUo1Umw4d0FJPQp0cnVzdGVkIGNvbW1lbnQ6IHRpbWVzdGFtcDoxNzg3NjAxNTI3CWZpbGU6TTJNYW5hZ2VyXzAuMTUuNl94NjQtc2V0dXAuZXhlCms1dEFxRnRKMGdEVVU0Ri9QN05MVnB0dzQxTXpvd1JFVVNIT3ZrK0tFaTNsUlhEUFRCMXRKY29CL1NqK0JoS3hQcUlmWVFJY0t0b3Y2T3MraXlnT0JRPT0K",
-      "url": "https://api.github.com/repos/stb-srv/M2-Tools-Desktop/releases/assets/528113999"
+      "signature": "dW50cnVzdGVkIGNvbW1lbnQ6IHNpZ25hdHVyZSBmcm9tIHRhdXJpIHNlY3JldCBrZXkKUlVRUFlocnZlQ3hhVHBEV3VDaGlJTFl5WUt6cFVoV2lTRW1qamxzSVhnSHJ5UndMcGsxMTBCRVdhVGlYN3gxV1hXd1IxZ3JQUmY1czExdTRFT2VRaG1WYjloaW9XNHNlZGdVPQp0cnVzdGVkIGNvbW1lbnQ6IHRpbWVzdGFtcDoxNzg3NjY5NTMwCWZpbGU6TTJNYW5hZ2VyXzAuMTUuN194NjQtc2V0dXAuZXhlCnZXckk0TEpRV0pkWVZGRlo3Q2FNSFg0M0dVaEt2enlnUFpkSm9HY01naVdwZ2pkd1ZPKzdFOFNCWkxWOC9yeDA0VDAzbHZOTWNxaWIvYmJwbzBBdkFRPT0K",
+      "url": "https://api.github.com/repos/stb-srv/M2-Tools-Desktop/releases/assets/529346451"
     }
   }
 }
