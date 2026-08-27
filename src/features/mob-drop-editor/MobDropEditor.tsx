@@ -2,6 +2,7 @@ import { useEffect, useMemo, useState } from "react";
 import { invoke } from "@tauri-apps/api/core";
 import { open } from "@tauri-apps/plugin-dialog";
 import { Button } from "@/components/ui/button";
+import { Skeleton } from "@/components/ui/skeleton";
 import { RefreshCw, AlertTriangle, CheckCircle2, FolderOpen, Crosshair, HelpCircle, Download, Copy } from "lucide-react";
 import { formatRealDropChance, realDropChancePercent } from "./dropChance";
 import { findDuplicateItemsInMobs, findDuplicateMobs } from "./duplicates";
@@ -368,7 +369,21 @@ export function MobDropEditor() {
   const selected = selectedIndex !== null ? groups?.[selectedIndex] ?? null : null;
 
   if (loading && !groups && !rawRecovery) {
-    return <p className="text-sm text-muted-foreground">Lade Datei…</p>;
+    return (
+      <div className="flex gap-4">
+        <div className="w-64 shrink-0 space-y-1.5">
+          <Skeleton className="h-8 w-full" />
+          <Skeleton className="h-8 w-full" />
+          <Skeleton className="h-8 w-full" />
+          <Skeleton className="h-8 w-3/4" />
+        </div>
+        <div className="flex-1 space-y-2">
+          <Skeleton className="h-6 w-1/3" />
+          <Skeleton className="h-24 w-full" />
+          <Skeleton className="h-24 w-full" />
+        </div>
+      </div>
+    );
   }
 
   if (loadError && !groups && !rawRecovery) {

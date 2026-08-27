@@ -36,6 +36,8 @@
     "unsavedChanges": "Unsaved changes",
     "pin": "Pin",
     "unpin": "Unpin",
+    "collapseSidebar": "Collapse sidebar",
+    "expandSidebar": "Expand sidebar",
     "groups": {
       "overview": "Overview",
       "items": "Items & Equipment",

@@ -14,10 +14,10 @@ import {
   History,
   Eye,
   AlertTriangle,
-  CheckCircle2,
   X,
   HelpCircle,
 } from "lucide-react";
+import { toast } from "@/components/ui/toast";
 import { openManual } from "@/lib/manual";
 
 interface RemoteEntry {
@@ -53,8 +53,6 @@ export function BackupBrowser() {
 
   const [restoreConfirm, setRestoreConfirm] = useState<string | null>(null);
   const [restoring, setRestoring] = useState(false);
-  const [restoreError, setRestoreError] = useState<string | null>(null);
-  const [restoreOk, setRestoreOk] = useState<string | null>(null);
 
   const [diffPath, setDiffPath] = useState<string | null>(null);
   const [diffData, setDiffData] = useState<BackupDiff | null>(null);
@@ -90,7 +88,6 @@ export function BackupBrowser() {
   }
 
   function openFolder(name: string) {
-    setRestoreOk(null);
     setDir((prev) => `${prev}/${name}`);
   }
 
@@ -123,15 +120,12 @@ export function BackupBrowser() {
     await runAsyncAction(
       () => invoke<string>("restore_remote_backup", { backupPath }),
       {
-        onStart: () => {
-          setRestoring(true);
-          setRestoreError(null);
-        },
+        onStart: () => setRestoring(true),
         onSuccess: (target) => {
-          setRestoreOk(`Wiederhergestellt nach: ${target}`);
+          toast.success(`Wiederhergestellt nach: ${target}`);
           logActivity("backup-browser", "restore", `Backup wiederhergestellt: '${backupPath}' → '${target}'`, "file", target);
         },
-        onError: setRestoreError,
+        onError: (e) => toast.error(e),
         onFinally: () => setRestoring(false),
       },
     );
@@ -185,12 +179,6 @@ export function BackupBrowser() {
         </Button>
       </div>
 
-      {restoreOk && (
-        <span className="flex items-center gap-1 text-sm text-green-600">
-          <CheckCircle2 className="size-4" /> {restoreOk}
-        </span>
-      )}
-      {restoreError && <p className="text-sm text-destructive">{restoreError}</p>}
       {error && <p className="text-sm text-destructive">{error}</p>}
 
       <div className="flex-1 space-y-1 overflow-y-auto rounded-md border border-border p-1">

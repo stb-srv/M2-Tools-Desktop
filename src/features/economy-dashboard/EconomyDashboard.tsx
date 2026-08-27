@@ -2,6 +2,7 @@ import { useEffect, useState } from "react";
 import { invoke } from "@tauri-apps/api/core";
 import { Coins, RefreshCw, HelpCircle } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import { Skeleton } from "@/components/ui/skeleton";
 import { runAsyncAction } from "@/lib/asyncAction";
 import { openManual } from "@/lib/manual";
 
@@ -87,6 +88,17 @@ export function EconomyDashboard() {
 
       {error && <p className="whitespace-pre-wrap text-sm text-destructive">{error}</p>}
 
+      {!stats && !error && (
+        <div className="grid grid-cols-2 gap-3 sm:grid-cols-3">
+          {Array.from({ length: 6 }).map((_, i) => (
+            <div key={i} className="space-y-1.5 rounded-md border border-border p-3">
+              <Skeleton className="h-3 w-20" />
+              <Skeleton className="h-5 w-16" />
+            </div>
+          ))}
+        </div>
+      )}
+
       {stats && (
         <div className="grid grid-cols-2 gap-3 sm:grid-cols-3">
           <div className="rounded-md border border-border p-3">
@@ -134,7 +146,13 @@ export function EconomyDashboard() {
           {holders && holders.length === 0 && (
             <p className="p-2 text-sm text-muted-foreground">Keine Spieler gefunden.</p>
           )}
-          {!holders && !error && <p className="p-2 text-sm text-muted-foreground">Lade…</p>}
+          {!holders && !error && (
+            <div className="space-y-1 p-1">
+              <Skeleton className="h-8 w-full" />
+              <Skeleton className="h-8 w-full" />
+              <Skeleton className="h-8 w-full" />
+            </div>
+          )}
         </div>
       </div>
     </div>

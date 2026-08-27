@@ -158,6 +158,7 @@ export const NAV_ITEMS: { section: Section; icon: typeof LayoutDashboard; labelK
 const COLLAPSED_KEY = "m2manager-nav-collapsed";
 const FAVORITES_KEY = "m2manager-nav-favorites";
 const RECENT_KEY = "m2manager-nav-recent";
+const RAIL_COLLAPSED_KEY = "m2manager-nav-rail-collapsed";
 const RECENT_LIMIT = 5;
 
 function loadJson<T>(key: string, fallback: T): T {
@@ -190,6 +191,12 @@ interface NavigationState {
 
   collapsed: Partial<Record<Category, boolean>>;
   toggleCategory: (category: Category) => void;
+
+  /** Whole-sidebar icon-only rail mode - distinct from `collapsed` above
+   * (which folds one category's items away but keeps the full-width layout).
+   * Added 2026-08-27 after the nav list grew past ~30 entries. */
+  railCollapsed: boolean;
+  toggleRail: () => void;
 
   favorites: Section[];
   toggleFavorite: (section: Section) => void;
@@ -232,6 +239,14 @@ export const useNavigationStore = create<NavigationState>((set, get) => ({
       const collapsed = { ...state.collapsed, [category]: !state.collapsed[category] };
       saveJson(COLLAPSED_KEY, collapsed);
       return { collapsed };
+    }),
+
+  railCollapsed: loadJson(RAIL_COLLAPSED_KEY, false),
+  toggleRail: () =>
+    set((state) => {
+      const railCollapsed = !state.railCollapsed;
+      saveJson(RAIL_COLLAPSED_KEY, railCollapsed);
+      return { railCollapsed };
     }),
 
   favorites: loadJson(FAVORITES_KEY, [] as Section[]).filter((s) => VALID_SECTIONS.has(s)),

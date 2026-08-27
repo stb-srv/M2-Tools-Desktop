@@ -2,6 +2,7 @@ import { useState } from "react";
 import { invoke } from "@tauri-apps/api/core";
 import { Castle, Search, AlertTriangle, Swords, Trash2, HelpCircle } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import { Skeleton } from "@/components/ui/skeleton";
 import { runAsyncAction } from "@/lib/asyncAction";
 import { logActivity } from "@/lib/logActivity";
 import { openManual } from "@/lib/manual";
@@ -237,7 +238,13 @@ export function GuildManager() {
                 Schließen
               </Button>
             </div>
-            {warsLoading && <p className="text-sm text-muted-foreground">Lade…</p>}
+            {warsLoading && (
+              <div className="space-y-1.5">
+                <Skeleton className="h-6 w-full" />
+                <Skeleton className="h-6 w-full" />
+                <Skeleton className="h-6 w-2/3" />
+              </div>
+            )}
             {warsError && (
               <p className="flex items-start gap-2 text-sm text-destructive">
                 <AlertTriangle className="mt-0.5 size-4 shrink-0" />

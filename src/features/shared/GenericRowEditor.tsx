@@ -5,6 +5,7 @@ import { logActivity } from "@/lib/logActivity";
 import { reportSectionDirty, type Section } from "@/store/navigation";
 import { useSaveShortcut } from "@/lib/useSaveShortcut";
 import { Button } from "@/components/ui/button";
+import { Skeleton } from "@/components/ui/skeleton";
 import { AlertTriangle, CheckCircle2, Undo2 } from "lucide-react";
 
 interface ColumnInfo {
@@ -227,7 +228,16 @@ export function GenericRowEditor({
             <span>{loadError}</span>
           </p>
         )}
-        {!columns && !loadError && <p className="text-sm text-muted-foreground">Lade…</p>}
+        {!columns && !loadError && (
+          <div className="grid grid-cols-2 gap-3">
+            {Array.from({ length: 8 }).map((_, i) => (
+              <div key={i} className="space-y-1">
+                <Skeleton className="h-3 w-16" />
+                <Skeleton className="h-7 w-full" />
+              </div>
+            ))}
+          </div>
+        )}
 
         {columns && (
           <>

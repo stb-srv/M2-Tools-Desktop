@@ -1,5 +1,5 @@
 import { useTranslation } from "react-i18next";
-import { ChevronDown, ChevronRight, Star } from "lucide-react";
+import { ChevronDown, ChevronRight, PanelLeftClose, PanelLeft, Star } from "lucide-react";
 import {
   useNavigationStore,
   NAV_ITEMS,
@@ -10,7 +10,7 @@ import {
 import { useUpdateStore } from "@/store/updateStore";
 import { cn } from "@/lib/utils";
 
-function NavRow({ section }: { section: Section }) {
+function NavRow({ section, rail }: { section: Section; rail: boolean }) {
   const { t } = useTranslation();
   const item = NAV_ITEMS.find((i) => i.section === section);
   const current = useNavigationStore((s) => s.section);
@@ -24,6 +24,38 @@ function NavRow({ section }: { section: Section }) {
   const Icon = item.icon;
   const isFavorite = favorites.includes(section);
   const isActive = current === section;
+  const label = t(item.labelKey);
+
+  // Icon-only rail mode: no label, no pin button (favorites/recent don't
+  // exist as separate sections here anyway - see Sidebar below), dirty/
+  // update indicators become a small corner dot on the icon itself instead
+  // of an inline span next to text that no longer renders.
+  if (rail) {
+    return (
+      <button
+        onClick={() => setSection(section)}
+        title={label}
+        className={cn(
+          "relative mx-auto flex size-9 items-center justify-center rounded-md transition-colors",
+          isActive ? "bg-primary text-primary-foreground" : "text-foreground hover:bg-muted"
+        )}
+      >
+        <Icon className="size-4 shrink-0" />
+        {dirty && (
+          <span
+            title={t("nav.unsavedChanges")}
+            className="absolute right-1 top-1 size-1.5 rounded-full bg-warning"
+          />
+        )}
+        {updateAvailable && (
+          <span
+            title={`Update verfügbar: v${updateAvailable.version}`}
+            className="absolute right-1 top-1 size-1.5 rounded-full bg-primary"
+          />
+        )}
+      </button>
+    );
+  }
 
   return (
     <div className="group relative flex items-center">
@@ -35,13 +67,13 @@ function NavRow({ section }: { section: Section }) {
         )}
       >
         <Icon className="size-4 shrink-0" />
-        <span className="flex-1 truncate">{t(item.labelKey)}</span>
+        <span className="flex-1 truncate">{label}</span>
         {dirty && (
           <span
             title={t("nav.unsavedChanges")}
             className={cn(
               "size-1.5 shrink-0 rounded-full",
-              isActive ? "bg-primary-foreground" : "bg-amber-500"
+              isActive ? "bg-primary-foreground" : "bg-warning"
             )}
           />
         )}
@@ -50,7 +82,7 @@ function NavRow({ section }: { section: Section }) {
             title={`Update verfügbar: v${updateAvailable.version}`}
             className={cn(
               "size-1.5 shrink-0 rounded-full",
-              isActive ? "bg-primary-foreground" : "bg-blue-500"
+              isActive ? "bg-primary-foreground" : "bg-primary"
             )}
           />
         )}
@@ -79,13 +111,51 @@ export function Sidebar() {
   const toggleCategory = useNavigationStore((s) => s.toggleCategory);
   const favorites = useNavigationStore((s) => s.favorites);
   const recent = useNavigationStore((s) => s.recent);
+  const railCollapsed = useNavigationStore((s) => s.railCollapsed);
+  const toggleRail = useNavigationStore((s) => s.toggleRail);
 
   const settingsItem = NAV_ITEMS.find((i) => i.category === "settings")!;
   const recentVisible = recent.filter((s) => !favorites.includes(s)).slice(0, 3);
 
+  // Icon-only rail: with ~30 nav entries now, favorites/recent/category
+  // headers don't fit in a narrow column - fall back to one flat icon list
+  // in the same overall order instead of trying to shrink the grouped view.
+  if (railCollapsed) {
+    return (
+      <aside className="flex w-14 flex-col border-r border-border bg-card">
+        <div className="flex items-center justify-center py-4">
+          <button
+            onClick={toggleRail}
+            title={t("nav.expandSidebar")}
+            className="rounded-md p-1.5 text-muted-foreground hover:bg-muted hover:text-foreground"
+          >
+            <PanelLeft className="size-4" />
+          </button>
+        </div>
+        <nav className="flex flex-1 flex-col gap-1 overflow-y-auto px-1 pb-2">
+          {NAV_ITEMS.filter((i) => i.category !== "settings").map(({ section }) => (
+            <NavRow key={section} section={section} rail />
+          ))}
+        </nav>
+        <div className="border-t border-border px-1 py-2">
+          <NavRow section={settingsItem.section} rail />
+        </div>
+      </aside>
+    );
+  }
+
   return (
     <aside className="flex w-60 flex-col border-r border-border bg-card">
-      <div className="px-4 py-4 text-lg font-semibold">M2Manager</div>
+      <div className="flex items-center justify-between px-4 py-4">
+        <span className="text-lg font-semibold">M2Manager</span>
+        <button
+          onClick={toggleRail}
+          title={t("nav.collapseSidebar")}
+          className="rounded-md p-1 text-muted-foreground hover:bg-muted hover:text-foreground"
+        >
+          <PanelLeftClose className="size-4" />
+        </button>
+      </div>
       <nav className="flex flex-1 flex-col gap-3 overflow-y-auto px-2 pb-2">
         {favorites.length > 0 && (
           <div>
@@ -94,7 +164,7 @@ export function Sidebar() {
             </div>
             <div className="flex flex-col gap-0.5">
               {favorites.map((section) => (
-                <NavRow key={`fav-${section}`} section={section} />
+                <NavRow key={`fav-${section}`} section={section} rail={false} />
               ))}
             </div>
           </div>
@@ -107,7 +177,7 @@ export function Sidebar() {
             </div>
             <div className="flex flex-col gap-0.5">
               {recentVisible.map((section) => (
-                <NavRow key={`recent-${section}`} section={section} />
+                <NavRow key={`recent-${section}`} section={section} rail={false} />
               ))}
             </div>
           </div>
@@ -128,7 +198,7 @@ export function Sidebar() {
               {!isCollapsed && (
                 <div className="flex flex-col gap-0.5">
                   {items.map(({ section }) => (
-                    <NavRow key={section} section={section} />
+                    <NavRow key={section} section={section} rail={false} />
                   ))}
                 </div>
               )}
@@ -137,7 +207,7 @@ export function Sidebar() {
         })}
       </nav>
       <div className="border-t border-border px-2 py-2">
-        <NavRow section={settingsItem.section} />
+        <NavRow section={settingsItem.section} rail={false} />
       </div>
     </aside>
   );

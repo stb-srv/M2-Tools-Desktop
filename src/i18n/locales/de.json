@@ -36,6 +36,8 @@
     "unsavedChanges": "Ungespeicherte Änderungen",
     "pin": "Anheften",
     "unpin": "Lösen",
+    "collapseSidebar": "Seitenleiste einklappen",
+    "expandSidebar": "Seitenleiste ausklappen",
     "groups": {
       "overview": "Übersicht",
       "items": "Items & Ausrüstung",

@@ -4,10 +4,23 @@ import { invoke } from "@tauri-apps/api/core";
 import { open } from "@tauri-apps/plugin-dialog";
 import { Button } from "@/components/ui/button";
 import { PasswordInput } from "@/components/ui/password-input";
-import { FolderOpen } from "lucide-react";
+import { FolderOpen, Trash2 } from "lucide-react";
 import { ConnField, ConnStatusIcon, saveSetting, type TestState } from "./shared";
 
 type SshAuthMode = "password" | "key";
+
+interface ConnectionProfile {
+  id: number;
+  name: string;
+  ssh_host: string;
+  ssh_port: string;
+  ssh_username: string;
+  ssh_auth_mode: SshAuthMode;
+  ssh_key_path: string | null;
+  mysql_host: string;
+  mysql_port: string;
+  mysql_username: string;
+}
 
 export function ServerTab({ onSaved }: { onSaved: (label: string) => void }) {
   const { t } = useTranslation();
@@ -44,6 +57,11 @@ export function ServerTab({ onSaved }: { onSaved: (label: string) => void }) {
   const [mysqlPassword, setMysqlPassword] = useState("");
   const [mysqlTest, setMysqlTest] = useState<TestState>("idle");
   const [mysqlError, setMysqlError] = useState<string | null>(null);
+
+  const [profiles, setProfiles] = useState<ConnectionProfile[]>([]);
+  const [newProfileName, setNewProfileName] = useState("");
+  const [profileBusyId, setProfileBusyId] = useState<number | "new" | null>(null);
+  const [profileError, setProfileError] = useState<string | null>(null);
 
   useEffect(() => {
     invoke<string | null>("get_setting", { key: "mysql2proto_dir" })
@@ -93,39 +111,113 @@ export function ServerTab({ onSaved }: { onSaved: (label: string) => void }) {
       .catch(() => {});
   }, []);
 
+  // Extracted so "Profil aktivieren" can re-run the exact same load after
+  // switching the canonical settings/credentials to a different profile's
+  // values, instead of duplicating this logic.
+  async function loadSshMysqlFields() {
+    const get = (key: string) =>
+      invoke<string | null>("get_setting", { key }).catch(() => null);
+
+    setSshHost((await get("ssh_host")) ?? "");
+    setSshPort((await get("ssh_port")) ?? "22");
+    setSshUser((await get("ssh_username")) ?? "");
+    setSshAuthMode(((await get("ssh_auth_mode")) as SshAuthMode) ?? "password");
+    setSshKeyPath((await get("ssh_key_path")) ?? "");
+
+    setMysqlHost((await get("mysql_host")) ?? "");
+    setMysqlPort((await get("mysql_port")) ?? "3306");
+    setMysqlUser((await get("mysql_username")) ?? "");
+
+    // Secrets stay in the Windows Credential Manager; prefill so the user
+    // doesn't have to retype them just to change a host or port.
+    const sshSecret = await invoke<string>("get_credential", {
+      account: "ssh_password",
+    }).catch(() => null);
+    setSshPassword(sshSecret ?? "");
+
+    const keyPass = await invoke<string>("get_credential", {
+      account: "ssh_key_passphrase",
+    }).catch(() => null);
+    setSshKeyPassphrase(keyPass ?? "");
+
+    const mysqlSecret = await invoke<string>("get_credential", {
+      account: "mysql_password",
+    }).catch(() => null);
+    setMysqlPassword(mysqlSecret ?? "");
+
+    return { mysqlSecret };
+  }
+
   useEffect(() => {
-    (async () => {
-      const get = (key: string) =>
-        invoke<string | null>("get_setting", { key }).catch(() => null);
-
-      setSshHost((await get("ssh_host")) ?? "");
-      setSshPort((await get("ssh_port")) ?? "22");
-      setSshUser((await get("ssh_username")) ?? "");
-      setSshAuthMode(((await get("ssh_auth_mode")) as SshAuthMode) ?? "password");
-      setSshKeyPath((await get("ssh_key_path")) ?? "");
-
-      setMysqlHost((await get("mysql_host")) ?? "");
-      setMysqlPort((await get("mysql_port")) ?? "3306");
-      setMysqlUser((await get("mysql_username")) ?? "");
-
-      // Secrets stay in the Windows Credential Manager; prefill so the user
-      // doesn't have to retype them just to change a host or port.
-      const sshSecret = await invoke<string>("get_credential", {
-        account: "ssh_password",
-      }).catch(() => null);
-      if (sshSecret) setSshPassword(sshSecret);
-
-      const keyPass = await invoke<string>("get_credential", {
-        account: "ssh_key_passphrase",
-      }).catch(() => null);
-      if (keyPass) setSshKeyPassphrase(keyPass);
-
-      const mysqlSecret = await invoke<string>("get_credential", {
-        account: "mysql_password",
-      }).catch(() => null);
-      if (mysqlSecret) setMysqlPassword(mysqlSecret);
-    })();
+    loadSshMysqlFields();
+    loadProfiles();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
+
+  async function loadProfiles() {
+    const list = await invoke<ConnectionProfile[]>("list_connection_profiles").catch(() => []);
+    setProfiles(list);
+  }
+
+  async function saveCurrentAsProfile() {
+    const name = newProfileName.trim();
+    if (!name) return;
+    setProfileBusyId("new");
+    setProfileError(null);
+    try {
+      await invoke("save_connection_profile", { name });
+      setNewProfileName("");
+      await loadProfiles();
+    } catch (e) {
+      setProfileError(String(e));
+    } finally {
+      setProfileBusyId(null);
+    }
+  }
+
+  async function activateProfile(profile: ConnectionProfile) {
+    setProfileBusyId(profile.id);
+    setProfileError(null);
+    try {
+      await invoke("activate_connection_profile", { id: profile.id });
+      const { mysqlSecret } = await loadSshMysqlFields();
+      // SSH has no persistent session in the backend (every command re-reads
+      // its settings fresh), so it's already "switched" - but MySQL's
+      // connection pool lives in AppState and stays pointed at the old
+      // server until explicitly reconnected. `autoConnectMysql` wouldn't
+      // help here: it no-ops whenever a pool already exists, which is
+      // exactly the stale-pool case right after activating a profile.
+      if (profile.mysql_host && profile.mysql_username && mysqlSecret) {
+        await invoke("connect_mysql", {
+          config: {
+            host: profile.mysql_host,
+            port: Number(profile.mysql_port || "3306"),
+            username: profile.mysql_username,
+            database: null,
+          },
+          password: mysqlSecret,
+        }).catch(() => {});
+      }
+      onSaved(`Profil "${profile.name}" aktiviert`);
+    } catch (e) {
+      setProfileError(String(e));
+    } finally {
+      setProfileBusyId(null);
+    }
+  }
+
+  async function deleteProfile(id: number) {
+    setProfileBusyId(id);
+    setProfileError(null);
+    try {
+      await invoke("delete_connection_profile", { id });
+      await loadProfiles();
+    } catch (e) {
+      setProfileError(String(e));
+    } finally {
+      setProfileBusyId(null);
+    }
+  }
 
   async function save(key: string, value: string, label: string) {
     await saveSetting(key, value);
@@ -309,6 +401,63 @@ export function ServerTab({ onSaved }: { onSaved: (label: string) => void }) {
   return (
     <div className="space-y-4">
       <h2 className="text-base font-semibold">Server</h2>
+
+      <section className="space-y-2 rounded-lg border border-border bg-card p-4">
+        <h3 className="font-medium">Server-Profile</h3>
+        <p className="text-xs text-muted-foreground">
+          Speichert die aktuelle SSH-/MySQL-Verbindung (inkl. Zugangsdaten) unter einem Namen, um
+          später zwischen mehreren Servern (z.B. Dev/Live) umzuschalten, ohne alles neu einzutippen.
+          "Aktivieren" überschreibt die aktuell aktive Verbindung.
+        </p>
+        {profiles.length > 0 && (
+          <div className="space-y-1">
+            {profiles.map((profile) => (
+              <div
+                key={profile.id}
+                className="flex items-center gap-2 rounded-md border border-border px-2 py-1.5 text-sm"
+              >
+                <span className="flex-1 truncate font-medium">{profile.name}</span>
+                <span className="truncate text-xs text-muted-foreground">
+                  {profile.ssh_host} · {profile.mysql_host}
+                </span>
+                <Button
+                  size="sm"
+                  variant="outline"
+                  onClick={() => activateProfile(profile)}
+                  disabled={profileBusyId !== null}
+                >
+                  {profileBusyId === profile.id ? "Aktiviere…" : "Aktivieren"}
+                </Button>
+                <Button
+                  size="icon-sm"
+                  variant="ghost"
+                  onClick={() => deleteProfile(profile.id)}
+                  disabled={profileBusyId !== null}
+                  title="Profil löschen"
+                >
+                  <Trash2 className="size-3.5" />
+                </Button>
+              </div>
+            ))}
+          </div>
+        )}
+        <div className="flex items-center gap-2">
+          <input
+            value={newProfileName}
+            onChange={(e) => setNewProfileName(e.target.value)}
+            placeholder="Profilname, z.B. Dev-Server"
+            className="flex-1 rounded-md border border-border bg-background px-2 py-1 text-sm"
+          />
+          <Button
+            variant="outline"
+            onClick={saveCurrentAsProfile}
+            disabled={!newProfileName.trim() || profileBusyId !== null}
+          >
+            {profileBusyId === "new" ? "Speichere…" : "Aktuelle Verbindung speichern"}
+          </Button>
+        </div>
+        {profileError && <p className="text-sm text-destructive">{profileError}</p>}
+      </section>
 
       <section className="space-y-2 rounded-lg border border-border bg-card p-4">
         <h3 className="font-medium">{t("connections.ssh")}</h3>

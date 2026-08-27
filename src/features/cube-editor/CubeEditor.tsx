@@ -3,11 +3,12 @@ import { invoke } from "@tauri-apps/api/core";
 import { runAsyncAction } from "@/lib/asyncAction";
 import { logActivity } from "@/lib/logActivity";
 import { Button } from "@/components/ui/button";
-import { Plus, Trash2, RefreshCw, CheckCircle2, AlertTriangle, Info, Beaker, HelpCircle, Search, Undo2 } from "lucide-react";
+import { Plus, Trash2, RefreshCw, AlertTriangle, Info, Beaker, HelpCircle, Search, Undo2 } from "lucide-react";
 import { openManual } from "@/lib/manual";
 import { EntityBrowser } from "@/features/shared/EntityBrowser";
 import { reportSectionDirty } from "@/store/navigation";
 import { useSaveShortcut } from "@/lib/useSaveShortcut";
+import { toast } from "@/components/ui/toast";
 
 interface CubeValue {
   vnum: number;
@@ -140,13 +141,9 @@ export function CubeEditor() {
   const [deleteConfirm, setDeleteConfirm] = useState<number | null>(null);
   const [saving, setSaving] = useState(false);
   const [saveConfirm, setSaveConfirm] = useState(false);
-  const [saveError, setSaveError] = useState<string | null>(null);
-  const [saveOk, setSaveOk] = useState<string | null>(null);
 
   const [undoConfirm, setUndoConfirm] = useState(false);
   const [undoing, setUndoing] = useState(false);
-  const [undoError, setUndoError] = useState<string | null>(null);
-  const [undoOk, setUndoOk] = useState<string | null>(null);
 
   const loadedSnapshot = useRef("");
   const dirty = recipes !== null && JSON.stringify(recipes) !== loadedSnapshot.current;
@@ -161,7 +158,6 @@ export function CubeEditor() {
 
   async function load() {
     setSelectedIndex(null);
-    setSaveOk(null);
     await runAsyncAction(() => invoke<CubeRecipe[]>("read_cube_file"), {
       onStart: () => {
         setLoading(true);
@@ -201,16 +197,13 @@ export function CubeEditor() {
   async function save() {
     setSaveConfirm(false);
     await runAsyncAction(() => invoke<string | null>("write_cube_file", { recipes }), {
-      onStart: () => {
-        setSaving(true);
-        setSaveError(null);
-      },
+      onStart: () => setSaving(true),
       onSuccess: (backupPath) => {
-        setSaveOk(backupPath ? `Gespeichert (Backup: ${backupPath})` : "Gespeichert.");
+        toast.success(backupPath ? `Gespeichert (Backup: ${backupPath})` : "Gespeichert.");
         loadedSnapshot.current = JSON.stringify(recipes);
         logActivity("cube-editor", "save", `cube.txt gespeichert (${recipes?.length ?? 0} Rezept(e))`, "file");
       },
-      onError: setSaveError,
+      onError: (e) => toast.error(e),
       onFinally: () => setSaving(false),
     });
   }
@@ -225,17 +218,13 @@ export function CubeEditor() {
   async function undo() {
     setUndoConfirm(false);
     await runAsyncAction(() => invoke<string>("undo_cube_write"), {
-      onStart: () => {
-        setUndoing(true);
-        setUndoError(null);
-        setUndoOk(null);
-      },
+      onStart: () => setUndoing(true),
       onSuccess: (backupPath) => {
-        setUndoOk(`Wiederhergestellt aus: ${backupPath}`);
+        toast.success(`Wiederhergestellt aus: ${backupPath}`);
         logActivity("cube-editor", "restore", `cube.txt auf vorherigen Stand zurückgesetzt (${backupPath})`, "file");
         load();
       },
-      onError: setUndoError,
+      onError: (e) => toast.error(e),
       onFinally: () => setUndoing(false),
     });
   }
@@ -280,20 +269,8 @@ export function CubeEditor() {
         <Button variant="outline" onClick={() => setUndoConfirm(true)} disabled={undoing || !recipes}>
           <Undo2 className="size-4" /> {undoing ? "Setze zurück…" : "Letzte Änderung rückgängig machen"}
         </Button>
-        {saveOk && (
-          <span className="flex items-center gap-1 text-sm text-green-600">
-            <CheckCircle2 className="size-4" /> {saveOk}
-          </span>
-        )}
-        {undoOk && (
-          <span className="flex items-center gap-1 text-sm text-green-600">
-            <CheckCircle2 className="size-4" /> {undoOk}
-          </span>
-        )}
       </div>
       {loadError && <p className="text-sm text-destructive">{loadError}</p>}
-      {saveError && <p className="whitespace-pre-wrap text-sm text-destructive">{saveError}</p>}
-      {undoError && <p className="whitespace-pre-wrap text-sm text-destructive">{undoError}</p>}
 
       {recipes && (
         <div className="flex gap-4">

@@ -1,6 +1,6 @@
 [package]
 name = "m2manager"
-version = "0.15.9"
+version = "0.15.10"
 description = "M2Manager - Metin2 Server Management Desktop App"
 authors = ["you"]
 edition = "2021"

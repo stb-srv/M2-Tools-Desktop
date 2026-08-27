@@ -107,6 +107,18 @@ pub fn init_db(app_data_dir: &Path) -> Result<Connection, String> {
             action TEXT NOT NULL,
             prior_json TEXT,
             created_at TEXT NOT NULL
+        );
+        CREATE TABLE IF NOT EXISTS connection_profiles (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            name TEXT NOT NULL UNIQUE,
+            ssh_host TEXT NOT NULL,
+            ssh_port TEXT NOT NULL,
+            ssh_username TEXT NOT NULL,
+            ssh_auth_mode TEXT NOT NULL,
+            ssh_key_path TEXT,
+            mysql_host TEXT NOT NULL,
+            mysql_port TEXT NOT NULL,
+            mysql_username TEXT NOT NULL
         );",
     )
     .map_err(|e| e.to_string())?;

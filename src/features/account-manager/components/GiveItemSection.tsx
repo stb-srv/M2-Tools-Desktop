@@ -7,6 +7,7 @@ import { Plus, Trash2, AlertTriangle } from "lucide-react";
 import { EntityBrowser } from "@/features/shared/EntityBrowser";
 import { ITEM_TABLE, type ColumnInfo } from "../shared";
 import { MiniPlayerSearch } from "./MiniPlayerSearch";
+import { toast } from "@/components/ui/toast";
 
 // Errät anhand des Namensmusters eine wahrscheinliche Spalte aus der echten,
 // live geholten Spaltenliste - nur als Ausfüllhilfe für die Picker unten,
@@ -34,16 +35,12 @@ export function GiveItemSection() {
   const [open, setOpen] = useState(false);
   const [confirmOpen, setConfirmOpen] = useState(false);
   const [saving, setSaving] = useState(false);
-  const [saveError, setSaveError] = useState<string | null>(null);
-  const [saveOk, setSaveOk] = useState(false);
   const [pickerNote, setPickerNote] = useState<string | null>(null);
 
   const [deleteId, setDeleteId] = useState("");
   const [deleteColumn, setDeleteColumn] = useState("id");
   const [deleteConfirm, setDeleteConfirm] = useState(false);
   const [deleteBusy, setDeleteBusy] = useState(false);
-  const [deleteError, setDeleteError] = useState<string | null>(null);
-  const [deleteOk, setDeleteOk] = useState(false);
 
   function applyPickedValue(patterns: RegExp[], value: string, label: string) {
     if (!columns) return;
@@ -59,7 +56,6 @@ export function GiveItemSection() {
 
   async function openForm() {
     setOpen(true);
-    setSaveOk(false);
     await runAsyncAction(
       () =>
         invoke<ColumnInfo[]>("get_table_columns", {
@@ -89,15 +85,12 @@ export function GiveItemSection() {
           values: entries,
         }),
       {
-        onStart: () => {
-          setSaving(true);
-          setSaveError(null);
-        },
+        onStart: () => setSaving(true),
         onSuccess: () => {
-          setSaveOk(true);
+          toast.success("Zeile eingefügt.");
           logActivity("account-manager", "give-item", `Neue Zeile in player.item eingefügt (${entries.length} Spalte(n) gesetzt)`, "item");
         },
-        onError: setSaveError,
+        onError: (e) => toast.error(e),
         onFinally: () => setSaving(false),
       },
     );
@@ -114,15 +107,12 @@ export function GiveItemSection() {
           pkValue: deleteId,
         }),
       {
-        onStart: () => {
-          setDeleteBusy(true);
-          setDeleteError(null);
-        },
+        onStart: () => setDeleteBusy(true),
         onSuccess: () => {
-          setDeleteOk(true);
+          toast.success("Zeile gelöscht.");
           logActivity("account-manager", "remove-item", `Zeile in player.item gelöscht (${deleteColumn}=${deleteId})`, "item", deleteId);
         },
-        onError: setDeleteError,
+        onError: (e) => toast.error(e),
         onFinally: () => setDeleteBusy(false),
       },
     );
@@ -181,8 +171,6 @@ export function GiveItemSection() {
                   </label>
                 ))}
               </div>
-              {saveError && <p className="text-sm text-destructive">{saveError}</p>}
-              {saveOk && <p className="text-sm text-green-600">Zeile eingefügt.</p>}
               <Button size="sm" onClick={() => setConfirmOpen(true)} disabled={saving}>
                 {saving ? "Füge ein…" : "Einfügen"}
               </Button>
@@ -218,9 +206,6 @@ export function GiveItemSection() {
           {deleteBusy ? "Lösche…" : "Item-Zeile löschen"}
         </Button>
       </div>
-      {deleteError && <p className="text-sm text-destructive">{deleteError}</p>}
-      {deleteOk && <p className="text-sm text-green-600">Zeile gelöscht.</p>}
-
       {confirmOpen && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50">
           <div className="w-96 space-y-3 rounded-lg border border-border bg-card p-4">

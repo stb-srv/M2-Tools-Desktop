@@ -3,11 +3,12 @@ import { invoke } from "@tauri-apps/api/core";
 import { runAsyncAction } from "@/lib/asyncAction";
 import { logActivity } from "@/lib/logActivity";
 import { Button } from "@/components/ui/button";
+import { Skeleton } from "@/components/ui/skeleton";
+import { toast } from "@/components/ui/toast";
 import {
   DatabaseBackup,
   RefreshCw,
   AlertTriangle,
-  CheckCircle2,
   History,
   Trash2,
   HelpCircle,
@@ -39,18 +40,13 @@ export function DbBackups() {
   const [loadError, setLoadError] = useState<string | null>(null);
 
   const [creating, setCreating] = useState(false);
-  const [createError, setCreateError] = useState<string | null>(null);
-  const [createOk, setCreateOk] = useState<string | null>(null);
   const [createConfirm, setCreateConfirm] = useState(false);
 
   const [restoreTarget, setRestoreTarget] = useState<string | null>(null);
   const [restoring, setRestoring] = useState(false);
-  const [restoreError, setRestoreError] = useState<string | null>(null);
-  const [restoreOk, setRestoreOk] = useState<string | null>(null);
 
   const [deleteTarget, setDeleteTarget] = useState<string | null>(null);
   const [deleting, setDeleting] = useState(false);
-  const [deleteError, setDeleteError] = useState<string | null>(null);
 
   const [scheduleHours, setScheduleHours] = useState(0);
   const [lastAutoAt, setLastAutoAt] = useState<string | null>(null);
@@ -90,17 +86,13 @@ export function DbBackups() {
   async function runCreate() {
     setCreateConfirm(false);
     await runAsyncAction(() => invoke<string>("create_database_backup"), {
-      onStart: () => {
-        setCreating(true);
-        setCreateError(null);
-        setCreateOk(null);
-      },
+      onStart: () => setCreating(true),
       onSuccess: (path) => {
-        setCreateOk(`Backup erstellt: ${path}`);
+        toast.success(`Backup erstellt: ${path}`);
         logActivity("db-backups", "create", `Datenbank-Backup erstellt: '${path}'`, "backup", path);
         load(undefined);
       },
-      onError: setCreateError,
+      onError: (e) => toast.error(e),
       onFinally: () => setCreating(false),
     });
   }
@@ -110,16 +102,12 @@ export function DbBackups() {
     const path = restoreTarget;
     setRestoreTarget(null);
     await runAsyncAction(() => invoke("restore_database_backup", { backupPath: path }), {
-      onStart: () => {
-        setRestoring(true);
-        setRestoreError(null);
-        setRestoreOk(null);
-      },
+      onStart: () => setRestoring(true),
       onSuccess: () => {
-        setRestoreOk(`Wiederhergestellt aus: ${path}`);
+        toast.success(`Wiederhergestellt aus: ${path}`);
         logActivity("db-backups", "restore", `Datenbank-Backup wiederhergestellt: '${path}' (überschreibt Live-DB)`, "backup", path);
       },
-      onError: setRestoreError,
+      onError: (e) => toast.error(e),
       onFinally: () => setRestoring(false),
     });
   }
@@ -129,15 +117,12 @@ export function DbBackups() {
     const path = deleteTarget;
     setDeleteTarget(null);
     await runAsyncAction(() => invoke("delete_database_backup", { backupPath: path }), {
-      onStart: () => {
-        setDeleting(true);
-        setDeleteError(null);
-      },
+      onStart: () => setDeleting(true),
       onSuccess: () => {
         logActivity("db-backups", "delete", `Datenbank-Backup gelöscht: '${path}'`, "backup", path);
         load(undefined);
       },
-      onError: setDeleteError,
+      onError: (e) => toast.error(e),
       onFinally: () => setDeleting(false),
     });
   }
@@ -204,19 +189,6 @@ export function DbBackups() {
         </p>
       </div>
 
-      {createOk && (
-        <p className="flex items-center gap-1 text-sm text-green-600">
-          <CheckCircle2 className="size-4" /> {createOk}
-        </p>
-      )}
-      {createError && <p className="whitespace-pre-wrap text-sm text-destructive">{createError}</p>}
-      {restoreOk && (
-        <p className="flex items-center gap-1 text-sm text-green-600">
-          <CheckCircle2 className="size-4" /> {restoreOk}
-        </p>
-      )}
-      {restoreError && <p className="whitespace-pre-wrap text-sm text-destructive">{restoreError}</p>}
-      {deleteError && <p className="text-sm text-destructive">{deleteError}</p>}
       {loadError && <p className="text-sm text-destructive">{loadError}</p>}
 
       <div className="space-y-1 rounded-md border border-border p-1">
@@ -255,7 +227,11 @@ export function DbBackups() {
           <p className="p-2 text-sm text-muted-foreground">Noch keine Backups.</p>
         )}
         {!entries && !loadError && (
-          <p className="p-2 text-sm text-muted-foreground">Lade…</p>
+          <div className="space-y-1 p-1">
+            <Skeleton className="h-8 w-full" />
+            <Skeleton className="h-8 w-full" />
+            <Skeleton className="h-8 w-3/4" />
+          </div>
         )}
       </div>
 

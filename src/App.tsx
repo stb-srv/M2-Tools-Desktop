@@ -7,6 +7,7 @@ import { Sidebar } from "@/components/layout/Sidebar";
 import { CommandPalette } from "@/components/CommandPalette";
 import { GlobalSearch } from "@/components/GlobalSearch";
 import { CrashWatch } from "@/components/CrashWatch";
+import { WhatsNewDialog } from "@/components/WhatsNewDialog";
 import { useNavigationStore, type Section } from "@/store/navigation";
 import { useUpdateStore } from "@/store/updateStore";
 import { Dashboard } from "@/features/dashboard/Dashboard";
@@ -140,6 +141,7 @@ function App() {
       <CommandPalette />
       <GlobalSearch />
       <CrashWatch />
+      <WhatsNewDialog />
       <Sidebar />
       <main className="flex-1 overflow-y-auto p-6">
         <div className={cn("h-full", section !== "dashboard" && "hidden")}>

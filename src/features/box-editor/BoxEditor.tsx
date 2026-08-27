@@ -7,6 +7,7 @@ import { Search, Plus, Trash2, RefreshCw, CheckCircle2, AlertTriangle, Info, Pac
 import { useNavigationStore, reportSectionDirty } from "@/store/navigation";
 import { useSaveShortcut } from "@/lib/useSaveShortcut";
 import { openManual } from "@/lib/manual";
+import { toast } from "@/components/ui/toast";
 import { EntityBrowser } from "@/features/shared/EntityBrowser";
 
 const GIFTBOX_TYPE = 23;
@@ -393,13 +394,9 @@ export function BoxEditor() {
   const [deleteConfirm, setDeleteConfirm] = useState<number | null>(null);
   const [saving, setSaving] = useState(false);
   const [saveConfirm, setSaveConfirm] = useState(false);
-  const [saveError, setSaveError] = useState<string | null>(null);
-  const [saveOk, setSaveOk] = useState<string | null>(null);
 
   const [undoConfirm, setUndoConfirm] = useState(false);
   const [undoing, setUndoing] = useState(false);
-  const [undoError, setUndoError] = useState<string | null>(null);
-  const [undoOk, setUndoOk] = useState<string | null>(null);
 
   const loadedSnapshot = useRef("");
   const dirty = groups !== null && JSON.stringify(groups) !== loadedSnapshot.current;
@@ -425,7 +422,6 @@ export function BoxEditor() {
 
   async function load() {
     setSelectedIndex(null);
-    setSaveOk(null);
     await runAsyncAction(() => invoke<SpecialItemGroup[]>("read_special_item_group_file"), {
       onStart: () => {
         setLoading(true);
@@ -492,16 +488,13 @@ export function BoxEditor() {
   async function save() {
     setSaveConfirm(false);
     await runAsyncAction(() => invoke<string | null>("write_special_item_group_file", { groups }), {
-      onStart: () => {
-        setSaving(true);
-        setSaveError(null);
-      },
+      onStart: () => setSaving(true),
       onSuccess: (backupPath) => {
-        setSaveOk(backupPath ? `Gespeichert (Backup: ${backupPath})` : "Gespeichert.");
+        toast.success(backupPath ? `Gespeichert (Backup: ${backupPath})` : "Gespeichert.");
         loadedSnapshot.current = JSON.stringify(groups);
         logActivity("box-editor", "save", `special_item_group.txt gespeichert (${groups?.length ?? 0} Gruppe(n))`, "file");
       },
-      onError: setSaveError,
+      onError: (e) => toast.error(e),
       onFinally: () => setSaving(false),
     });
   }
@@ -516,13 +509,9 @@ export function BoxEditor() {
   async function undo() {
     setUndoConfirm(false);
     await runAsyncAction(() => invoke<string>("undo_special_item_group_write"), {
-      onStart: () => {
-        setUndoing(true);
-        setUndoError(null);
-        setUndoOk(null);
-      },
+      onStart: () => setUndoing(true),
       onSuccess: (backupPath) => {
-        setUndoOk(`Wiederhergestellt aus: ${backupPath}`);
+        toast.success(`Wiederhergestellt aus: ${backupPath}`);
         logActivity(
           "box-editor",
           "restore",
@@ -531,7 +520,7 @@ export function BoxEditor() {
         );
         load();
       },
-      onError: setUndoError,
+      onError: (e) => toast.error(e),
       onFinally: () => setUndoing(false),
     });
   }
@@ -586,20 +575,8 @@ export function BoxEditor() {
         <Button variant="outline" onClick={() => setUndoConfirm(true)} disabled={undoing || !groups}>
           <Undo2 className="size-4" /> {undoing ? "Setze zurück…" : "Letzte Änderung rückgängig machen"}
         </Button>
-        {saveOk && (
-          <span className="flex items-center gap-1 text-sm text-green-600">
-            <CheckCircle2 className="size-4" /> {saveOk}
-          </span>
-        )}
-        {undoOk && (
-          <span className="flex items-center gap-1 text-sm text-green-600">
-            <CheckCircle2 className="size-4" /> {undoOk}
-          </span>
-        )}
       </div>
       {loadError && <p className="text-sm text-destructive">{loadError}</p>}
-      {saveError && <p className="whitespace-pre-wrap text-sm text-destructive">{saveError}</p>}
-      {undoError && <p className="whitespace-pre-wrap text-sm text-destructive">{undoError}</p>}
 
       {creating && (
         <div className="fixed inset-0 flex items-center justify-center bg-black/50">

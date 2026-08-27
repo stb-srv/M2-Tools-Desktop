@@ -8,6 +8,7 @@ mod bans;
 mod broadcast;
 mod build_deploy;
 mod commands;
+mod connection_profiles;
 mod credentials;
 mod cube;
 mod db;
@@ -116,6 +117,10 @@ pub fn run() {
             commands::store_credential,
             commands::get_credential,
             commands::delete_credential,
+            commands::save_connection_profile,
+            commands::list_connection_profiles,
+            commands::activate_connection_profile,
+            commands::delete_connection_profile,
             commands::load_gr2_model,
             commands::connect_mysql,
             commands::is_mysql_connected,
