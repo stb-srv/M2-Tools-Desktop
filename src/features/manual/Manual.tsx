@@ -34,7 +34,6 @@ import activityLogMd from "./docs/backups/activity-log.md?raw";
 import tgaConverterMd from "./docs/assets/tga-converter.md?raw";
 import iconBrowserMd from "./docs/assets/icon-browser.md?raw";
 import modelViewerMd from "./docs/assets/model-viewer.md?raw";
-import systemInstallerMd from "./docs/systeme/system-installer.md?raw";
 import settingsMd from "./docs/settings.md?raw";
 
 // Seiten-IDs entsprechen 1:1 den `Section`-Werten aus store/navigation.ts -
@@ -71,7 +70,6 @@ const PAGES: Record<string, string> = {
   "tga-converter": tgaConverterMd,
   "icon-browser": iconBrowserMd,
   "model-viewer": modelViewerMd,
-  "system-installer": systemInstallerMd,
   settings: settingsMd,
 };
 
@@ -146,10 +144,6 @@ const NAV: NavEntry[] = [
       { id: "icon-browser", label: "Icon-Browser" },
       { id: "model-viewer", label: "3D-Modell-Viewer" },
     ],
-  },
-  {
-    label: "Systeme",
-    children: [{ id: "system-installer", label: "System-Installer" }],
   },
   { id: "settings", label: "Einstellungen" },
 ];

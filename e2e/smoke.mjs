@@ -28,9 +28,7 @@ const exePath = path.join(repoRoot, "src-tauri", "target", "release", "m2manager
 
 const TAURI_DRIVER_PORT = 4444;
 
-// Reihenfolge/Labels wie in src/store/navigation.ts' NAV_ITEMS + de.json -
-// System-Installer bewusst ausgelassen (deaktiviert, nicht in NAV_ITEMS,
-// über die Command Palette ohnehin nicht erreichbar).
+// Reihenfolge/Labels wie in src/store/navigation.ts' NAV_ITEMS + de.json.
 const SECTION_LABELS = [
   "Dashboard",
   "Server-Steuerung",

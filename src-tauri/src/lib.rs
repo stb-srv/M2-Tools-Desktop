@@ -40,9 +40,6 @@ mod settings;
 mod special_item_group;
 mod ssh;
 mod state;
-mod system_installs;
-mod system_patch;
-mod system_scan;
 mod textures;
 mod weather;
 
@@ -251,14 +248,6 @@ pub fn run() {
             commands::create_locale_namespace,
             commands::sanitize_locale_namespace,
             commands::check_locale_completeness,
-            commands::scan_system_package,
-            commands::find_system_target,
-            commands::find_system_targets_batch,
-            commands::read_system_target_file,
-            commands::resolve_system_insertion,
-            commands::apply_system_install,
-            commands::list_system_installs,
-            commands::undo_system_install,
             commands::list_broadcast_messages,
             commands::create_broadcast_message,
             commands::update_broadcast_message,

@@ -32,7 +32,7 @@ const PAGE_SIZE = 30;
 // Module, über die dieses Modul selbst nichts protokolliert (keine echten
 // Änderungsquellen) - aus der Filterliste ausgeschlossen, damit dort nur
 // Module stehen, die je einen Eintrag erzeugen könnten.
-const NON_ACTIVITY_SECTIONS = new Set(["dashboard", "settings", "activity-log", "system-installer"]);
+const NON_ACTIVITY_SECTIONS = new Set(["dashboard", "settings", "activity-log"]);
 
 export function ActivityLog() {
   const { t } = useTranslation();

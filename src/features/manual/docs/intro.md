@@ -13,7 +13,6 @@ Links findest du dieselben Gruppen wie in der Sidebar der App:
 - **Server & Accounts** - Server-Events, Account-Verwaltung, Datenbank-Explorer
 - **Backups** - Backup-Browser, Datenbank-Backups
 - **Client-Assets** - TGA Konverter, Icon-Browser, 3D-Modell-Viewer
-- **Systeme** - System-Installer
 - **Einstellungen**
 
 Am schnellsten kommst du zu einem Abschnitt über den **Hilfe-Knopf direkt im jeweiligen Modul** (kleines Fragezeichen-Symbol neben dem Titel) - das öffnet dieses Fenster (falls noch nicht offen) direkt auf der passenden Seite.

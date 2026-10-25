@@ -48,7 +48,6 @@ const AccountManager = lazy(() => import("@/features/account-manager/AccountMana
 const GuildManager = lazy(() => import("@/features/guild-manager/GuildManager").then((m) => ({ default: m.GuildManager })));
 const EconomyDashboard = lazy(() => import("@/features/economy-dashboard/EconomyDashboard").then((m) => ({ default: m.EconomyDashboard })));
 const GmManager = lazy(() => import("@/features/gm-manager/GmManager").then((m) => ({ default: m.GmManager })));
-const SystemInstaller = lazy(() => import("@/features/system-installer/SystemInstaller").then((m) => ({ default: m.SystemInstaller })));
 const BroadcastSystem = lazy(() => import("@/features/broadcast/BroadcastSystem").then((m) => ({ default: m.BroadcastSystem })));
 const WeatherControl = lazy(() => import("@/features/weather/WeatherControl").then((m) => ({ default: m.WeatherControl })));
 const Settings = lazy(() => import("@/features/settings/Settings").then((m) => ({ default: m.Settings })));
@@ -175,7 +174,6 @@ function App() {
         <SectionSlot section="guild-manager" active={section} visited={visited}><GuildManager /></SectionSlot>
         <SectionSlot section="economy-dashboard" active={section} visited={visited}><EconomyDashboard /></SectionSlot>
         <SectionSlot section="gm-manager" active={section} visited={visited}><GmManager /></SectionSlot>
-        <SectionSlot section="system-installer" active={section} visited={visited}><SystemInstaller /></SectionSlot>
         <SectionSlot section="broadcast-system" active={section} visited={visited}><BroadcastSystem /></SectionSlot>
         <SectionSlot section="weather-control" active={section} visited={visited}><WeatherControl /></SectionSlot>
         <SectionSlot section="settings" active={section} visited={visited}><Settings /></SectionSlot>
