@@ -1,7 +1,7 @@
 import { useEffect, useState } from "react";
 import { invoke } from "@tauri-apps/api/core";
 import { Button } from "@/components/ui/button";
-import { Search, ChevronLeft, ChevronRight, Loader2, HelpCircle, Download, Table2, Link2 } from "lucide-react";
+import { Search, ChevronLeft, ChevronRight, Loader2, HelpCircle, Download, Table2, Link2, LayoutGrid, List } from "lucide-react";
 import { openManual } from "@/lib/manual";
 import { exportRowsAsCsv } from "@/lib/exportCsv";
 import { useNavigationStore } from "@/store/navigation";
@@ -20,20 +20,35 @@ interface ItemProtoPage {
   total: number;
 }
 
-const PAGE_SIZE_OPTIONS = [20, 50, 100, 200] as const;
+type ViewMode = "list" | "grid";
+
+const PAGE_SIZE_OPTIONS = [24, 48, 96, 192] as const;
 const TYPE_LABEL: Record<number, string> = Object.fromEntries(ITEM_TYPES.map((t) => [t.value, t.label]));
+const VIEW_MODE_KEY = "m2manager-item-overview-view";
+
+function loadViewMode(): ViewMode {
+  try {
+    return localStorage.getItem(VIEW_MODE_KEY) === "grid" ? "grid" : "list";
+  } catch {
+    return "list";
+  }
+}
 
 // Eigener durchblätterbarer Überblick über die komplette `item_proto`-Tabelle
 // (anders als der generische DB Explorer: mit Typ-Label statt Rohwert und
 // gezieltem Sprung zum Bearbeiten) und anders als der in andere Editoren
 // eingebettete EntityBrowser (nur vnum+Name, kein eigener Navigationspunkt).
+// Zwei Ansichten derselben Daten: Liste (Tabelle mit kleinem Icon) und
+// Kacheln (großes Icon zum visuellen Wiedererkennen) - früher zwei getrennte
+// Module (Item-Proto-Explorer + Item-Viewer).
 export function ItemProtoExplorer() {
   const setSection = useNavigationStore((s) => s.setSection);
 
+  const [view, setView] = useState<ViewMode>(loadViewMode);
   const [query, setQuery] = useState("");
   const [typeFilter, setTypeFilter] = useState<string>("");
   const [page, setPage] = useState(0);
-  const [pageSize, setPageSize] = useState<number>(50);
+  const [pageSize, setPageSize] = useState<number>(48);
   const [refreshKey, setRefreshKey] = useState(0);
 
   const [data, setData] = useState<ItemProtoPage | null>(null);
@@ -88,6 +103,15 @@ export function ItemProtoExplorer() {
     setRefreshKey((k) => k + 1);
   }
 
+  function changeView(next: ViewMode) {
+    setView(next);
+    try {
+      localStorage.setItem(VIEW_MODE_KEY, next);
+    } catch {
+      // Nur eine Komfort-Einstellung - ohne Speicher startet die Ansicht einfach als Liste.
+    }
+  }
+
   function changePageSize(next: number) {
     setPageSize(next);
     setPage(0);
@@ -128,7 +152,7 @@ export function ItemProtoExplorer() {
     <div className="flex h-full flex-col gap-3">
       <div className="flex items-center gap-2">
         <Table2 className="size-6 text-muted-foreground" />
-        <h1 className="text-2xl font-semibold">Item-Proto-Explorer</h1>
+        <h1 className="text-2xl font-semibold">Item-Übersicht</h1>
         <Button
           variant="ghost"
           size="icon-sm"
@@ -139,8 +163,8 @@ export function ItemProtoExplorer() {
         </Button>
       </div>
       <p className="text-sm text-muted-foreground">
-        Durchblättert die komplette <code>item_proto</code>-Tabelle mit Typ-Label statt Rohwert -
-        zum Bearbeiten eines Items geht es weiter in den Item Editor.
+        Durchblättert die komplette <code>item_proto</code>-Tabelle als Liste oder als Kacheln mit großem
+        Icon - zum Bearbeiten eines Items geht es weiter in den Item Editor.
       </p>
 
       <div className="flex flex-wrap items-center gap-2">
@@ -172,6 +196,26 @@ export function ItemProtoExplorer() {
         <Button variant="outline" onClick={runSearch} disabled={loading}>
           <Search className="size-4" />
         </Button>
+        <div className="flex rounded-md border border-border">
+          <Button
+            variant={view === "list" ? "secondary" : "ghost"}
+            size="sm"
+            onClick={() => changeView("list")}
+            title="Als Liste anzeigen"
+          >
+            <List className="size-4" />
+            Liste
+          </Button>
+          <Button
+            variant={view === "grid" ? "secondary" : "ghost"}
+            size="sm"
+            onClick={() => changeView("grid")}
+            title="Als Kacheln mit großem Icon anzeigen"
+          >
+            <LayoutGrid className="size-4" />
+            Kacheln
+          </Button>
+        </div>
         <Button
           variant="outline"
           onClick={exportAllMatches}
@@ -186,24 +230,25 @@ export function ItemProtoExplorer() {
       {error && <p className="text-sm text-destructive">{error}</p>}
       {exportError && <p className="text-sm text-destructive">{exportError}</p>}
 
-      <div className="min-h-0 flex-1 overflow-y-auto rounded-md border border-border">
-        <table className="w-full text-sm">
-          <thead className="sticky top-0 bg-card">
-            <tr className="border-b border-border text-left text-xs text-muted-foreground">
-              <th className="p-2 font-medium">Icon</th>
-              <th className="p-2 font-medium">VNUM</th>
-              <th className="p-2 font-medium">Name</th>
-              <th className="p-2 font-medium">Typ</th>
-              <th className="p-2 font-medium">Subtyp</th>
-              <th className="p-2 font-medium"></th>
-            </tr>
-          </thead>
-          <tbody>
-            {data?.rows.map((r) => (
-              <tr key={r.vnum} className="border-b border-border/50 hover:bg-muted">
-                <td className="p-2">
-                  {icons[r.vnum] ? (
-                    <img src={icons[r.vnum]!} alt="" className="size-6 [image-rendering:pixelated]" />
+      {view === "list" ? (
+        <div className="min-h-0 flex-1 overflow-y-auto rounded-md border border-border">
+          <table className="w-full text-sm">
+            <thead className="sticky top-0 bg-card">
+              <tr className="border-b border-border text-left text-xs text-muted-foreground">
+                <th className="p-2 font-medium">Icon</th>
+                <th className="p-2 font-medium">VNUM</th>
+                <th className="p-2 font-medium">Name</th>
+                <th className="p-2 font-medium">Typ</th>
+                <th className="p-2 font-medium">Subtyp</th>
+                <th className="p-2 font-medium"></th>
+              </tr>
+            </thead>
+            <tbody>
+              {data?.rows.map((r) => (
+                <tr key={r.vnum} className="border-b border-border/50 hover:bg-muted">
+                  <td className="p-2">
+                    {icons[r.vnum] ? (
+                      <img src={icons[r.vnum]!} alt="" className="size-6 [image-rendering:pixelated]" />
                   ) : (
                     <div className="size-6 bg-muted/60" />
                   )}
@@ -240,6 +285,49 @@ export function ItemProtoExplorer() {
           </tbody>
         </table>
       </div>
+      ) : (
+        <div className="min-h-0 flex-1 overflow-y-auto rounded-md border border-border p-2">
+          {loading && !data && (
+            <div className="flex h-full items-center justify-center">
+              <Loader2 className="size-5 animate-spin text-muted-foreground" />
+            </div>
+          )}
+          {data && data.rows.length === 0 && !loading && (
+            <p className="p-4 text-center text-sm text-muted-foreground">Keine Treffer.</p>
+          )}
+          {data && data.rows.length > 0 && (
+            <div className="grid grid-cols-3 gap-2 sm:grid-cols-4 md:grid-cols-6 lg:grid-cols-8">
+              {data.rows.map((r) => (
+                <div
+                  key={r.vnum}
+                  className="flex flex-col items-center gap-1 rounded-md border border-border p-2 hover:bg-muted"
+                >
+                  <div className="flex size-16 shrink-0 items-center justify-center rounded-md bg-muted/40">
+                    {icons[r.vnum] ? (
+                      <img
+                        src={icons[r.vnum]!}
+                        alt=""
+                        className="max-h-full max-w-full object-contain [image-rendering:pixelated]"
+                      />
+                    ) : (
+                      <span className="text-[10px] text-muted-foreground">#{r.vnum}</span>
+                    )}
+                  </div>
+                  <span className="w-full truncate text-center text-xs font-medium" title={r.name}>
+                    {r.name || <span className="text-muted-foreground">(kein Name)</span>}
+                  </span>
+                  <span className="text-[10px] text-muted-foreground">
+                    #{r.vnum} · {TYPE_LABEL[r.item_type] ?? r.item_type}
+                  </span>
+                  <Button variant="outline" size="sm" className="mt-1 w-full" onClick={() => setSection("item-editor")}>
+                    Bearbeiten
+                  </Button>
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
+      )}
 
       {data && data.total > 0 && (
         <div className="flex items-center justify-between text-xs text-muted-foreground">

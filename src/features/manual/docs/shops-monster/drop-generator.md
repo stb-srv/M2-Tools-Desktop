@@ -1,6 +1,6 @@
 # Drop-Generator
 
-Bündelt alle 5 Drop-relevanten Server-Dateien in einem Tab-System. Zwei der Tabs (Mob-Drops, Item-Gruppen) sind die bereits bestehenden, eigenständigen Editoren, hier nur eingebettet - beide bleiben zusätzlich als eigene Sidebar-Punkte erreichbar.
+Bündelt alle 5 Drop-relevanten Server-Dateien in einem Tab-System. Zwei der Tabs (Mob-Drops, Item-Gruppen) sind die bereits bestehenden, eigenständigen Editoren, hier eingebettet und nur noch über diesen Bereich erreichbar.
 
 Alle 5 Dateien liegen im selben Server-Ordner (Standard `/usr/home/game/share/`, in den Einstellungen pro Datei änderbar) und nutzen dieselbe Prozent-Kodierung: der Wert in der Datei ist **nicht** die reale Prozentzahl - die reale Chance ist ungefähr **Datei-Wert ÷ 4** (bei jedem Prozentfeld als "≈X%" angezeigt).
 

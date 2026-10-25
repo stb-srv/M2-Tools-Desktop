@@ -401,8 +401,8 @@ export function BoxEditor() {
   const loadedSnapshot = useRef("");
   const dirty = groups !== null && JSON.stringify(groups) !== loadedSnapshot.current;
   useEffect(() => {
-    reportSectionDirty("box-editor", dirty);
-    return () => reportSectionDirty("box-editor", false);
+    reportSectionDirty("drop-generator", dirty);
+    return () => reportSectionDirty("drop-generator", false);
   }, [dirty]);
 
   useEffect(() => {
@@ -499,7 +499,7 @@ export function BoxEditor() {
     });
   }
 
-  useSaveShortcut("box-editor", dirty && !saving, () => setSaveConfirm(true));
+  useSaveShortcut("drop-generator", dirty && !saving, () => setSaveConfirm(true));
 
   // "Letzte Änderung rückgängig machen" - jedes Speichern legt serverseitig
   // schon ein Backup an (siehe write_special_item_group_file), das

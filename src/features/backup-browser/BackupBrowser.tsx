@@ -141,7 +141,7 @@ export function BackupBrowser() {
     <div className="flex h-full flex-col gap-3">
       <div>
         <div className="flex items-center gap-2">
-          <h1 className="text-2xl font-semibold">Backup-Browser</h1>
+          <h1 className="text-2xl font-semibold">Datei-Backups</h1>
           <Button variant="ghost" size="icon-sm" title="Hilfe zu diesem Modul" onClick={() => openManual("backup-browser")}>
             <HelpCircle className="size-4" />
           </Button>

@@ -1,5 +1,7 @@
 # GM-Verwaltung
 
+> Zu finden unter **Account-Verwaltung** → Tab „GM-Verwaltung“.
+
 Verwaltet `common.gmlist` - die Tabelle, aus der GM-Rechte kommen. Gedacht, um schneller einen neuen GM anzulegen, statt das manuell per SQL/DB Explorer zu machen.
 
 ## Was du hier tun kannst

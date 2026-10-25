@@ -60,8 +60,8 @@ export function MobDropEditor() {
 
   const [dirty, setDirty] = useState(false);
   useEffect(() => {
-    reportSectionDirty("mob-drop-editor", dirty);
-    return () => reportSectionDirty("mob-drop-editor", false);
+    reportSectionDirty("drop-generator", dirty);
+    return () => reportSectionDirty("drop-generator", false);
   }, [dirty]);
 
   // Diagnostic-only, captured once at load time from the raw file content
@@ -348,7 +348,7 @@ export function MobDropEditor() {
   // page unless it checks it's actually the active section first.
   useEffect(() => {
     function onKeyDown(e: KeyboardEvent) {
-      if (useNavigationStore.getState().section !== "mob-drop-editor") return;
+      if (useNavigationStore.getState().section !== "drop-generator") return;
       if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === "s") {
         e.preventDefault();
         if (dirty && !saving && groups) setSaveConfirm(true);

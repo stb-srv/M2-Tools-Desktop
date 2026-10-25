@@ -2,7 +2,7 @@ import { useEffect, useMemo, useState } from "react";
 import { invoke } from "@tauri-apps/api/core";
 import { runAsyncAction } from "@/lib/asyncAction";
 import { logActivity } from "@/lib/logActivity";
-import { reportSectionDirty, type Section } from "@/store/navigation";
+import { hostSection, reportSectionDirty, type ModuleId } from "@/store/navigation";
 import { useSaveShortcut } from "@/lib/useSaveShortcut";
 import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
@@ -58,7 +58,7 @@ export function GenericRowEditor({
    * Änderungsprotokoll geschrieben (siehe src/lib/logActivity.ts) - fehlt
    * bewusst kein Aufrufer, da dies der einzige Schreibweg für mob_proto/
    * gmlist/account/player ist (alle über diese eine Komponente). */
-  activityModule?: Section;
+  activityModule?: ModuleId;
 }) {
   const [columns, setColumns] = useState<ColumnInfo[] | null>(null);
   const [loadError, setLoadError] = useState<string | null>(null);
@@ -132,12 +132,13 @@ export function GenericRowEditor({
 
   useEffect(() => {
     if (!activityModule) return;
-    reportSectionDirty(activityModule, changedColumns.length > 0);
-    return () => reportSectionDirty(activityModule, false);
+    const section = hostSection(activityModule);
+    reportSectionDirty(section, changedColumns.length > 0);
+    return () => reportSectionDirty(section, false);
   }, [activityModule, changedColumns.length]);
 
   useSaveShortcut(
-    activityModule ?? "dashboard",
+    activityModule ? hostSection(activityModule) : "dashboard",
     !!activityModule && changedColumns.length > 0 && !saving,
     () => setConfirmOpen(true),
   );
