@@ -1,5 +1,7 @@
 # Kisten-Editor
 
+> Zu finden unter **Drop-Generator** → Tab „Item-Gruppen“.
+
 Bearbeitet `special_item_group.txt`, die Beute-Tabelle einer GIFTBOX (Kiste).
 
 ## Was du hier tun kannst

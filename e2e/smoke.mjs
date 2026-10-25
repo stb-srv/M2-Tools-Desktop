@@ -28,35 +28,29 @@ const exePath = path.join(repoRoot, "src-tauri", "target", "release", "m2manager
 
 const TAURI_DRIVER_PORT = 4444;
 
-// Reihenfolge/Labels wie in src/store/navigation.ts' NAV_ITEMS + de.json -
-// System-Installer bewusst ausgelassen (deaktiviert, nicht in NAV_ITEMS,
-// über die Command Palette ohnehin nicht erreichbar).
+// Reihenfolge/Labels wie in src/store/navigation.ts' NAV_ITEMS + de.json.
 const SECTION_LABELS = [
   "Dashboard",
   "Server-Steuerung",
   "Quellcode Bauen & Einspielen",
   "Item Editor",
-  "Item-Proto-Explorer",
-  "Item-Viewer",
+  "Item-Übersicht",
   "Modul-Importer",
   "Aufwertungs-Editor",
-  "Kisten-Editor",
   "Cube-Editor",
   "Shop-Editor",
   "Mob-Proto-Editor",
-  "Mob Drop Editor",
   "Drop-Generator",
   "Quest Builder",
   "Regen-Datei-Editor",
   "Locale-Verwaltung",
   "Server-Events",
   "Account-Verwaltung",
-  "GM-Verwaltung",
+  "Gilden-Verwaltung",
+  "Wirtschafts-Dashboard",
   "Datenbank-Explorer",
   "Broadcast-System",
-  "Tag/Nacht & Schnee",
-  "Backup-Browser",
-  "Datenbank-Backups",
+  "Backups",
   "Änderungsprotokoll",
   "TGA Konverter",
   "Icon-Browser",

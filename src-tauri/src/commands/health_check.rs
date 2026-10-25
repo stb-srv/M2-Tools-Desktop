@@ -5,7 +5,7 @@
 //! entfernten Pfade in einem Rutsch prüfen, statt dass ein falscher/fehlender
 //! Pfad erst beim eigentlichen Nutzen eines Moduls als stiller Fehlschlag
 //! auffällt (der Grundmuster-Bug hinter mehreren früheren echten Funden in
-//! diesem Projekt, siehe System-Installer-Historie).
+//! diesem Projekt).
 
 use super::support::stored_ssh_auth;
 use crate::credentials;
@@ -42,7 +42,6 @@ fn read_setting(conn: &rusqlite::Connection, key: &str) -> Option<String> {
 
 const LOCAL_PATH_KEYS: &[(&str, &str)] = &[
     ("client_path", "Client-Ordner"),
-    ("binary_src_path", "Client-Quellcode-Ordner"),
     ("npclist_path", "NPC-Liste"),
     ("eterpack_tool_path", "EterPackConsoleLz4.exe"),
     ("mysql2proto_dir", "Mysql2Proto-Ordner"),

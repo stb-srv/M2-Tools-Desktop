@@ -1,5 +1,7 @@
 # Backup-Browser
 
+> Zu finden unter **Backups** → Tab „Datei-Backups“. Komplette Datenbank-Sicherungen liegen im zweiten Tab „Datenbank-Backups“.
+
 Durchsucht alle verstreuten `m2manager_backups`-Ordner (jeder Editor legt sein Backup direkt neben der Originaldatei an, es gibt keinen zentralen Speicherort) und stellt eine Sicherung an ihrem Ursprungsort wieder her.
 
 ## Was du hier tun kannst

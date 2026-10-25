@@ -1,5 +1,5 @@
 import { invoke } from "@tauri-apps/api/core";
-import type { Section } from "@/store/navigation";
+import type { ModuleId } from "@/store/navigation";
 
 /**
  * Schreibt einen Eintrag ins zentrale Änderungsprotokoll - bewusst
@@ -14,7 +14,7 @@ import type { Section } from "@/store/navigation";
  * entstehen mehrere Log-Zeilen für einen einzigen Nutzer-Klick.
  */
 export function logActivity(
-  module: Section,
+  module: ModuleId,
   action: string,
   summary: string,
   targetKind?: string,

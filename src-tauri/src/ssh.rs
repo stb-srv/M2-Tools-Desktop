@@ -11,12 +11,10 @@ use tokio::io::AsyncWriteExt;
 // No SSH operation in this file had a timeout anywhere - a TCP-level stall
 // (dropped packets, firewall, flaky network) makes `connect()`/the login
 // handshake hang indefinitely with zero error surfaced, since there's
-// nothing to time out and report. Real live report (2026-08-11): the
-// System-Installer's "Anwenden" step froze forever with no error message
-// while patching a package with 10 server-side files - each file triggers
-// its own fresh `open_sftp` call (read + write = 20 separate connect+login
-// round-trips for that one apply), so a single stalled connection among
-// those 20 was enough to hang the entire operation. This bounds every
+// nothing to time out and report. Real live report (2026-08-11): a
+// multi-file write froze forever with no error message, because a single
+// stalled connection among ~20 connect+login round-trips was enough to hang
+// the entire operation. This bounds every
 // connect/login attempt so a stall always turns into a clear, actionable
 // error instead of an infinite spinner.
 const SSH_TIMEOUT: Duration = Duration::from_secs(20);
@@ -238,8 +236,7 @@ where
 }
 
 /// `pub(crate)` (not just module-private) so callers that need to batch
-/// several operations over one connection - e.g. `commands::apply_system_install`,
-/// which used to open a fresh session per file being patched, see
+/// several operations over one connection - see
 /// `read_file_if_exists_via`/`write_file_with_backup_via`'s own doc - can
 /// open a session once and reuse it themselves instead of going through the
 /// one-shot `read_remote_file*`/`write_remote_file*` functions below.
@@ -360,70 +357,6 @@ fn pick_latest_backup(filename: &str, entries: &[RemoteEntry]) -> Option<String>
     // so lexicographic order is chronological order.
     candidates.sort();
     candidates.last().map(|s| s.to_string())
-}
-
-/// Sucht rekursiv nach Dateien mit genau diesem Namen unter `root` - für den
-/// System-Installer, der aus einem Systempaket-Dateinamen (z.B. `cmd_gm.cpp`)
-/// erst noch den echten Pfad im Live-Quellbaum finden muss (die
-/// Präfix-Konventionen der Pakete stimmen nicht 1:1 mit dem echten Layout
-/// überein, z.B. `Source/Server/game/cmd_gm.cpp` im Paket vs.
-/// `game/src/cmd_gm.cpp` live). Nutzt `find` statt einer rekursiven
-/// SFTP-Traversierung, da das auf dem Server selbst läuft und für tiefe
-/// Bäume wie den kompletten Quellcode deutlich schneller ist als viele
-/// einzelne SFTP-Roundtrips. Gibt vollständige Pfade zurück, mehrere
-/// Treffer möglich (der Aufrufer entscheidet, wie damit umzugehen ist).
-pub async fn find_remote_file_by_name(
-    config: &SshConfig,
-    auth: &SshAuth,
-    root: &str,
-    filename: &str,
-) -> Result<Vec<String>, String> {
-    let command = format!(
-        "find {} -type f -name {} 2>/dev/null",
-        crate::db_backup::shell_single_quote(root),
-        crate::db_backup::shell_single_quote(filename)
-    );
-    let result = run_command_streaming(config, auth, &command, |_| {}).await?;
-    Ok(result
-        .output
-        .lines()
-        .map(str::trim)
-        .filter(|l| !l.is_empty())
-        .map(str::to_string)
-        .collect())
-}
-
-/// Wie `find_remote_file_by_name`, aber sucht viele Dateinamen in einem
-/// einzigen `find`-Aufruf statt einen SSH-Roundtrip pro Datei zu bezahlen -
-/// bei einem Systempaket mit einem Dutzend Server-Dateien sonst ein Dutzend
-/// separater SSH-Verbindungen/-Befehle nacheinander.
-pub async fn find_remote_files_by_names(
-    config: &SshConfig,
-    auth: &SshAuth,
-    root: &str,
-    filenames: &[String],
-) -> Result<std::collections::HashMap<String, Vec<String>>, String> {
-    if filenames.is_empty() {
-        return Ok(std::collections::HashMap::new());
-    }
-    let name_clauses: Vec<String> = filenames
-        .iter()
-        .map(|f| format!("-name {}", crate::db_backup::shell_single_quote(f)))
-        .collect();
-    let command = format!(
-        "find {} -type f \\( {} \\) 2>/dev/null",
-        crate::db_backup::shell_single_quote(root),
-        name_clauses.join(" -o ")
-    );
-    let result = run_command_streaming(config, auth, &command, |_| {}).await?;
-
-    let mut by_name: std::collections::HashMap<String, Vec<String>> = std::collections::HashMap::new();
-    for line in result.output.lines().map(str::trim).filter(|l| !l.is_empty()) {
-        if let Some(name) = line.rsplit('/').next() {
-            by_name.entry(name.to_string()).or_default().push(line.to_string());
-        }
-    }
-    Ok(by_name)
 }
 
 /// Renames an existing remote file into a sibling `m2manager_backups` folder

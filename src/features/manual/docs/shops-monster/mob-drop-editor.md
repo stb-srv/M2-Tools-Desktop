@@ -1,5 +1,7 @@
 # Mob Drop Editor
 
+> Zu finden unter **Drop-Generator** → Tab „Mob-Drops“.
+
 Bearbeitet `mob_drop_item.txt` direkt auf dem Server - welches Item ein Monster mit welcher Chance droppt.
 
 ## Was du hier tun kannst

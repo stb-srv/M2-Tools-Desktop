@@ -10,16 +10,12 @@ export function ClientTab({ onSaved }: { onSaved: (label: string) => void }) {
   const { t } = useTranslation();
 
   const [clientPath, setClientPath] = useState("");
-  const [binarySrcPath, setBinarySrcPath] = useState("");
   const [npclistPath, setNpclistPath] = useState("");
   const [eterpackPath, setEterpackPath] = useState("");
 
   useEffect(() => {
     invoke<string | null>("get_setting", { key: "client_path" })
       .then((v) => setClientPath(v ?? ""))
-      .catch(() => {});
-    invoke<string | null>("get_setting", { key: "binary_src_path" })
-      .then((v) => setBinarySrcPath(v ?? ""))
       .catch(() => {});
     invoke<string | null>("get_setting", { key: "npclist_path" })
       .then((v) => setNpclistPath(v ?? ""))
@@ -39,14 +35,6 @@ export function ClientTab({ onSaved }: { onSaved: (label: string) => void }) {
     if (typeof selected === "string") {
       setClientPath(selected);
       await save("client_path", selected, "Client-Pfad gespeichert");
-    }
-  }
-
-  async function pickBinarySrcPath() {
-    const selected = await open({ directory: true, title: "Lokalen Client-Quellcode-Ordner auswählen" });
-    if (typeof selected === "string") {
-      setBinarySrcPath(selected);
-      await save("binary_src_path", selected, "Client-Quellcode-Pfad gespeichert");
     }
   }
 
@@ -96,23 +84,6 @@ export function ClientTab({ onSaved }: { onSaved: (label: string) => void }) {
         <p className="text-xs text-muted-foreground">
           Ordner des Metin2-Clients (enthält <code>granny2.dll</code>) – wird für 3D-Modelle und
           Item-Icons benötigt.
-        </p>
-      </section>
-
-      <section className="space-y-1">
-        <div className="flex items-center gap-2">
-          <Button variant="outline" onClick={pickBinarySrcPath} className="shrink-0">
-            <FolderOpen className="size-4" />
-            Client-Quellcode-Ordner
-          </Button>
-          <span className="truncate text-sm text-muted-foreground">
-            {binarySrcPath || "Nicht gesetzt"}
-          </span>
-        </div>
-        <p className="text-xs text-muted-foreground">
-          Lokaler Checkout des Client-Quellcodes (z.B. <code>binary-src</code>) – nur für den
-          System-Installer nötig, wenn ein System Client-C++-Dateien patcht. Das Kompilieren des
-          Clients bleibt danach manuell (kein Client-Build-Werkzeug in M2Manager).
         </p>
       </section>
 

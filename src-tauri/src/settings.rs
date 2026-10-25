@@ -37,12 +37,6 @@ pub fn init_db(app_data_dir: &Path) -> Result<Connection, String> {
             success INTEGER,
             rolled_back_from INTEGER
         );
-        CREATE TABLE IF NOT EXISTS system_installs (
-            id INTEGER PRIMARY KEY AUTOINCREMENT,
-            system_name TEXT NOT NULL,
-            created_at TEXT NOT NULL,
-            files_json TEXT NOT NULL
-        );
         CREATE TABLE IF NOT EXISTS broadcast_messages (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
             text TEXT NOT NULL,

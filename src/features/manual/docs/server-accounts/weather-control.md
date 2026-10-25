@@ -1,5 +1,7 @@
 # Tag/Nacht & Schnee
 
+> Zu finden unter **Server-Events** → Tab „Tag/Nacht & Schnee“.
+
 Schaltet die serverweiten Wetter-/Zeit-Effekte Tag/Nacht und Schnee um - ohne den Server neu zu starten.
 
 ## Wie es funktioniert

@@ -3,7 +3,7 @@ import { useTranslation } from "react-i18next";
 import { invoke } from "@tauri-apps/api/core";
 import { runAsyncAction } from "@/lib/asyncAction";
 import { Button } from "@/components/ui/button";
-import { NAV_ITEMS, useNavigationStore } from "@/store/navigation";
+import { EMBEDDED_MODULES, NAV_ITEMS, useNavigationStore } from "@/store/navigation";
 import { HelpCircle, Search, ChevronLeft, ChevronRight, Undo2, AlertTriangle, ExternalLink } from "lucide-react";
 import { openManual } from "@/lib/manual";
 
@@ -32,7 +32,8 @@ const PAGE_SIZE = 30;
 // Module, über die dieses Modul selbst nichts protokolliert (keine echten
 // Änderungsquellen) - aus der Filterliste ausgeschlossen, damit dort nur
 // Module stehen, die je einen Eintrag erzeugen könnten.
-const NON_ACTIVITY_SECTIONS = new Set(["dashboard", "settings", "activity-log", "system-installer"]);
+const NON_ACTIVITY_SECTIONS = new Set(["dashboard", "settings", "activity-log"]);
+
 
 export function ActivityLog() {
   const { t } = useTranslation();
@@ -104,7 +105,9 @@ export function ActivityLog() {
   const totalPages = Math.max(1, Math.ceil(total / PAGE_SIZE));
 
   function moduleLabel(module: string): string {
-    const item = NAV_ITEMS.find((n) => n.section === module);
+    const item = [...NAV_ITEMS.map((n) => ({ module: n.section as string, labelKey: n.labelKey })), ...EMBEDDED_MODULES].find(
+      (n) => n.module === module,
+    );
     return item ? t(item.labelKey) : module;
   }
 
@@ -134,8 +137,14 @@ export function ActivityLog() {
           className="rounded-md border border-border bg-background px-2 py-1 text-sm"
         >
           <option value="">Alle Module</option>
-          {NAV_ITEMS.filter((n) => !NON_ACTIVITY_SECTIONS.has(n.section)).map((n) => (
-            <option key={n.section} value={n.section}>
+          {[
+            ...NAV_ITEMS.filter((n) => !NON_ACTIVITY_SECTIONS.has(n.section)).map((n) => ({
+              module: n.section as string,
+              labelKey: n.labelKey,
+            })),
+            ...EMBEDDED_MODULES,
+          ].map((n) => (
+            <option key={n.module} value={n.module}>
               {t(n.labelKey)}
             </option>
           ))}

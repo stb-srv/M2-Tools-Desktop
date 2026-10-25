@@ -1,5 +1,7 @@
 # Datenbank-Backups
 
+> Zu finden unter **Backups** → Tab „Datenbank-Backups“.
+
 Erstellt, listet und stellt komplette Datenbank-Sicherungen wieder her (`mysqldump`/`mysql`-Restore über SSH, mit den bereits konfigurierten MySQL-Zugangsdaten).
 
 ## Was du hier tun kannst

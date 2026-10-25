@@ -22,8 +22,8 @@ const TABS: { id: Tab; label: string }[] = [
 // Bündelt alle 5 Drop-relevanten Server-Dateien unter einem Dach. Mob-Drops
 // (mob_drop_item.txt) und Item-Gruppen (special_item_group.txt) sind die
 // bereits bestehenden, eigenständigen Editoren (Mob Drop Editor/Kisten-
-// Editor) - hier unverändert eingebettet, nicht dupliziert. Beide bleiben
-// zusätzlich als eigene Sidebar-Punkte erreichbar (Nutzerentscheidung).
+// Editor) - hier eingebettet, nicht dupliziert. Seit 2026-10-25 nur noch
+// hier erreichbar, nicht mehr zusätzlich als eigene Sidebar-Punkte.
 export function DropGenerator() {
   const [tab, setTab] = useState<Tab>("mob");
   // Same "stays mounted once visited, just hidden" fix as App.tsx's

@@ -6,7 +6,6 @@ import {
   Store,
   PackagePlus,
   PackageSearch,
-  Skull,
   ScrollText,
   Sprout,
   Languages,
@@ -15,20 +14,15 @@ import {
   Box,
   PawPrint,
   Users,
-  DatabaseBackup,
   Images,
   Settings as SettingsIcon,
   Hammer,
-  Package,
   Wrench,
   Sparkles,
   Megaphone,
-  Moon,
   Table2,
   Beaker,
-  Shield,
   Dices,
-  LayoutGrid,
   Activity,
   Castle,
   Coins,
@@ -43,19 +37,15 @@ export type Section =
   | "shop-editor"
   | "item-editor"
   | "item-proto-explorer"
-  | "item-viewer"
   | "module-importer"
   | "mob-proto-editor"
-  | "mob-drop-editor"
   | "drop-generator"
   | "refine-editor"
-  | "box-editor"
   | "cube-editor"
   | "quest-builder"
   | "regen-editor"
   | "locale-editor"
   | "backup-browser"
-  | "db-backups"
   | "activity-log"
   | "tga-converter"
   | "icon-browser"
@@ -63,10 +53,7 @@ export type Section =
   | "account-manager"
   | "guild-manager"
   | "economy-dashboard"
-  | "gm-manager"
-  | "system-installer"
   | "broadcast-system"
-  | "weather-control"
   | "settings";
 
 // Groups drive the collapsible sections in the Sidebar. "settings" is not a
@@ -75,6 +62,28 @@ export type Section =
 // Aufgeteilt aus dem früheren einzelnen "editors"-Sammeltopf (12 von 22
 // Bereichen darin, alles andere 1-3) in vier thematisch enger gefasste
 // Gruppen, auf Nutzerwunsch ("es ist fast alles in Datenbank-Editor").
+// Früher eigenständige Module, die heute als Tab in einem anderen Bereich
+// leben. Sie behalten ihre eigene Kennung für das Änderungsprotokoll und das
+// Handbuch (ältere Protokoll-Einträge und Handbuch-Links bleiben so gültig),
+// sind aber keine eigenen Sidebar-Punkte mehr.
+export type EmbeddedModule = "mob-drop-editor" | "box-editor" | "weather-control" | "gm-manager" | "db-backups";
+
+/** Kennung für Änderungsprotokoll und Handbuch: ein Sidebar-Bereich oder ein eingebettetes Modul. */
+export type ModuleId = Section | EmbeddedModule;
+
+export const EMBEDDED_MODULES: { module: EmbeddedModule; host: Section; labelKey: string }[] = [
+  { module: "mob-drop-editor", host: "drop-generator", labelKey: "nav.mobDropEditor" },
+  { module: "box-editor", host: "drop-generator", labelKey: "nav.boxEditor" },
+  { module: "weather-control", host: "server-events", labelKey: "nav.weatherControl" },
+  { module: "gm-manager", host: "account-manager", labelKey: "nav.gmManager" },
+  { module: "db-backups", host: "backup-browser", labelKey: "nav.dbBackups" },
+];
+
+/** Der Sidebar-Bereich, in dem ein Modul tatsächlich angezeigt wird. */
+export function hostSection(module: ModuleId): Section {
+  return EMBEDDED_MODULES.find((e) => e.module === module)?.host ?? (module as Section);
+}
+
 export type Category =
   | "overview"
   | "items"
@@ -83,12 +92,8 @@ export type Category =
   | "serverAdmin"
   | "backups"
   | "assets"
-  | "systems"
   | "settings";
 
-// "systems" (System-Installer) deliberately left out here - the module is
-// deactivated (see NAV_ITEMS below), so its category has no items and would
-// otherwise render as an empty group heading in the Sidebar.
 export const CATEGORY_ORDER: Category[] = [
   "overview",
   "items",
@@ -107,7 +112,6 @@ export const CATEGORY_LABEL_KEYS: Record<Category, string> = {
   serverAdmin: "nav.groups.serverAdmin",
   backups: "nav.groups.backups",
   assets: "nav.groups.assets",
-  systems: "nav.groups.systems",
   settings: "nav.groups.settings",
 };
 
@@ -120,14 +124,11 @@ export const NAV_ITEMS: { section: Section; icon: typeof LayoutDashboard; labelK
   { section: "build-deploy", icon: Wrench, labelKey: "nav.buildDeploy", category: "overview" },
   { section: "item-editor", icon: PackagePlus, labelKey: "nav.itemEditor", category: "items" },
   { section: "item-proto-explorer", icon: Table2, labelKey: "nav.itemProtoExplorer", category: "items" },
-  { section: "item-viewer", icon: LayoutGrid, labelKey: "nav.itemViewer", category: "items" },
   { section: "module-importer", icon: PackageSearch, labelKey: "nav.moduleImporter", category: "items" },
   { section: "refine-editor", icon: Hammer, labelKey: "nav.refineEditor", category: "items" },
-  { section: "box-editor", icon: Package, labelKey: "nav.boxEditor", category: "items" },
   { section: "cube-editor", icon: Beaker, labelKey: "nav.cubeEditor", category: "items" },
   { section: "shop-editor", icon: Store, labelKey: "nav.shopEditor", category: "shopsMonsters" },
   { section: "mob-proto-editor", icon: PawPrint, labelKey: "nav.mobProtoEditor", category: "shopsMonsters" },
-  { section: "mob-drop-editor", icon: Skull, labelKey: "nav.mobDropEditor", category: "shopsMonsters" },
   { section: "drop-generator", icon: Dices, labelKey: "nav.dropGenerator", category: "shopsMonsters" },
   { section: "quest-builder", icon: ScrollText, labelKey: "nav.questBuilder", category: "questsWorld" },
   { section: "regen-editor", icon: Sprout, labelKey: "nav.regenEditor", category: "questsWorld" },
@@ -136,22 +137,13 @@ export const NAV_ITEMS: { section: Section; icon: typeof LayoutDashboard; labelK
   { section: "account-manager", icon: Users, labelKey: "nav.accountManager", category: "serverAdmin" },
   { section: "guild-manager", icon: Castle, labelKey: "nav.guildManager", category: "serverAdmin" },
   { section: "economy-dashboard", icon: Coins, labelKey: "nav.economyDashboard", category: "serverAdmin" },
-  { section: "gm-manager", icon: Shield, labelKey: "nav.gmManager", category: "serverAdmin" },
   { section: "db-explorer", icon: Database, labelKey: "nav.dbExplorer", category: "serverAdmin" },
   { section: "broadcast-system", icon: Megaphone, labelKey: "nav.broadcastSystem", category: "serverAdmin" },
-  { section: "weather-control", icon: Moon, labelKey: "nav.weatherControl", category: "serverAdmin" },
   { section: "backup-browser", icon: History, labelKey: "nav.backupBrowser", category: "backups" },
-  { section: "db-backups", icon: DatabaseBackup, labelKey: "nav.dbBackups", category: "backups" },
   { section: "activity-log", icon: Activity, labelKey: "nav.activityLog", category: "backups" },
   { section: "tga-converter", icon: ImagePlus, labelKey: "nav.tgaConverter", category: "assets" },
   { section: "icon-browser", icon: Images, labelKey: "nav.iconBrowser", category: "assets" },
   { section: "model-viewer", icon: Box, labelKey: "nav.modelViewer", category: "assets" },
-  // System-Installer deliberately deactivated (2026-08-11, user request) -
-  // not reliable enough in practice (see [[m2manager_system_installer]]:
-  // several real live-install failures across multiple bug-fix rounds).
-  // Removed from here (and from CATEGORY_ORDER above) so it's unreachable
-  // via Sidebar/Command Palette - code/backend commands intentionally left
-  // in place rather than deleted, in case this gets revisited later.
   { section: "settings", icon: SettingsIcon, labelKey: "nav.settings", category: "settings" },
 ];
 
