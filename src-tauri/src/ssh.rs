@@ -748,6 +748,7 @@ mod tests {
     // slow down or break a genuinely healthy connection - same live-DB-style
     // test pattern already used in db/item.rs and commands.rs.
     #[tokio::test]
+    #[ignore = "braucht den echten Dev-Server per SSH - lokal mit `cargo test -- --ignored` ausführen"]
     async fn healthy_connection_succeeds_well_under_the_timeout() {
         let conn = rusqlite::Connection::open(
             r"C:\Users\DevSteven\AppData\Roaming\com.m2manager.app\m2manager.sqlite",

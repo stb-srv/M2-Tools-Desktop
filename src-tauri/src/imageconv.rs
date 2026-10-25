@@ -69,6 +69,7 @@ mod tests {
     use super::*;
 
     #[test]
+    #[ignore = "braucht echte Client-Dateien unter C:\\Users\\DevSteven - lokal mit `cargo test -- --ignored` ausführen"]
     fn converts_real_client_icon_png_round_trip() {
         // Reuses a real file already on this machine (verified elsewhere in
         // icons.rs tests) rather than a synthetic fixture.

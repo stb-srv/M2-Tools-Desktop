@@ -491,6 +491,7 @@ mod tests {
     // types, which sqlx silently turned into decode failures swallowed by
     // `.unwrap_or_default()`.
     #[tokio::test]
+    #[ignore = "braucht die echte Dev-Datenbank des Entwickler-PCs - lokal mit `cargo test -- --ignored` ausführen"]
     async fn get_item_proto_reads_real_nonzero_values() {
         let conn = rusqlite::Connection::open(
             r"C:\Users\DevSteven\AppData\Roaming\com.m2manager.app\m2manager.sqlite",
@@ -612,6 +613,7 @@ mod tests {
     // reserves the OPEN interval `(X, X+N)` - X itself is already a literal
     // row, and X+N is the first vnum *not* covered.
     #[tokio::test]
+    #[ignore = "braucht die echte Dev-Datenbank des Entwickler-PCs - lokal mit `cargo test -- --ignored` ausführen"]
     async fn vnum_checks_respect_vnum_range_aliasing() {
         let pool = real_pool().await;
 

@@ -256,6 +256,7 @@ mod tests {
     // orphaned refine_proto rows behind forever. A recipe still used by
     // *another* item must survive the same teardown untouched.
     #[tokio::test]
+    #[ignore = "braucht die echte Dev-Datenbank des Entwickler-PCs - lokal mit `cargo test -- --ignored` ausführen"]
     async fn teardown_item_drops_its_own_unshared_recipe_but_not_a_shared_one() {
         let pool = real_pool().await;
         let client_path = r"C:\Users\DevSteven\Desktop\Client";

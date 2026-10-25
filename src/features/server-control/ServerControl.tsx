@@ -88,6 +88,7 @@ export function ServerControl() {
   const [confirmAction, setConfirmAction] = useState<ServerAction | null>(null);
   const [restartConfirm, setRestartConfirm] = useState(false);
   const [restartDelay, setRestartDelay] = useState("5");
+  const [settingSaveError, setSettingSaveError] = useState<string | null>(null);
 
   const [logSearchOpen, setLogSearchOpen] = useState(false);
   const [logSearchQuery, setLogSearchQuery] = useState("");
@@ -190,20 +191,32 @@ export function ServerControl() {
     }
   }
 
+  // Speichert bei jedem Tastendruck - ein Fehler wird deshalb inline unter
+  // den Feldern angezeigt (und beim nächsten erfolgreichen Speichern wieder
+  // ausgeblendet) statt als Toast pro Tastendruck. Vorher wurde er komplett
+  // verschluckt: das Feld zeigte den neuen Wert, nach einem Neustart war
+  // stillschweigend wieder der alte da.
+  async function persistSetting(key: string, value: string) {
+    await runAsyncAction(() => invoke("set_setting", { key, value }), {
+      onSuccess: () => setSettingSaveError(null),
+      onError: (e) => setSettingSaveError(`Einstellung konnte nicht gespeichert werden: ${e}`),
+    });
+  }
+
   async function saveCommand(id: ActionId, value: string) {
     setCommands((prev) => ({ ...prev, [id]: value }));
-    await invoke("set_setting", { key: SETTING_KEY[id], value }).catch(() => {});
+    await persistSetting(SETTING_KEY[id], value);
   }
 
   async function saveWorkdir(value: string) {
     setWorkdir(value);
-    await invoke("set_setting", { key: "server_workdir", value }).catch(() => {});
+    await persistSetting("server_workdir", value);
   }
 
   async function saveRestartDelay(value: string) {
     setRestartDelay(value);
     if (/^\d+$/.test(value)) {
-      await invoke("set_setting", { key: "server_restart_delay_seconds", value }).catch(() => {});
+      await persistSetting("server_restart_delay_seconds", value);
     }
   }
 
@@ -271,6 +284,7 @@ export function ServerControl() {
 
       {editing && (
         <div className="space-y-3 rounded-lg border border-border bg-card p-3">
+          {settingSaveError && <p className="text-sm text-destructive">{settingSaveError}</p>}
           <div className="space-y-1">
             <label className="text-xs font-medium text-muted-foreground">
               Arbeitsverzeichnis

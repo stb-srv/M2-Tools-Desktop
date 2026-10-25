@@ -124,6 +124,7 @@ mod tests {
     }
 
     #[tokio::test]
+    #[ignore = "braucht die echte Dev-Datenbank des Entwickler-PCs - lokal mit `cargo test -- --ignored` ausführen"]
     async fn sets_lists_and_deletes_a_real_throwaway_flag() {
         let pool = real_pool().await;
         let name = format!("m2mgr_test_{}", chrono::Local::now().timestamp() % 100000);
