@@ -235,6 +235,7 @@ mod tests {
     }
 
     #[test]
+    #[ignore = "braucht echte Client-Dateien unter C:\\Users\\DevSteven - lokal mit `cargo test -- --ignored` ausführen"]
     fn builds_composite_from_real_client_map() {
         let map_dir = Path::new(r"C:\Users\DevSteven\Desktop\Client\pack\map_empire\metin2_map_a1");
         let setting_content = std::fs::read_to_string(map_dir.join("setting.txt"))
@@ -246,6 +247,7 @@ mod tests {
     }
 
     #[test]
+    #[ignore = "braucht echte Client-Dateien unter C:\\Users\\DevSteven - lokal mit `cargo test -- --ignored` ausführen"]
     fn lists_real_client_map_folders() {
         let folders = list_map_folders(r"C:\Users\DevSteven\Desktop\Client")
             .expect("should list map folders");
@@ -255,6 +257,7 @@ mod tests {
     }
 
     #[test]
+    #[ignore = "braucht echte Client-Dateien unter C:\\Users\\DevSteven - lokal mit `cargo test -- --ignored` ausführen"]
     fn render_map_produces_cached_png_data_url() {
         let app_data_dir = std::env::temp_dir().join(format!(
             "m2manager_mapdata_test_{}",

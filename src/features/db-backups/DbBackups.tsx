@@ -66,8 +66,15 @@ export function DbBackups() {
   }, []);
 
   async function changeSchedule(hours: number) {
+    const previous = scheduleHours;
     setScheduleHours(hours);
-    await invoke("set_setting", { key: "db_backup_schedule_hours", value: String(hours) }).catch(() => {});
+    await runAsyncAction(() => invoke("set_setting", { key: "db_backup_schedule_hours", value: String(hours) }), {
+      onError: (e) => {
+        // Auswahl zurücksetzen, damit die Anzeige nicht einen Zeitplan vorgaukelt, der nie gespeichert wurde.
+        setScheduleHours(previous);
+        toast.error(`Backup-Zeitplan konnte nicht gespeichert werden: ${e}`);
+      },
+    });
   }
 
   async function load(overrideDir: string | undefined) {

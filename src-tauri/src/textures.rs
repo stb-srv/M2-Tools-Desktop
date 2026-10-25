@@ -76,6 +76,7 @@ mod tests {
     use super::*;
 
     #[test]
+    #[ignore = "braucht echte Client-Dateien unter C:\\Users\\DevSteven - lokal mit `cargo test -- --ignored` ausführen"]
     fn decodes_npc_dds_texture() {
         let model = r"C:\Users\DevSteven\Desktop\Client\pack\npc\ymir work\npc\arms\arms.gr2";
         let url = load_texture_data_url(model, None)

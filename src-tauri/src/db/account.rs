@@ -234,6 +234,7 @@ mod tests {
     // actually work against this server's real schema, not just that they
     // compile.
     #[tokio::test]
+    #[ignore = "braucht die echte Dev-Datenbank des Entwickler-PCs - lokal mit `cargo test -- --ignored` ausführen"]
     async fn creates_lists_and_resets_password_for_a_real_throwaway_account() {
         let pool = real_pool().await;
         let login = format!("m2mgr_test_{}", chrono::Local::now().timestamp());

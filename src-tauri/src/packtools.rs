@@ -842,6 +842,7 @@ mod tests {
     // touches the real client, unlike the icon *read* tests in icons.rs
     // which intentionally verify against the real machine.
     #[test]
+    #[ignore = "braucht echte Client-Dateien unter C:\\Users\\DevSteven - lokal mit `cargo test -- --ignored` ausführen"]
     fn writes_icon_and_backs_up_existing_file() {
         let scratch = std::env::temp_dir().join(format!(
             "m2manager_packtools_test_{}",
@@ -1135,6 +1136,7 @@ mod tests {
     }
 
     #[test]
+    #[ignore = "braucht echte Client-Dateien unter C:\\Users\\DevSteven - lokal mit `cargo test -- --ignored` ausführen"]
     fn deletes_item_icon_and_backs_up_first() {
         let scratch = std::env::temp_dir().join(format!(
             "m2manager_packtools_deleteicon_test_{}",

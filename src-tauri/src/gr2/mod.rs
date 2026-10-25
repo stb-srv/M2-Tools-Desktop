@@ -194,6 +194,7 @@ mod tests {
     use super::*;
 
     #[test]
+    #[ignore = "braucht echte Client-Dateien unter C:\\Users\\DevSteven - lokal mit `cargo test -- --ignored` ausführen"]
     fn parse_real_alchemist_model() {
         let dll = r"C:\Users\DevSteven\Desktop\Client\granny2.dll";
         let gr2 = r"C:\Users\DevSteven\Desktop\Client\pack\npc\ymir work\npc\alchemist\alchemist.gr2";
@@ -206,6 +207,7 @@ mod tests {
     }
 
     #[test]
+    #[ignore = "braucht echte Client-Dateien unter C:\\Users\\DevSteven - lokal mit `cargo test -- --ignored` ausführen"]
     fn resolves_shop_npc_model_via_npclist() {
         let client = r"C:\Users\DevSteven\Desktop\Client";
         // 9001 = Waffenhaendler's NPC; its mob_proto.folder is empty in the DB,

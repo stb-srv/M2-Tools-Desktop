@@ -389,6 +389,7 @@ mod tests {
     // data, 2026-08-06) - the chain must reflect that faithfully, not
     // invent a material that doesn't exist.
     #[tokio::test]
+    #[ignore = "braucht die echte Dev-Datenbank des Entwickler-PCs - lokal mit `cargo test -- --ignored` ausführen"]
     async fn chain_for_vnum_180_has_no_materials_but_real_recipe() {
         let pool = real_pool().await;
         let chain = get_refine_chain(&pool, 180).await.expect("chain fetch failed");
@@ -405,6 +406,7 @@ mod tests {
     // The well-known stock sword chain (10 Schwert+0 .. 19 Schwert+9),
     // verified live to be exactly 10 steps ending with refined_vnum=0.
     #[tokio::test]
+    #[ignore = "braucht die echte Dev-Datenbank des Entwickler-PCs - lokal mit `cargo test -- --ignored` ausführen"]
     async fn chain_for_vnum_15_covers_the_whole_sword_chain() {
         let pool = real_pool().await;
         let chain = get_refine_chain(&pool, 15).await.expect("chain fetch failed");
@@ -423,6 +425,7 @@ mod tests {
     // does NOT match its own recipe id (vnum 66's refine_set is 16), the
     // exact mismatch that makes reading refine_proto directly confusing.
     #[tokio::test]
+    #[ignore = "braucht die echte Dev-Datenbank des Entwickler-PCs - lokal mit `cargo test -- --ignored` ausführen"]
     async fn chain_step_with_real_material_gets_its_name_hydrated() {
         let pool = real_pool().await;
         let chain = get_refine_chain(&pool, 66).await.expect("chain fetch failed");
@@ -438,6 +441,7 @@ mod tests {
     }
 
     #[tokio::test]
+    #[ignore = "braucht die echte Dev-Datenbank des Entwickler-PCs - lokal mit `cargo test -- --ignored` ausführen"]
     async fn recipe_used_by_count_reflects_real_sharing() {
         let pool = real_pool().await;
         // Live-verified: recipe id 1 is shared by 8 different items.

@@ -181,6 +181,7 @@ mod tests {
     use super::*;
 
     #[test]
+    #[ignore = "braucht echte Client-Dateien unter C:\\Users\\DevSteven - lokal mit `cargo test -- --ignored` ausführen"]
     fn loads_exact_and_fallback_icons() {
         let client = r"C:\Users\DevSteven\Desktop\Client";
 
@@ -197,6 +198,7 @@ mod tests {
     }
 
     #[test]
+    #[ignore = "braucht echte Client-Dateien unter C:\\Users\\DevSteven - lokal mit `cargo test -- --ignored` ausführen"]
     fn loads_icons_with_non_vnum_filenames_via_item_list() {
         let client = r"C:\Users\DevSteven\Desktop\Client";
 

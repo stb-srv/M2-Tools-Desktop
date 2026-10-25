@@ -16,6 +16,7 @@ import {
   HelpCircle,
 } from "lucide-react";
 import { openManual } from "@/lib/manual";
+import { runAsyncAction } from "@/lib/asyncAction";
 
 interface DeployRecord {
   id: number;
@@ -71,6 +72,7 @@ function formatDate(iso: string) {
 export function BuildDeploy() {
   const [settings, setSettings] = useState<Record<string, string>>(SETTING_DEFAULTS);
   const [editingSettings, setEditingSettings] = useState(false);
+  const [settingSaveError, setSettingSaveError] = useState<string | null>(null);
 
   const [targets, setTargets] = useState<BuildTargets | null>(null);
   const [selected, setSelected] = useState<Set<string>>(new Set());
@@ -134,9 +136,14 @@ export function BuildDeploy() {
     setHistory(rows);
   }
 
+  // Speichert bei jedem Tastendruck - Fehler daher inline unter den Feldern
+  // statt als Toast pro Tastendruck (vorher komplett verschluckt).
   async function saveSetting(key: string, value: string) {
     setSettings((prev) => ({ ...prev, [key]: value }));
-    await invoke("set_setting", { key, value }).catch(() => {});
+    await runAsyncAction(() => invoke("set_setting", { key, value }), {
+      onSuccess: () => setSettingSaveError(null),
+      onError: (e) => setSettingSaveError(`Einstellung konnte nicht gespeichert werden: ${e}`),
+    });
   }
 
   function toggleTarget(name: string) {
@@ -293,6 +300,7 @@ export function BuildDeploy() {
               />
             </Field>
           ))}
+          {settingSaveError && <p className="text-sm text-destructive sm:col-span-2">{settingSaveError}</p>}
         </div>
       )}
 
