@@ -6,6 +6,30 @@ nach [SemVer](https://semver.org/) (`MAJOR.MINOR.PATCH`, solange < 1.0 gilt
 `MINOR` für neue Features, `PATCH` für reine Fixes). Für die vollständige
 Feature-Historie mit allen Details siehe `STATUS.md`.
 
+## [0.16.0] - 2026-10-26
+
+Aufräum-Release: keine neuen Funktionen, dafür weniger Baustellen, eine übersichtlichere Sidebar und mehrere Fehlerbehebungen.
+
+### Entfernt
+
+- **System-Installer** komplett entfernt (war seit 2026-08-11 deaktiviert, wurde aber noch mitgebaut) - inklusive Handbuch-Seite, Backend-Befehlen und der Einstellung „Client-Quellcode-Ordner“. Der Code bleibt in der Git-Historie (v0.15.10).
+
+### Geändert
+
+- **Sidebar von 32 auf 26 Einträge** verkleinert, ohne Funktionen zu entfernen:
+  - Item-Proto-Explorer und Item-Viewer sind jetzt eine **Item-Übersicht** mit Umschalter Liste/Kacheln.
+  - Mob Drop Editor und Kisten-Editor sind nur noch als Tabs im **Drop-Generator** erreichbar.
+  - **Tag/Nacht & Schnee** ist ein Tab in Server-Events.
+  - **GM-Verwaltung** ist ein Tab in der Account-Verwaltung.
+  - Backup-Browser und Datenbank-Backups sind jetzt ein Bereich **Backups** mit zwei Tabs.
+- **Handbuch**: neue Seiten für Gilden-Verwaltung und Wirtschafts-Dashboard, verschobene Module mit Hinweis, wo sie jetzt zu finden sind.
+
+### Behoben
+
+- **Einstellungen gingen still verloren**: in Server-Steuerung, Bauen & Einspielen und beim Datenbank-Backup-Zeitplan wurde ein fehlgeschlagenes Speichern verschluckt - nach einem Neustart war ohne Hinweis der alte Wert zurück. Jetzt erscheint eine Fehlermeldung.
+- **Strg+S im Drop-Generator**: im Tab Mob-Drops und im Tab Item-Gruppen hat Strg+S nie gespeichert.
+- **Tests**: Rust-Tests, die nur auf dem Entwickler-PC laufen können (feste Pfade, Dev-Datenbank, Windows-Schlüsselbund), sind als ignoriert markiert - `cargo test` ist damit auf jedem Rechner grün.
+
 ## [0.14.0] - 2026-08-08
 
 ### Hinzugefügt
