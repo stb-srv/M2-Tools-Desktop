@@ -2,45 +2,43 @@ import { useState } from "react";
 import { invoke } from "@tauri-apps/api/core";
 import { open } from "@tauri-apps/plugin-dialog";
 import { Button } from "@/components/ui/button";
-import { PasswordInput } from "@/components/ui/password-input";
-import { FolderOpen, CheckCircle2, XCircle } from "lucide-react";
+import { FolderOpen } from "lucide-react";
+import { EMPTY_MYSQL, EMPTY_SSH, sshComplete, type MysqlValues, type SshValues } from "@/lib/connection";
+import { useConnectionProfiles } from "@/store/connectionProfiles";
+import {
+  MysqlFields,
+  MysqlTestButton,
+  SshFields,
+  SshTestButton,
+  TestResult,
+  TextField,
+  type TestState,
+} from "@/features/connection/ConnectionFields";
 
-type SshAuthMode = "password" | "key";
+type Step = "profile" | "ssh" | "mysql" | "client";
 
-type Step = "client" | "ssh" | "mysql";
-type TestState = "idle" | "testing" | "ok" | "error";
-
-const STEPS: Step[] = ["client", "ssh", "mysql"];
+const STEPS: Step[] = ["profile", "ssh", "mysql", "client"];
 const STEP_LABELS: Record<Step, string> = {
-  client: "Client-Pfad",
+  profile: "Server-Profil",
   ssh: "SSH-Verbindung",
   mysql: "MySQL-Verbindung",
+  client: "Client-Ordner",
 };
 
 export function SetupWizard({ onComplete }: { onComplete: () => void }) {
   const [stepIndex, setStepIndex] = useState(0);
   const step = STEPS[stepIndex];
 
+  const [profileName, setProfileName] = useState("");
+  const [ssh, setSsh] = useState<SshValues>(EMPTY_SSH);
+  const [mysql, setMysql] = useState<MysqlValues>(EMPTY_MYSQL);
+
   const [clientPath, setClientPath] = useState("");
   const [clientTest, setClientTest] = useState<TestState>("idle");
   const [clientError, setClientError] = useState<string | null>(null);
 
-  const [sshHost, setSshHost] = useState("");
-  const [sshPort, setSshPort] = useState("22");
-  const [sshUser, setSshUser] = useState("");
-  const [sshAuthMode, setSshAuthMode] = useState<SshAuthMode>("password");
-  const [sshPassword, setSshPassword] = useState("");
-  const [sshKeyPath, setSshKeyPath] = useState("");
-  const [sshKeyPassphrase, setSshKeyPassphrase] = useState("");
-  const [sshTest, setSshTest] = useState<TestState>("idle");
-  const [sshError, setSshError] = useState<string | null>(null);
-
-  const [mysqlHost, setMysqlHost] = useState("");
-  const [mysqlPort, setMysqlPort] = useState("3306");
-  const [mysqlUser, setMysqlUser] = useState("");
-  const [mysqlPassword, setMysqlPassword] = useState("");
-  const [mysqlTest, setMysqlTest] = useState<TestState>("idle");
-  const [mysqlError, setMysqlError] = useState<string | null>(null);
+  const [finishing, setFinishing] = useState(false);
+  const [finishError, setFinishError] = useState<string | null>(null);
 
   async function pickClientPath() {
     const selected = await open({ directory: true, title: "Metin2-Client-Ordner auswählen" });
@@ -56,7 +54,6 @@ export function SetupWizard({ onComplete }: { onComplete: () => void }) {
     try {
       const ok = await invoke<boolean>("check_client_path", { path: clientPath });
       if (ok) {
-        await invoke("set_setting", { key: "client_path", value: clientPath });
         setClientTest("ok");
       } else {
         setClientTest("error");
@@ -68,79 +65,27 @@ export function SetupWizard({ onComplete }: { onComplete: () => void }) {
     }
   }
 
-  async function pickSshKey() {
-    const selected = await open({ multiple: false, title: "Privaten SSH-Schlüssel auswählen" });
-    if (typeof selected === "string") {
-      setSshKeyPath(selected);
-    }
-  }
-
-  async function testSsh() {
-    setSshTest("testing");
-    setSshError(null);
-    try {
-      const auth =
-        sshAuthMode === "password"
-          ? { type: "password", password: sshPassword }
-          : { type: "private_key", path: sshKeyPath, passphrase: sshKeyPassphrase || null };
-      await invoke("test_ssh_connection", {
-        config: { host: sshHost, port: Number(sshPort), username: sshUser },
-        auth,
-      });
-      await invoke("set_setting", { key: "ssh_host", value: sshHost });
-      await invoke("set_setting", { key: "ssh_port", value: sshPort });
-      await invoke("set_setting", { key: "ssh_username", value: sshUser });
-      await invoke("set_setting", { key: "ssh_auth_mode", value: sshAuthMode });
-      if (sshAuthMode === "password") {
-        await invoke("store_credential", { account: "ssh_password", secret: sshPassword });
-      } else {
-        await invoke("set_setting", { key: "ssh_key_path", value: sshKeyPath });
-        if (sshKeyPassphrase) {
-          await invoke("store_credential", {
-            account: "ssh_key_passphrase",
-            secret: sshKeyPassphrase,
-          });
-        }
-      }
-      setSshTest("ok");
-    } catch (e) {
-      setSshTest("error");
-      setSshError(String(e));
-    }
-  }
-
-  async function testMysql() {
-    setMysqlTest("testing");
-    setMysqlError(null);
-    try {
-      const config = {
-        host: mysqlHost,
-        port: Number(mysqlPort),
-        username: mysqlUser,
-        database: null,
-      };
-      await invoke("test_mysql_connection", { config, password: mysqlPassword });
-      await invoke("connect_mysql", { config, password: mysqlPassword });
-      await invoke("set_setting", { key: "mysql_host", value: mysqlHost });
-      await invoke("set_setting", { key: "mysql_port", value: mysqlPort });
-      await invoke("set_setting", { key: "mysql_username", value: mysqlUser });
-      await invoke("store_credential", { account: "mysql_password", secret: mysqlPassword });
-      setMysqlTest("ok");
-    } catch (e) {
-      setMysqlTest("error");
-      setMysqlError(String(e));
-    }
+  function next() {
+    if (step === "ssh" && !mysql.host) setMysql({ ...mysql, host: ssh.host });
+    setStepIndex((i) => i + 1);
   }
 
   async function finish() {
-    await invoke("set_setting", { key: "setup_completed", value: "true" });
-    onComplete();
-  }
-
-  function StatusIcon({ state }: { state: TestState }) {
-    if (state === "ok") return <CheckCircle2 className="size-4 text-green-500" />;
-    if (state === "error") return <XCircle className="size-4 text-destructive" />;
-    return null;
+    setFinishing(true);
+    setFinishError(null);
+    try {
+      // Ohne SSH-Daten kein Profil - das lässt sich später auf der Startseite anlegen.
+      if (profileName.trim() && sshComplete(ssh)) {
+        await useConnectionProfiles.getState().create(profileName.trim(), ssh, mysql);
+      }
+      if (clientPath) await invoke("set_setting", { key: "client_path", value: clientPath });
+      await invoke("set_setting", { key: "setup_completed", value: "true" });
+      onComplete();
+    } catch (e) {
+      setFinishError(String(e));
+    } finally {
+      setFinishing(false);
+    }
   }
 
   return (
@@ -149,28 +94,57 @@ export function SetupWizard({ onComplete }: { onComplete: () => void }) {
         <div>
           <h1 className="text-xl font-semibold">Willkommen bei M2Manager</h1>
           <p className="text-sm text-muted-foreground">
-            Ein paar Angaben, bevor es losgeht ({stepIndex + 1}/{STEPS.length}:{" "}
-            {STEP_LABELS[step]})
+            Ein paar Angaben, bevor es losgeht ({stepIndex + 1}/{STEPS.length}: {STEP_LABELS[step]})
           </p>
         </div>
 
         <div className="flex gap-1">
           {STEPS.map((s, i) => (
-            <div
-              key={s}
-              className={`h-1 flex-1 rounded-full ${
-                i <= stepIndex ? "bg-primary" : "bg-muted"
-              }`}
-            />
+            <div key={s} className={`h-1 flex-1 rounded-full ${i <= stepIndex ? "bg-primary" : "bg-muted"}`} />
           ))}
         </div>
+
+        {step === "profile" && (
+          <div className="space-y-3">
+            <p className="text-sm text-muted-foreground">
+              Gib deinem Server einen Namen. Unter diesem Profil speichert M2Manager die
+              Zugangsdaten - weitere Server legst du später direkt auf der Startseite an.
+            </p>
+            <TextField
+              label="Profilname"
+              value={profileName}
+              onChange={setProfileName}
+              placeholder="z.B. Live-Server oder Testserver"
+              autoFocus
+            />
+          </div>
+        )}
+
+        {step === "ssh" && (
+          <div className="space-y-3">
+            <p className="text-sm text-muted-foreground">
+              SSH-Zugang zum Gameserver (Server starten/stoppen, Logs, Quests, Server-Dateien).
+            </p>
+            <SshFields value={ssh} onChange={setSsh} />
+            <SshTestButton value={ssh} />
+          </div>
+        )}
+
+        {step === "mysql" && (
+          <div className="space-y-3">
+            <p className="text-sm text-muted-foreground">
+              MySQL-Zugang (Item-, Shop- und Mob-Editor, Accounts, Statistiken).
+            </p>
+            <MysqlFields value={mysql} onChange={setMysql} />
+            <MysqlTestButton value={mysql} />
+          </div>
+        )}
 
         {step === "client" && (
           <div className="space-y-3">
             <p className="text-sm text-muted-foreground">
-              Der Ordner deines Metin2-Game-Clients (dort liegt{" "}
-              <code>granny2.dll</code>) wird für den 3D-Modell-Viewer
-              benötigt.
+              Der Ordner deines Metin2-Clients (dort liegt <code>granny2.dll</code>) - für
+              3D-Modelle und Item-Icons. Kannst du auch später in den Einstellungen setzen.
             </p>
             <div className="flex items-center gap-2">
               <Button variant="outline" onClick={pickClientPath}>
@@ -181,159 +155,42 @@ export function SetupWizard({ onComplete }: { onComplete: () => void }) {
                 {clientPath || "Kein Ordner ausgewählt"}
               </span>
             </div>
-            <div className="flex items-center gap-2">
+            <div className="flex items-start gap-3">
               <Button
                 variant="outline"
+                size="sm"
                 onClick={testClientPath}
                 disabled={!clientPath || clientTest === "testing"}
               >
-                {clientTest === "testing" ? "Prüfe…" : "Testen"}
+                {clientTest === "testing" ? "Prüfe…" : "Prüfen"}
               </Button>
-              <StatusIcon state={clientTest} />
+              {clientTest === "ok" ? (
+                <span className="text-sm text-green-600">granny2.dll gefunden</span>
+              ) : (
+                <TestResult state={clientTest} error={clientError} />
+              )}
             </div>
-            {clientError && <p className="text-sm text-destructive">{clientError}</p>}
           </div>
         )}
 
-        {step === "ssh" && (
-          <div className="space-y-2">
-            <p className="text-sm text-muted-foreground">
-              Zugangsdaten für den SSH-Zugriff auf deinen Gameserver (Server
-              starten/stoppen, Logs, Quest-Reload).
-            </p>
-            <input
-              value={sshHost}
-              onChange={(e) => setSshHost(e.target.value)}
-              placeholder="Host / IP"
-              className="w-full rounded-md border border-border bg-background px-2 py-1 text-sm"
-            />
-            <input
-              value={sshPort}
-              onChange={(e) => setSshPort(e.target.value)}
-              placeholder="Port (Standard 22)"
-              className="w-full rounded-md border border-border bg-background px-2 py-1 text-sm"
-            />
-            <input
-              value={sshUser}
-              onChange={(e) => setSshUser(e.target.value)}
-              placeholder="Benutzername"
-              className="w-full rounded-md border border-border bg-background px-2 py-1 text-sm"
-            />
-
-            <div className="flex overflow-hidden rounded-md border border-border text-sm">
-              <button
-                onClick={() => setSshAuthMode("password")}
-                className={`flex-1 px-3 py-1 ${sshAuthMode === "password" ? "bg-primary text-primary-foreground" : ""}`}
-              >
-                Passwort
-              </button>
-              <button
-                onClick={() => setSshAuthMode("key")}
-                className={`flex-1 px-3 py-1 ${sshAuthMode === "key" ? "bg-primary text-primary-foreground" : ""}`}
-              >
-                SSH-Key
-              </button>
-            </div>
-
-            {sshAuthMode === "password" ? (
-              <PasswordInput
-                value={sshPassword}
-                onChange={setSshPassword}
-                placeholder="Passwort"
-              />
-            ) : (
-              <>
-                <div className="flex items-center gap-2">
-                  <Button variant="outline" onClick={pickSshKey} className="shrink-0">
-                    <FolderOpen className="size-4" />
-                    Schlüsseldatei auswählen
-                  </Button>
-                  <span className="truncate text-sm text-muted-foreground">
-                    {sshKeyPath || "Keine Datei ausgewählt"}
-                  </span>
-                </div>
-                <PasswordInput
-                  value={sshKeyPassphrase}
-                  onChange={setSshKeyPassphrase}
-                  placeholder="Passphrase (falls vorhanden)"
-                />
-              </>
-            )}
-
-            <div className="flex items-center gap-2">
-              <Button
-                variant="outline"
-                onClick={testSsh}
-                disabled={
-                  !sshHost ||
-                  !sshUser ||
-                  sshTest === "testing" ||
-                  (sshAuthMode === "key" && !sshKeyPath)
-                }
-              >
-                {sshTest === "testing" ? "Verbinde…" : "Testen"}
-              </Button>
-              <StatusIcon state={sshTest} />
-            </div>
-            {sshError && <p className="text-sm text-destructive">{sshError}</p>}
-          </div>
-        )}
-
-        {step === "mysql" && (
-          <div className="space-y-2">
-            <p className="text-sm text-muted-foreground">
-              Zugangsdaten für die MySQL-Datenbank (Shop-Editor,
-              Datenbank-Explorer).
-            </p>
-            <input
-              value={mysqlHost}
-              onChange={(e) => setMysqlHost(e.target.value)}
-              placeholder="Host / IP"
-              className="w-full rounded-md border border-border bg-background px-2 py-1 text-sm"
-            />
-            <input
-              value={mysqlPort}
-              onChange={(e) => setMysqlPort(e.target.value)}
-              placeholder="Port (Standard 3306)"
-              className="w-full rounded-md border border-border bg-background px-2 py-1 text-sm"
-            />
-            <input
-              value={mysqlUser}
-              onChange={(e) => setMysqlUser(e.target.value)}
-              placeholder="Benutzername"
-              className="w-full rounded-md border border-border bg-background px-2 py-1 text-sm"
-            />
-            <PasswordInput
-              value={mysqlPassword}
-              onChange={setMysqlPassword}
-              placeholder="Passwort"
-            />
-            <div className="flex items-center gap-2">
-              <Button
-                variant="outline"
-                onClick={testMysql}
-                disabled={!mysqlHost || !mysqlUser || mysqlTest === "testing"}
-              >
-                {mysqlTest === "testing" ? "Verbinde…" : "Testen"}
-              </Button>
-              <StatusIcon state={mysqlTest} />
-            </div>
-            {mysqlError && <p className="text-sm text-destructive">{mysqlError}</p>}
-          </div>
-        )}
+        {finishError && <p className="text-sm text-destructive">{finishError}</p>}
 
         <div className="flex justify-between pt-2">
           <Button
             variant="ghost"
             onClick={() => setStepIndex((i) => Math.max(0, i - 1))}
-            disabled={stepIndex === 0}
+            disabled={stepIndex === 0 || finishing}
           >
             Zurück
           </Button>
           {stepIndex < STEPS.length - 1 ? (
-            <Button onClick={() => setStepIndex((i) => i + 1)}>Weiter</Button>
+            <Button onClick={next} disabled={step === "profile" && !profileName.trim()}>
+              Weiter
+            </Button>
           ) : (
-            <Button onClick={finish}>Fertig</Button>
+            <Button onClick={finish} disabled={finishing}>
+              {finishing ? "Speichere…" : "Fertig"}
+            </Button>
           )}
         </div>
       </div>

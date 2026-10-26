@@ -151,7 +151,7 @@ export function DbBackups() {
         diese auch vom Server aus funktionieren - typischerweise der Fall, wenn Datenbank und
         Server auf derselben Maschine laufen). Andere Editoren sichern nur einzelne Dateien - das
         hier ist eine vollständige Momentaufnahme der Datenbanken, konfigurierbar unter
-        Einstellungen → Server.
+        Einstellungen → Server-Pfade.
       </p>
 
       <div className="flex items-center gap-2">

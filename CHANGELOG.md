@@ -6,6 +6,14 @@ nach [SemVer](https://semver.org/) (`MAJOR.MINOR.PATCH`, solange < 1.0 gilt
 `MINOR` für neue Features, `PATCH` für reine Fixes). Für die vollständige
 Feature-Historie mit allen Details siehe `STATUS.md`.
 
+## [Unreleased]
+
+### Geändert
+
+- **Server-Auswahl auf der Startseite**: das aktive Server-Profil lässt sich direkt oben auf der Startseite wechseln, dort gibt es auch „Neues Profil“ (erst Name, dann SSH, dann MySQL). Die Startseite lädt nach einem Wechsel automatisch neu. Eine bestehende Verbindung ohne Profil wird einmalig als erstes Profil übernommen.
+- **Einstellungen neu gegliedert**: Seitennavigation mit Allgemein · Verbindung · Server-Pfade · Client & Werkzeuge · Benachrichtigungen · Updates; Server-Pfade in Karten nach Zweck gruppiert; jede Speicherung wird bestätigt, Fehler werden angezeigt statt still verschluckt.
+- **Ersteinrichtung** fragt zuerst den Profilnamen und legt daraus direkt das erste Server-Profil an.
+
 ## [0.16.0] - 2026-10-26
 
 Aufräum-Release: keine neuen Funktionen, dafür weniger Baustellen, eine übersichtlichere Sidebar und mehrere Fehlerbehebungen.

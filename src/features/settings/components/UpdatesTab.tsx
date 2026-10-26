@@ -4,6 +4,7 @@ import { check, type Update } from "@tauri-apps/plugin-updater";
 import { relaunch } from "@tauri-apps/plugin-process";
 import { Button } from "@/components/ui/button";
 import { useUpdateStore } from "@/store/updateStore";
+import { SectionHeader } from "./shared";
 
 type UpdateStatus = "idle" | "checking" | "upToDate" | "error" | "available";
 
@@ -75,7 +76,7 @@ export function UpdatesTab() {
 
   return (
     <div className="space-y-4">
-      <h2 className="text-base font-semibold">Updates</h2>
+      <SectionHeader title="Updates" description="M2Manager aktualisiert sich selbst über GitHub-Releases." />
       <section className="space-y-3 rounded-lg border border-border bg-card p-4">
         <p className="text-sm text-muted-foreground">
           Aktuelle Version: <span className="font-medium text-foreground">{currentVersion || "…"}</span>

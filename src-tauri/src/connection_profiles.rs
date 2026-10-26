@@ -28,6 +28,11 @@ pub struct ConnectionProfile {
     pub mysql_username: String,
 }
 
+/// Settings key holding the id of the profile whose values currently sit in
+/// the canonical keys - set by saving or activating a profile, cleared when
+/// that profile is deleted. Lets the UI show which server is active.
+pub const ACTIVE_PROFILE_KEY: &str = "active_connection_profile_id";
+
 fn ssh_password_key(id: i64) -> String {
     format!("profile_ssh_password_{id}")
 }
@@ -94,6 +99,9 @@ pub fn save_current_as_profile(conn: &Connection, name: &str) -> Result<i64, Str
     if let Ok(secret) = credentials::get_secret("mysql_password") {
         let _ = credentials::store_secret(&mysql_password_key(id), &secret);
     }
+
+    // The snapshot is by definition what's active right now.
+    settings::set_path(conn, ACTIVE_PROFILE_KEY, &id.to_string())?;
 
     Ok(id)
 }
@@ -164,7 +172,20 @@ pub fn activate(conn: &Connection, id: i64) -> Result<(), String> {
         let _ = credentials::store_secret("mysql_password", &secret);
     }
 
+    settings::set_path(conn, ACTIVE_PROFILE_KEY, &id.to_string())?;
+
     Ok(())
+}
+
+/// Id of the currently active profile, if any (and if it still exists).
+pub fn active_id(conn: &Connection) -> Result<Option<i64>, String> {
+    let Some(raw) = settings::get_path(conn, ACTIVE_PROFILE_KEY)? else {
+        return Ok(None);
+    };
+    let Ok(id) = raw.parse::<i64>() else {
+        return Ok(None);
+    };
+    Ok(get_profile(conn, id).ok().map(|p| p.id))
 }
 
 pub fn delete(conn: &Connection, id: i64) -> Result<(), String> {
@@ -173,6 +194,9 @@ pub fn delete(conn: &Connection, id: i64) -> Result<(), String> {
     let _ = credentials::delete_secret(&ssh_password_key(id));
     let _ = credentials::delete_secret(&ssh_key_passphrase_key(id));
     let _ = credentials::delete_secret(&mysql_password_key(id));
+    if settings::get_path(conn, ACTIVE_PROFILE_KEY)?.as_deref() == Some(id.to_string().as_str()) {
+        settings::set_path(conn, ACTIVE_PROFILE_KEY, "")?;
+    }
     Ok(())
 }
 
@@ -277,5 +301,24 @@ mod tests {
         assert_eq!(profiles.len(), 1);
         assert_eq!(profiles[0].name, "bleibt");
         let _ = delete(&conn, id2);
+    }
+
+    #[test]
+    fn tracks_the_active_profile_across_save_activate_and_delete() {
+        let conn = scratch_conn();
+        seed_settings(&conn);
+        assert_eq!(active_id(&conn).unwrap(), None);
+        let dev = save_current_as_profile(&conn, "Dev").unwrap();
+        assert_eq!(active_id(&conn).unwrap(), Some(dev));
+        let live = save_current_as_profile(&conn, "Live").unwrap();
+        assert_eq!(active_id(&conn).unwrap(), Some(live));
+        activate(&conn, dev).unwrap();
+        assert_eq!(active_id(&conn).unwrap(), Some(dev));
+        // Deleting an inactive profile leaves the active one alone...
+        delete(&conn, live).unwrap();
+        assert_eq!(active_id(&conn).unwrap(), Some(dev));
+        // ...deleting the active one clears it.
+        delete(&conn, dev).unwrap();
+        assert_eq!(active_id(&conn).unwrap(), None);
     }
 }

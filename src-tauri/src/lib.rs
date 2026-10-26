@@ -116,6 +116,7 @@ pub fn run() {
             commands::delete_credential,
             commands::save_connection_profile,
             commands::list_connection_profiles,
+            commands::get_active_connection_profile_id,
             commands::activate_connection_profile,
             commands::delete_connection_profile,
             commands::load_gr2_model,
