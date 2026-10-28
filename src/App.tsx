@@ -103,9 +103,8 @@ function App() {
 
   // Leiser Hintergrund-Check beim Start - zeigt bei Erfolg nur den kleinen
   // Punkt am Einstellungen-Eintrag (siehe Sidebar.tsx/updateStore.ts), keine
-  // Zwangsinstallation. Schlägt lautlos fehl (privates Repo ohne Token in
-  // lokalen Dev-Builds, kein Internet, o.ä.) - siehe build_updater_plugin()
-  // in lib.rs für die Token-Einbettung.
+  // Zwangsinstallation. Schlägt lautlos fehl (kein Internet o.ä.); den
+  // genauen Fehler zeigt Einstellungen → Updates.
   useEffect(() => {
     if (!setupChecked || !setupCompleted) return;
     check()

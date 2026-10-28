@@ -1,10 +1,10 @@
 #!/usr/bin/env node
 // Nachbearbeitung nach `tauri-apps/tauri-action`: die Action lädt bereits ein
 // `latest.json` als Release-Asset hoch (uploadUpdaterJson, Standard: true),
-// dessen `platforms.*.url`-Felder sind aber normale `browser_download_url`s -
-// für ein PRIVATES Repo funktionieren die nicht ohne Browser-Session (siehe
-// Plan/`immutable-mapping-snowglobe.md`: nur `api.github.com`-Asset-URLs
-// lassen sich mit einem reinen API-Token lesen). Dieses Skript ersetzt jede
+// dessen `platforms.*.url`-Felder sind normale `browser_download_url`s.
+// Stammt noch aus der Zeit als privates Repo; die `api.github.com`-Asset-URLs
+// bleiben, weil sie sowohl ohne Token (neue Versionen, öffentliches Repo) als
+// auch mit dem in <= 0.17.0 eingebetteten Token funktionieren. Dieses Skript ersetzt jede
 // URL 1:1 durch die entsprechende `api.github.com/.../releases/assets/{id}`-
 // URL (per Dateiname aus der echten Asset-Liste des soeben erstellten
 // Release aufgelöst) und schreibt das Ergebnis nach `updater/latest.json` -

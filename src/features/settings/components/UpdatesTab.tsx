@@ -8,9 +8,8 @@ import { useUpdateStore } from "@/store/updateStore";
 type UpdateStatus = "idle" | "checking" | "upToDate" | "error" | "available";
 
 // Nutzt die Plugin-API direkt (check()/Update.downloadAndInstall()) statt
-// eigener Tauri-Commands - der Authorization-Header fürs private Repo wird
-// bereits einmalig beim Plugin-Setup gesetzt (siehe build_updater_plugin()
-// in lib.rs), gilt automatisch für jede Anfrage dieses Plugins.
+// eigener Tauri-Commands. Das Repo ist öffentlich, Prüfung und Download
+// brauchen keinen Token.
 export function UpdatesTab() {
   const [currentVersion, setCurrentVersion] = useState("");
   const [status, setStatus] = useState<UpdateStatus>("idle");

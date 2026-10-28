@@ -2,9 +2,9 @@ name: Release
 
 # Ausgelöst durch einen gepushten Git-Tag "vX.Y.Z" (siehe howtorelease.md).
 # Baut, signiert und veröffentlicht komplett automatisch - siehe
-# ~/.claude/plans/immutable-mapping-snowglobe.md für die volle Herleitung,
-# insbesondere warum latest.json nach dem Bauen noch einmal nachbearbeitet
-# wird (privates Repo, api.github.com-Asset-URLs statt browser_download_url).
+# ~/.claude/plans/immutable-mapping-snowglobe.md für die volle Herleitung.
+# Das Repo ist öffentlich: die App fragt latest.json und die Installer ohne
+# Token ab (kein eingebetteter GH_RELEASE_TOKEN mehr).
 on:
   push:
     tags:
@@ -29,6 +29,23 @@ jobs:
         with:
           workspaces: "src-tauri -> target"
 
+      # Der Tag muss zur Version in package.json, tauri.conf.json und
+      # Cargo.toml passen. Sonst baut die Pipeline still die alte Version,
+      # latest.json meldet keine neuere Version und installierte Apps finden
+      # nie ein Update (so passiert bei v0.17.0, das als 0.16.0 gebaut wurde).
+      - name: Check that the tag matches the app version
+        shell: bash
+        run: |
+          tag="${GITHUB_REF_NAME#v}"
+          pkg=$(node -p "require('./package.json').version")
+          conf=$(node -p "require('./src-tauri/tauri.conf.json').version")
+          cargo=$(grep -m1 '^version = ' src-tauri/Cargo.toml | cut -d'"' -f2)
+          echo "tag=$tag package.json=$pkg tauri.conf.json=$conf Cargo.toml=$cargo"
+          if [ "$tag" != "$pkg" ] || [ "$tag" != "$conf" ] || [ "$tag" != "$cargo" ]; then
+            echo "::error::Tag v$tag passt nicht zur Version in den Dateien (package.json=$pkg, tauri.conf.json=$conf, Cargo.toml=$cargo). Erst Version hochzählen, committen, dann taggen."
+            exit 1
+          fi
+
       - name: Install frontend dependencies
         run: npm ci
 
@@ -39,11 +56,6 @@ jobs:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
           TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY_PASSWORD }}
-          # Wird nur beim Rust-Compile-Schritt gebraucht (option_env! in
-          # lib.rs) - macht den Auth-Header fürs private Repo Teil der
-          # ausgelieferten .exe. Lokale Dev-Builds ohne diese Variable
-          # kompilieren weiterhin normal (siehe lib.rs-Kommentar).
-          GH_RELEASE_TOKEN: ${{ secrets.GH_RELEASE_TOKEN }}
         with:
           tagName: ${{ github.ref_name }}
           releaseName: "M2Manager ${{ github.ref_name }}"
@@ -51,7 +63,7 @@ jobs:
           releaseDraft: false
           prerelease: false
 
-      - name: Rewrite latest.json to use authenticated api.github.com asset URLs
+      - name: Rewrite latest.json to use api.github.com asset URLs
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: node .github/scripts/rewrite-latest-json.mjs "${{ steps.tauri-action.outputs.releaseId }}"
