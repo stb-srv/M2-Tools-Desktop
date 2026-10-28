@@ -181,9 +181,9 @@ mod tests {
     use super::*;
 
     #[test]
-    #[ignore = "braucht echte Client-Dateien unter C:\\Users\\DevSteven - lokal mit `cargo test -- --ignored` ausführen"]
+    #[ignore = "braucht echte Client-Dateien (M2_TEST_CLIENT_DIR oder Client-Pfad aus M2Manager) - mit `cargo test -- --ignored` ausführen"]
     fn loads_exact_and_fallback_icons() {
-        let client = r"C:\Users\DevSteven\Desktop\Client";
+        let client = &crate::test_support::client_dir().to_string_lossy().into_owned();
 
         let exact = load_item_icon_data_url(client, 10).expect("vnum 10 lookup failed");
         assert!(exact.is_some(), "expected direct icon for vnum 10");
@@ -198,9 +198,9 @@ mod tests {
     }
 
     #[test]
-    #[ignore = "braucht echte Client-Dateien unter C:\\Users\\DevSteven - lokal mit `cargo test -- --ignored` ausführen"]
+    #[ignore = "braucht echte Client-Dateien (M2_TEST_CLIENT_DIR oder Client-Pfad aus M2Manager) - mit `cargo test -- --ignored` ausführen"]
     fn loads_icons_with_non_vnum_filenames_via_item_list() {
-        let client = r"C:\Users\DevSteven\Desktop\Client";
+        let client = &crate::test_support::client_dir().to_string_lossy().into_owned();
 
         // vnum 1 ("money") has no 00001.tga/00000.tga on disk - only resolvable
         // via item_list.txt's explicit "icon/item/money.tga" mapping.

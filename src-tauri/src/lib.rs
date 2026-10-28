@@ -42,6 +42,8 @@ mod ssh;
 mod state;
 mod textures;
 mod weather;
+#[cfg(test)]
+mod test_support;
 
 use state::AppState;
 use tauri::Manager;

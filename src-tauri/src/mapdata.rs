@@ -235,21 +235,21 @@ mod tests {
     }
 
     #[test]
-    #[ignore = "braucht echte Client-Dateien unter C:\\Users\\DevSteven - lokal mit `cargo test -- --ignored` ausführen"]
+    #[ignore = "braucht echte Client-Dateien (M2_TEST_CLIENT_DIR oder Client-Pfad aus M2Manager) - mit `cargo test -- --ignored` ausführen"]
     fn builds_composite_from_real_client_map() {
-        let map_dir = Path::new(r"C:\Users\DevSteven\Desktop\Client\pack\map_empire\metin2_map_a1");
+        let map_dir = crate::test_support::client_dir().join("pack/map_empire/metin2_map_a1");
         let setting_content = std::fs::read_to_string(map_dir.join("setting.txt"))
             .expect("real client setting.txt should be readable");
         let setting = parse_setting(&setting_content).unwrap();
-        let composite = build_composite(map_dir, &setting).expect("composite should build");
+        let composite = build_composite(&map_dir, &setting).expect("composite should build");
         assert_eq!(composite.width(), setting.map_size.0 * 256);
         assert_eq!(composite.height(), setting.map_size.1 * 256);
     }
 
     #[test]
-    #[ignore = "braucht echte Client-Dateien unter C:\\Users\\DevSteven - lokal mit `cargo test -- --ignored` ausführen"]
+    #[ignore = "braucht echte Client-Dateien (M2_TEST_CLIENT_DIR oder Client-Pfad aus M2Manager) - mit `cargo test -- --ignored` ausführen"]
     fn lists_real_client_map_folders() {
-        let folders = list_map_folders(r"C:\Users\DevSteven\Desktop\Client")
+        let folders = list_map_folders(&crate::test_support::client_dir().to_string_lossy().into_owned())
             .expect("should list map folders");
         assert!(folders
             .iter()
@@ -257,7 +257,7 @@ mod tests {
     }
 
     #[test]
-    #[ignore = "braucht echte Client-Dateien unter C:\\Users\\DevSteven - lokal mit `cargo test -- --ignored` ausführen"]
+    #[ignore = "braucht echte Client-Dateien (M2_TEST_CLIENT_DIR oder Client-Pfad aus M2Manager) - mit `cargo test -- --ignored` ausführen"]
     fn render_map_produces_cached_png_data_url() {
         let app_data_dir = std::env::temp_dir().join(format!(
             "m2manager_mapdata_test_{}",
@@ -268,7 +268,7 @@ mod tests {
         ));
         let result = render_map(
             &app_data_dir,
-            r"C:\Users\DevSteven\Desktop\Client",
+            &crate::test_support::client_dir().to_string_lossy().into_owned(),
             "map_empire",
             "metin2_map_a1",
             false,
@@ -281,7 +281,7 @@ mod tests {
         // Second call should hit the cache without recomputing.
         let cached = render_map(
             &app_data_dir,
-            r"C:\Users\DevSteven\Desktop\Client",
+            &crate::test_support::client_dir().to_string_lossy().into_owned(),
             "map_empire",
             "metin2_map_a1",
             false,

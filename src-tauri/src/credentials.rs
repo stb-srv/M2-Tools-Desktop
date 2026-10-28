@@ -28,7 +28,7 @@ mod tests {
     use super::*;
 
     #[test]
-    #[ignore = "braucht den Windows-Schlüsselbund (Credential Manager) - lokal mit `cargo test -- --ignored` ausführen"]
+    #[cfg_attr(not(windows), ignore = "nutzt den Windows-Schlüsselbund (Credential Manager) - läuft nur unter Windows")]
     fn store_then_get_roundtrip() {
         store_secret("diagnostic_test", "hunter2").expect("store failed");
         let value = get_secret("diagnostic_test").expect("get failed");
