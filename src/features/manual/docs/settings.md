@@ -1,27 +1,38 @@
 # Einstellungen
 
-Alle Verbindungsdaten und Pfade, die die anderen Module brauchen, an einer Stelle.
+Alles, was die anderen Module brauchen, an einer Stelle - links nach Bereichen gegliedert. Textfelder speichern beim Verlassen des Feldes (oder mit Enter), jede Speicherung wird kurz unten rechts bestätigt.
 
 ## Allgemein
 
-- **Design** (Hell/Dunkel/System) und **Sprache**.
+- **Darstellung**: Design (Hell/Dunkel/System), Sprache und **Größe der Oberfläche** (90-150 %, vergrößert die ganze App; auch per Strg + / Strg - / Strg 0).
+- **Item Editor**: der vnum-Startwert, ab dem der Item Editor neue Items vorschlägt.
 
-## Server
+## Verbindung
 
-- **SSH**: Host/Port/Benutzername + Passwort oder privater Schlüssel - wird für alles gebraucht, was direkt auf dem Server liest/schreibt (Quest Builder, Regen-Editor, Mob Drop Editor, Server-Steuerung, Build & Deploy). Zugangsdaten liegen sicher im Windows Credential Manager, nicht im Klartext.
-- **MySQL**: Host/Port/Benutzername + Passwort - für alle Datenbank-Editoren (Item-, Shop-, Mob-Proto-Editor, Account-Verwaltung, Datenbank-Explorer, Aufwertungs-Editor, Dashboard-Statistiken).
-- **Mysql2Proto-Pfad**: lokaler Ordner des externen `Mysql2Proto.exe`-Tools - wird vom Item Editor gebraucht, um `item_proto` clientseitig neu zu erzeugen.
-- **VNUM-Bereich**: der vnum-Startwert, ab dem der Item Editor neue Items vorschlägt.
-- **Mob-Drop-Dateipfad, Regen-Basisordner, Locale-Dateipfad**: Server-Pfade zu den jeweiligen Dateien für Mob Drop Editor, Regen-Datei-Editor und Locale-Verwaltung.
-- **Server-Prozessnamen, Festplatten-Pfad**: für das Ressourcen-Monitoring im Dashboard (welche Prozesse gezählt werden, welcher Pfad für die Festplattenbelegung geprüft wird).
-- **Server-Neustart-Wartezeit**: Pause zwischen Stop und Start beim "Neustarten"-Knopf in der Server-Steuerung.
+- **Server-Profile**: jedes Profil merkt sich SSH- und MySQL-Zugang inklusive Passwörter (sicher im Windows Credential Manager, nicht im Klartext). „Aktivieren“ wechselt den Server, „Neues Profil“ legt einen weiteren an (erst Name, dann Zugangsdaten). Den Server wechseln kannst du genauso direkt auf der Startseite.
+- **SSH-Zugang** des aktiven Profils: Host/Port/Benutzername + Passwort oder privater Schlüssel - für alles, was direkt auf dem Server liest/schreibt (Quest Builder, Regen-Editor, Mob Drop Editor, Server-Steuerung, Build & Deploy).
+- **MySQL-Zugang** des aktiven Profils: für alle Datenbank-Editoren (Item-, Shop-, Mob-Proto-Editor, Account-Verwaltung, Datenbank-Explorer, Aufwertungs-Editor, Statistiken auf der Startseite).
+- „Testen & speichern“ prüft die Verbindung zuerst und übernimmt die Werte nur, wenn sie klappt - auch ins aktive Profil.
 
-## Client
+## Server-Pfade
 
-- **Client-Pfad**: der lokale Ordner deines Spiel-Clients - Grundlage für Item-Icons, Modul-Importer, Icon-Browser, 3D-Modell-Viewer.
-- **NPC-Liste, EterPackConsoleLz4-Pfad**: für die 3D-NPC-Vorschau bzw. das Neu-Packen von `icon.epk` beim Anlegen/Bearbeiten von Items.
+Wo die Dateien auf dem Gameserver liegen, nach Zweck gruppiert:
 
-## Sonstiges
+- **Drop-Dateien**: `mob_drop_item.txt`, `common_drop_item.txt`, `etc_drop_item.txt`, `drop_item_group.txt`, `special_item_group.txt`, `cube.txt`.
+- **Quests & Welt**: Quest-Ordner, Basisordner für Regen-Dateien, `translate.lua`.
+- **Server-Überwachung**: Prozessnamen und Festplatten-Pfad für die Startseite.
+- **Datenbank-Backups**: Backup-Ordner auf dem Server und die zu sichernden Datenbanken.
 
-- **Datenbank-Backup-Ordner**: wo `mysqldump`-Sicherungen abgelegt werden.
-- **Webhook-URL** (Discord o.ä.): für automatische Benachrichtigungen bei fehlgeschlagenen DB-Backups und wenn der Server-Prozess unerwartet verschwindet (nur solange M2Manager selbst offen ist, kein eigenständiger Server-Watchdog).
+## Client & Werkzeuge
+
+- **Client-Ordner**: der lokale Ordner deines Spiel-Clients - Grundlage für Item-Icons, Modul-Importer, Icon-Browser, 3D-Modell-Viewer.
+- **NPC-Liste**: nur nötig, wenn `npclist.txt` nicht automatisch gefunden wird.
+- **EterPackConsoleLz4.exe** und **Mysql2Proto-Ordner**: externe Werkzeuge, die der Item Editor beim Anlegen/Bearbeiten von Items aufruft.
+
+## Benachrichtigungen
+
+- **Webhook-URL** (Discord o.ä.): meldet fehlgeschlagene DB-Backups und wenn der Server-Prozess unerwartet verschwindet (nur solange M2Manager selbst offen ist, kein eigenständiger Server-Watchdog).
+
+## Updates
+
+- Aktuelle Version, „Nach Updates suchen“ und Installation neuer Versionen.

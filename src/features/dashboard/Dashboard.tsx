@@ -6,6 +6,9 @@ import { Button } from "@/components/ui/button";
 import { useNavigationStore } from "@/store/navigation";
 import { openManual } from "@/lib/manual";
 import { ResourceHistoryChart } from "./components/ResourceHistoryChart";
+import { ServerSwitcher } from "@/features/connection/ServerSwitcher";
+import { useConnectionProfiles } from "@/store/connectionProfiles";
+import { openSettings } from "@/store/settingsSection";
 import {
   CheckCircle2,
   XCircle,
@@ -90,6 +93,9 @@ export function Dashboard() {
   const [overviewError, setOverviewError] = useState<string | null>(null);
   const [refreshing, setRefreshing] = useState(false);
 
+  // Zählt bei jedem Server-Wechsel hoch -> Status/Statistiken neu laden.
+  const profileRevision = useConnectionProfiles((s) => s.revision);
+
   const [healthResults, setHealthResults] = useState<HealthCheckResult[] | null>(null);
   const [healthRunning, setHealthRunning] = useState(false);
   const [healthError, setHealthError] = useState<string | null>(null);
@@ -159,7 +165,10 @@ export function Dashboard() {
 
   useEffect(() => {
     refresh();
-  }, []);
+    // Alte Diagnose gehört zum vorherigen Server.
+    setHealthResults(null);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [profileRevision]);
 
   return (
     <div className="space-y-6">
@@ -176,6 +185,8 @@ export function Dashboard() {
         </Button>
       </div>
 
+      <ServerSwitcher />
+
       <section className="space-y-2">
         <h2 className="text-sm font-medium text-muted-foreground">
           {t("dashboard.connectionStatus")}
@@ -185,13 +196,13 @@ export function Dashboard() {
             label={t("dashboard.ssh")}
             status={sshStatus}
             detail={sshError}
-            onConfigure={() => setSection("settings")}
+            onConfigure={() => openSettings("connection")}
           />
           <StatusCard
             label={t("dashboard.mysql")}
             status={mysqlStatus}
             detail={mysqlError}
-            onConfigure={() => setSection("settings")}
+            onConfigure={() => openSettings("connection")}
           />
         </div>
       </section>
@@ -262,7 +273,7 @@ export function Dashboard() {
                   </>
                 ) : (
                   <div className="mt-1 text-sm text-muted-foreground">
-                    Nicht verfügbar - Pfad unter Einstellungen → Server prüfen.
+                    Nicht verfügbar - Pfad unter Einstellungen → Server-Pfade prüfen.
                   </div>
                 )}
               </div>
@@ -284,7 +295,7 @@ export function Dashboard() {
           {processError && <p className="text-sm text-destructive">{processError}</p>}
           {processes && processes.length === 0 && (
             <p className="text-sm text-muted-foreground">
-              Keine passenden Prozesse gefunden - Prozessnamen unter Einstellungen → Server prüfen.
+              Keine passenden Prozesse gefunden - Prozessnamen unter Einstellungen → Server-Pfade prüfen.
             </p>
           )}
           {processes && processes.length > 0 && (

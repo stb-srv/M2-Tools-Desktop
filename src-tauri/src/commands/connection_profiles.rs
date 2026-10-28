@@ -21,6 +21,12 @@ pub async fn list_connection_profiles(
 }
 
 #[tauri::command]
+pub async fn get_active_connection_profile_id(state: State<'_, AppState>) -> Result<Option<i64>, String> {
+    let conn = state.settings_db.lock().map_err(|e| e.to_string())?;
+    connection_profiles::active_id(&conn)
+}
+
+#[tauri::command]
 pub async fn activate_connection_profile(state: State<'_, AppState>, id: i64) -> Result<(), String> {
     let conn = state.settings_db.lock().map_err(|e| e.to_string())?;
     connection_profiles::activate(&conn, id)

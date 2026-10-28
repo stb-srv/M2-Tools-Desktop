@@ -1,29 +1,43 @@
 import { useEffect, useState } from "react";
 import { invoke } from "@tauri-apps/api/core";
 import { Button } from "@/components/ui/button";
-import { ConnStatusIcon, saveSetting, type TestState } from "./shared";
+import { Webhook } from "lucide-react";
+import {
+  ConnStatusIcon,
+  SettingRow,
+  SettingsCard,
+  saveSetting,
+  saveSettingWithFeedback,
+  type TestState,
+} from "./shared";
 
-export function NotificationsTab({ onSaved }: { onSaved: (label: string) => void }) {
+export function NotificationsTab() {
   const [webhookUrl, setWebhookUrl] = useState("");
+  const [stored, setStored] = useState("");
   const [webhookTestState, setWebhookTestState] = useState<TestState>("idle");
   const [webhookTestError, setWebhookTestError] = useState<string | null>(null);
 
   useEffect(() => {
     invoke<string | null>("get_setting", { key: "webhook_url" })
-      .then((v) => setWebhookUrl(v ?? ""))
+      .then((v) => {
+        setWebhookUrl(v ?? "");
+        setStored(v ?? "");
+      })
       .catch(() => {});
   }, []);
 
   async function commitWebhookUrl() {
-    await saveSetting("webhook_url", webhookUrl.trim());
-    onSaved("Webhook-URL gespeichert");
+    const value = webhookUrl.trim();
+    if (value === stored) return;
+    if (await saveSettingWithFeedback("webhook_url", value, "Webhook-URL")) setStored(value);
   }
 
   async function testWebhook() {
     setWebhookTestState("testing");
     setWebhookTestError(null);
     try {
-      await commitWebhookUrl();
+      await saveSetting("webhook_url", webhookUrl.trim());
+      setStored(webhookUrl.trim());
       await invoke("send_test_webhook");
       setWebhookTestState("ok");
     } catch (e) {
@@ -34,35 +48,32 @@ export function NotificationsTab({ onSaved }: { onSaved: (label: string) => void
 
   return (
     <div className="space-y-4">
-      <h2 className="text-base font-semibold">Benachrichtigungen</h2>
-      <section className="space-y-1">
-        <label className="flex items-center gap-2 text-sm">
-          Webhook-URL (Discord o.ä.)
+      <SettingsCard title="Webhook (Discord o.ä.)" icon={Webhook}>
+        <SettingRow
+          label="Webhook-URL"
+          hint="Meldet fehlgeschlagene Datenbank-Backups und (solange die App offen ist) wenn die überwachten Server-Prozesse verschwinden. Leer lassen schaltet Benachrichtigungen ab."
+        >
           <input
             value={webhookUrl}
             onChange={(e) => setWebhookUrl(e.target.value)}
             onBlur={commitWebhookUrl}
             placeholder="https://discord.com/api/webhooks/…"
-            className="w-96 rounded-md border border-border bg-background px-2 py-1 text-sm"
+            className="w-full max-w-2xl rounded-md border border-border bg-background px-3 py-2 text-sm"
           />
-        </label>
-        <p className="text-xs text-muted-foreground">
-          Wird bei fehlgeschlagenen Datenbank-Backups und (solange die App geöffnet ist) beim
-          Verschwinden der überwachten Server-Prozesse benachrichtigt. Leer lassen deaktiviert
-          Benachrichtigungen.
-        </p>
-        <div className="flex items-center gap-2 pt-1">
-          <Button
-            variant="outline"
-            onClick={testWebhook}
-            disabled={!webhookUrl.trim() || webhookTestState === "testing"}
-          >
-            {webhookTestState === "testing" ? "Sende…" : "Testnachricht senden"}
-          </Button>
-          <ConnStatusIcon state={webhookTestState} />
-        </div>
-        {webhookTestError && <p className="text-sm text-destructive">{webhookTestError}</p>}
-      </section>
+          <div className="flex items-center gap-2 pt-1">
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={testWebhook}
+              disabled={!webhookUrl.trim() || webhookTestState === "testing"}
+            >
+              {webhookTestState === "testing" ? "Sende…" : "Testnachricht senden"}
+            </Button>
+            <ConnStatusIcon state={webhookTestState} />
+          </div>
+          {webhookTestError && <p className="text-sm text-destructive">{webhookTestError}</p>}
+        </SettingRow>
+      </SettingsCard>
     </div>
   );
 }
