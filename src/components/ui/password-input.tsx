@@ -18,7 +18,7 @@ export function PasswordInput({ value, onChange, placeholder, className }: Passw
         value={value}
         onChange={(e) => onChange(e.target.value)}
         placeholder={placeholder}
-        className="w-full rounded-md border border-border bg-background px-2 py-1 pr-8 text-sm"
+        className="w-full rounded-md border border-border bg-background px-3 py-2 pr-8 text-sm"
       />
       <button
         type="button"

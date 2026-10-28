@@ -12,6 +12,8 @@ Feature-Historie mit allen Details siehe `STATUS.md`.
 
 - **Server-Auswahl auf der Startseite**: das aktive Server-Profil lässt sich direkt oben auf der Startseite wechseln, dort gibt es auch „Neues Profil“ (erst Name, dann SSH, dann MySQL). Die Startseite lädt nach einem Wechsel automatisch neu. Eine bestehende Verbindung ohne Profil wird einmalig als erstes Profil übernommen.
 - **Einstellungen neu gegliedert**: Seitennavigation mit Allgemein · Verbindung · Server-Pfade · Client & Werkzeuge · Benachrichtigungen · Updates; Server-Pfade in Karten nach Zweck gruppiert; jede Speicherung wird bestätigt, Fehler werden angezeigt statt still verschluckt.
+- **Einstellungen übersichtlicher und responsiv**: nutzen die volle Fensterbreite, aktiver Bereich deutlich hervorgehoben mit eigener Kopfzeile, Karten mit Symbol, Beschriftung links und Eingabe rechts; auf schmalen Fenstern rutscht die Bereichsauswahl nach oben.
+- **Größe der Oberfläche** (Allgemein): 90-150 %, auch per Strg + / Strg - / Strg 0.
 - **Ersteinrichtung** fragt zuerst den Profilnamen und legt daraus direkt das erste Server-Profil an.
 
 ## [0.16.0] - 2026-10-26

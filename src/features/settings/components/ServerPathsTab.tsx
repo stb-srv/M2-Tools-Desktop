@@ -1,10 +1,12 @@
-import { SectionHeader, SettingsCard, TextSetting, type TextSettingDef } from "./shared";
+import { Activity, DatabaseBackup, Map as MapIcon, PackageOpen, type LucideIcon } from "lucide-react";
+import { SettingsCard, TextSetting, type TextSettingDef } from "./shared";
 
 // Alle Pfade auf dem Gameserver, nach Einsatzzweck gruppiert. Sie gelten für
 // den gerade aktiven Server (Profile speichern nur die Verbindung).
-const GROUPS: { title: string; description: string; fields: TextSettingDef[] }[] = [
+const GROUPS: { title: string; description: string; icon: LucideIcon; fields: TextSettingDef[] }[] = [
   {
     title: "Drop-Dateien",
+    icon: PackageOpen,
     description: "Werden per SFTP geladen und gespeichert, mit Backup vor jedem Überschreiben.",
     fields: [
       {
@@ -47,6 +49,7 @@ const GROUPS: { title: string; description: string; fields: TextSettingDef[] }[]
   },
   {
     title: "Quests & Welt",
+    icon: MapIcon,
     description: "Quest Builder, Regen-Datei-Editor und Locale-Verwaltung.",
     fields: [
       {
@@ -81,6 +84,7 @@ const GROUPS: { title: string; description: string; fields: TextSettingDef[] }[]
   },
   {
     title: "Server-Überwachung",
+    icon: Activity,
     description: "Was die Startseite als Prozesse und Festplattenbelegung anzeigt.",
     fields: [
       {
@@ -106,6 +110,7 @@ const GROUPS: { title: string; description: string; fields: TextSettingDef[] }[]
   },
   {
     title: "Datenbank-Backups",
+    icon: DatabaseBackup,
     description: "Für die Seite Backups → Datenbank.",
     fields: [
       {
@@ -135,12 +140,8 @@ const GROUPS: { title: string; description: string; fields: TextSettingDef[] }[]
 export function ServerPathsTab() {
   return (
     <div className="space-y-4">
-      <SectionHeader
-        title="Server-Pfade"
-        description="Wo die Dateien auf dem Gameserver liegen. Gespeichert wird beim Verlassen eines Feldes."
-      />
       {GROUPS.map((group) => (
-        <SettingsCard key={group.title} title={group.title} description={group.description}>
+        <SettingsCard key={group.title} title={group.title} description={group.description} icon={group.icon}>
           {group.fields.map((field) => (
             <TextSetting key={field.key} def={field} />
           ))}

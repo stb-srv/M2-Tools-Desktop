@@ -4,7 +4,7 @@ Alles, was die anderen Module brauchen, an einer Stelle - links nach Bereichen g
 
 ## Allgemein
 
-- **Darstellung**: Design (Hell/Dunkel/System) und Sprache.
+- **Darstellung**: Design (Hell/Dunkel/System), Sprache und **Größe der Oberfläche** (90-150 %, vergrößert die ganze App; auch per Strg + / Strg - / Strg 0).
 - **Item Editor**: der vnum-Startwert, ab dem der Item Editor neue Items vorschlägt.
 
 ## Verbindung

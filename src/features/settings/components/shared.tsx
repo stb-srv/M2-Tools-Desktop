@@ -3,7 +3,7 @@ import { invoke } from "@tauri-apps/api/core";
 import { open } from "@tauri-apps/plugin-dialog";
 import { Button } from "@/components/ui/button";
 import { toast } from "@/components/ui/toast";
-import { CheckCircle2, FolderOpen, X, XCircle } from "lucide-react";
+import { CheckCircle2, FolderOpen, X, XCircle, type LucideIcon } from "lucide-react";
 import { cn } from "@/lib/utils";
 
 export type TestState = "idle" | "testing" | "ok" | "error";
@@ -30,34 +30,35 @@ export function ConnStatusIcon({ state }: { state: TestState }) {
   return null;
 }
 
-/** Überschrift einer Einstellungs-Seite. */
-export function SectionHeader({ title, description }: { title: string; description?: string }) {
-  return (
-    <div className="space-y-1">
-      <h2 className="text-lg font-semibold">{title}</h2>
-      {description && <p className="text-sm text-muted-foreground">{description}</p>}
-    </div>
-  );
-}
-
 /** Eine thematische Karte innerhalb einer Einstellungs-Seite. */
 export function SettingsCard({
   title,
   description,
+  icon: Icon,
   children,
   actions,
+  className,
 }: {
   title: string;
   description?: React.ReactNode;
+  icon?: LucideIcon;
   children: React.ReactNode;
   actions?: React.ReactNode;
+  className?: string;
 }) {
   return (
-    <section className="rounded-lg border border-border bg-card">
-      <div className="flex items-start justify-between gap-3 border-b border-border px-4 py-3">
-        <div className="space-y-0.5">
-          <h3 className="text-sm font-semibold">{title}</h3>
-          {description && <p className="text-xs text-muted-foreground">{description}</p>}
+    <section className={cn("overflow-hidden rounded-xl border border-border bg-card shadow-sm", className)}>
+      <div className="flex flex-wrap items-center justify-between gap-3 border-b border-border bg-muted/50 px-5 py-3.5">
+        <div className="flex min-w-0 items-center gap-3">
+          {Icon && (
+            <div className="flex size-9 shrink-0 items-center justify-center rounded-lg bg-primary/10 text-primary">
+              <Icon className="size-[1.125rem]" />
+            </div>
+          )}
+          <div className="min-w-0">
+            <h3 className="text-base font-semibold leading-tight">{title}</h3>
+            {description && <p className="mt-0.5 text-sm text-muted-foreground">{description}</p>}
+          </div>
         </div>
         {actions}
       </div>
@@ -66,7 +67,11 @@ export function SettingsCard({
   );
 }
 
-/** Eine Zeile innerhalb einer SettingsCard: Beschriftung + Hilfe links, Eingabe darunter. */
+/**
+ * Eine Zeile innerhalb einer SettingsCard. Ab mittlerer Breite steht
+ * Beschriftung + Erklärung links und die Eingabe rechts daneben, schmal
+ * untereinander.
+ */
 export function SettingRow({
   label,
   hint,
@@ -77,10 +82,12 @@ export function SettingRow({
   children: React.ReactNode;
 }) {
   return (
-    <div className="space-y-1.5 px-4 py-3">
-      <div className="text-sm font-medium">{label}</div>
-      {children}
-      {hint && <p className="text-xs text-muted-foreground">{hint}</p>}
+    <div className="grid gap-x-8 gap-y-2 px-5 py-4 md:grid-cols-[minmax(12rem,20rem)_1fr] md:items-start">
+      <div className="space-y-1">
+        <div className="text-sm font-medium">{label}</div>
+        {hint && <p className="text-sm leading-snug text-muted-foreground">{hint}</p>}
+      </div>
+      <div className="min-w-0 space-y-2">{children}</div>
     </div>
   );
 }
@@ -135,7 +142,7 @@ export function TextSetting({ def }: { def: TextSettingDef }) {
         onKeyDown={(e) => e.key === "Enter" && (e.target as HTMLInputElement).blur()}
         placeholder={def.placeholder}
         className={cn(
-          "w-full rounded-md border bg-background px-2 py-1.5 font-mono text-sm",
+          "w-full max-w-2xl rounded-md border bg-background px-3 py-2 font-mono text-sm",
           error ? "border-destructive" : "border-border",
           def.className,
         )}
@@ -184,10 +191,10 @@ export function PathSetting({ def }: { def: PathSettingDef }) {
 
   return (
     <SettingRow label={def.label} hint={def.hint}>
-      <div className="flex items-center gap-2">
+      <div className="flex max-w-2xl items-center gap-2">
         <div
           className={cn(
-            "min-w-0 flex-1 truncate rounded-md border border-border bg-muted/40 px-2 py-1.5 font-mono text-sm",
+            "min-w-0 flex-1 truncate rounded-md border border-border bg-muted/40 px-3 py-2 font-mono text-sm",
             !value && "font-sans text-muted-foreground",
           )}
           title={value}

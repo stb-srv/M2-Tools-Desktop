@@ -1,7 +1,7 @@
 import { useEffect, useState } from "react";
 import { Button } from "@/components/ui/button";
 import { toast } from "@/components/ui/toast";
-import { CheckCircle2, Plus, Trash2 } from "lucide-react";
+import { CheckCircle2, Database, Plus, Server, Terminal, Trash2, type LucideIcon } from "lucide-react";
 import {
   EMPTY_MYSQL,
   EMPTY_SSH,
@@ -19,7 +19,7 @@ import {
 import { useConnectionProfiles, type ConnectionProfile } from "@/store/connectionProfiles";
 import { MysqlFields, SshFields, TestResult, type TestState } from "@/features/connection/ConnectionFields";
 import { NewProfileDialog } from "@/features/connection/NewProfileDialog";
-import { SectionHeader, SettingsCard } from "./shared";
+import { SettingsCard } from "./shared";
 
 export function ConnectionTab() {
   const { profiles, activeId, revision, reload, activate, remove, syncActive } = useConnectionProfiles();
@@ -73,13 +73,10 @@ export function ConnectionTab() {
 
   return (
     <div className="space-y-4">
-      <SectionHeader
-        title="Verbindung"
-        description="Deine Server-Profile. Den aktiven Server wechselst du auch direkt auf der Startseite."
-      />
 
       <SettingsCard
         title="Server-Profile"
+        icon={Server}
         description="Jedes Profil merkt sich SSH- und MySQL-Zugang inkl. Passwörter (Windows Anmeldeinformationsverwaltung)."
         actions={
           <Button size="sm" onClick={() => setDialogOpen(true)}>
@@ -89,14 +86,17 @@ export function ConnectionTab() {
         }
       >
         {profiles.length === 0 && (
-          <p className="px-4 py-3 text-sm text-muted-foreground">Noch keine Profile angelegt.</p>
+          <p className="px-5 py-4 text-sm text-muted-foreground">Noch keine Profile angelegt.</p>
         )}
         {profiles.map((profile) => {
           const isActive = profile.id === activeId;
           return (
-            <div key={profile.id} className="flex items-center gap-3 px-4 py-2.5 text-sm">
+            <div
+              key={profile.id}
+              className={`flex flex-wrap items-center gap-3 border-l-4 px-5 py-3 text-sm ${isActive ? "border-l-green-600 bg-green-600/5" : "border-l-transparent"}`}
+            >
               <div className="min-w-0 flex-1">
-                <div className="flex items-center gap-2 font-medium">
+                <div className="flex items-center gap-2 text-base font-medium">
                   {profile.name}
                   {isActive && (
                     <span className="flex items-center gap-1 rounded-full bg-green-600/15 px-2 py-0.5 text-[11px] font-medium text-green-600">
@@ -142,42 +142,46 @@ export function ConnectionTab() {
         })}
       </SettingsCard>
 
-      <ConnectionEditor
-        title="SSH-Zugang"
-        description={
-          active
-            ? `Gehört zum aktiven Profil „${active.name}“. Für Server-Steuerung, Logs, Quests und alle Server-Dateien.`
-            : "Für Server-Steuerung, Logs, Quests und alle Server-Dateien."
-        }
-        canSave={sshComplete(ssh)}
-        values={ssh}
-        onSave={async () => {
-          await testSsh(ssh);
-          await saveSsh(ssh);
-          await syncActive();
-        }}
-      >
-        <SshFields value={ssh} onChange={setSsh} />
-      </ConnectionEditor>
+      <div className="grid gap-4 2xl:grid-cols-2">
+        <ConnectionEditor
+          title="SSH-Zugang"
+          icon={Terminal}
+          description={
+            active
+              ? `Gehört zum aktiven Profil „${active.name}“. Für Server-Steuerung, Logs, Quests und alle Server-Dateien.`
+              : "Für Server-Steuerung, Logs, Quests und alle Server-Dateien."
+          }
+          canSave={sshComplete(ssh)}
+          values={ssh}
+          onSave={async () => {
+            await testSsh(ssh);
+            await saveSsh(ssh);
+            await syncActive();
+          }}
+        >
+          <SshFields value={ssh} onChange={setSsh} />
+        </ConnectionEditor>
 
-      <ConnectionEditor
-        title="MySQL-Zugang"
-        description={
-          active
-            ? `Gehört zum aktiven Profil „${active.name}“. Für alle Datenbank-Editoren und die Statistiken.`
-            : "Für alle Datenbank-Editoren und die Statistiken."
-        }
-        canSave={mysqlComplete(mysql)}
-        values={mysql}
-        onSave={async () => {
-          await testMysql(mysql);
-          await connectMysql(mysql);
-          await saveMysql(mysql);
-          await syncActive();
-        }}
-      >
-        <MysqlFields value={mysql} onChange={setMysql} />
-      </ConnectionEditor>
+        <ConnectionEditor
+          title="MySQL-Zugang"
+          icon={Database}
+          description={
+            active
+              ? `Gehört zum aktiven Profil „${active.name}“. Für alle Datenbank-Editoren und die Statistiken.`
+              : "Für alle Datenbank-Editoren und die Statistiken."
+          }
+          canSave={mysqlComplete(mysql)}
+          values={mysql}
+          onSave={async () => {
+            await testMysql(mysql);
+            await connectMysql(mysql);
+            await saveMysql(mysql);
+            await syncActive();
+          }}
+        >
+          <MysqlFields value={mysql} onChange={setMysql} />
+        </ConnectionEditor>
+      </div>
 
       {dialogOpen && <NewProfileDialog onClose={() => setDialogOpen(false)} />}
     </div>
@@ -186,6 +190,7 @@ export function ConnectionTab() {
 
 function ConnectionEditor({
   title,
+  icon,
   description,
   canSave,
   values,
@@ -193,6 +198,7 @@ function ConnectionEditor({
   children,
 }: {
   title: string;
+  icon: LucideIcon;
   description: string;
   canSave: boolean;
   values: unknown;
@@ -221,11 +227,11 @@ function ConnectionEditor({
   }
 
   return (
-    <SettingsCard title={title} description={description}>
-      <div className="space-y-3 px-4 py-3">
+    <SettingsCard title={title} description={description} icon={icon} className="h-fit">
+      <div className="max-w-3xl space-y-4 px-5 py-4">
         {children}
         <div className="flex items-start gap-3">
-          <Button size="sm" onClick={save} disabled={!canSave || state === "testing"} className="shrink-0">
+          <Button onClick={save} disabled={!canSave || state === "testing"} className="shrink-0">
             {state === "testing" ? "Teste…" : "Testen & speichern"}
           </Button>
           <TestResult state={state} error={error} />

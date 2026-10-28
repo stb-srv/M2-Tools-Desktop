@@ -1,14 +1,11 @@
-import { PathSetting, SectionHeader, SettingsCard } from "./shared";
+import { Gamepad2, Wrench } from "lucide-react";
+import { PathSetting, SettingsCard } from "./shared";
 
 export function ClientTab() {
   return (
     <div className="space-y-4">
-      <SectionHeader
-        title="Client & Werkzeuge"
-        description="Lokale Ordner und Programme auf diesem PC."
-      />
 
-      <SettingsCard title="Spiel-Client">
+      <SettingsCard title="Spiel-Client" icon={Gamepad2}>
         <PathSetting
           def={{
             key: "client_path",
@@ -42,7 +39,7 @@ export function ClientTab() {
         />
       </SettingsCard>
 
-      <SettingsCard title="Externe Werkzeuge" description="Werden vom Item Editor beim Anlegen und Bearbeiten von Items aufgerufen.">
+      <SettingsCard title="Externe Werkzeuge" icon={Wrench} description="Werden vom Item Editor beim Anlegen und Bearbeiten von Items aufgerufen.">
         <PathSetting
           def={{
             key: "eterpack_tool_path",

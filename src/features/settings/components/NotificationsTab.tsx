@@ -1,9 +1,9 @@
 import { useEffect, useState } from "react";
 import { invoke } from "@tauri-apps/api/core";
 import { Button } from "@/components/ui/button";
+import { Webhook } from "lucide-react";
 import {
   ConnStatusIcon,
-  SectionHeader,
   SettingRow,
   SettingsCard,
   saveSetting,
@@ -48,8 +48,7 @@ export function NotificationsTab() {
 
   return (
     <div className="space-y-4">
-      <SectionHeader title="Benachrichtigungen" />
-      <SettingsCard title="Webhook (Discord o.ä.)">
+      <SettingsCard title="Webhook (Discord o.ä.)" icon={Webhook}>
         <SettingRow
           label="Webhook-URL"
           hint="Meldet fehlgeschlagene Datenbank-Backups und (solange die App offen ist) wenn die überwachten Server-Prozesse verschwinden. Leer lassen schaltet Benachrichtigungen ab."
@@ -59,7 +58,7 @@ export function NotificationsTab() {
             onChange={(e) => setWebhookUrl(e.target.value)}
             onBlur={commitWebhookUrl}
             placeholder="https://discord.com/api/webhooks/…"
-            className="w-full rounded-md border border-border bg-background px-2 py-1.5 text-sm"
+            className="w-full max-w-2xl rounded-md border border-border bg-background px-3 py-2 text-sm"
           />
           <div className="flex items-center gap-2 pt-1">
             <Button
