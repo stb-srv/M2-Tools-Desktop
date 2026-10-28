@@ -12,10 +12,9 @@ import {
   RefreshCw,
   CheckCircle2,
   AlertTriangle,
-  HelpCircle,
   ListChecks,
 } from "lucide-react";
-import { openManual } from "@/lib/manual";
+import { PageHeader } from "@/components/layout/PageHeader";
 
 interface LocaleEntry {
   key: string;
@@ -210,17 +209,17 @@ export function LocaleEditor() {
   return (
     <div className="flex h-full flex-col gap-3">
       <div>
-        <div className="flex items-center gap-2">
-          <h1 className="text-2xl font-semibold">Locale-String-Verwaltung</h1>
-          <Button variant="ghost" size="icon-sm" title="Hilfe zu diesem Modul" onClick={() => openManual("locale-editor")}>
-            <HelpCircle className="size-4" />
-          </Button>
-          <Button variant="outline" size="sm" className="ml-auto gap-1.5" onClick={runCompletenessCheck}>
-            <ListChecks className="size-3.5" />
-            Vollständigkeit prüfen
-          </Button>
-        </div>
-        <p className="text-sm text-muted-foreground">
+        <PageHeader
+          module="locale-editor"
+          title="Locale-String-Verwaltung"
+          actions={
+            <Button variant="outline" size="sm" className="gap-1.5" onClick={runCompletenessCheck}>
+              <ListChecks className="size-3.5" />
+              Vollständigkeit prüfen
+            </Button>
+          }
+        />
+        <p className="max-w-4xl text-sm text-muted-foreground">
           Bearbeitet <code>share/translate.lua</code> - die Textbausteine, die Quests über{" "}
           <code>gameforge.questname._key</code> referenzieren. Speichern ändert nur den
           ausgewählten Namespace, der Rest der ~8800-Zeilen-Datei bleibt unangetastet.

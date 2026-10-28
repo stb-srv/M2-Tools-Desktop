@@ -35,7 +35,8 @@ pub fn set_setting(
     value: String,
 ) -> Result<(), String> {
     let conn = state.settings_db.lock().map_err(|e| e.to_string())?;
-    settings::set_path(&conn, &key, &value)
+    settings::set_path(&conn, &key, &value)?;
+    crate::connection_profiles::mirror_setting(&conn, &key, &value)
 }
 
 #[tauri::command]

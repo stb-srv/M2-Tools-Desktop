@@ -1,0 +1,53 @@
+name: CI
+
+# Prüft jeden Pull Request und jeden Push auf master: Typecheck + Build des
+# Frontends, Frontend-Tests und die Rust-Tests. Integrationstests, die echte
+# Client-Dateien, eine echte Datenbank oder einen Server brauchen, sind mit
+# #[ignore] markiert und laufen hier bewusst nicht (siehe src-tauri/src/test_support.rs).
+on:
+  pull_request:
+  push:
+    branches: [master]
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  frontend:
+    name: Frontend (Typecheck, Build, Tests)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+
+      - run: npm ci
+      - run: npm run build
+      - run: npm test
+
+  rust:
+    name: Rust-Tests
+    # Windows wie die ausgelieferte App - dort läuft auch der
+    # Schlüsselbund-Test (Windows Credential Manager) mit.
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: dtolnay/rust-toolchain@stable
+
+      - uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: "src-tauri -> target"
+
+      # tauri_build prüft beim Kompilieren, dass frontendDist existiert.
+      - name: Platzhalter für das Frontend-Bundle
+        shell: bash
+        run: mkdir -p dist && echo '<!doctype html>' > dist/index.html
+
+      - name: cargo test
+        working-directory: src-tauri
+        run: cargo test --lib

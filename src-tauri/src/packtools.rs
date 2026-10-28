@@ -838,11 +838,9 @@ mod tests {
         std::fs::remove_dir_all(&scratch).ok();
     }
 
-    // Uses a scratch temp dir standing in for the client folder - never
-    // touches the real client, unlike the icon *read* tests in icons.rs
-    // which intentionally verify against the real machine.
+    // Uses a scratch temp dir standing in for the client folder and a
+    // generated image as icon source - runs anywhere, no real client needed.
     #[test]
-    #[ignore = "braucht echte Client-Dateien unter C:\\Users\\DevSteven - lokal mit `cargo test -- --ignored` ausführen"]
     fn writes_icon_and_backs_up_existing_file() {
         let scratch = std::env::temp_dir().join(format!(
             "m2manager_packtools_test_{}",
@@ -854,8 +852,9 @@ mod tests {
         std::fs::create_dir_all(&scratch).expect("create scratch dir");
         let client_path = scratch.to_str().unwrap();
 
-        // Real client icon file used purely as readable source image input.
-        let source = r"C:\Users\DevSteven\Desktop\Client\pack\icon\icon\item\money.tga";
+        // Any readable image works as source - no real client needed.
+        let source_path = crate::test_support::sample_image(&scratch.join("src"), "source.png");
+        let source = source_path.to_str().unwrap();
         let written = write_icon_tga(client_path, 500001, source).expect("write_icon_tga failed");
         assert!(written.exists());
         assert_eq!(written.file_name().unwrap(), "500001.tga");
@@ -967,7 +966,11 @@ mod tests {
     // synthetic fixture - skips if this machine doesn't have that module.
     #[test]
     fn places_texture_at_absolute_reference_path_for_real_weapon() {
-        let client_path = r"C:\Users\DevSteven\Desktop\Client";
+        let Some(client_dir) = crate::test_support::try_client_dir() else {
+            eprintln!("skipping: no client folder configured");
+            return;
+        };
+        let client_path = client_dir.to_str().unwrap();
         if !Path::new(client_path).join("granny2.dll").exists() {
             eprintln!("skipping: granny2.dll not present on this machine");
             return;
@@ -1136,7 +1139,6 @@ mod tests {
     }
 
     #[test]
-    #[ignore = "braucht echte Client-Dateien unter C:\\Users\\DevSteven - lokal mit `cargo test -- --ignored` ausführen"]
     fn deletes_item_icon_and_backs_up_first() {
         let scratch = std::env::temp_dir().join(format!(
             "m2manager_packtools_deleteicon_test_{}",
@@ -1148,7 +1150,8 @@ mod tests {
         std::fs::create_dir_all(&scratch).expect("create scratch dir");
         let client_path = scratch.to_str().unwrap();
 
-        let source = r"C:\Users\DevSteven\Desktop\Client\pack\icon\icon\item\money.tga";
+        let source_path = crate::test_support::sample_image(&scratch.join("src"), "source.png");
+        let source = source_path.to_str().unwrap();
         write_icon_tga(client_path, 500001, source).expect("seed icon");
 
         let deleted = delete_item_icon(client_path, 500001).expect("delete failed");

@@ -1,11 +1,9 @@
 import { useState } from "react";
-import { Button } from "@/components/ui/button";
-import { HelpCircle } from "lucide-react";
-import { openManual } from "@/lib/manual";
 import { PackageImporter } from "./components/PackageImporter";
 import { IconItemImporter } from "./components/IconItemImporter";
 import { ImportHistory } from "./components/ImportHistory";
 import { QuickRemoveItem } from "./components/QuickRemoveItem";
+import { PageHeader } from "@/components/layout/PageHeader";
 
 // Re-exported so ModuleImporter.test.ts (colocated, per the project's test
 // convention) can keep importing from "./ModuleImporter" - the actual
@@ -20,13 +18,8 @@ export function ModuleImporter() {
   const [mode, setMode] = useState<ImporterMode>("package");
 
   return (
-    <div className="max-w-3xl space-y-6 pb-10">
-      <div className="flex items-center gap-2">
-        <h1 className="text-2xl font-semibold">Modul-Importer</h1>
-        <Button variant="ghost" size="icon-sm" title="Hilfe zu diesem Modul" onClick={() => openManual("module-importer")}>
-          <HelpCircle className="size-4" />
-        </Button>
-      </div>
+    <div className="space-y-6 pb-10">
+      <PageHeader module="module-importer" title="Modul-Importer" />
 
       <div className="flex overflow-hidden rounded-md border border-border text-sm w-fit">
         <button

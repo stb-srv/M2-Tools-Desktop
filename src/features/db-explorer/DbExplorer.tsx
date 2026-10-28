@@ -2,8 +2,8 @@ import { useEffect, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { invoke } from "@tauri-apps/api/core";
 import { Button } from "@/components/ui/button";
-import { Search, ChevronLeft, ChevronRight, Key, HelpCircle } from "lucide-react";
-import { openManual } from "@/lib/manual";
+import { Search, ChevronLeft, ChevronRight, Key } from "lucide-react";
+import { PageHeader } from "@/components/layout/PageHeader";
 
 interface TableInfo {
   name: string;
@@ -132,13 +132,8 @@ export function DbExplorer() {
   if (connected === false) {
     return (
       <div className="space-y-2">
-        <div className="flex items-center gap-2">
-          <h1 className="text-2xl font-semibold">{t("nav.dbExplorer")}</h1>
-          <Button variant="ghost" size="icon-sm" title="Hilfe zu diesem Modul" onClick={() => openManual("db-explorer")}>
-            <HelpCircle className="size-4" />
-          </Button>
-        </div>
-        <p className="text-sm text-muted-foreground">
+        <PageHeader module="db-explorer" title={t("nav.dbExplorer")} />
+        <p className="max-w-4xl text-sm text-muted-foreground">
           Keine aktive MySQL-Verbindung. Bitte unter Verbindungen einrichten.
         </p>
       </div>

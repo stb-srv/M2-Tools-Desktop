@@ -15,10 +15,9 @@ import {
   Eye,
   AlertTriangle,
   X,
-  HelpCircle,
 } from "lucide-react";
 import { toast } from "@/components/ui/toast";
-import { openManual } from "@/lib/manual";
+import { PageHeader } from "@/components/layout/PageHeader";
 
 interface RemoteEntry {
   name: string;
@@ -140,13 +139,8 @@ export function BackupBrowser() {
   return (
     <div className="flex h-full flex-col gap-3">
       <div>
-        <div className="flex items-center gap-2">
-          <h1 className="text-2xl font-semibold">Datei-Backups</h1>
-          <Button variant="ghost" size="icon-sm" title="Hilfe zu diesem Modul" onClick={() => openManual("backup-browser")}>
-            <HelpCircle className="size-4" />
-          </Button>
-        </div>
-        <p className="text-sm text-muted-foreground">
+        <PageHeader module="backup-browser" title="Datei-Backups" />
+        <p className="max-w-4xl text-sm text-muted-foreground">
           Jeder Editor (Item Editor, Mob Drop Editor, Quest Builder, Regen-Datei-Editor,
           Locale-Verwaltung) legt vor jedem Überschreiben/Löschen ein Backup direkt neben der
           Originaldatei an, in einem <code>{BACKUP_FOLDER_NAME}</code>-Ordner - hier durchsuchbar

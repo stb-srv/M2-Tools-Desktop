@@ -491,33 +491,9 @@ mod tests {
     // types, which sqlx silently turned into decode failures swallowed by
     // `.unwrap_or_default()`.
     #[tokio::test]
-    #[ignore = "braucht die echte Dev-Datenbank des Entwickler-PCs - lokal mit `cargo test -- --ignored` ausführen"]
+    #[ignore = "braucht eine echte Metin2-Datenbank (in M2Manager eingerichtete MySQL-Verbindung) - mit `cargo test -- --ignored` ausführen"]
     async fn get_item_proto_reads_real_nonzero_values() {
-        let conn = rusqlite::Connection::open(
-            r"C:\Users\DevSteven\AppData\Roaming\com.m2manager.app\m2manager.sqlite",
-        )
-        .expect("open settings db");
-        let get = |key: &str| -> Option<String> {
-            conn.query_row("SELECT value FROM paths WHERE key = ?1", [key], |r| r.get(0))
-                .ok()
-        };
-        let host = get("mysql_host").expect("mysql_host not configured on this machine");
-        let port: u16 = get("mysql_port")
-            .unwrap_or_else(|| "3306".into())
-            .parse()
-            .unwrap();
-        let user = get("mysql_username").expect("mysql_username not configured");
-        let password = keyring::Entry::new("m2manager", "mysql_password")
-            .unwrap()
-            .get_password()
-            .expect("mysql_password credential not stored");
-
-        let url = format!("mysql://{user}:{password}@{host}:{port}/player");
-        let pool = sqlx::mysql::MySqlPoolOptions::new()
-            .max_connections(1)
-            .connect(&url)
-            .await
-            .expect("connect to dev DB");
+        let pool = crate::test_support::mysql_pool().await;
 
         let item = get_item_proto(&pool, 3219)
             .await
@@ -529,30 +505,7 @@ mod tests {
     }
 
     async fn real_pool() -> MySqlPool {
-        let conn = rusqlite::Connection::open(
-            r"C:\Users\DevSteven\AppData\Roaming\com.m2manager.app\m2manager.sqlite",
-        )
-        .expect("open settings db");
-        let get = |key: &str| -> Option<String> {
-            conn.query_row("SELECT value FROM paths WHERE key = ?1", [key], |r| r.get(0))
-                .ok()
-        };
-        let host = get("mysql_host").expect("mysql_host not configured on this machine");
-        let port: u16 = get("mysql_port")
-            .unwrap_or_else(|| "3306".into())
-            .parse()
-            .unwrap();
-        let user = get("mysql_username").expect("mysql_username not configured");
-        let password = keyring::Entry::new("m2manager", "mysql_password")
-            .unwrap()
-            .get_password()
-            .expect("mysql_password credential not stored");
-        let url = format!("mysql://{user}:{password}@{host}:{port}/player");
-        sqlx::mysql::MySqlPoolOptions::new()
-            .max_connections(1)
-            .connect(&url)
-            .await
-            .expect("connect to dev DB")
+        crate::test_support::mysql_pool().await
     }
 
     fn minimal_item(vnum: u32, vnum_range: u32, name: &str) -> ItemProtoInput {
@@ -613,7 +566,7 @@ mod tests {
     // reserves the OPEN interval `(X, X+N)` - X itself is already a literal
     // row, and X+N is the first vnum *not* covered.
     #[tokio::test]
-    #[ignore = "braucht die echte Dev-Datenbank des Entwickler-PCs - lokal mit `cargo test -- --ignored` ausführen"]
+    #[ignore = "braucht eine echte Metin2-Datenbank (in M2Manager eingerichtete MySQL-Verbindung) - mit `cargo test -- --ignored` ausführen"]
     async fn vnum_checks_respect_vnum_range_aliasing() {
         let pool = real_pool().await;
 

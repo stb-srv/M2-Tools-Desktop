@@ -3,12 +3,12 @@ import { invoke } from "@tauri-apps/api/core";
 import { runAsyncAction } from "@/lib/asyncAction";
 import { logActivity } from "@/lib/logActivity";
 import { Button } from "@/components/ui/button";
-import { Search, Plus, Trash2, RefreshCw, CheckCircle2, AlertTriangle, Info, Package, HelpCircle, Undo2 } from "lucide-react";
+import { Search, Plus, Trash2, RefreshCw, CheckCircle2, AlertTriangle, Info, Package, Undo2 } from "lucide-react";
 import { useNavigationStore, reportSectionDirty } from "@/store/navigation";
 import { useSaveShortcut } from "@/lib/useSaveShortcut";
-import { openManual } from "@/lib/manual";
 import { toast } from "@/components/ui/toast";
 import { EntityBrowser } from "@/features/shared/EntityBrowser";
+import { PageHeader } from "@/components/layout/PageHeader";
 
 const GIFTBOX_TYPE = 23;
 const FLAG_STACKABLE = 1 << 2;
@@ -528,14 +528,9 @@ export function BoxEditor() {
   const selected = selectedIndex !== null ? groups?.[selectedIndex] : null;
 
   return (
-    <div className="max-w-5xl space-y-6 pb-10">
-      <div className="flex items-center gap-2">
-        <h1 className="text-2xl font-semibold">Kisten-Editor</h1>
-        <Button variant="ghost" size="icon-sm" title="Hilfe zu diesem Modul" onClick={() => openManual("box-editor")}>
-          <HelpCircle className="size-4" />
-        </Button>
-      </div>
-      <p className="text-sm text-muted-foreground">
+    <div className="space-y-6 pb-10">
+      <PageHeader module="box-editor" title="Kisten-Editor" />
+      <p className="max-w-4xl text-sm text-muted-foreground">
         Bearbeitet <code>special_item_group.txt</code> - die Beute-Tabelle, aus der ein Item vom Typ{" "}
         <strong>GIFTBOX</strong> (23) beim Öffnen zieht. Die „verbleibende Anzahl" bei einer mehrfach
         öffenbaren Kiste ist einfach die Stapelanzahl des Items selbst (keine gesonderte Einstellung nötig) -

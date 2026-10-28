@@ -5,7 +5,6 @@ import { logActivity } from "@/lib/logActivity";
 import { useNavigationStore } from "@/store/navigation";
 import { Button } from "@/components/ui/button";
 import {
-  Sparkles,
   Info,
   RefreshCw,
   Copy,
@@ -15,9 +14,8 @@ import {
   ChevronRight,
   Plus,
   Trash2,
-  HelpCircle,
 } from "lucide-react";
-import { openManual } from "@/lib/manual";
+import { PageHeader } from "@/components/layout/PageHeader";
 
 interface EventFlagRow {
   name: string;
@@ -266,16 +264,9 @@ export function ServerEvents() {
   const customFlags = (flags ?? []).filter((f) => !CURATED_NAMES.has(f.name));
 
   return (
-    <div className="max-w-3xl space-y-6 pb-10">
+    <div className="space-y-6 pb-10">
       <div className="flex items-center justify-between">
-        <div className="flex items-center gap-2">
-          <h1 className="flex items-center gap-2 text-2xl font-semibold">
-            <Sparkles className="size-6" /> Server-Events
-          </h1>
-          <Button variant="ghost" size="icon-sm" title="Hilfe zu diesem Modul" onClick={() => openManual("server-events")}>
-            <HelpCircle className="size-4" />
-          </Button>
-        </div>
+        <PageHeader module="server-events" title="Server-Events" />
         <Button variant="outline" onClick={load} disabled={loading}>
           <RefreshCw className={`size-4 ${loading ? "animate-spin" : ""}`} />
           Neu laden

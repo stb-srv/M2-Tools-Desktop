@@ -16,7 +16,7 @@ Alles, was die anderen Module brauchen, an einer Stelle - links nach Bereichen g
 
 ## Server-Pfade
 
-Wo die Dateien auf dem Gameserver liegen, nach Zweck gruppiert:
+Wo die Dateien auf dem Gameserver liegen, nach Zweck gruppiert. **Jedes Server-Profil hat eigene Server-Pfade** (ebenso Arbeitsordner und Befehle der Server-Steuerung und die Backup-Einstellungen): ein Profilwechsel stellt automatisch die Pfade dieses Servers ein. Ein neues Profil übernimmt beim Anlegen die Pfade des bisher aktiven Servers.
 
 - **Drop-Dateien**: `mob_drop_item.txt`, `common_drop_item.txt`, `etc_drop_item.txt`, `drop_item_group.txt`, `special_item_group.txt`, `cube.txt`.
 - **Quests & Welt**: Quest-Ordner, Basisordner für Regen-Dateien, `translate.lua`.

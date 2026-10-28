@@ -10,6 +10,7 @@ import { Minus, Plus, Search, Trash2, AlertTriangle, X, RefreshCw, HelpCircle } 
 import { openManual } from "@/lib/manual";
 import { logActivity } from "@/lib/logActivity";
 import { EntityBrowser } from "@/features/shared/EntityBrowser";
+import { PageHeader } from "@/components/layout/PageHeader";
 
 interface ShopSummary {
   vnum: number;
@@ -433,13 +434,8 @@ export function ShopEditor() {
   if (!connected) {
     return (
       <div className="max-w-md space-y-4">
-        <div className="flex items-center gap-2">
-          <h1 className="text-2xl font-semibold">{t("nav.shopEditor")}</h1>
-          <Button variant="ghost" size="icon-sm" title="Hilfe zu diesem Modul" onClick={() => openManual("shop-editor")}>
-            <HelpCircle className="size-4" />
-          </Button>
-        </div>
-        <p className="text-sm text-muted-foreground">
+        <PageHeader module="shop-editor" title={t("nav.shopEditor")} />
+        <p className="max-w-4xl text-sm text-muted-foreground">
           Verbinde dich mit der MySQL-Datenbank, um Shops zu bearbeiten.
         </p>
         <div className="space-y-2">

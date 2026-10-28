@@ -113,6 +113,12 @@ pub fn init_db(app_data_dir: &Path) -> Result<Connection, String> {
             mysql_host TEXT NOT NULL,
             mysql_port TEXT NOT NULL,
             mysql_username TEXT NOT NULL
+        );
+        CREATE TABLE IF NOT EXISTS connection_profile_settings (
+            profile_id INTEGER NOT NULL REFERENCES connection_profiles(id) ON DELETE CASCADE,
+            key TEXT NOT NULL,
+            value TEXT NOT NULL,
+            PRIMARY KEY (profile_id, key)
         );",
     )
     .map_err(|e| e.to_string())?;
@@ -125,6 +131,12 @@ pub fn get_path(conn: &Connection, key: &str) -> Result<Option<String>, String> 
     })
     .optional()
     .map_err(|e| e.to_string())
+}
+
+pub fn delete_path(conn: &Connection, key: &str) -> Result<(), String> {
+    conn.execute("DELETE FROM paths WHERE key = ?1", [key])
+        .map_err(|e| e.to_string())?;
+    Ok(())
 }
 
 pub fn set_path(conn: &Connection, key: &str, value: &str) -> Result<(), String> {

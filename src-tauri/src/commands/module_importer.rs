@@ -226,27 +226,7 @@ mod tests {
     use super::*;
 
     async fn real_pool() -> sqlx::MySqlPool {
-        let conn = rusqlite::Connection::open(
-            r"C:\Users\DevSteven\AppData\Roaming\com.m2manager.app\m2manager.sqlite",
-        )
-        .expect("open settings db");
-        let get = |key: &str| -> Option<String> {
-            conn.query_row("SELECT value FROM paths WHERE key = ?1", [key], |r| r.get(0))
-                .ok()
-        };
-        let host = get("mysql_host").expect("mysql_host not configured on this machine");
-        let port: u16 = get("mysql_port").unwrap_or_else(|| "3306".into()).parse().unwrap();
-        let user = get("mysql_username").expect("mysql_username not configured");
-        let password = keyring::Entry::new("m2manager", "mysql_password")
-            .unwrap()
-            .get_password()
-            .expect("mysql_password credential not stored");
-        let url = format!("mysql://{user}:{password}@{host}:{port}/player");
-        sqlx::mysql::MySqlPoolOptions::new()
-            .max_connections(1)
-            .connect(&url)
-            .await
-            .expect("connect to dev DB")
+        crate::test_support::mysql_pool().await
     }
 
     // Regression test for the Module Importer's refine-chain feature
@@ -256,10 +236,10 @@ mod tests {
     // orphaned refine_proto rows behind forever. A recipe still used by
     // *another* item must survive the same teardown untouched.
     #[tokio::test]
-    #[ignore = "braucht die echte Dev-Datenbank des Entwickler-PCs - lokal mit `cargo test -- --ignored` ausführen"]
+    #[ignore = "braucht eine echte Metin2-Datenbank (in M2Manager eingerichtete MySQL-Verbindung) - mit `cargo test -- --ignored` ausführen"]
     async fn teardown_item_drops_its_own_unshared_recipe_but_not_a_shared_one() {
         let pool = real_pool().await;
-        let client_path = r"C:\Users\DevSteven\Desktop\Client";
+        let client_path = &crate::test_support::client_dir().to_string_lossy().into_owned();
 
         // High throwaway vnums, well outside any real item range on this
         // server (verified in earlier sessions to top out well under

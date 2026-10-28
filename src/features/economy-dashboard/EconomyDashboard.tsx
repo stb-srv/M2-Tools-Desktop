@@ -1,10 +1,10 @@
 import { useEffect, useState } from "react";
 import { invoke } from "@tauri-apps/api/core";
-import { Coins, RefreshCw, HelpCircle } from "lucide-react";
+import { RefreshCw } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
 import { runAsyncAction } from "@/lib/asyncAction";
-import { openManual } from "@/lib/manual";
+import { PageHeader } from "@/components/layout/PageHeader";
 
 interface EconomyStats {
   player_count: number;
@@ -64,15 +64,9 @@ export function EconomyDashboard() {
   }, []);
 
   return (
-    <div className="max-w-3xl space-y-4">
-      <div className="flex items-center gap-2">
-        <Coins className="size-6 text-muted-foreground" />
-        <h1 className="text-2xl font-semibold">Wirtschafts-Dashboard</h1>
-        <Button variant="ghost" size="icon-sm" title="Hilfe zu diesem Modul" onClick={() => openManual("economy-dashboard")}>
-          <HelpCircle className="size-4" />
-        </Button>
-      </div>
-      <p className="text-sm text-muted-foreground">
+    <div className="space-y-4">
+      <PageHeader module="economy-dashboard" title="Wirtschafts-Dashboard" />
+      <p className="max-w-4xl text-sm text-muted-foreground">
         Momentaufnahme der Server-Wirtschaft: Goldmenge im Umlauf (Summe über{" "}
         <code>player.player.gold</code>), Preisspanne über alle tatsächlich in Shops gelisteten
         Items (<code>item_proto.gold</code>, der NPC-Verkaufspreis), und die größten

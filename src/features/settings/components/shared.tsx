@@ -5,6 +5,7 @@ import { Button } from "@/components/ui/button";
 import { toast } from "@/components/ui/toast";
 import { CheckCircle2, FolderOpen, X, XCircle, type LucideIcon } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { useConnectionProfiles } from "@/store/connectionProfiles";
 
 export type TestState = "idle" | "testing" | "ok" | "error";
 
@@ -110,15 +111,19 @@ export function TextSetting({ def }: { def: TextSettingDef }) {
   const [stored, setStored] = useState(def.defaultValue);
   const [error, setError] = useState<string | null>(null);
 
+  // Server-Pfade gehören zum aktiven Profil -> nach einem Wechsel neu laden.
+  const profileRevision = useConnectionProfiles((s) => s.revision);
+
   useEffect(() => {
     invoke<string | null>("get_setting", { key: def.key })
       .then((v) => {
         const initial = v ?? def.defaultValue;
         setValue(initial);
         setStored(initial);
+        setError(null);
       })
       .catch(() => {});
-  }, [def.key, def.defaultValue]);
+  }, [def.key, def.defaultValue, profileRevision]);
 
   async function commit() {
     const trimmed = value.trim();

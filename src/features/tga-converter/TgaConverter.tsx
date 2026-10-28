@@ -2,8 +2,8 @@ import { useState } from "react";
 import { invoke } from "@tauri-apps/api/core";
 import { open } from "@tauri-apps/plugin-dialog";
 import { Button } from "@/components/ui/button";
-import { FolderOpen, ImagePlus, X, CheckCircle2, AlertTriangle, HelpCircle } from "lucide-react";
-import { openManual } from "@/lib/manual";
+import { FolderOpen, ImagePlus, X, CheckCircle2, AlertTriangle } from "lucide-react";
+import { PageHeader } from "@/components/layout/PageHeader";
 
 type RowStatus = "pending" | "converting" | "done" | "error";
 
@@ -124,14 +124,9 @@ export function TgaConverter() {
   }
 
   return (
-    <div className="max-w-3xl space-y-4">
-      <div className="flex items-center gap-2">
-        <h1 className="text-2xl font-semibold">TGA Konverter</h1>
-        <Button variant="ghost" size="icon-sm" title="Hilfe zu diesem Modul" onClick={() => openManual("tga-converter")}>
-          <HelpCircle className="size-4" />
-        </Button>
-      </div>
-      <p className="text-sm text-muted-foreground">
+    <div className="space-y-4">
+      <PageHeader module="tga-converter" title="TGA Konverter" />
+      <p className="max-w-4xl text-sm text-muted-foreground">
         Wandelt PNG/JPG/BMP/GIF in <code>.tga</code> um (dieselbe Konvertierung, die auch beim
         Icon-Schritt im Item Editor automatisch läuft) — praktisch, um mehrere Icons vorab
         vorzubereiten oder eine Datei einzeln zu prüfen.

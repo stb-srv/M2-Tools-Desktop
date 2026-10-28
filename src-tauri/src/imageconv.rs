@@ -69,11 +69,12 @@ mod tests {
     use super::*;
 
     #[test]
-    #[ignore = "braucht echte Client-Dateien unter C:\\Users\\DevSteven - lokal mit `cargo test -- --ignored` ausführen"]
-    fn converts_real_client_icon_png_round_trip() {
-        // Reuses a real file already on this machine (verified elsewhere in
-        // icons.rs tests) rather than a synthetic fixture.
-        let source = r"C:\Users\DevSteven\Desktop\Client\pack\icon\icon\item\00010.tga";
+    fn converts_png_to_client_compatible_tga_round_trip() {
+        // Generated PNG with an alpha channel - the same input path a user's
+        // own icon takes, no real client files needed.
+        let fixture_dir = crate::test_support::scratch_dir("m2manager_imageconv_src");
+        let source_path = crate::test_support::sample_image(&fixture_dir, "icon.png");
+        let source = source_path.to_str().unwrap();
         let dest = std::env::temp_dir().join(format!(
             "m2manager_imageconv_test_{}.tga",
             std::time::SystemTime::now()
@@ -97,5 +98,6 @@ mod tests {
         assert!(preview.starts_with("data:image/png;base64,"));
 
         std::fs::remove_file(&dest).ok();
+        std::fs::remove_dir_all(&fixture_dir).ok();
     }
 }

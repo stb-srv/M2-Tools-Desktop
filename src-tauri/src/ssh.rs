@@ -748,16 +748,9 @@ mod tests {
     // slow down or break a genuinely healthy connection - same live-DB-style
     // test pattern already used in db/item.rs and commands.rs.
     #[tokio::test]
-    #[ignore = "braucht den echten Dev-Server per SSH - lokal mit `cargo test -- --ignored` ausführen"]
+    #[ignore = "braucht einen echten Server per SSH (in M2Manager eingerichtete Verbindung) - mit `cargo test -- --ignored` ausführen"]
     async fn healthy_connection_succeeds_well_under_the_timeout() {
-        let conn = rusqlite::Connection::open(
-            r"C:\Users\DevSteven\AppData\Roaming\com.m2manager.app\m2manager.sqlite",
-        )
-        .expect("open settings db");
-        let get = |key: &str| -> Option<String> {
-            conn.query_row("SELECT value FROM paths WHERE key = ?1", [key], |r| r.get(0))
-                .ok()
-        };
+        let get = crate::test_support::setting;
         let host = get("ssh_host").expect("ssh_host not configured on this machine");
         let port: u16 = get("ssh_port").unwrap_or_else(|| "22".into()).parse().unwrap();
         let username = get("ssh_username").expect("ssh_username not configured");

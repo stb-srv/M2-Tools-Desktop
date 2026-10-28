@@ -46,7 +46,7 @@ const SECTIONS: {
   {
     id: "server-paths",
     label: "Server-Pfade",
-    description: "Wo die Dateien auf dem Gameserver liegen. Gespeichert wird beim Verlassen eines Feldes oder mit Enter.",
+    description: "Wo die Dateien auf dem Gameserver liegen. Gilt für das aktive Server-Profil, gespeichert wird beim Verlassen eines Feldes oder mit Enter.",
     icon: FolderTree,
     Component: ServerPathsTab,
   },

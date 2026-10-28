@@ -3,10 +3,10 @@ import { invoke } from "@tauri-apps/api/core";
 import { listen } from "@tauri-apps/api/event";
 import { runAsyncAction } from "@/lib/asyncAction";
 import { logActivity } from "@/lib/logActivity";
-import { openManual } from "@/lib/manual";
 import { Button } from "@/components/ui/button";
-import { Moon, Sun, Snowflake, HelpCircle, RefreshCw, PlayCircle, Eraser, Info, Copy, X } from "lucide-react";
+import { Moon, Sun, Snowflake, RefreshCw, PlayCircle, Eraser, Info, Copy, X } from "lucide-react";
 import { gmCommandsFor, generateWeatherQuest, type WeatherState } from "./weatherQuest";
+import { PageHeader } from "@/components/layout/PageHeader";
 
 const QUEST_RELATIVE_PATH = "Weather/Weather_System.lua";
 
@@ -141,14 +141,7 @@ export function WeatherControl() {
   return (
     <div className="flex h-full max-w-4xl flex-col gap-4 pb-10">
       <div className="flex items-center justify-between">
-        <div className="flex items-center gap-2">
-          <h1 className="flex items-center gap-2 text-2xl font-semibold">
-            <Moon className="size-6" /> Tag/Nacht & Schnee
-          </h1>
-          <Button variant="ghost" size="icon-sm" title="Hilfe zu diesem Modul" onClick={() => openManual("weather-control")}>
-            <HelpCircle className="size-4" />
-          </Button>
-        </div>
+        <PageHeader module="weather-control" title="Tag/Nacht & Schnee" />
         <Button variant="outline" onClick={load} disabled={loading}>
           <RefreshCw className={`size-4 ${loading ? "animate-spin" : ""}`} />
           Neu laden

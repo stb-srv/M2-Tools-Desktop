@@ -33,6 +33,33 @@ pub struct ConnectionProfile {
 /// that profile is deleted. Lets the UI show which server is active.
 pub const ACTIVE_PROFILE_KEY: &str = "active_connection_profile_id";
 
+/// Settings that belong to one particular game server rather than to this
+/// PC: file locations on the server, monitoring and server-control details.
+/// Each profile keeps its own copy, so switching from e.g. Dev to Live also
+/// switches these. Local things (client path, tools, theme) stay global.
+pub const PER_SERVER_KEYS: &[&str] = &[
+    "mob_drop_file_path",
+    "common_drop_file_path",
+    "etc_drop_file_path",
+    "drop_item_group_file_path",
+    "special_item_group_file_path",
+    "cube_file_path",
+    "quest_dir",
+    "regen_base_dir",
+    "locale_file_path",
+    "server_process_names",
+    "server_disk_path",
+    "server_workdir",
+    "server_cmd_start",
+    "server_cmd_stop",
+    "server_cmd_clear_logs",
+    "server_cmd_reload_quests",
+    "server_restart_delay_seconds",
+    "db_backup_dir",
+    "db_backup_databases",
+    "db_backup_schedule_hours",
+];
+
 fn ssh_password_key(id: i64) -> String {
     format!("profile_ssh_password_{id}")
 }
@@ -98,6 +125,12 @@ pub fn save_current_as_profile(conn: &Connection, name: &str) -> Result<i64, Str
     }
     if let Ok(secret) = credentials::get_secret("mysql_password") {
         let _ = credentials::store_secret(&mysql_password_key(id), &secret);
+    }
+
+    for key in PER_SERVER_KEYS {
+        if let Some(value) = settings::get_path(conn, key)? {
+            set_profile_setting(conn, id, key, &value)?;
+        }
     }
 
     // The snapshot is by definition what's active right now.
@@ -172,9 +205,55 @@ pub fn activate(conn: &Connection, id: i64) -> Result<(), String> {
         let _ = credentials::store_secret("mysql_password", &secret);
     }
 
+    // Profiles saved before per-server settings existed have none stored -
+    // leave the current values alone for those instead of wiping them.
+    let stored = profile_settings(conn, id)?;
+    if !stored.is_empty() {
+        for key in PER_SERVER_KEYS {
+            match stored.iter().find(|(k, _)| k == key) {
+                Some((_, value)) => settings::set_path(conn, key, value)?,
+                // Not set for this server -> fall back to the built-in default.
+                None => settings::delete_path(conn, key)?,
+            }
+        }
+    }
+
     settings::set_path(conn, ACTIVE_PROFILE_KEY, &id.to_string())?;
 
     Ok(())
+}
+
+fn set_profile_setting(conn: &Connection, id: i64, key: &str, value: &str) -> Result<(), String> {
+    conn.execute(
+        "INSERT INTO connection_profile_settings (profile_id, key, value) VALUES (?1, ?2, ?3)
+         ON CONFLICT(profile_id, key) DO UPDATE SET value = excluded.value",
+        rusqlite::params![id, key, value],
+    )
+    .map_err(|e| e.to_string())?;
+    Ok(())
+}
+
+fn profile_settings(conn: &Connection, id: i64) -> Result<Vec<(String, String)>, String> {
+    let mut stmt = conn
+        .prepare("SELECT key, value FROM connection_profile_settings WHERE profile_id = ?1")
+        .map_err(|e| e.to_string())?;
+    let rows = stmt
+        .query_map(rusqlite::params![id], |row| Ok((row.get(0)?, row.get(1)?)))
+        .map_err(|e| e.to_string())?;
+    rows.collect::<Result<Vec<_>, _>>().map_err(|e| e.to_string())
+}
+
+/// Called after every `set_setting`: a per-server setting changed in the UI
+/// is written into the active profile too, so it survives switching away
+/// and back. Anything else is ignored.
+pub fn mirror_setting(conn: &Connection, key: &str, value: &str) -> Result<(), String> {
+    if !PER_SERVER_KEYS.contains(&key) {
+        return Ok(());
+    }
+    match active_id(conn)? {
+        Some(id) => set_profile_setting(conn, id, key, value),
+        None => Ok(()),
+    }
 }
 
 /// Id of the currently active profile, if any (and if it still exists).
@@ -191,6 +270,13 @@ pub fn active_id(conn: &Connection) -> Result<Option<i64>, String> {
 pub fn delete(conn: &Connection, id: i64) -> Result<(), String> {
     conn.execute("DELETE FROM connection_profiles WHERE id = ?1", rusqlite::params![id])
         .map_err(|e| e.to_string())?;
+    // Explicit instead of relying on ON DELETE CASCADE, which SQLite only
+    // honours with `PRAGMA foreign_keys = ON`.
+    conn.execute(
+        "DELETE FROM connection_profile_settings WHERE profile_id = ?1",
+        rusqlite::params![id],
+    )
+    .map_err(|e| e.to_string())?;
     let _ = credentials::delete_secret(&ssh_password_key(id));
     let _ = credentials::delete_secret(&ssh_key_passphrase_key(id));
     let _ = credentials::delete_secret(&mysql_password_key(id));
@@ -218,6 +304,12 @@ mod tests {
                 mysql_host TEXT NOT NULL,
                 mysql_port TEXT NOT NULL,
                 mysql_username TEXT NOT NULL
+            );
+            CREATE TABLE connection_profile_settings (
+                profile_id INTEGER NOT NULL,
+                key TEXT NOT NULL,
+                value TEXT NOT NULL,
+                PRIMARY KEY (profile_id, key)
             );
             CREATE TABLE paths (key TEXT PRIMARY KEY, value TEXT NOT NULL);",
         )
@@ -320,5 +412,58 @@ mod tests {
         // ...deleting the active one clears it.
         delete(&conn, dev).unwrap();
         assert_eq!(active_id(&conn).unwrap(), None);
+    }
+
+    #[test]
+    fn server_paths_follow_the_active_profile() {
+        let conn = scratch_conn();
+        seed_settings(&conn);
+        settings::set_path(&conn, "quest_dir", "/dev/quest").unwrap();
+        let dev = save_current_as_profile(&conn, "Dev").unwrap();
+
+        // Live server: different path, and one key Dev never had.
+        settings::set_path(&conn, "quest_dir", "/live/quest").unwrap();
+        settings::set_path(&conn, "server_disk_path", "/live").unwrap();
+        let live = save_current_as_profile(&conn, "Live").unwrap();
+
+        activate(&conn, dev).unwrap();
+        assert_eq!(settings::get_path(&conn, "quest_dir").unwrap().as_deref(), Some("/dev/quest"));
+        assert_eq!(settings::get_path(&conn, "server_disk_path").unwrap(), None);
+
+        // A change while Dev is active lands in Dev's copy only.
+        settings::set_path(&conn, "quest_dir", "/dev/quest2").unwrap();
+        mirror_setting(&conn, "quest_dir", "/dev/quest2").unwrap();
+
+        activate(&conn, live).unwrap();
+        assert_eq!(settings::get_path(&conn, "quest_dir").unwrap().as_deref(), Some("/live/quest"));
+        assert_eq!(settings::get_path(&conn, "server_disk_path").unwrap().as_deref(), Some("/live"));
+
+        activate(&conn, dev).unwrap();
+        assert_eq!(settings::get_path(&conn, "quest_dir").unwrap().as_deref(), Some("/dev/quest2"));
+
+        let _ = delete(&conn, dev);
+        let _ = delete(&conn, live);
+    }
+
+    #[test]
+    fn legacy_profile_without_stored_paths_keeps_current_paths() {
+        let conn = scratch_conn();
+        seed_settings(&conn);
+        let id = save_current_as_profile(&conn, "Alt").unwrap();
+        conn.execute("DELETE FROM connection_profile_settings", []).unwrap();
+        settings::set_path(&conn, "quest_dir", "/bleibt").unwrap();
+        activate(&conn, id).unwrap();
+        assert_eq!(settings::get_path(&conn, "quest_dir").unwrap().as_deref(), Some("/bleibt"));
+        let _ = delete(&conn, id);
+    }
+
+    #[test]
+    fn mirror_ignores_global_settings() {
+        let conn = scratch_conn();
+        seed_settings(&conn);
+        let id = save_current_as_profile(&conn, "Dev").unwrap();
+        mirror_setting(&conn, "client_path", "C:/Client").unwrap();
+        assert!(profile_settings(&conn, id).unwrap().iter().all(|(k, _)| k != "client_path"));
+        let _ = delete(&conn, id);
     }
 }

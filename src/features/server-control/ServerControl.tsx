@@ -1,11 +1,12 @@
 import { useEffect, useRef, useState } from "react";
+import { useConnectionProfiles } from "@/store/connectionProfiles";
 import { useTranslation } from "react-i18next";
 import { invoke } from "@tauri-apps/api/core";
 import { listen } from "@tauri-apps/api/event";
 import { Button } from "@/components/ui/button";
-import { Play, Square, Trash2, RefreshCw, RotateCcw, Settings2, Eraser, HelpCircle, Search } from "lucide-react";
-import { openManual } from "@/lib/manual";
+import { Play, Square, Trash2, RefreshCw, RotateCcw, Settings2, Eraser, Search } from "lucide-react";
 import { runAsyncAction } from "@/lib/asyncAction";
+import { PageHeader } from "@/components/layout/PageHeader";
 
 interface LogSearchHit {
   file: string;
@@ -97,6 +98,8 @@ export function ServerControl() {
   const [logSearchError, setLogSearchError] = useState<string | null>(null);
 
   const logRef = useRef<HTMLPreElement>(null);
+  // Arbeitsordner/Befehle gehören zum Server-Profil -> nach Wechsel neu laden.
+  const profileRevision = useConnectionProfiles((s) => s.revision);
 
   useEffect(() => {
     (async () => {
@@ -121,7 +124,7 @@ export function ServerControl() {
       }).catch(() => null);
       if (savedDelay) setRestartDelay(savedDelay);
     })();
-  }, []);
+  }, [profileRevision]);
 
   useEffect(() => {
     const unlisten = listen<string>("server-output", (event) => {
@@ -245,12 +248,7 @@ export function ServerControl() {
   return (
     <div className="flex h-full flex-col gap-4">
       <div className="flex items-center justify-between">
-        <div className="flex items-center gap-2">
-          <h1 className="text-2xl font-semibold">{t("serverControl.title")}</h1>
-          <Button variant="ghost" size="icon-sm" title="Hilfe zu diesem Modul" onClick={() => openManual("server-control")}>
-            <HelpCircle className="size-4" />
-          </Button>
-        </div>
+        <PageHeader module="server-control" title={t("serverControl.title")} />
         <Button variant="ghost" onClick={() => setEditing((v) => !v)}>
           <Settings2 className="size-4" />
           Befehle {editing ? "ausblenden" : "anpassen"}

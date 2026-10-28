@@ -3,11 +3,8 @@ import { invoke } from "@tauri-apps/api/core";
 import { listen } from "@tauri-apps/api/event";
 import { runAsyncAction } from "@/lib/asyncAction";
 import { logActivity } from "@/lib/logActivity";
-import { openManual } from "@/lib/manual";
 import { Button } from "@/components/ui/button";
 import {
-  Megaphone,
-  HelpCircle,
   RefreshCw,
   Plus,
   Pencil,
@@ -20,6 +17,7 @@ import {
 import { generateBroadcastQuest, type BroadcastMessage } from "./broadcastQuest";
 import { reportSectionDirty } from "@/store/navigation";
 import { useSaveShortcut } from "@/lib/useSaveShortcut";
+import { PageHeader } from "@/components/layout/PageHeader";
 
 const QUEST_RELATIVE_PATH = "Broadcast/Broadcast_System.lua";
 
@@ -231,14 +229,7 @@ export function BroadcastSystem() {
   return (
     <div className="flex h-full max-w-4xl flex-col gap-4 pb-10">
       <div className="flex items-center justify-between">
-        <div className="flex items-center gap-2">
-          <h1 className="flex items-center gap-2 text-2xl font-semibold">
-            <Megaphone className="size-6" /> Broadcast-System
-          </h1>
-          <Button variant="ghost" size="icon-sm" title="Hilfe zu diesem Modul" onClick={() => openManual("broadcast-system")}>
-            <HelpCircle className="size-4" />
-          </Button>
-        </div>
+        <PageHeader module="broadcast-system" title="Broadcast-System" />
         <Button variant="outline" onClick={load} disabled={loading}>
           <RefreshCw className={`size-4 ${loading ? "animate-spin" : ""}`} />
           Neu laden

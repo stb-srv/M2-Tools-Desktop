@@ -76,9 +76,9 @@ mod tests {
     use super::*;
 
     #[test]
-    #[ignore = "braucht echte Client-Dateien unter C:\\Users\\DevSteven - lokal mit `cargo test -- --ignored` ausführen"]
+    #[ignore = "braucht echte Client-Dateien (M2_TEST_CLIENT_DIR oder Client-Pfad aus M2Manager) - mit `cargo test -- --ignored` ausführen"]
     fn decodes_npc_dds_texture() {
-        let model = r"C:\Users\DevSteven\Desktop\Client\pack\npc\ymir work\npc\arms\arms.gr2";
+        let model = &crate::test_support::client_dir().join("pack/npc/ymir work/npc/arms/arms.gr2").to_string_lossy().into_owned();
         let url = load_texture_data_url(model, None)
             .expect("texture lookup failed")
             .expect("expected a texture next to arms.gr2");

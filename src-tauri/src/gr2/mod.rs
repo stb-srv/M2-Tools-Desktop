@@ -194,10 +194,10 @@ mod tests {
     use super::*;
 
     #[test]
-    #[ignore = "braucht echte Client-Dateien unter C:\\Users\\DevSteven - lokal mit `cargo test -- --ignored` ausführen"]
+    #[ignore = "braucht echte Client-Dateien (M2_TEST_CLIENT_DIR oder Client-Pfad aus M2Manager) - mit `cargo test -- --ignored` ausführen"]
     fn parse_real_alchemist_model() {
-        let dll = r"C:\Users\DevSteven\Desktop\Client\granny2.dll";
-        let gr2 = r"C:\Users\DevSteven\Desktop\Client\pack\npc\ymir work\npc\alchemist\alchemist.gr2";
+        let dll = &crate::test_support::client_dir().join("granny2.dll").to_string_lossy().into_owned();
+        let gr2 = &crate::test_support::client_dir().join("pack/npc/ymir work/npc/alchemist/alchemist.gr2").to_string_lossy().into_owned();
         let result = parse(dll, gr2).expect("failed to parse alchemist.gr2 via sidecar");
         println!("model name: {:?}", result.name);
         println!("bone_count: {}", result.bone_count);
@@ -207,9 +207,9 @@ mod tests {
     }
 
     #[test]
-    #[ignore = "braucht echte Client-Dateien unter C:\\Users\\DevSteven - lokal mit `cargo test -- --ignored` ausführen"]
+    #[ignore = "braucht echte Client-Dateien (M2_TEST_CLIENT_DIR oder Client-Pfad aus M2Manager) - mit `cargo test -- --ignored` ausführen"]
     fn resolves_shop_npc_model_via_npclist() {
-        let client = r"C:\Users\DevSteven\Desktop\Client";
+        let client = &crate::test_support::client_dir().to_string_lossy().into_owned();
         // 9001 = Waffenhaendler's NPC; its mob_proto.folder is empty in the DB,
         // so this must come from the client's own npclist.txt.
         let list = find_npclist(client, None).expect("npclist.txt not found");

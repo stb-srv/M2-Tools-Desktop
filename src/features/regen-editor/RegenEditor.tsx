@@ -17,9 +17,8 @@ import {
   CheckCircle2,
   Table2,
   Map as MapIcon,
-  HelpCircle,
 } from "lucide-react";
-import { openManual } from "@/lib/manual";
+import { PageHeader } from "@/components/layout/PageHeader";
 
 interface RemoteEntry {
   name: string;
@@ -298,13 +297,8 @@ export function RegenEditor() {
   return (
     <div className="flex h-full flex-col gap-3">
       <div>
-        <div className="flex items-center gap-2">
-          <h1 className="text-2xl font-semibold">Regen-Datei-Editor</h1>
-          <Button variant="ghost" size="icon-sm" title="Hilfe zu diesem Modul" onClick={() => openManual("regen-editor")}>
-            <HelpCircle className="size-4" />
-          </Button>
-        </div>
-        <p className="text-sm text-muted-foreground">
+        <PageHeader module="regen-editor" title="Regen-Datei-Editor" />
+        <p className="max-w-4xl text-sm text-muted-foreground">
           Bearbeitet die Monster-Spawn-Dateien, auf die Dungeon-Etagen im Quest Builder verweisen
           (z.B. <code>data/dungeon/dt_short/deviltower3_regen.txt</code>). Format 1:1 aus dem
           Server-Quellcode verifiziert (<code>regen.cpp</code>).
