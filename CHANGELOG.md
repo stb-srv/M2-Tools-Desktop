@@ -8,6 +8,11 @@ Feature-Historie mit allen Details siehe `STATUS.md`.
 
 ## [Unreleased]
 
+### Behoben
+
+- **In-App-Update**: v0.17.0 wurde versehentlich mit der Versionsnummer 0.16.0 gebaut, deshalb fanden installierte Versionen kein Update. 0.17.1 enthält dieselben Änderungen mit richtiger Versionsnummer; die Release-Pipeline bricht jetzt ab, wenn Tag und Version nicht zusammenpassen.
+- **Kein eingebetteter GitHub-Token mehr**: die App fragt Updates ohne Token ab (Repo ist öffentlich). Ein abgelaufener Token kann die Update-Prüfung damit nicht mehr kaputt machen.
+
 ### Geändert
 
 - **Server-Auswahl auf der Startseite**: das aktive Server-Profil lässt sich direkt oben auf der Startseite wechseln, dort gibt es auch „Neues Profil“ (erst Name, dann SSH, dann MySQL). Die Startseite lädt nach einem Wechsel automatisch neu. Eine bestehende Verbindung ohne Profil wird einmalig als erstes Profil übernommen.

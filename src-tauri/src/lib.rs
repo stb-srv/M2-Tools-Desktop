@@ -48,30 +48,12 @@ mod test_support;
 use state::AppState;
 use tauri::Manager;
 
-// Der Lese-Token für die privaten GitHub-Release-Assets wird nur zur
-// Build-Zeit eingebettet (`option_env!`, bewusst NICHT `env!` - `env!` würde
-// jeden lokalen `cargo check`/Dev-Build ohne gesetzte Variable hart brechen).
-// Ohne gesetzten `GH_RELEASE_TOKEN` (z.B. bei einem normalen lokalen
-// Dev-Build) bleibt der Header einfach weg - eine Update-Prüfung schlägt
-// dann erwartungsgemäß fehl (401/404 auf das private Repo), die App stürzt
-// dabei aber nicht ab. Nur der offizielle CI-Release-Build
-// (.github/workflows/release.yml) setzt diese Variable wirklich.
-fn build_updater_plugin<R: tauri::Runtime>() -> tauri::plugin::TauriPlugin<R, tauri_plugin_updater::Config> {
-    let mut builder = tauri_plugin_updater::Builder::new();
-    if let Some(token) = option_env!("GH_RELEASE_TOKEN") {
-        builder = builder
-            .header("Authorization", format!("Bearer {token}"))
-            .expect("GH_RELEASE_TOKEN must be a valid HTTP header value");
-    }
-    builder.build()
-}
-
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
     tauri::Builder::default()
         .plugin(tauri_plugin_opener::init())
         .plugin(tauri_plugin_dialog::init())
-        .plugin(build_updater_plugin())
+        .plugin(tauri_plugin_updater::Builder::new().build())
         .plugin(tauri_plugin_process::init())
         .setup(|app| {
             let app_data_dir = app

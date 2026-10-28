@@ -5,7 +5,7 @@ So machst du zukünftig einen Release
 Ein gepushter Git-Tag baut, signiert und veröffentlicht die neue Version komplett automatisch per GitHub Actions (`.github/workflows/release.yml`) - die App selbst prüft dann beim Start (und über den "Nach Updates suchen"-Knopf in den Einstellungen) automatisch, ob eine neuere Version verfügbar ist, und kann sie direkt installieren.
 
 Ablauf:
-1. Version an zwei Stellen synchron hochzählen: `package.json` ("version") und `src-tauri/tauri.conf.json` ("version"), z.B. beide auf `0.15.0`.
+1. Version an drei Stellen synchron hochzählen: `package.json` ("version"), `src-tauri/tauri.conf.json` ("version") und `src-tauri/Cargo.toml` (`version = ...`), z.B. alle auf `0.15.0`. Der Tag muss genau dazu passen - sonst bricht die Pipeline gleich am Anfang ab (Prüfschritt seit 0.17.1). Hintergrund: v0.17.0 wurde ohne Hochzählen getaggt, wurde dadurch als 0.16.0 gebaut, und installierte Apps fanden kein Update.
 2. Committen: `git commit -am "Release 0.15.0"`
 3. Taggen und pushen:
    ```
@@ -15,7 +15,7 @@ Ablauf:
 4. Fertig - GitHub Actions baut, signiert, legt ein GitHub Release mit den Windows-Installern an, und aktualisiert `updater/latest.json` im Repo, worüber die App die neue Version findet. Fortschritt live unter github.com/stb-srv/M2-Tools-Desktop/actions verfolgbar.
 
 **Einmalige Einrichtung, bevor das zum ersten Mal läuft** (siehe `~/.claude/plans/immutable-mapping-snowglobe.md` für die volle Herleitung):
-- GitHub-Fine-grained-Token (nur Lesezugriff auf dieses Repo) als Secret `GH_RELEASE_TOKEN` hinterlegt
+- (Seit 0.17.1 nicht mehr nötig: das Repo ist öffentlich, die App braucht keinen eingebetteten `GH_RELEASE_TOKEN` mehr. Das Secret kann gelöscht werden.)
 - Tauri-Signierschlüssel als Secrets `TAURI_SIGNING_PRIVATE_KEY`/`TAURI_SIGNING_PRIVATE_KEY_PASSWORD` hinterlegt, öffentlicher Teil in `tauri.conf.json` eingetragen
 
 **Wichtig für den allerersten Tag:** noch nicht live getestet (kein vorheriger echter Release zum Gegenprüfen) - beim ersten Mal das Actions-Log genau beobachten, und danach mit einer älteren lokal installierten Version einmal "Nach Updates suchen" → "Installieren" wirklich durchklicken, bevor du dich darauf verlässt.
