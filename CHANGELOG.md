@@ -15,7 +15,14 @@ Feature-Historie mit allen Details siehe `STATUS.md`.
 - **Einstellungen übersichtlicher und responsiv**: nutzen die volle Fensterbreite, aktiver Bereich deutlich hervorgehoben mit eigener Kopfzeile, Karten mit Symbol, Beschriftung links und Eingabe rechts; auf schmalen Fenstern rutscht die Bereichsauswahl nach oben.
 - **Größe der Oberfläche** (Allgemein): 90-150 %, auch per Strg + / Strg - / Strg 0.
 - **Server-Pfade pro Profil**: Datei-Pfade auf dem Server, Arbeitsordner/Befehle der Server-Steuerung und Backup-Einstellungen gehören jetzt zum jeweiligen Server-Profil und wechseln beim Profilwechsel mit. Ältere Profile behalten beim Aktivieren die aktuellen Werte, bis sie einmal gespeichert werden.
+- **Einheitlicher Seitenkopf auf allen Seiten** (Symbol, Titel, Hilfe-Knopf) und volle Fensterbreite statt fester Maximalbreite.
 - **Ersteinrichtung** fragt zuerst den Profilnamen und legt daraus direkt das erste Server-Profil an.
+
+### Entwicklung
+
+- **CI**: Typecheck, Frontend-Build und alle Tests laufen bei jedem Pull Request automatisch.
+- **Tests ohne fest eingetragene PC-Pfade**: Integrationstests nutzen die eingerichtete Verbindung bzw. `M2_TEST_CLIENT_DIR`/`M2_TEST_SETTINGS_DB`; drei Tests laufen jetzt mit erzeugten Testdaten überall.
+- **README** neu geschrieben (vorher Tauri-Vorlage).
 
 ## [0.16.0] - 2026-10-26
 
