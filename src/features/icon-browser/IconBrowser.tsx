@@ -2,8 +2,8 @@ import { useEffect, useMemo, useState } from "react";
 import { invoke } from "@tauri-apps/api/core";
 import { runAsyncAction } from "@/lib/asyncAction";
 import { Button } from "@/components/ui/button";
-import { Search, Images, ChevronLeft, ChevronRight, HelpCircle } from "lucide-react";
-import { openManual } from "@/lib/manual";
+import { Search, Images, ChevronLeft, ChevronRight } from "lucide-react";
+import { PageHeader } from "@/components/layout/PageHeader";
 
 interface IconFile {
   absolute_path: string;
@@ -137,14 +137,8 @@ function IconGrid({ onPick }: { onPick?: (absolutePath: string) => void }) {
 export function IconBrowser() {
   return (
     <div className="flex h-full flex-col gap-3">
-      <div className="flex items-center gap-2">
-        <Images className="size-6 text-muted-foreground" />
-        <h1 className="text-2xl font-semibold">Icon-Browser</h1>
-        <Button variant="ghost" size="icon-sm" title="Hilfe zu diesem Modul" onClick={() => openManual("icon-browser")}>
-          <HelpCircle className="size-4" />
-        </Button>
-      </div>
-      <p className="text-sm text-muted-foreground">
+      <PageHeader module="icon-browser" title="Icon-Browser" />
+      <p className="max-w-4xl text-sm text-muted-foreground">
         Durchblättert alle Item-Icons (<code>pack/icon/icon/item/**.tga</code>) im konfigurierten
         Client-Ordner - nützlich um ein Icon nach Aussehen zu finden, statt die vnum-Zuordnung
         schon zu kennen. Zum tatsächlichen Auswählen eines Icons beim Anlegen eines Items siehe

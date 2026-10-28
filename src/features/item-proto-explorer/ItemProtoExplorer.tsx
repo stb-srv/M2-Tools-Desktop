@@ -1,12 +1,12 @@
 import { useEffect, useState } from "react";
 import { invoke } from "@tauri-apps/api/core";
 import { Button } from "@/components/ui/button";
-import { Search, ChevronLeft, ChevronRight, Loader2, HelpCircle, Download, Table2, Link2, LayoutGrid, List } from "lucide-react";
-import { openManual } from "@/lib/manual";
+import { Search, ChevronLeft, ChevronRight, Loader2, Download, Link2, LayoutGrid, List } from "lucide-react";
 import { exportRowsAsCsv } from "@/lib/exportCsv";
 import { useNavigationStore } from "@/store/navigation";
 import { ITEM_TYPES } from "@/features/item-editor/itemFlags";
 import { ItemUsageModal } from "@/features/shared/ItemUsageModal";
+import { PageHeader } from "@/components/layout/PageHeader";
 
 interface ItemProtoSummary {
   vnum: number;
@@ -150,19 +150,8 @@ export function ItemProtoExplorer() {
 
   return (
     <div className="flex h-full flex-col gap-3">
-      <div className="flex items-center gap-2">
-        <Table2 className="size-6 text-muted-foreground" />
-        <h1 className="text-2xl font-semibold">Item-Übersicht</h1>
-        <Button
-          variant="ghost"
-          size="icon-sm"
-          title="Hilfe zu diesem Modul"
-          onClick={() => openManual("item-proto-explorer")}
-        >
-          <HelpCircle className="size-4" />
-        </Button>
-      </div>
-      <p className="text-sm text-muted-foreground">
+      <PageHeader module="item-proto-explorer" title="Item-Übersicht" />
+      <p className="max-w-4xl text-sm text-muted-foreground">
         Durchblättert die komplette <code>item_proto</code>-Tabelle als Liste oder als Kacheln mit großem
         Icon - zum Bearbeiten eines Items geht es weiter in den Item Editor.
       </p>

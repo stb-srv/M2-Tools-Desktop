@@ -21,11 +21,10 @@ import {
   PlayCircle,
   Code2,
   BookOpen,
-  HelpCircle,
 } from "lucide-react";
-import { openManual } from "@/lib/manual";
 import QUEST_FUNCTIONS from "./questFunctions.json";
 import { CreateQuestModal } from "./components/CreateQuestModal";
+import { PageHeader } from "@/components/layout/PageHeader";
 
 interface QuestFile {
   category: string;
@@ -320,12 +319,7 @@ export function QuestBuilder() {
   return (
     <div className="flex h-full flex-col gap-3">
       <div className="flex items-center justify-between">
-        <div className="flex items-center gap-2">
-          <h1 className="text-2xl font-semibold">Quest Builder</h1>
-          <Button variant="ghost" size="icon-sm" title="Hilfe zu diesem Modul" onClick={() => openManual("quest-builder")}>
-            <HelpCircle className="size-4" />
-          </Button>
-        </div>
+        <PageHeader module="quest-builder" title="Quest Builder" />
         <div className="flex items-center gap-2">
           <Button variant="outline" onClick={openWiki}>
             <BookOpen className="size-4" />

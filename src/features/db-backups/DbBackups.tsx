@@ -12,10 +12,9 @@ import {
   AlertTriangle,
   History,
   Trash2,
-  HelpCircle,
 } from "lucide-react";
-import { openManual } from "@/lib/manual";
 import { SCHEDULE_HOURS_OPTIONS, nextDueAt } from "./schedule";
+import { PageHeader } from "@/components/layout/PageHeader";
 
 interface RemoteEntry {
   name: string;
@@ -140,15 +139,9 @@ export function DbBackups() {
   const files = (entries ?? []).filter((e) => !e.is_dir);
 
   return (
-    <div className="max-w-3xl space-y-4">
-      <div className="flex items-center gap-2">
-        <DatabaseBackup className="size-6 text-muted-foreground" />
-        <h1 className="text-2xl font-semibold">Datenbank-Backups</h1>
-        <Button variant="ghost" size="icon-sm" title="Hilfe zu diesem Modul" onClick={() => openManual("db-backups")}>
-          <HelpCircle className="size-4" />
-        </Button>
-      </div>
-      <p className="text-sm text-muted-foreground">
+    <div className="space-y-4">
+      <PageHeader module="db-backups" title="Datenbank-Backups" />
+      <p className="max-w-4xl text-sm text-muted-foreground">
         Löst <code>mysqldump</code> auf dem Server über die bestehende SSH-Verbindung aus, mit
         denselben MySQL-Zugangsdaten wie die eigene DB-Verbindung dieser App (setzt voraus, dass
         diese auch vom Server aus funktionieren - typischerweise der Fall, wenn Datenbank und

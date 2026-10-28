@@ -175,7 +175,7 @@ export function DropItemGroupEditor() {
   useSaveShortcut("drop-generator", dirty && canSave && !saving, () => setConfirmOpen(true));
 
   return (
-    <div className="max-w-4xl space-y-4 pb-10">
+    <div className="space-y-4 pb-10">
       <div className="rounded-lg border border-border p-3 text-sm text-muted-foreground">
         <p className="mb-1 font-medium text-foreground">drop_item_group.txt — Zufalls-Gruppen pro Mob</p>
         <p>

@@ -18,12 +18,11 @@ import {
   MapPin,
   Store,
   Loader2,
-  HelpCircle,
   Undo2,
 } from "lucide-react";
 import { useNavigationStore, reportSectionDirty } from "@/store/navigation";
-import { openManual } from "@/lib/manual";
 import { EntityBrowser } from "@/features/shared/EntityBrowser";
+import { PageHeader } from "@/components/layout/PageHeader";
 
 interface RefineMaterial {
   vnum: number;
@@ -545,14 +544,9 @@ export function RefineEditor() {
   }
 
   return (
-    <div className="max-w-4xl space-y-6 pb-10">
-      <div className="flex items-center gap-2">
-        <h1 className="text-2xl font-semibold">Aufwertungs-Editor (Refine)</h1>
-        <Button variant="ghost" size="icon-sm" title="Hilfe zu diesem Modul" onClick={() => openManual("refine-editor")}>
-          <HelpCircle className="size-4" />
-        </Button>
-      </div>
-      <p className="text-sm text-muted-foreground">
+    <div className="space-y-6 pb-10">
+      <PageHeader module="refine-editor" title="Aufwertungs-Editor (Refine)" />
+      <p className="max-w-4xl text-sm text-muted-foreground">
         Visualisiert die komplette Aufwertungs-Kette eines Items (Materialien, Gold-Kosten, Erfolgschance je Stufe)
         statt roher <code>refine_proto</code>-Zeilen. <code>refine_set</code> ist dabei eine reine Rezept-ID, die mit
         der Item-Vnum nichts zu tun hat - genau das macht diese Ansicht praktisch.

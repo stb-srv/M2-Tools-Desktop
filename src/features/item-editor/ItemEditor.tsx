@@ -3,10 +3,9 @@ import { invoke } from "@tauri-apps/api/core";
 import { listen } from "@tauri-apps/api/event";
 import { open } from "@tauri-apps/plugin-dialog";
 import { Button } from "@/components/ui/button";
-import { Image as ImageIcon, AlertTriangle, CheckCircle2, Copy, Images, HelpCircle, Link2 } from "lucide-react";
+import { Image as ImageIcon, AlertTriangle, CheckCircle2, Copy, Images, Link2 } from "lucide-react";
 import { IconBrowserModal } from "@/features/icon-browser/IconBrowser";
 import { EntityBrowser } from "@/features/shared/EntityBrowser";
-import { openManual } from "@/lib/manual";
 import { logActivity } from "@/lib/logActivity";
 import { useNavigationStore, reportSectionDirty } from "@/store/navigation";
 import { useSaveShortcut } from "@/lib/useSaveShortcut";
@@ -17,6 +16,7 @@ import { Field, StepRow } from "./components/shared";
 import { ItemFlagsSection } from "./components/ItemFlagsSection";
 import { ConfirmPipelineDialog } from "./components/ConfirmPipelineDialog";
 import { ItemPresetsSection } from "./components/ItemPresetsSection";
+import { PageHeader } from "@/components/layout/PageHeader";
 
 export function ItemEditor() {
   const [mode, setMode] = useState<Mode>("create");
@@ -400,14 +400,9 @@ export function ItemEditor() {
   }
 
   return (
-    <div className="max-w-3xl space-y-6 pb-10">
-      <div className="flex items-center gap-2">
-        <h1 className="text-2xl font-semibold">Item Editor</h1>
-        <Button variant="ghost" size="icon-sm" title="Hilfe zu diesem Modul" onClick={() => openManual("item-editor")}>
-          <HelpCircle className="size-4" />
-        </Button>
-      </div>
-      <p className="text-sm text-muted-foreground">
+    <div className="space-y-6 pb-10">
+      <PageHeader module="item-editor" title="Item Editor" />
+      <p className="max-w-4xl text-sm text-muted-foreground">
         Legt neue Items an oder bearbeitet bestehende. Waffen können beim Anlegen das 3D-Modell eines
         bestehenden Waffen-Items übernehmen (Referenz-Item übernehmen unten). Komplett neue,
         selbst erstellte 3D-Modelle sowie Rüstungen mit übernommenem Modell werden noch nicht

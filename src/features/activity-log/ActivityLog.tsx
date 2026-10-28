@@ -4,8 +4,8 @@ import { invoke } from "@tauri-apps/api/core";
 import { runAsyncAction } from "@/lib/asyncAction";
 import { Button } from "@/components/ui/button";
 import { EMBEDDED_MODULES, NAV_ITEMS, useNavigationStore } from "@/store/navigation";
-import { HelpCircle, Search, ChevronLeft, ChevronRight, Undo2, AlertTriangle, ExternalLink } from "lucide-react";
-import { openManual } from "@/lib/manual";
+import { Search, ChevronLeft, ChevronRight, Undo2, AlertTriangle, ExternalLink } from "lucide-react";
+import { PageHeader } from "@/components/layout/PageHeader";
 
 interface UndoRef {
   kind: "rollback" | "undo_import";
@@ -114,13 +114,8 @@ export function ActivityLog() {
   return (
     <div className="flex h-full flex-col gap-3">
       <div>
-        <div className="flex items-center gap-2">
-          <h1 className="text-2xl font-semibold">{t("nav.activityLog")}</h1>
-          <Button variant="ghost" size="icon-sm" title="Hilfe zu diesem Modul" onClick={() => openManual("activity-log")}>
-            <HelpCircle className="size-4" />
-          </Button>
-        </div>
-        <p className="text-sm text-muted-foreground">
+        <PageHeader module="activity-log" title={t("nav.activityLog")} />
+        <p className="max-w-4xl text-sm text-muted-foreground">
           Gemeinsame Zeitleiste aller Änderungen über die App - Item-/Shop-/Mob-Drop-/Quest-Edits,
           Account-/GM-Aktionen, Server-Events und mehr, zusammen mit den bereits bestehenden
           Verläufen für „Bauen & Einspielen" und den Modul-Importer.

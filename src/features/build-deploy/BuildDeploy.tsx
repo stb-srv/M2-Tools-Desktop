@@ -3,7 +3,6 @@ import { invoke } from "@tauri-apps/api/core";
 import { listen } from "@tauri-apps/api/event";
 import { Button } from "@/components/ui/button";
 import {
-  Wrench,
   RefreshCw,
   Hammer,
   UploadCloud,
@@ -13,10 +12,9 @@ import {
   CheckCircle2,
   XCircle,
   Eraser,
-  HelpCircle,
 } from "lucide-react";
-import { openManual } from "@/lib/manual";
 import { runAsyncAction } from "@/lib/asyncAction";
+import { PageHeader } from "@/components/layout/PageHeader";
 
 interface DeployRecord {
   id: number;
@@ -262,16 +260,9 @@ export function BuildDeploy() {
         : "";
 
   return (
-    <div className="max-w-4xl space-y-6 pb-10">
+    <div className="space-y-6 pb-10">
       <div className="flex items-center justify-between">
-        <div className="flex items-center gap-2">
-          <h1 className="flex items-center gap-2 text-2xl font-semibold">
-            <Wrench className="size-6" /> Server-Quellcode Bauen & Einspielen
-          </h1>
-          <Button variant="ghost" size="icon-sm" title="Hilfe zu diesem Modul" onClick={() => openManual("build-deploy")}>
-            <HelpCircle className="size-4" />
-          </Button>
-        </div>
+        <PageHeader module="build-deploy" title="Server-Quellcode Bauen & Einspielen" />
         <Button variant="ghost" onClick={() => setEditingSettings((v) => !v)}>
           <Settings2 className="size-4" />
           Einstellungen {editingSettings ? "ausblenden" : "anzeigen"}

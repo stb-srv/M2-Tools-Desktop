@@ -3,12 +3,12 @@ import { invoke } from "@tauri-apps/api/core";
 import { runAsyncAction } from "@/lib/asyncAction";
 import { logActivity } from "@/lib/logActivity";
 import { Button } from "@/components/ui/button";
-import { Plus, Trash2, RefreshCw, AlertTriangle, Info, Beaker, HelpCircle, Search, Undo2 } from "lucide-react";
-import { openManual } from "@/lib/manual";
+import { Plus, Trash2, RefreshCw, AlertTriangle, Info, Beaker, Search, Undo2 } from "lucide-react";
 import { EntityBrowser } from "@/features/shared/EntityBrowser";
 import { reportSectionDirty } from "@/store/navigation";
 import { useSaveShortcut } from "@/lib/useSaveShortcut";
 import { toast } from "@/components/ui/toast";
+import { PageHeader } from "@/components/layout/PageHeader";
 
 interface CubeValue {
   vnum: number;
@@ -232,15 +232,9 @@ export function CubeEditor() {
   const selected = selectedIndex !== null ? recipes?.[selectedIndex] : null;
 
   return (
-    <div className="max-w-5xl space-y-6 pb-10">
-      <div className="flex items-center gap-2">
-        <Beaker className="size-6 text-muted-foreground" />
-        <h1 className="text-2xl font-semibold">Cube-Editor</h1>
-        <Button variant="ghost" size="icon-sm" title="Hilfe zu diesem Modul" onClick={() => openManual("cube-editor")}>
-          <HelpCircle className="size-4" />
-        </Button>
-      </div>
-      <p className="text-sm text-muted-foreground">
+    <div className="space-y-6 pb-10">
+      <PageHeader module="cube-editor" title="Cube-Editor" />
+      <p className="max-w-4xl text-sm text-muted-foreground">
         Bearbeitet <code>cube.txt</code> - die Rezepte für das "Cube" (Verwandlung/Kombination) an einem
         NPC: bestimmte NPCs nehmen Material-Items entgegen und geben mit einer Erfolgschance eine
         Belohnung zurück, optional gegen Gold.

@@ -2,10 +2,10 @@ import { useEffect, useMemo, useState } from "react";
 import { invoke } from "@tauri-apps/api/core";
 import { runAsyncAction } from "@/lib/asyncAction";
 import { Button } from "@/components/ui/button";
-import { Shield, Plus, Trash2, RefreshCw, AlertTriangle, Info, HelpCircle, Search } from "lucide-react";
-import { openManual } from "@/lib/manual";
+import { Plus, Trash2, RefreshCw, AlertTriangle, Info, Search } from "lucide-react";
 import { logActivity } from "@/lib/logActivity";
 import { GenericRowEditor } from "@/features/shared/GenericRowEditor";
+import { PageHeader } from "@/components/layout/PageHeader";
 
 interface ColumnInfo {
   name: string;
@@ -294,15 +294,9 @@ export function GmManager() {
   }
 
   return (
-    <div className="max-w-4xl space-y-6 pb-10">
-      <div className="flex items-center gap-2">
-        <Shield className="size-6 text-muted-foreground" />
-        <h1 className="text-2xl font-semibold">GM-Verwaltung</h1>
-        <Button variant="ghost" size="icon-sm" title="Hilfe zu diesem Modul" onClick={() => openManual("gm-manager")}>
-          <HelpCircle className="size-4" />
-        </Button>
-      </div>
-      <p className="text-sm text-muted-foreground">
+    <div className="space-y-6 pb-10">
+      <PageHeader module="gm-manager" title="GM-Verwaltung" />
+      <p className="max-w-4xl text-sm text-muted-foreground">
         Bearbeitet <code>common.gmlist</code> direkt - die Tabelle, aus der der DB-Kern beim Start bzw.
         bei <code>/reload a</code> die GM-Rechte lädt (<code>ClientManager.cpp::__GetAdminInfo</code>).
         Ein GM-Eintrag ist an einen konkreten Charakternamen gebunden, nicht nur an den Account.

@@ -1,12 +1,12 @@
 import { useState } from "react";
 import { invoke } from "@tauri-apps/api/core";
-import { Castle, Search, AlertTriangle, Swords, Trash2, HelpCircle } from "lucide-react";
+import { Search, AlertTriangle, Swords, Trash2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
 import { runAsyncAction } from "@/lib/asyncAction";
 import { logActivity } from "@/lib/logActivity";
-import { openManual } from "@/lib/manual";
 import { GenericRowEditor } from "@/features/shared/GenericRowEditor";
+import { PageHeader } from "@/components/layout/PageHeader";
 
 interface TableRows {
   columns: string[];
@@ -125,15 +125,9 @@ export function GuildManager() {
   }
 
   return (
-    <div className="max-w-4xl space-y-4">
-      <div className="flex items-center gap-2">
-        <Castle className="size-6 text-muted-foreground" />
-        <h1 className="text-2xl font-semibold">Gilden-Verwaltung</h1>
-        <Button variant="ghost" size="icon-sm" title="Hilfe zu diesem Modul" onClick={() => openManual("guild-manager")}>
-          <HelpCircle className="size-4" />
-        </Button>
-      </div>
-      <p className="text-sm text-muted-foreground">
+    <div className="space-y-4">
+      <PageHeader module="guild-manager" title="Gilden-Verwaltung" />
+      <p className="max-w-4xl text-sm text-muted-foreground">
         Bearbeitet die Gilden-Tabellen direkt in der Datenbank (generisch, wie Mob-Proto-Editor/
         Account-Verwaltung - jede Spalte roh, ohne geratene Bedeutung). "Auflösen" führt exakt die
         Kaskade des echten Servers aus (<code>source/db/src/ClientManagerGuild.cpp::GuildDisband</code>

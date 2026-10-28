@@ -1,13 +1,11 @@
 import { useEffect, useState } from "react";
-import { Button } from "@/components/ui/button";
-import { Dices, HelpCircle } from "lucide-react";
-import { openManual } from "@/lib/manual";
 import { cn } from "@/lib/utils";
 import { MobDropEditor } from "@/features/mob-drop-editor/MobDropEditor";
 import { BoxEditor } from "@/features/box-editor/BoxEditor";
 import { CommonDropEditor } from "./CommonDropEditor";
 import { EtcDropEditor } from "./EtcDropEditor";
 import { DropItemGroupEditor } from "./DropItemGroupEditor";
+import { PageHeader } from "@/components/layout/PageHeader";
 
 type Tab = "mob" | "common" | "etc" | "special" | "group";
 
@@ -36,15 +34,9 @@ export function DropGenerator() {
   }, [tab]);
 
   return (
-    <div className="max-w-5xl space-y-4 pb-10">
-      <div className="flex items-center gap-2">
-        <Dices className="size-6 text-muted-foreground" />
-        <h1 className="text-2xl font-semibold">Drop-Generator</h1>
-        <Button variant="ghost" size="icon-sm" title="Hilfe zu diesem Modul" onClick={() => openManual("drop-generator")}>
-          <HelpCircle className="size-4" />
-        </Button>
-      </div>
-      <p className="text-sm text-muted-foreground">
+    <div className="space-y-4 pb-10">
+      <PageHeader module="drop-generator" title="Drop-Generator" />
+      <p className="max-w-4xl text-sm text-muted-foreground">
         Alle 5 Drop-relevanten Server-Dateien an einem Ort. Jeder Tab erklärt oben kurz, wofür seine Datei
         zuständig ist und wie sie sich von den anderen unterscheidet - ausführlicher im Handbuch (Hilfe-Knopf
         oben).

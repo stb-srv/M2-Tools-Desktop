@@ -1,12 +1,10 @@
-import { Button } from "@/components/ui/button";
-import { Users, HelpCircle } from "lucide-react";
-import { openManual } from "@/lib/manual";
 import { PLAYER_TABLE } from "./shared";
 import { AccountSection } from "./components/AccountSection";
 import { TableSearchSection } from "./components/TableSearchSection";
 import { GiveItemSection } from "./components/GiveItemSection";
 import { SectionTabs } from "@/features/shared/SectionTabs";
 import { GmManager } from "@/features/gm-manager/GmManager";
+import { PageHeader } from "@/components/layout/PageHeader";
 
 // GM-Rechte (`common.gmlist`) hängen an Account + Charakter und leben deshalb
 // als zweiter Tab hier statt als eigener Sidebar-Punkt.
@@ -23,15 +21,9 @@ export function AccountManager() {
 
 function AccountsAndPlayers() {
   return (
-    <div className="max-w-4xl space-y-8 pb-10">
-      <div className="flex items-center gap-2">
-        <Users className="size-6 text-muted-foreground" />
-        <h1 className="text-2xl font-semibold">Account-/Spieler-Verwaltung</h1>
-        <Button variant="ghost" size="icon-sm" title="Hilfe zu diesem Modul" onClick={() => openManual("account-manager")}>
-          <HelpCircle className="size-4" />
-        </Button>
-      </div>
-      <p className="text-sm text-muted-foreground">
+    <div className="space-y-8 pb-10">
+      <PageHeader module="account-manager" title="Account-/Spieler-Verwaltung" />
+      <p className="max-w-4xl text-sm text-muted-foreground">
         Es gibt keinen Kanal zu einem laufenden Spielprozess - Änderungen an bereits online
         befindlichen Spielern wirken daher unter Umständen erst nach Neuanmeldung, nicht sofort
         live.
