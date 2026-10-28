@@ -1,8 +1,9 @@
 import { Activity, DatabaseBackup, Map as MapIcon, PackageOpen, type LucideIcon } from "lucide-react";
 import { SettingsCard, TextSetting, type TextSettingDef } from "./shared";
 
-// Alle Pfade auf dem Gameserver, nach Einsatzzweck gruppiert. Sie gelten für
-// den gerade aktiven Server (Profile speichern nur die Verbindung).
+// Alle Pfade auf dem Gameserver, nach Einsatzzweck gruppiert. Jedes
+// Server-Profil hat eigene Werte (siehe PER_SERVER_KEYS im Backend), ein
+// Profilwechsel lädt die Felder neu.
 const GROUPS: { title: string; description: string; icon: LucideIcon; fields: TextSettingDef[] }[] = [
   {
     title: "Drop-Dateien",

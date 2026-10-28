@@ -14,6 +14,7 @@ Feature-Historie mit allen Details siehe `STATUS.md`.
 - **Einstellungen neu gegliedert**: Seitennavigation mit Allgemein · Verbindung · Server-Pfade · Client & Werkzeuge · Benachrichtigungen · Updates; Server-Pfade in Karten nach Zweck gruppiert; jede Speicherung wird bestätigt, Fehler werden angezeigt statt still verschluckt.
 - **Einstellungen übersichtlicher und responsiv**: nutzen die volle Fensterbreite, aktiver Bereich deutlich hervorgehoben mit eigener Kopfzeile, Karten mit Symbol, Beschriftung links und Eingabe rechts; auf schmalen Fenstern rutscht die Bereichsauswahl nach oben.
 - **Größe der Oberfläche** (Allgemein): 90-150 %, auch per Strg + / Strg - / Strg 0.
+- **Server-Pfade pro Profil**: Datei-Pfade auf dem Server, Arbeitsordner/Befehle der Server-Steuerung und Backup-Einstellungen gehören jetzt zum jeweiligen Server-Profil und wechseln beim Profilwechsel mit. Ältere Profile behalten beim Aktivieren die aktuellen Werte, bis sie einmal gespeichert werden.
 - **Ersteinrichtung** fragt zuerst den Profilnamen und legt daraus direkt das erste Server-Profil an.
 
 ## [0.16.0] - 2026-10-26

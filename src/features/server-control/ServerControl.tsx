@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState } from "react";
+import { useConnectionProfiles } from "@/store/connectionProfiles";
 import { useTranslation } from "react-i18next";
 import { invoke } from "@tauri-apps/api/core";
 import { listen } from "@tauri-apps/api/event";
@@ -97,6 +98,8 @@ export function ServerControl() {
   const [logSearchError, setLogSearchError] = useState<string | null>(null);
 
   const logRef = useRef<HTMLPreElement>(null);
+  // Arbeitsordner/Befehle gehören zum Server-Profil -> nach Wechsel neu laden.
+  const profileRevision = useConnectionProfiles((s) => s.revision);
 
   useEffect(() => {
     (async () => {
@@ -121,7 +124,7 @@ export function ServerControl() {
       }).catch(() => null);
       if (savedDelay) setRestartDelay(savedDelay);
     })();
-  }, []);
+  }, [profileRevision]);
 
   useEffect(() => {
     const unlisten = listen<string>("server-output", (event) => {

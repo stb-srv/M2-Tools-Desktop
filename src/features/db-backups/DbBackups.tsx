@@ -1,4 +1,5 @@
 import { useEffect, useState } from "react";
+import { useConnectionProfiles } from "@/store/connectionProfiles";
 import { invoke } from "@tauri-apps/api/core";
 import { runAsyncAction } from "@/lib/asyncAction";
 import { logActivity } from "@/lib/logActivity";
@@ -48,6 +49,8 @@ export function DbBackups() {
   const [deleteTarget, setDeleteTarget] = useState<string | null>(null);
   const [deleting, setDeleting] = useState(false);
 
+  // Backup-Ordner/Zeitplan gehören zum Server-Profil -> nach Wechsel neu laden.
+  const profileRevision = useConnectionProfiles((s) => s.revision);
   const [scheduleHours, setScheduleHours] = useState(0);
   const [lastAutoAt, setLastAutoAt] = useState<string | null>(null);
 
@@ -63,7 +66,7 @@ export function DbBackups() {
       .then(setLastAutoAt)
       .catch(() => {});
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
+  }, [profileRevision]);
 
   async function changeSchedule(hours: number) {
     const previous = scheduleHours;
