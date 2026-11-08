@@ -3,7 +3,7 @@
 
 use super::new_profile_dialog::NewProfileDialog;
 use crate::components::{toast, Button, ButtonSize, ButtonVariant, Icon};
-use crate::lib::connection::get_setting;
+use crate::util::connection::get_setting;
 use crate::store::connection_profiles::{connection_profiles, ConnectionProfile};
 use crate::store::settings_section::{open_settings, SettingsSection};
 use crate::tauri::invoke_unit;

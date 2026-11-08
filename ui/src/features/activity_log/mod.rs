@@ -2,7 +2,7 @@
 
 use crate::components::{Button, ButtonSize, ButtonVariant, Icon, PageHeader};
 use crate::i18n::t;
-use crate::lib::format::{de_datetime, de_int};
+use crate::util::format::{de_datetime, de_int};
 use crate::store::navigation::{nav, EmbeddedModule, Section};
 use crate::tauri::{invoke, invoke_unit};
 use leptos::prelude::*;

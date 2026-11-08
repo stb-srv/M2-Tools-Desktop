@@ -8,7 +8,7 @@ use crate::features::item_editor::components::shared::{Field, FlagSelect, StepRo
 use crate::features::item_editor::item_flags::{subtypes_by_type, WEAR_FLAGS};
 use crate::features::item_editor::types::{js_number, num};
 use crate::features::module_importer::shared::*;
-use crate::lib::{log_activity, use_save_shortcut};
+use crate::util::{log_activity, use_save_shortcut};
 use crate::store::navigation::{report_section_dirty, Section};
 use crate::tauri::{dialog_open_one, invoke, invoke_unit, listen, OpenDialogOptions, Unlisten};
 use leptos::html;

@@ -9,7 +9,7 @@ pub mod num_input;
 
 use crate::components::button::button_class;
 use crate::components::{Button, ButtonSize, ButtonVariant, Icon, PageHeader};
-use crate::lib::log_activity;
+use crate::util::log_activity;
 use crate::store::navigation::{report_section_dirty, Section};
 use crate::tauri::invoke;
 use leptos::prelude::*;

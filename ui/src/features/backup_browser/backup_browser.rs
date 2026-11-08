@@ -1,6 +1,6 @@
 use super::diff::{diff_lines, has_changes};
 use crate::components::{toast, Button, ButtonSize, ButtonVariant, Icon, PageHeader};
-use crate::lib::log_activity;
+use crate::util::log_activity;
 use crate::store::navigation::Section;
 use crate::tauri::invoke;
 use leptos::prelude::*;

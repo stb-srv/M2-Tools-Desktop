@@ -12,7 +12,7 @@ use crate::features::mob_drop_editor::components::shared::{clamp_percent, fmt_nu
 use crate::features::mob_drop_editor::types::{MobDropGroup, MobDropItem};
 use crate::features::shared::drop_chance::format_real_drop_chance;
 use crate::features::shared::{EntityBrowser, EntityKind, EntityRow};
-use crate::lib::{log_activity, use_save_shortcut};
+use crate::util::{log_activity, use_save_shortcut};
 use crate::store::navigation::{report_section_dirty, Section};
 use crate::tauri::invoke;
 use leptos::prelude::*;

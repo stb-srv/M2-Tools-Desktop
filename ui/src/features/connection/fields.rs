@@ -2,7 +2,7 @@
 //! den Einstellungen (Verbindung) und dem Setup-Assistenten.
 
 use crate::components::{Button, ButtonSize, ButtonVariant, Icon};
-use crate::lib::connection::{mysql_complete, ssh_complete, test_mysql, test_ssh, MysqlValues, SshAuthMode, SshValues};
+use crate::util::connection::{mysql_complete, ssh_complete, test_mysql, test_ssh, MysqlValues, SshAuthMode, SshValues};
 use crate::tauri::{dialog_open_one, OpenDialogOptions};
 use leptos::html;
 use leptos::prelude::*;

@@ -3,7 +3,7 @@
 use crate::components::{Button, ButtonSize, ButtonVariant, Icon, PageHeader, Skeleton};
 use crate::features::shared::generic_row_editor::TableRows;
 use crate::features::shared::GenericRowEditor;
-use crate::lib::log_activity;
+use crate::util::log_activity;
 use crate::store::navigation::{ModuleId, Section};
 use crate::tauri::{invoke, invoke_unit};
 use leptos::prelude::*;

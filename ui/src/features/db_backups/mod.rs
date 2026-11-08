@@ -5,7 +5,7 @@ pub mod schedule;
 
 use crate::components::{toast, Button, ButtonSize, ButtonVariant, Icon, PageHeader, Skeleton};
 use crate::features::server_control::util::{js_number, js_number_string};
-use crate::lib::log_activity;
+use crate::util::log_activity;
 use crate::store::connection_profiles::connection_profiles;
 use crate::store::navigation::EmbeddedModule;
 use crate::tauri::{invoke, invoke0, invoke_unit};
@@ -201,7 +201,7 @@ pub fn DbBackups() -> impl IntoView {
         let last = last_auto_at.get();
         let mut out = String::new();
         if hours > 0.0 {
-            let due = next_due_at(crate::lib::format::now_ms(), last.as_deref(), hours).map(de_locale_string).unwrap_or_default();
+            let due = next_due_at(crate::util::format::now_ms(), last.as_deref(), hours).map(de_locale_string).unwrap_or_default();
             out.push_str(&format!(" Nächstes automatisches Backup fällig: {due}."));
         }
         if let Some(l) = last.filter(|s| !s.is_empty()) {

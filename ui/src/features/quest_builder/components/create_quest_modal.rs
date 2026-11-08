@@ -13,7 +13,7 @@ use crate::features::quest_builder::quest_templates::{
     MultiStepFormState, QuestFormState, QuestStep, StepKind, TemplateType, DEFAULT_COOLDOWN_DAYS,
 };
 use crate::features::shared::{EntityBrowser, EntityKind};
-use crate::lib::log_activity;
+use crate::util::log_activity;
 use crate::store::navigation::Section;
 use crate::tauri::invoke;
 use leptos::prelude::*;

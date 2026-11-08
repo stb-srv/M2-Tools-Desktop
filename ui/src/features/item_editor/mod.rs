@@ -9,11 +9,11 @@ pub mod types;
 
 use crate::components::{Button, ButtonSize, ButtonVariant, Icon, PageHeader};
 use crate::features::shared::{EntityBrowser, EntityKind, EntityRow, ItemUsageModal};
-use crate::lib::{log_activity, use_save_shortcut};
+use crate::util::{log_activity, use_save_shortcut};
 use crate::store::navigation::{nav, report_section_dirty, Section};
 use crate::tauri::{dialog_open_one, invoke, invoke_unit, listen, DialogFilter, OpenDialogOptions, Unlisten};
 use components::confirm_pipeline_dialog::ConfirmPipelineDialog;
-use components::icon_browser_modal::IconBrowserModal;
+use crate::features::icon_browser::IconBrowserModal;
 use components::item_flags_section::ItemFlagsSection;
 use components::item_presets_section::ItemPresetsSection;
 use components::shared::{Field, FlagSelect, NumInput, StepRow};

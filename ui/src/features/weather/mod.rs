@@ -5,7 +5,7 @@ pub mod weather_quest;
 
 use crate::components::{Button, ButtonSize, ButtonVariant, Icon, PageHeader};
 use crate::features::server_control::util::{auto_scroll, copy_to_clipboard, listen_while_mounted};
-use crate::lib::log_activity;
+use crate::util::log_activity;
 use crate::store::navigation::EmbeddedModule;
 use crate::tauri::{invoke, invoke0, invoke_unit};
 use leptos::prelude::*;

@@ -6,7 +6,7 @@
 use crate::components::{command_palette::CommandPalette, crash_watch::CrashWatch, global_search::GlobalSearch, whats_new::WhatsNewDialog};
 use crate::features as f;
 use crate::layout::Sidebar;
-use crate::lib::connection::{auto_connect_mysql, get_setting};
+use crate::util::connection::{auto_connect_mysql, get_setting};
 use crate::store::navigation::{nav, Section};
 use crate::store::update::update_store;
 use leptos::prelude::*;

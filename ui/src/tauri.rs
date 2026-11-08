@@ -5,6 +5,9 @@
 //! einmal zentral über `js_sys::Reflect` aufgerufen, damit der restliche Code
 //! nur typisierte Rust-Funktionen sieht (`invoke`, `dialog_open`, ...).
 
+// Allgemeine Helfer-API: nicht jede Funktion/Variante wird aktuell genutzt.
+#![allow(dead_code)]
+
 use js_sys::{Array, Function, Object, Promise, Reflect};
 use serde::{de::DeserializeOwned, Serialize};
 use wasm_bindgen::prelude::*;

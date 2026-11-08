@@ -15,7 +15,7 @@ pub mod wiki;
 pub use wiki::QuestWiki;
 
 use crate::components::{toast, Button, ButtonSize, ButtonVariant, Icon, PageHeader};
-use crate::lib::log_activity;
+use crate::util::log_activity;
 use crate::store::navigation::{nav, report_section_dirty, Section};
 use crate::tauri::{invoke, invoke0, invoke_unit, listen, Unlisten};
 use code_editor::{CodeEditor, CodeEditorHandle};

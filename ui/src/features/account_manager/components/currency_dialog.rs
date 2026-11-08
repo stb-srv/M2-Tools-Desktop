@@ -1,6 +1,6 @@
 use super::super::shared::{focus_on_mount, num_arg, AccountSummary, ColumnInfo, MODULE};
 use crate::components::{Button, ButtonVariant, Icon};
-use crate::lib::log_activity;
+use crate::util::log_activity;
 use crate::tauri::invoke;
 use leptos::prelude::*;
 use leptos::task::spawn_local;

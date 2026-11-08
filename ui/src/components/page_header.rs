@@ -29,7 +29,7 @@ pub fn PageHeader(
                     variant=ButtonVariant::Ghost
                     size=ButtonSize::IconSm
                     title="Hilfe zu diesem Modul"
-                    on_click=move |_| crate::lib::open_manual(Some(module))
+                    on_click=move |_| crate::util::open_manual(Some(module))
                 >
                     <Icon name="HelpCircle" class="size-4"/>
                 </Button>

@@ -3,13 +3,6 @@
 //! Ein Bundle für alle Fenster: `?view=manual` zeigt das Handbuch,
 //! `?view=wiki` das Quest-Wiki, sonst die Haupt-App.
 
-// Während der Portierung sind viele Helfer noch ungenutzt.
-#![allow(dead_code)]
-
-// `lib` ist hier ein normales Modul (Helfer), kein Crate-Typ.
-#[allow(clippy::module_inception)]
-mod lib;
-
 mod app;
 mod components;
 mod features;
@@ -17,6 +10,7 @@ mod i18n;
 mod layout;
 mod store;
 mod tauri;
+mod util;
 
 use leptos::prelude::*;
 

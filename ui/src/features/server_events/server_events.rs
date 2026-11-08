@@ -1,7 +1,7 @@
 use super::flags::{gm_command, is_curated, FlagDef, RATE_FLAGS, RATE_FLAGS_PREMIUM, SEASONAL_FLAGS, SPECIAL_EVENT_FLAGS};
 use crate::components::{Button, ButtonSize, ButtonVariant, Icon, PageHeader};
 use crate::features::server_control::util::{copy_to_clipboard, js_number, js_number_json, js_number_string};
-use crate::lib::log_activity;
+use crate::util::log_activity;
 use crate::store::navigation::{nav, Section};
 use crate::tauri::{invoke0, invoke_unit};
 use leptos::prelude::*;

@@ -2,7 +2,7 @@ use super::shared::SettingsCard;
 use crate::components::{toast, Button, ButtonSize, ButtonVariant, Icon};
 use crate::features::connection::fields::ConnectionTest;
 use crate::features::connection::{MysqlFields, NewProfileDialog, SshFields, TestResult, TestState};
-use crate::lib::connection::{
+use crate::util::connection::{
     connect_mysql, load_stored_connection, mysql_complete, save_mysql, save_ssh, ssh_complete, test_mysql, test_ssh,
     MysqlValues, SshValues,
 };

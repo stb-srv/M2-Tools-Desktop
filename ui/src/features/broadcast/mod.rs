@@ -3,7 +3,7 @@
 pub mod broadcast_quest;
 
 use crate::components::{Button, ButtonSize, ButtonVariant, Icon, PageHeader};
-use crate::lib::{log_activity, use_save_shortcut};
+use crate::util::{log_activity, use_save_shortcut};
 use crate::store::navigation::{report_section_dirty, ModuleId, Section};
 use crate::tauri::{invoke, invoke0, invoke_unit, listen, Unlisten};
 use broadcast_quest::{generate_broadcast_quest, BroadcastMessage};

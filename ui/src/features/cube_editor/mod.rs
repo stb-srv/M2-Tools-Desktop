@@ -4,7 +4,7 @@
 use crate::components::{toast, Button, ButtonSize, ButtonVariant, Icon, PageHeader};
 use crate::features::regen_editor::num_input::{js_number_string, NumInput};
 use crate::features::shared::{EntityBrowser, EntityKind, EntityRow};
-use crate::lib::{log_activity, use_save_shortcut};
+use crate::util::{log_activity, use_save_shortcut};
 use crate::store::navigation::{report_section_dirty, Section};
 use crate::tauri::{invoke, invoke0};
 use leptos::prelude::*;

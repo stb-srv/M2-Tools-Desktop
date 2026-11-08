@@ -3,7 +3,7 @@
 
 use crate::components::{Button, ButtonSize, ButtonVariant, Icon, PageHeader};
 use crate::features::server_control::util::{auto_scroll, listen_while_mounted};
-use crate::lib::format::de_datetime;
+use crate::util::format::de_datetime;
 use crate::store::navigation::Section;
 use crate::tauri::{invoke, invoke0};
 use leptos::prelude::*;

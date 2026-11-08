@@ -7,7 +7,7 @@ pub mod resource_history_chart;
 use crate::components::{Button, ButtonSize, ButtonVariant, Icon, PageHeader};
 use crate::features::connection::ServerSwitcher;
 use crate::i18n::t;
-use crate::lib::format::de_int;
+use crate::util::format::de_int;
 use crate::store::connection_profiles::connection_profiles;
 use crate::store::navigation::{nav, Section};
 use crate::store::settings_section::{open_settings, SettingsSection};

@@ -2,7 +2,7 @@
 
 use crate::components::{Button, ButtonSize, ButtonVariant, Icon};
 use crate::features::connection::{MysqlFields, MysqlTestButton, SshFields, SshTestButton, TestResult, TestState, TextField};
-use crate::lib::connection::{set_setting, ssh_complete, MysqlValues, SshValues};
+use crate::util::connection::{set_setting, ssh_complete, MysqlValues, SshValues};
 use crate::store::connection_profiles::connection_profiles;
 use crate::tauri::{dialog_open_one, invoke, OpenDialogOptions};
 use leptos::prelude::*;

@@ -1,5 +1,8 @@
 //! Button im Stil der bisherigen shadcn-Variante (gleiche Tailwind-Klassen).
 
+// Allgemeine Helfer-API: nicht jede Funktion/Variante wird aktuell genutzt.
+#![allow(dead_code)]
+
 use leptos::prelude::*;
 
 #[derive(Clone, Copy, PartialEq, Eq, Default, Debug)]

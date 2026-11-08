@@ -2,7 +2,7 @@ use super::super::shared::{ColumnInfo, ITEM_TABLE, MODULE};
 use super::MiniPlayerSearch;
 use crate::components::{toast, Button, ButtonSize, ButtonVariant, Icon};
 use crate::features::shared::{EntityBrowser, EntityKind, EntityRow};
-use crate::lib::log_activity;
+use crate::util::log_activity;
 use crate::tauri::{invoke, invoke_unit};
 use leptos::prelude::*;
 use leptos::task::spawn_local;

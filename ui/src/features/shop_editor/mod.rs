@@ -7,8 +7,8 @@ use crate::components::{Button, ButtonSize, ButtonVariant, Icon, PageHeader, Pas
 use crate::features::model_viewer::{Gr2Canvas, Gr2ModelInfo};
 use crate::features::shared::{EntityBrowser, EntityKind, EntityRow, RowRenderer};
 use crate::i18n::t;
-use crate::lib::connection::auto_connect_mysql;
-use crate::lib::{log_activity, open_manual};
+use crate::util::connection::auto_connect_mysql;
+use crate::util::{log_activity, open_manual};
 use crate::store::navigation::{ModuleId, Section};
 use crate::tauri::{invoke, invoke0, invoke_unit};
 use leptos::prelude::*;

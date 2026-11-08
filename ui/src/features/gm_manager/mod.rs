@@ -4,7 +4,7 @@
 use crate::components::{Button, ButtonSize, ButtonVariant, Icon, PageHeader};
 use crate::features::shared::generic_row_editor::{ColumnInfo, TableRows};
 use crate::features::shared::GenericRowEditor;
-use crate::lib::log_activity;
+use crate::util::log_activity;
 use crate::store::navigation::{EmbeddedModule, ModuleId};
 use crate::tauri::{invoke, invoke_unit};
 use leptos::prelude::*;

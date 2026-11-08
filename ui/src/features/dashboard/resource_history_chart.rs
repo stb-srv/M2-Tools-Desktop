@@ -2,7 +2,7 @@
 //! keine Diagramm-Bibliothek, wie im alten Frontend.
 
 use crate::i18n::{t, t_with};
-use crate::lib::format::de_time;
+use crate::util::format::de_time;
 use crate::tauri::invoke;
 use leptos::prelude::*;
 use leptos::task::spawn_local;

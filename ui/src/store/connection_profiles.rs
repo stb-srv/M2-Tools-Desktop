@@ -2,7 +2,7 @@
 //! zählt bei jedem Wechsel der aktiven Verbindung hoch, damit z.B. das
 //! Dashboard seinen Status neu prüft.
 
-use crate::lib::connection::{connect_mysql, load_stored_connection, save_mysql, save_ssh, MysqlValues, SshValues};
+use crate::util::connection::{connect_mysql, load_stored_connection, save_mysql, save_ssh, MysqlValues, SshValues};
 use crate::tauri::{invoke0, invoke_unit};
 use leptos::prelude::*;
 use serde::Deserialize;

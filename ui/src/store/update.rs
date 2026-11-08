@@ -1,6 +1,6 @@
 //! "Update verfügbar"-Zustand (Punkt in der Sidebar, Update-Tab).
 
-use crate::lib::storage;
+use crate::util::storage;
 use crate::tauri::UpdateInfo;
 use leptos::prelude::*;
 use serde::{Deserialize, Serialize};

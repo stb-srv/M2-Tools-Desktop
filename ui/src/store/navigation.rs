@@ -2,7 +2,10 @@
 //! Gruppen, "ungespeichert"-Markierungen und die Übergabe einer Auswahl
 //! an einen anderen Bereich (`go_to_with_selection`).
 
-use crate::lib::storage;
+// Allgemeine Helfer-API: nicht jede Funktion/Variante wird aktuell genutzt.
+#![allow(dead_code)]
+
+use crate::util::storage;
 use leptos::prelude::*;
 use std::collections::{HashMap, HashSet};
 use std::sync::OnceLock;

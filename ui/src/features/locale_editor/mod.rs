@@ -4,7 +4,7 @@
 pub mod logic;
 
 use crate::components::{Button, ButtonSize, ButtonVariant, Icon, PageHeader};
-use crate::lib::log_activity;
+use crate::util::log_activity;
 use crate::store::navigation::{nav, report_section_dirty, Section};
 use crate::tauri::{invoke, invoke0, invoke_unit};
 use leptos::prelude::*;

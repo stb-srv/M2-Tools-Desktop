@@ -5,7 +5,7 @@
 //! passendem Eingabefeld, Primärschlüssel automatisch erkannt.
 
 use crate::components::{Button, ButtonSize, ButtonVariant, Icon, Skeleton};
-use crate::lib::{log_activity, use_save_shortcut};
+use crate::util::{log_activity, use_save_shortcut};
 use crate::store::navigation::{report_section_dirty, ModuleId, Section};
 use crate::tauri::invoke;
 use leptos::prelude::*;

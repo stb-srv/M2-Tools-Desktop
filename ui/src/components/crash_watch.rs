@@ -12,6 +12,7 @@
 //! App offen ist", nie ein echter Cron.
 
 use crate::tauri::{invoke, invoke0, invoke_unit};
+use crate::features::db_backups::schedule::is_backup_due;
 use leptos::prelude::*;
 use leptos::task::spawn_local;
 use serde::Deserialize;
@@ -59,20 +60,6 @@ pub fn js_number(s: Option<&str>) -> f64 {
     }
 }
 
-/// Ist ein automatisches Backup fällig? (Port von `isBackupDue` aus
-/// `db-backups/schedule.ts`.) `last_auto_ms`: `None` = noch nie gelaufen,
-/// `Some(NaN)` = Zeitstempel nicht lesbar.
-pub fn is_backup_due(now_ms: f64, last_auto_ms: Option<f64>, schedule_hours: f64) -> bool {
-    if schedule_hours.is_nan() || schedule_hours <= 0.0 {
-        return false;
-    }
-    match last_auto_ms {
-        None => true,
-        Some(last) if last.is_nan() => true,
-        Some(last) => now_ms - last >= schedule_hours * 60.0 * 60.0 * 1000.0,
-    }
-}
-
 async fn get_setting(key: &str) -> Result<Option<String>, String> {
     invoke::<Option<String>>("get_setting", &json!({ "key": key })).await
 }
@@ -83,8 +70,7 @@ async fn tick(was_running: Rc<Cell<Option<bool>>>) {
         (get_setting("db_backup_schedule_hours").await, get_setting("db_backup_last_auto_at").await)
     {
         let hours = js_number(schedule_hours.as_deref());
-        let last_ms = last_auto_at.filter(|s| !s.is_empty()).map(|s| js_sys::Date::parse(&s));
-        if is_backup_due(js_sys::Date::now(), last_ms, hours) {
+        if is_backup_due(js_sys::Date::now(), last_auto_at.as_deref(), hours) {
             // create_database_backup meldet Fehler selbst per Webhook - hier
             // nicht doppelt melden, einfach beim nächsten Tick neu versuchen.
             if invoke0::<String>("create_database_backup").await.is_ok() {
@@ -150,20 +136,6 @@ pub fn CrashWatch() -> impl IntoView {
 mod tests {
     use super::*;
 
-    const HOUR: f64 = 60.0 * 60.0 * 1000.0;
-
-    #[test]
-    fn backup_due() {
-        let now = 1_000_000_000.0;
-        assert!(!is_backup_due(now, None, 0.0));
-        assert!(!is_backup_due(now, None, -1.0));
-        assert!(!is_backup_due(now, None, f64::NAN));
-        assert!(is_backup_due(now, None, 6.0));
-        assert!(is_backup_due(now, Some(f64::NAN), 6.0));
-        assert!(!is_backup_due(now, Some(now - 5.0 * HOUR), 6.0));
-        assert!(is_backup_due(now, Some(now - 6.0 * HOUR), 6.0));
-        assert!(is_backup_due(now, Some(now - 30.0 * HOUR), 24.0));
-    }
 
     #[test]
     fn number_like_js() {

@@ -10,7 +10,7 @@
 
 use super::markdown::{Markdown, COMPACT_STYLE};
 use super::{Button, ButtonSize, ButtonVariant, Icon};
-use crate::lib::storage;
+use crate::util::storage;
 use crate::store::update::read_pending_update_notes;
 use crate::tauri::app_version;
 use leptos::prelude::*;

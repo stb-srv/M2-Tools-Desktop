@@ -1,6 +1,6 @@
 use super::super::shared::{js_error, num_arg, ColumnInfo, TableRows, MODULE};
 use crate::components::{Button, ButtonSize, ButtonVariant, Icon};
-use crate::lib::log_activity;
+use crate::util::log_activity;
 use crate::tauri::{invoke, invoke_unit};
 use leptos::prelude::*;
 use leptos::task::spawn_local;

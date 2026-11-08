@@ -22,7 +22,7 @@ fn en() -> &'static Value {
 /// Muss einmal vor dem Mounten aufgerufen werden (außerhalb eines Owners,
 /// damit das Signal nie entsorgt wird).
 pub fn init() {
-    let stored = crate::lib::storage::get(STORAGE_KEY).unwrap_or_else(|| "de".into());
+    let stored = crate::util::storage::get(STORAGE_KEY).unwrap_or_else(|| "de".into());
     let _ = LANG.set(RwSignal::new(stored));
 }
 
@@ -35,7 +35,7 @@ pub fn set_language(lang: &str) {
     if let Some(s) = LANG.get() {
         s.set(lang.to_string());
     }
-    crate::lib::storage::set(STORAGE_KEY, lang);
+    crate::util::storage::set(STORAGE_KEY, lang);
 }
 
 fn lookup<'a>(root: &'a Value, key: &str) -> Option<&'a str> {

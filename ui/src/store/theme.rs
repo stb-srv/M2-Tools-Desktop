@@ -1,6 +1,6 @@
 //! Hell/Dunkel/System und Oberflächen-Zoom (Strg +/-/0).
 
-use crate::lib::storage;
+use crate::util::storage;
 use leptos::prelude::*;
 use std::sync::OnceLock;
 use wasm_bindgen::prelude::*;

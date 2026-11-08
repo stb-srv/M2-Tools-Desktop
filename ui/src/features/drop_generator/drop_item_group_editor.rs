@@ -6,7 +6,7 @@ use crate::components::{Button, ButtonSize, ButtonVariant, Icon};
 use crate::features::mob_drop_editor::components::shared::{fmt_num, js_number, num_sig, NumInput};
 use crate::features::shared::drop_chance::format_real_drop_chance;
 use crate::features::shared::{EntityBrowser, EntityKind, EntityRow};
-use crate::lib::{log_activity, use_save_shortcut};
+use crate::util::{log_activity, use_save_shortcut};
 use crate::store::navigation::{report_section_dirty, Section};
 use crate::tauri::invoke;
 use leptos::prelude::*;

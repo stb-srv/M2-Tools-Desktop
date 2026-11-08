@@ -2,7 +2,7 @@
 //! Bestand nach vnum sortiert), optional aus dem lokalen Cache.
 
 use crate::components::{Button, ButtonSize, ButtonVariant, Icon};
-use crate::lib::format::{de_int, de_time};
+use crate::util::format::{de_int, de_time};
 use crate::tauri::invoke;
 use leptos::prelude::*;
 use leptos::task::spawn_local;

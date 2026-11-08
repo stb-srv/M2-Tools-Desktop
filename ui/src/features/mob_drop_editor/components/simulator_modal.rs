@@ -2,7 +2,7 @@ use super::super::types::MobDropGroup;
 use super::super::{with_group, IconMap};
 use super::shared::{js_number_or, num_sig, Modal, NumInput};
 use crate::features::shared::drop_chance::simulate_drops;
-use crate::lib::format::de_int;
+use crate::util::format::de_int;
 use leptos::prelude::*;
 
 const PRESETS: [f64; 3] = [100.0, 1000.0, 10000.0];

@@ -1,6 +1,9 @@
 //! Kurze Rückmeldungen (gespeichert/gelöscht/Fehler) unten rechts.
 //! Aufruf von überall, auch aus async-Code: `toast::success("Gespeichert")`.
 
+// Allgemeine Helfer-API: nicht jede Funktion/Variante wird aktuell genutzt.
+#![allow(dead_code)]
+
 use super::Icon;
 use leptos::prelude::*;
 use std::sync::OnceLock;
