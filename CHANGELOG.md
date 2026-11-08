@@ -6,6 +6,18 @@ nach [SemVer](https://semver.org/) (`MAJOR.MINOR.PATCH`, solange < 1.0 gilt
 `MINOR` für neue Features, `PATCH` für reine Fixes). Für die vollständige
 Feature-Historie mit allen Details siehe `STATUS.md`.
 
+## [0.18.0] - 2026-11-08
+
+### Geändert
+
+- **Komplette Oberfläche in Rust**: das Frontend ist von React/TypeScript auf Leptos (Rust, als WebAssembly im Tauri-Fenster) umgestellt. Funktionen und Texte bleiben gleich; Node.js/npm werden weder zum Bauen noch in CI/Release gebraucht.
+- **Quest-Editor**: eigener Code-Editor mit Lua-Hervorhebung und Zeilennummern statt CodeMirror (ohne Code-Falten, Autovervollständigung und Strg+F).
+- **3D-Modell-Viewer**: eigener WebGL-Renderer statt three.js (gleiche Bedienung, Darstellung nicht pixelgleich).
+
+### Behoben
+
+- **DB-Backups**: die Liste zeigt jetzt den eingestellten Backup-Ordner statt immer den Standardordner.
+
 ## [Unreleased]
 
 ### Behoben
