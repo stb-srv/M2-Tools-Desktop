@@ -1,0 +1,11 @@
+[package]
+name = "m2manager-e2e"
+version = "0.1.0"
+edition = "2021"
+publish = false
+description = "E2E-Smoke-Test gegen die gebaute M2Manager.exe (tauri-driver + msedgedriver)"
+
+[dependencies]
+thirtyfour = "0.35"
+tokio = { version = "1", features = ["macros", "rt-multi-thread", "process", "time"] }
+serde_json = "1"

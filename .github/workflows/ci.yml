@@ -1,7 +1,7 @@
 name: CI
 
-# Prüft jeden Pull Request und jeden Push auf master: Typecheck + Build des
-# Frontends, Frontend-Tests und die Rust-Tests. Integrationstests, die echte
+# Prüft jeden Pull Request und jeden Push auf master: Tests und WASM-Build des
+# Leptos-Frontends (ui/) und die Backend-Tests. Integrationstests, die echte
 # Client-Dateien, eine echte Datenbank oder einen Server brauchen, sind mit
 # #[ignore] markiert und laufen hier bewusst nicht (siehe src-tauri/src/test_support.rs).
 on:
@@ -15,19 +15,30 @@ concurrency:
 
 jobs:
   frontend:
-    name: Frontend (Typecheck, Build, Tests)
+    name: Frontend (Rust/Leptos, Tests + WASM-Build)
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
 
-      - uses: actions/setup-node@v4
+      - uses: dtolnay/rust-toolchain@stable
         with:
-          node-version: 20
-          cache: npm
+          targets: wasm32-unknown-unknown
 
-      - run: npm ci
-      - run: npm run build
-      - run: npm test
+      - uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: "ui -> target"
+
+      - uses: taiki-e/install-action@v2
+        with:
+          tool: trunk
+
+      - name: Logik-Tests
+        working-directory: ui
+        run: cargo test
+
+      - name: WASM-Build (Trunk + Tailwind)
+        working-directory: ui
+        run: trunk build --release
 
   rust:
     name: Rust-Tests

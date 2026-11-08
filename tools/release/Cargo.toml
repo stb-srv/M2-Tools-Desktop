@@ -1,0 +1,13 @@
+[package]
+name = "release-tools"
+version = "0.1.0"
+edition = "2021"
+publish = false
+description = "Hilfsprogramme für die Release-Pipeline (.github/workflows/release.yml)"
+
+[[bin]]
+name = "rewrite-latest-json"
+path = "src/main.rs"
+
+[dependencies]
+serde_json = { version = "1", features = ["preserve_order"] }

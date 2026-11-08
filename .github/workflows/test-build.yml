@@ -1,0 +1,43 @@
+name: Test-Build
+
+# Baut bei jedem Pull Request einen Windows-Installer zum Ausprobieren und
+# hängt ihn als Actions-Artefakt an den Lauf. Wird NICHT veröffentlicht und
+# ändert updater/latest.json nicht - installierte Apps bekommen davon nichts mit.
+on:
+  pull_request:
+  workflow_dispatch:
+
+concurrency:
+  group: test-build-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  windows-installer:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: wasm32-unknown-unknown
+
+      - uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: |
+            src-tauri -> target
+            ui -> target
+
+      - uses: taiki-e/install-action@v2
+        with:
+          tool: trunk,tauri-cli
+
+      # Ohne Updater-Artefakte, damit kein Signierschlüssel nötig ist.
+      - name: Installer bauen
+        shell: bash
+        run: cargo tauri build --bundles nsis --config '{"bundle":{"createUpdaterArtifacts":false}}'
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: M2Manager-Test-Installer
+          path: src-tauri/target/release/bundle/nsis/*.exe
+          retention-days: 14

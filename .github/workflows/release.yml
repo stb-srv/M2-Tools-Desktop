@@ -19,35 +19,39 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
-      - uses: actions/setup-node@v4
-        with:
-          node-version: 20
-
       - uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: wasm32-unknown-unknown
 
       - uses: Swatinem/rust-cache@v2
         with:
-          workspaces: "src-tauri -> target"
+          workspaces: |
+            src-tauri -> target
+            ui -> target
+            tools/release -> target
 
-      # Der Tag muss zur Version in package.json, tauri.conf.json und
-      # Cargo.toml passen. Sonst baut die Pipeline still die alte Version,
+      # Trunk baut das Leptos-Frontend (beforeBuildCommand in tauri.conf.json),
+      # tauri-cli ersetzt das frühere npm-Paket @tauri-apps/cli.
+      - uses: taiki-e/install-action@v2
+        with:
+          tool: trunk,tauri-cli
+
+      # Der Tag muss zur Version in tauri.conf.json, src-tauri/Cargo.toml und
+      # ui/Cargo.toml passen. Sonst baut die Pipeline still die alte Version,
       # latest.json meldet keine neuere Version und installierte Apps finden
       # nie ein Update (so passiert bei v0.17.0, das als 0.16.0 gebaut wurde).
       - name: Check that the tag matches the app version
         shell: bash
         run: |
           tag="${GITHUB_REF_NAME#v}"
-          pkg=$(node -p "require('./package.json').version")
-          conf=$(node -p "require('./src-tauri/tauri.conf.json').version")
+          conf=$(grep -m1 '"version":' src-tauri/tauri.conf.json | cut -d'"' -f4)
           cargo=$(grep -m1 '^version = ' src-tauri/Cargo.toml | cut -d'"' -f2)
-          echo "tag=$tag package.json=$pkg tauri.conf.json=$conf Cargo.toml=$cargo"
-          if [ "$tag" != "$pkg" ] || [ "$tag" != "$conf" ] || [ "$tag" != "$cargo" ]; then
-            echo "::error::Tag v$tag passt nicht zur Version in den Dateien (package.json=$pkg, tauri.conf.json=$conf, Cargo.toml=$cargo). Erst Version hochzählen, committen, dann taggen."
+          ui=$(grep -m1 '^version = ' ui/Cargo.toml | cut -d'"' -f2)
+          echo "tag=$tag tauri.conf.json=$conf src-tauri/Cargo.toml=$cargo ui/Cargo.toml=$ui"
+          if [ "$tag" != "$conf" ] || [ "$tag" != "$cargo" ] || [ "$tag" != "$ui" ]; then
+            echo "::error::Tag v$tag passt nicht zur Version in den Dateien (tauri.conf.json=$conf, src-tauri/Cargo.toml=$cargo, ui/Cargo.toml=$ui). Erst Version hochzählen, committen, dann taggen."
             exit 1
           fi
-
-      - name: Install frontend dependencies
-        run: npm ci
 
       - name: Build, sign and publish the GitHub Release
         id: tauri-action
@@ -62,11 +66,12 @@ jobs:
           generateReleaseNotes: true
           releaseDraft: false
           prerelease: false
+          tauriScript: cargo tauri
 
       - name: Rewrite latest.json to use api.github.com asset URLs
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        run: node .github/scripts/rewrite-latest-json.mjs "${{ steps.tauri-action.outputs.releaseId }}"
+        run: cargo run --release --manifest-path tools/release/Cargo.toml -- "${{ steps.tauri-action.outputs.releaseId }}"
 
       - name: Commit updater/latest.json
         run: |

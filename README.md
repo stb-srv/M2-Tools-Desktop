@@ -42,11 +42,12 @@ Passwörter liegen in der Windows-Anmeldeinformationsverwaltung, nicht im Klarte
 
 ## Entwicklung
 
-Voraussetzungen: [Node.js](https://nodejs.org/) 20+, [Rust](https://rustup.rs/) (stable) und die [Tauri-Voraussetzungen für Windows](https://tauri.app/start/prerequisites/) (WebView2, MSVC Build Tools).
+Alles ist Rust - kein Node.js nötig. Voraussetzungen: [Rust](https://rustup.rs/) (stable) mit WebAssembly-Ziel, [Trunk](https://trunkrs.dev/), die Tauri-CLI und die [Tauri-Voraussetzungen für Windows](https://tauri.app/start/prerequisites/) (WebView2, MSVC Build Tools).
 
 ```bash
-npm install
-npm run tauri dev     # App mit Hot-Reload starten
+rustup target add wasm32-unknown-unknown
+cargo install trunk tauri-cli --locked
+cargo tauri dev       # App mit Hot-Reload starten (Trunk baut ui/ automatisch)
 ```
 
 Der 3D-Modell-Viewer braucht zusätzlich den 32-Bit-Sidecar, der die `granny2.dll` des Clients lädt:
@@ -59,9 +60,9 @@ cargo build --release --target i686-pc-windows-msvc
 ### Prüfen
 
 ```bash
-npm run build                     # Typecheck + Frontend-Build
-npm test                          # Frontend-Tests (Vitest)
-cd src-tauri && cargo test --lib  # Rust-Tests
+cd ui && cargo test               # Frontend-Logik-Tests
+cd ui && trunk build --release    # Frontend-Build (WebAssembly + Tailwind)
+cd src-tauri && cargo test --lib  # Backend-Tests
 ```
 
 Dieselben Prüfungen laufen bei jedem Pull Request automatisch (`.github/workflows/ci.yml`).
@@ -74,10 +75,12 @@ cd src-tauri && cargo test --lib -- --ignored
 
 ### Aufbau
 
-- `src/` - React-Oberfläche, ein Ordner pro Modul unter `src/features/`, Handbuch unter `src/features/manual/docs/`.
+- `ui/` - Oberfläche in Rust (Leptos, läuft als WebAssembly im Tauri-Fenster), ein Ordner pro Modul unter `ui/src/features/`, Handbuch unter `ui/src/features/manual/docs/`. Details in `ui/README.md`.
 - `src-tauri/src/` - Rust-Backend: SSH/SFTP, MySQL, Datei-Parser, Tauri-Befehle unter `commands/`.
 - `src-tauri/gr2-sidecar/` - 32-Bit-Hilfsprogramm für GR2-Modelle.
+- `tools/release/` - Hilfsprogramm der Release-Pipeline (schreibt `updater/latest.json`).
+- `e2e/` - E2E-Smoke-Test gegen die gebaute .exe (`cargo run --manifest-path e2e/Cargo.toml`).
 
 ### Release
 
-Siehe [howtorelease.md](howtorelease.md): Version in `package.json` und `src-tauri/tauri.conf.json` hochzählen, Tag `vX.Y.Z` pushen, GitHub Actions baut und veröffentlicht den Rest. Änderungen stehen im [CHANGELOG](CHANGELOG.md).
+Siehe [howtorelease.md](howtorelease.md): Version in `src-tauri/tauri.conf.json`, `src-tauri/Cargo.toml` und `ui/Cargo.toml` hochzählen, Tag `vX.Y.Z` pushen, GitHub Actions baut und veröffentlicht den Rest. Änderungen stehen im [CHANGELOG](CHANGELOG.md).
