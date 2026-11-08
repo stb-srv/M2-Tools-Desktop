@@ -32,6 +32,8 @@ features = [
   "Navigator", "Clipboard", "Performance", "ScrollIntoViewOptions", "ScrollBehavior", "ScrollLogicalPosition",
   "ResizeObserver", "ResizeObserverEntry", "Selection", "Range",
   "WebglLoseContext",
+  "HtmlDocument",
+  "EventInit",
 ]
 
 [profile.release]
