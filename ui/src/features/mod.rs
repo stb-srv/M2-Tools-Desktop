@@ -1,0 +1,37 @@
+//! Alle Module der App - je ein Unterordner pro früherem `src/features/*`.
+
+pub mod account_manager;
+pub mod activity_log;
+pub mod backup_browser;
+pub mod box_editor;
+pub mod broadcast;
+pub mod build_deploy;
+pub mod connection;
+pub mod cube_editor;
+pub mod dashboard;
+pub mod db_backups;
+pub mod db_explorer;
+pub mod drop_generator;
+pub mod economy_dashboard;
+pub mod gm_manager;
+pub mod guild_manager;
+pub mod icon_browser;
+pub mod item_editor;
+pub mod item_proto_explorer;
+pub mod locale_editor;
+pub mod manual;
+pub mod mob_drop_editor;
+pub mod mob_proto_editor;
+pub mod model_viewer;
+pub mod module_importer;
+pub mod quest_builder;
+pub mod refine_editor;
+pub mod regen_editor;
+pub mod server_control;
+pub mod server_events;
+pub mod settings;
+pub mod setup;
+pub mod shared;
+pub mod shop_editor;
+pub mod tga_converter;
+pub mod weather;

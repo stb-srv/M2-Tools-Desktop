@@ -34,3 +34,6 @@ RegenEditor/*.exe
 *.key
 *.key.pub
 /~/
+
+# Rust-Frontend (Leptos)
+/ui/target

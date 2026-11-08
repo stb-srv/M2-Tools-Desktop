@@ -1,0 +1,15 @@
+# Baut das Leptos-Frontend nach ../dist, das Tauri als frontendDist einbindet.
+# Tailwind läuft als Standalone-Binary (Trunk lädt es selbst herunter) - kein Node.js nötig.
+[build]
+target = "index.html"
+dist = "../dist"
+
+[tools]
+tailwindcss = "4.1.13"
+
+[serve]
+port = 1420
+ws_protocol = "ws"
+
+[watch]
+ignore = ["../src-tauri"]

@@ -4,9 +4,15 @@
   "version": "0.17.1",
   "identifier": "com.m2manager.app",
   "build": {
-    "beforeDevCommand": "npm run dev",
+    "beforeDevCommand": {
+      "script": "trunk serve",
+      "cwd": "../ui"
+    },
     "devUrl": "http://localhost:1420",
-    "beforeBuildCommand": "npm run build",
+    "beforeBuildCommand": {
+      "script": "trunk build --release",
+      "cwd": "../ui"
+    },
     "frontendDist": "../dist"
   },
   "app": {
@@ -19,7 +25,8 @@
     ],
     "security": {
       "csp": null
-    }
+    },
+    "withGlobalTauri": true
   },
   "bundle": {
     "active": true,
