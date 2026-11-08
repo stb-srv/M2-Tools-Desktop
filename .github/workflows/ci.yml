@@ -15,7 +15,7 @@ concurrency:
 
 jobs:
   frontend:
-    name: Frontend (Rust/Leptos: Tests, WASM-Build)
+    name: Frontend (Rust/Leptos, Tests + WASM-Build)
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
