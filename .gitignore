@@ -37,3 +37,5 @@ RegenEditor/*.exe
 
 # Rust-Frontend (Leptos)
 /ui/target
+/e2e/target
+/tools/release/target
