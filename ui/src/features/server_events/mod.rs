@@ -1,16 +1,22 @@
-//! PORT-TODO: aus src/features/server-events portieren.
+//! Server-Events: Event-Flags (Drop-/EXP-Raten, Saison-Events, sichtbare
+//! Events) plus Tag/Nacht & Schnee als zweiter Tab.
 
-use crate::components::PageHeader;
-use crate::i18n::t;
-use crate::store::navigation::Section;
+pub mod flags;
+mod server_events;
+
+use crate::features::shared::{SectionTab, SectionTabs};
+use crate::features::weather::WeatherControl;
 use leptos::prelude::*;
+pub use server_events::ServerEvents;
 
+/// Tag/Nacht & Schnee setzt ebenfalls nur Event-Flags (`day`, `xmas_snow`)
+/// und lebt deshalb als zweiter Tab hier statt als eigener Sidebar-Punkt.
 #[component]
 pub fn ServerEventsPage() -> impl IntoView {
     view! {
-        <div class="space-y-4">
-            <PageHeader module=Section::ServerEvents title=Signal::derive(|| t("nav.serverEvents"))/>
-            <p class="text-sm text-muted-foreground">"Dieses Modul wird gerade auf Rust portiert."</p>
-        </div>
+        <SectionTabs tabs=vec![
+            SectionTab::new("flags", || "Event-Flags".to_string(), || view! { <ServerEvents/> }),
+            SectionTab::new("weather", || "Tag/Nacht & Schnee".to_string(), || view! { <WeatherControl/> }),
+        ]/>
     }
 }
