@@ -31,6 +31,7 @@ features = [
   "WebGlVertexArrayObject", "WebGlTexture",
   "Navigator", "Clipboard", "Performance", "ScrollIntoViewOptions", "ScrollBehavior", "ScrollLogicalPosition",
   "ResizeObserver", "ResizeObserverEntry", "Selection", "Range",
+  "WebglLoseContext",
 ]
 
 [profile.release]
