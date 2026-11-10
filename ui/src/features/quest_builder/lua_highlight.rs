@@ -28,12 +28,12 @@ impl TokenKind {
     }
 }
 
-const KEYWORDS: &[&str] = &[
+pub const KEYWORDS: &[&str] = &[
     "and", "break", "elseif", "false", "nil", "not", "or", "return", "true", "function", "end", "if", "then", "else", "do",
     "while", "repeat", "until", "for", "in", "local",
 ];
 
-const BUILTINS: &[&str] = &[
+pub const BUILTINS: &[&str] = &[
     "_G", "_VERSION", "assert", "collectgarbage", "dofile", "error", "getfenv", "getmetatable", "ipairs", "load",
     "loadfile", "loadstring", "module", "next", "pairs", "pcall", "print", "rawequal", "rawget", "rawset", "require",
     "select", "setfenv", "setmetatable", "tonumber", "tostring", "type", "unpack", "xpcall",
@@ -165,22 +165,32 @@ pub fn escape_html(s: &str) -> String {
     out
 }
 
-/// Hervorgehobenes HTML für die Overlay-Ebene.
-pub fn highlight_html(text: &str) -> String {
-    let mut out = String::with_capacity(text.len() * 2);
+/// Hervorgehobenes HTML je Zeile (für die Faltung: einzelne Zeilen lassen
+/// sich weglassen). Spans über Zeilenumbrüche werden pro Zeile geschlossen
+/// und neu geöffnet.
+pub fn highlight_lines(text: &str) -> Vec<String> {
+    let mut lines = vec![String::new()];
     for (s, e, k) in tokenize(text) {
-        let part = escape_html(&text[s..e]);
-        if k == TokenKind::Plain {
-            out.push_str(&part);
-        } else {
-            out.push_str("<span class=\"");
-            out.push_str(k.class());
-            out.push_str("\">");
-            out.push_str(&part);
-            out.push_str("</span>");
+        for (n, part) in text[s..e].split('\n').enumerate() {
+            if n > 0 {
+                lines.push(String::new());
+            }
+            if part.is_empty() {
+                continue;
+            }
+            let line = lines.last_mut().unwrap();
+            if k == TokenKind::Plain {
+                line.push_str(&escape_html(part));
+            } else {
+                line.push_str("<span class=\"");
+                line.push_str(k.class());
+                line.push_str("\">");
+                line.push_str(&escape_html(part));
+                line.push_str("</span>");
+            }
         }
     }
-    out
+    lines
 }
 
 #[cfg(test)]
@@ -230,7 +240,17 @@ mod tests {
     }
 
     #[test]
+    fn lines_split_spans() {
+        let l = highlight_lines("a --[[x\ny]] b\n");
+        assert_eq!(l.len(), 3);
+        assert!(l[0].starts_with("a <span") && l[0].ends_with("--[[x</span>"));
+        assert!(l[1].starts_with("<span") && l[1].ends_with("</span> b"));
+        assert_eq!(l[2], "");
+    }
+
+    #[test]
     fn escapes_html() {
-        assert_eq!(highlight_html("a<b"), "a&lt;b");
+        assert_eq!(escape_html("a<b"), "a&lt;b");
+        assert_eq!(highlight_lines("a<b"), vec!["a&lt;b".to_string()]);
     }
 }

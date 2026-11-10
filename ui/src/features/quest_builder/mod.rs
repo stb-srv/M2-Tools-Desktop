@@ -5,6 +5,9 @@
 pub mod apply_types;
 pub mod code_editor;
 pub mod components;
+pub mod editor_complete;
+pub mod editor_doc;
+pub mod editor_search;
 pub mod js_num;
 pub mod lua_highlight;
 pub mod quest_description_parser;

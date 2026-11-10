@@ -6,6 +6,16 @@ nach [SemVer](https://semver.org/) (`MAJOR.MINOR.PATCH`, solange < 1.0 gilt
 `MINOR` für neue Features, `PATCH` für reine Fixes). Für die vollständige
 Feature-Historie mit allen Details siehe `STATUS.md`.
 
+## [Unreleased]
+
+### Hinzugefügt
+
+- **Quest-Editor**: Code-Falten (Pfeile neben den Zeilennummern, Strg+Umschalt+[ / ] für den Block am Cursor, Strg+Alt+[ / ] für alle), Suchen und Ersetzen mit Strg+F (Groß-/Kleinschreibung, ganze Wörter, reguläre Ausdrücke, F3 / Enter springt zum nächsten Treffer) und Autovervollständigung beim Tippen bzw. mit Strg+Leertaste (Lua, Quest-Schlüsselwörter, alle Quest-Funktionen des Servers, Wörter aus der Datei). Rückgängig/Wiederholen (Strg+Z / Strg+Y) fasst Tippen wieder zu Schritten zusammen.
+
+### Geändert
+
+- **3D-Modell-Viewer**: Darstellung an three.js angeglichen (zweiseitige transparente Flächen in zwei Durchgängen, undurchsichtige Zeichenfläche, gleiche Texturumrechnung). Im Pixelvergleich mit three.js 0.185 weichen nach Laden, Drehen, Verschieben und Zoomen weniger als 0,05 % der Pixel ab.
+
 ## [0.18.0] - 2026-11-08
 
 ### Geändert
