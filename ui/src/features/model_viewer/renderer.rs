@@ -186,7 +186,11 @@ fn upload_u32(gl: &GL, target: u32, data: &[u32]) -> Option<WebGlBuffer> {
 impl Renderer {
     pub fn new(canvas: HtmlCanvasElement) -> Result<Self, String> {
         let opts = js_sys::Object::new();
+        // Wie `new THREE.WebGLRenderer({ antialias: true })`: MSAA an,
+        // undurchsichtiger Zeichenpuffer (alpha: false), kein Stencil.
         let _ = js_sys::Reflect::set(&opts, &"antialias".into(), &true.into());
+        let _ = js_sys::Reflect::set(&opts, &"alpha".into(), &false.into());
+        let _ = js_sys::Reflect::set(&opts, &"stencil".into(), &false.into());
         let gl: GL = canvas
             .get_context_with_context_options("webgl2", &opts)
             .map_err(crate::tauri::js_err)?
@@ -360,7 +364,8 @@ impl Renderer {
         gl.bind_texture(GL::TEXTURE_2D, Some(&tex));
         gl.pixel_storei(GL::UNPACK_FLIP_Y_WEBGL, 0);
         gl.pixel_storei(GL::UNPACK_PREMULTIPLY_ALPHA_WEBGL, 0);
-        gl.pixel_storei(GL::UNPACK_COLORSPACE_CONVERSION_WEBGL, GL::NONE as i32);
+        // three.js nutzt für sRGB-Texturen die Browser-Standardumrechnung.
+        gl.pixel_storei(GL::UNPACK_COLORSPACE_CONVERSION_WEBGL, GL::BROWSER_DEFAULT_WEBGL as i32);
         gl.pixel_storei(GL::UNPACK_ALIGNMENT, 4);
         let ok = gl
             .tex_image_2d_with_u32_and_u32_and_html_image_element(
@@ -437,26 +442,31 @@ impl Renderer {
         let grey = hex_linear(0xcfcfcf);
         // Wie three.js: erst opake (untexturierte), dann "transparente"
         // (texturierte) Meshes.
-        let order = self.meshes.iter().filter(|m| !m.textured).chain(self.meshes.iter().filter(|m| m.textured));
-        for m in order {
-            if m.index_count == 0 {
-                continue;
-            }
-            if m.textured {
-                let Some(tex) = &m.texture else { continue };
-                gl.enable(GL::BLEND);
-                gl.bind_texture(GL::TEXTURE_2D, Some(tex));
-                gl.uniform1i(u.has_tex.as_ref(), 1);
-                gl.uniform3f(u.color.as_ref(), white[0], white[1], white[2]);
-            } else {
-                gl.disable(GL::BLEND);
-                gl.bind_texture(GL::TEXTURE_2D, None);
-                gl.uniform1i(u.has_tex.as_ref(), 0);
-                gl.uniform3f(u.color.as_ref(), grey[0], grey[1], grey[2]);
-            }
+        for m in self.meshes.iter().filter(|m| !m.textured && m.index_count > 0) {
+            gl.disable(GL::BLEND);
+            gl.bind_texture(GL::TEXTURE_2D, None);
+            gl.uniform1i(u.has_tex.as_ref(), 0);
+            gl.uniform3f(u.color.as_ref(), grey[0], grey[1], grey[2]);
             gl.bind_vertex_array(m.vao.as_ref());
             gl.draw_elements_with_i32(GL::TRIANGLES, m.index_count, GL::UNSIGNED_INT, 0);
         }
+        // three.js zeichnet transparente, beidseitige Materialien in zwei
+        // Durchgängen je Objekt: erst die Rückseiten, dann die Vorderseiten.
+        gl.enable(GL::BLEND);
+        gl.enable(GL::CULL_FACE);
+        gl.uniform1i(u.has_tex.as_ref(), 1);
+        gl.uniform3f(u.color.as_ref(), white[0], white[1], white[2]);
+        for m in self.meshes.iter().filter(|m| m.textured && m.index_count > 0) {
+            let Some(tex) = &m.texture else { continue };
+            gl.bind_texture(GL::TEXTURE_2D, Some(tex));
+            gl.bind_vertex_array(m.vao.as_ref());
+            for face in [GL::FRONT, GL::BACK] {
+                gl.cull_face(face);
+                gl.draw_elements_with_i32(GL::TRIANGLES, m.index_count, GL::UNSIGNED_INT, 0);
+            }
+        }
+        gl.disable(GL::CULL_FACE);
+        gl.disable(GL::BLEND);
         gl.bind_vertex_array(None);
         gl.bind_texture(GL::TEXTURE_2D, None);
     }
