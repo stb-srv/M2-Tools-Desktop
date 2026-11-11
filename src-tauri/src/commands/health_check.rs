@@ -145,6 +145,33 @@ fn check_local_path_values(values: &[(&'static str, &'static str, Option<String>
         .collect()
 }
 
+/// Frisch installierte Clients haben nur gepackte Archive - dann fehlen im
+/// ganzen Tool die Item-Icons, ohne dass ein Pfad "falsch" wäre.
+fn check_client_unpacked(client_path: Option<&str>) -> Option<HealthCheckResult> {
+    let client = client_path?;
+    if !crate::client_unpack::pack_dir(client).is_dir() {
+        return None;
+    }
+    let pending: Vec<String> = crate::client_unpack::archive_status(client)
+        .into_iter()
+        .filter(|a| a.recommended && !a.unpacked)
+        .map(|a| a.name)
+        .collect();
+    Some(if pending.is_empty() {
+        result("Client entpackt", "client", "ok", "Icons und Texte liegen entpackt vor.")
+    } else {
+        result(
+            "Client entpackt",
+            "client",
+            "warning",
+            format!(
+                "Noch gepackt: {} - Icons/Texte fehlen. Einstellungen › Client & Werkzeuge › Client-Dateien entpacken.",
+                pending.join(", ")
+            ),
+        )
+    })
+}
+
 async fn check_remote_path_values(state: &State<'_, AppState>, ssh_ok: bool, values: Vec<(&'static str, &'static str, Option<String>)>) -> Vec<HealthCheckResult> {
     if !ssh_ok {
         return values
@@ -216,6 +243,11 @@ pub async fn run_health_check(state: State<'_, AppState>) -> Result<Vec<HealthCh
     };
 
     results.extend(check_local_path_values(&local_values));
+    let client_path = local_values
+        .iter()
+        .find(|(key, _, _)| *key == "client_path")
+        .and_then(|(_, _, v)| v.clone());
+    results.extend(check_client_unpacked(client_path.as_deref()));
     results.extend(check_remote_path_values(&state, ssh_ok, remote_values).await);
 
     Ok(results)

@@ -7,6 +7,7 @@ mod backups;
 mod bans;
 mod broadcast;
 mod build_deploy;
+mod client_unpack;
 mod commands;
 mod connection_profiles;
 mod credentials;
@@ -151,6 +152,8 @@ pub fn run() {
             commands::get_setting,
             commands::set_setting,
             commands::check_client_path,
+            commands::get_client_unpack_status,
+            commands::unpack_client_archives,
             commands::locate_npc_model,
             commands::get_shop_default_max,
             commands::set_shop_default_max,

@@ -17,6 +17,7 @@ pub fn write_icon_tga(client_path: &str, vnum: u32, source_image_path: &str) -> 
         .join(format!("{vnum:05}.tga"));
 
     crate::imageconv::convert_to_tga(source_image_path, &path)?;
+    crate::icons::invalidate_caches();
     Ok(path)
 }
 
@@ -495,26 +496,50 @@ async fn fill_missing_from_archive(
     cwd: &Path,
     folder_name: &str,
 ) -> Result<(), String> {
+    extract_missing_from_archive(app, "item-editor-output", tool, cwd, folder_name)
+        .await
+        .map(|_| ())
+}
+
+/// Extracts `<archive_dir>/<folder_name>.epk`/`.eix` with `tool` into a
+/// scratch directory and copies every file that is not yet present into the
+/// loose folder `<archive_dir>/<folder_name>` - never overwriting anything,
+/// so files the user (or this app) already edited survive. Returns the
+/// number of copied files and `None` if the tool produced no
+/// `<folder_name>` folder at all (unexpected archive layout).
+///
+/// Shared by the pre-repack safety net above and by the "Client vorbereiten"
+/// step (`client_unpack.rs`), which unpacks a fresh client's archives so
+/// icons, models and texts can be read as loose files.
+pub async fn extract_missing_from_archive(
+    app: &AppHandle,
+    event: &str,
+    tool: &Path,
+    archive_dir: &Path,
+    folder_name: &str,
+) -> Result<Option<usize>, String> {
     let scratch = std::env::temp_dir().join(format!(
         "m2manager_pack_merge_{folder_name}_{}",
         std::process::id()
     ));
+    let _ = std::fs::remove_dir_all(&scratch);
     std::fs::create_dir_all(&scratch).map_err(|e| e.to_string())?;
 
-    let result: Result<(), String> = async {
-        std::fs::copy(cwd.join(format!("{folder_name}.epk")), scratch.join(format!("{folder_name}.epk")))
+    let result: Result<Option<usize>, String> = async {
+        std::fs::copy(archive_dir.join(format!("{folder_name}.epk")), scratch.join(format!("{folder_name}.epk")))
             .map_err(|e| e.to_string())?;
-        std::fs::copy(cwd.join(format!("{folder_name}.eix")), scratch.join(format!("{folder_name}.eix")))
+        std::fs::copy(archive_dir.join(format!("{folder_name}.eix")), scratch.join(format!("{folder_name}.eix")))
             .map_err(|e| e.to_string())?;
 
         let eix_arg = format!("{folder_name}.eix");
-        run_streamed(app, "item-editor-output", tool, &[eix_arg.as_str()], &scratch).await?;
+        run_streamed(app, event, tool, &[eix_arg.as_str()], &scratch).await?;
 
         let extracted_root = scratch.join(folder_name);
         if extracted_root.is_dir() {
-            copy_missing_recursive(&extracted_root, &cwd.join(folder_name))?;
+            copy_missing_recursive(&extracted_root, &archive_dir.join(folder_name)).map(Some)
+        } else {
+            Ok(None)
         }
-        Ok(())
     }
     .await;
 
@@ -523,19 +548,22 @@ async fn fill_missing_from_archive(
 }
 
 /// Copies every file under `src` into the matching path under `dest`,
-/// skipping any file that already exists there - never overwrites.
-fn copy_missing_recursive(src: &Path, dest: &Path) -> Result<(), String> {
+/// skipping any file that already exists there - never overwrites. Returns
+/// the number of files copied.
+fn copy_missing_recursive(src: &Path, dest: &Path) -> Result<usize, String> {
     std::fs::create_dir_all(dest).map_err(|e| e.to_string())?;
+    let mut copied = 0;
     for entry in std::fs::read_dir(src).map_err(|e| e.to_string())?.flatten() {
         let path = entry.path();
         let target = dest.join(entry.file_name());
         if path.is_dir() {
-            copy_missing_recursive(&path, &target)?;
+            copied += copy_missing_recursive(&path, &target)?;
         } else if !target.exists() {
             std::fs::copy(&path, &target).map_err(|e| e.to_string())?;
+            copied += 1;
         }
     }
-    Ok(())
+    Ok(copied)
 }
 
 /// Runs Mysql2Proto in pack mode (DB -> client proto file) for item_proto
@@ -596,6 +624,8 @@ pub fn replace_client_item_proto(
 /// `commands::undo_import_batch`. Returns `None` if there was nothing to
 /// delete (e.g. the variant never got an icon in the first place).
 pub fn delete_item_icon(client_path: &str, vnum: u32) -> Result<Option<PathBuf>, String> {
+    // Icon-Zuordnung/-Dateien ändern sich - zwischengespeicherte Icons verwerfen.
+    crate::icons::invalidate_caches();
     let path = Path::new(client_path)
         .join("pack")
         .join("icon")
@@ -617,6 +647,8 @@ pub fn delete_item_icon(client_path: &str, vnum: u32) -> Result<Option<PathBuf>,
 /// A missing row (nothing to remove) is not an error - the item may never
 /// have gotten a row in the first place (e.g. an armor piece with no icon).
 pub fn remove_item_list_entries(client_path: &str, vnum: u32) -> Result<Vec<String>, String> {
+    // Icon-Zuordnung/-Dateien ändern sich - zwischengespeicherte Icons verwerfen.
+    crate::icons::invalidate_caches();
     let locale_dir = Path::new(client_path).join("locale");
     let entries = std::fs::read_dir(&locale_dir)
         .map_err(|e| format!("Locale-Ordner {locale_dir:?} nicht lesbar: {e}"))?;
@@ -690,6 +722,8 @@ pub fn upsert_item_list_entries(
     icon_rel_path: &str,
     model_rel_path: Option<&str>,
 ) -> Result<Vec<String>, String> {
+    // Icon-Zuordnung/-Dateien ändern sich - zwischengespeicherte Icons verwerfen.
+    crate::icons::invalidate_caches();
     let locale_dir = Path::new(client_path).join("locale");
     let entries = std::fs::read_dir(&locale_dir)
         .map_err(|e| format!("Locale-Ordner {locale_dir:?} nicht lesbar: {e}"))?;

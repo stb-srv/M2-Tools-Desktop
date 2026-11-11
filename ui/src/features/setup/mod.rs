@@ -1,8 +1,9 @@
-//! Erststart-Assistent: Server-Profil, SSH, MySQL, Client-Ordner.
+//! Erststart-Assistent: Server-Profil, SSH, MySQL, Client-Ordner, Client vorbereiten.
 
 use crate::components::{Button, ButtonSize, ButtonVariant, Icon};
 use crate::features::connection::{MysqlFields, MysqlTestButton, SshFields, SshTestButton, TestResult, TestState, TextField};
-use crate::util::connection::{set_setting, ssh_complete, MysqlValues, SshValues};
+use crate::features::shared::client_unpack_panel::{load_unpack_status, ClientUnpackPanel};
+use crate::util::connection::{get_setting, set_setting, ssh_complete, MysqlValues, SshValues};
 use crate::store::connection_profiles::connection_profiles;
 use crate::tauri::{dialog_open_one, invoke, OpenDialogOptions};
 use leptos::prelude::*;
@@ -15,9 +16,10 @@ enum Step {
     Ssh,
     Mysql,
     Client,
+    Prepare,
 }
 
-const STEPS: [Step; 4] = [Step::Profile, Step::Ssh, Step::Mysql, Step::Client];
+const STEPS: [Step; 5] = [Step::Profile, Step::Ssh, Step::Mysql, Step::Client, Step::Prepare];
 
 fn step_label(s: Step) -> &'static str {
     match s {
@@ -25,6 +27,7 @@ fn step_label(s: Step) -> &'static str {
         Step::Ssh => "SSH-Verbindung",
         Step::Mysql => "MySQL-Verbindung",
         Step::Client => "Client-Ordner",
+        Step::Prepare => "Client vorbereiten",
     }
 }
 
@@ -101,6 +104,12 @@ pub fn SetupWizard(#[prop(into)] on_complete: Callback<()>) -> impl IntoView {
                 }
                 if !client.is_empty() {
                     set_setting("client_path", &client).await?;
+                    // EterPack aus dem pack-Ordner übernehmen, falls noch keins eingestellt ist.
+                    if get_setting("eterpack_tool_path").await.unwrap_or_default().is_empty() {
+                        if let Ok(Some(tool)) = load_unpack_status(&client).await.map(|s| s.tool_path) {
+                            set_setting("eterpack_tool_path", &tool).await?;
+                        }
+                    }
                 }
                 set_setting("setup_completed", "true").await
             }
@@ -209,6 +218,23 @@ pub fn SetupWizard(#[prop(into)] on_complete: Callback<()>) -> impl IntoView {
                                 }
                             }}
                         </div>
+                    </div>
+                </Show>
+
+                <Show when=move || step() == Step::Prepare>
+                    <div class="space-y-3">
+                        <p class="text-sm text-muted-foreground">
+                            "Ein frisch installierter Client enthält Icons, Modelle und Texte nur gepackt. M2Manager kann sie hier mit "
+                            <code>"EterPackConsoleLz4.exe"</code>
+                            " entpacken, damit Item-Icons und Modelle sofort angezeigt werden. Geht auch später unter Einstellungen › Client & Werkzeuge."
+                        </p>
+                        {move || {
+                            if client_path.with(|p| p.is_empty()) {
+                                view! { <p class="text-sm text-muted-foreground">"Kein Client-Ordner gewählt - dieser Schritt wird übersprungen."</p> }.into_any()
+                            } else {
+                                view! { <ClientUnpackPanel client_path=Signal::derive(move || client_path.get())/> }.into_any()
+                            }
+                        }}
                     </div>
                 </Show>
 

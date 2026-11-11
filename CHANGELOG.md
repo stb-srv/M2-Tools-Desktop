@@ -6,6 +6,16 @@ nach [SemVer](https://semver.org/) (`MAJOR.MINOR.PATCH`, solange < 1.0 gilt
 `MINOR` für neue Features, `PATCH` für reine Fixes). Für die vollständige
 Feature-Historie mit allen Details siehe `STATUS.md`.
 
+## [Unreleased]
+
+### Hinzugefügt
+
+- **Client vorbereiten**: Ein frisch installierter Client enthält Icons, Modelle und Texte nur gepackt (`pack/*.epk`), deshalb blieben Item-Icons bisher leer. M2Manager findet jetzt `EterPackConsoleLz4.exe` im `pack`-Ordner selbst, zeigt die noch gepackten Archive an und entpackt sie per Klick. Vorhandene Dateien werden dabei nie überschrieben. Zu finden als letzter Schritt im Einrichtungs-Assistenten, unter Einstellungen › Client & Werkzeuge und als Hinweis auf dem Dashboard; die System-Diagnose meldet noch gepackte Icons/Texte.
+
+### Geändert
+
+- **Item-Icons laden deutlich schneller**: Statt für jedes nicht direkt gefundene Icon den ganzen Client-Ordner zu durchsuchen, baut M2Manager einmal einen Index auf und merkt sich bereits geladene Icons. Dateinamen werden wie unter Windows ohne Groß-/Kleinschreibung verglichen.
+
 ## [0.18.1] - 2026-11-10
 
 ### Hinzugefügt

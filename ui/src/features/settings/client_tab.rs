@@ -1,4 +1,5 @@
 use super::shared::{PathSetting, PathSettingDef, SettingsCard};
+use crate::features::shared::ClientUnpackPanel;
 use crate::tauri::DialogFilter;
 use leptos::prelude::*;
 
@@ -32,6 +33,14 @@ pub fn ClientTab() -> impl IntoView {
                     hint: Some("Normalerweise nicht nötig: M2Manager sucht zuerst unter <code>root\\npclist.txt</code> und sonst im ganzen Client-Ordner. Nur setzen, wenn die Datei umbenannt wurde oder außerhalb des Clients liegt."),
                     ..def("npclist_path", "NPC-Liste (npclist.txt)", "npclist.txt auswählen")
                 }/>
+            </SettingsCard>
+
+            <SettingsCard
+                title="Client-Dateien entpacken".to_string()
+                icon="PackageOpen"
+                description="Icons, Modelle und Texte liegen in einem frischen Client nur gepackt vor. Hier entpackst du sie, damit M2Manager sie anzeigen kann.".to_string()
+            >
+                <ClientUnpackPanel client_path=Signal::derive(String::new)/>
             </SettingsCard>
 
             <SettingsCard

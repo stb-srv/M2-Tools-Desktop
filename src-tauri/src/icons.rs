@@ -35,22 +35,100 @@ fn parse_item_icon_map(path: &Path) -> HashMap<u32, String> {
     map
 }
 
-static ICON_MAP_CACHE: OnceLock<Mutex<Option<(String, HashMap<u32, String>)>>> = OnceLock::new();
+/// Everything this module caches for one client path: the parsed
+/// `item_list.txt` mapping, an index of every `.tga` under the client
+/// (lower-cased file name -> first path found) and the already encoded
+/// icons per vnum (`None` = no icon exists).
+///
+/// The index replaces the old per-icon recursive scan of the whole client
+/// folder: on a fresh, still packed client *every* lookup missed and walked
+/// tens of thousands of files, so icon lists took seconds and still stayed
+/// empty. Now the folder is walked once per client path.
+#[derive(Default)]
+struct IconCaches {
+    client_path: String,
+    item_list: Option<HashMap<u32, String>>,
+    tga_index: Option<HashMap<String, PathBuf>>,
+    data_urls: HashMap<u32, Option<String>>,
+}
+
+/// Upper bound for cached encoded icons (a few KB each) so browsing every
+/// item doesn't grow memory without limit.
+const MAX_CACHED_ICONS: usize = 5000;
+
+static CACHES: OnceLock<Mutex<IconCaches>> = OnceLock::new();
+
+fn with_caches<T>(client_path: &str, f: impl FnOnce(&mut IconCaches) -> T) -> Option<T> {
+    let cache = CACHES.get_or_init(|| Mutex::new(IconCaches::default()));
+    let mut guard = cache.lock().ok()?;
+    if guard.client_path != client_path {
+        *guard = IconCaches {
+            client_path: client_path.to_string(),
+            ..Default::default()
+        };
+    }
+    Some(f(&mut guard))
+}
+
+/// Drops every cached mapping, index and encoded icon. Called whenever icon
+/// files or `item_list.txt` change (new/deleted icon, client unpacked).
+pub fn invalidate_caches() {
+    if let Some(cache) = CACHES.get() {
+        if let Ok(mut guard) = cache.lock() {
+            *guard = IconCaches::default();
+        }
+    }
+}
 
 /// Returns the icon path (relative to `pack/icon/`, e.g. "icon/item/money.tga")
-/// for a vnum, per `item_list.txt`. Parses the file once per client path and
-/// caches the result; re-parses if the configured client path changes.
+/// for a vnum, per `item_list.txt`. Parses the file once per client path.
 fn icon_path_for_vnum(client_path: &str, vnum: u32) -> Option<String> {
-    let cache = ICON_MAP_CACHE.get_or_init(|| Mutex::new(None));
-    let mut guard = cache.lock().ok()?;
-    let needs_reload = guard.as_ref().map(|(p, _)| p != client_path).unwrap_or(true);
-    if needs_reload {
-        let map = find_item_list(client_path)
-            .map(|p| parse_item_icon_map(&p))
-            .unwrap_or_default();
-        *guard = Some((client_path.to_string(), map));
+    with_caches(client_path, |c| {
+        c.item_list
+            .get_or_insert_with(|| {
+                find_item_list(client_path)
+                    .map(|p| parse_item_icon_map(&p))
+                    .unwrap_or_default()
+            })
+            .get(&vnum)
+            .cloned()
+    })
+    .flatten()
+}
+
+fn build_tga_index(dir: &Path, max_depth: u32, out: &mut HashMap<String, PathBuf>) {
+    if max_depth == 0 {
+        return;
     }
-    guard.as_ref().and_then(|(_, map)| map.get(&vnum).cloned())
+    let Ok(entries) = std::fs::read_dir(dir) else { return };
+    let mut entries: Vec<_> = entries.flatten().map(|e| e.path()).collect();
+    entries.sort();
+    for path in entries {
+        if path.is_dir() {
+            build_tga_index(&path, max_depth - 1, out);
+        } else if let Some(name) = path.file_name().and_then(|n| n.to_str()) {
+            let lower = name.to_lowercase();
+            if lower.ends_with(".tga") {
+                out.entry(lower).or_insert(path);
+            }
+        }
+    }
+}
+
+/// Looks up a `.tga` by file name anywhere in the client (case-insensitive,
+/// like Windows itself), using the cached index.
+fn find_tga_by_name(client_path: &str, filename: &str) -> Option<PathBuf> {
+    with_caches(client_path, |c| {
+        c.tga_index
+            .get_or_insert_with(|| {
+                let mut index = HashMap::new();
+                build_tga_index(Path::new(client_path), 10, &mut index);
+                index
+            })
+            .get(&filename.to_lowercase())
+            .cloned()
+    })
+    .flatten()
 }
 
 fn find_icon_file(client_path: &str, vnum: u32) -> Option<PathBuf> {
@@ -60,7 +138,7 @@ fn find_icon_file(client_path: &str, vnum: u32) -> Option<PathBuf> {
             return Some(mapped);
         }
         if let Some(filename) = Path::new(&rel).file_name().and_then(|f| f.to_str()) {
-            if let Some(found) = find_recursive(Path::new(client_path), filename, 10) {
+            if let Some(found) = find_tga_by_name(client_path, filename) {
                 return Some(found);
             }
         }
@@ -83,7 +161,7 @@ fn try_icon_path(client_path: &str, vnum: u32) -> Option<PathBuf> {
     if direct.exists() {
         return Some(direct);
     }
-    find_recursive(Path::new(client_path), &filename, 10)
+    find_tga_by_name(client_path, &filename)
 }
 
 fn find_recursive(dir: &Path, filename: &str, max_depth: u32) -> Option<PathBuf> {
@@ -120,10 +198,20 @@ fn encode_icon_data_url(path: &Path) -> Result<String, String> {
 }
 
 pub fn load_item_icon_data_url(client_path: &str, vnum: u32) -> Result<Option<String>, String> {
-    let Some(path) = find_icon_file(client_path, vnum) else {
-        return Ok(None);
+    if let Some(Some(cached)) = with_caches(client_path, |c| c.data_urls.get(&vnum).cloned()) {
+        return Ok(cached);
+    }
+    let result = match find_icon_file(client_path, vnum) {
+        Some(path) => Some(encode_icon_data_url(&path)?),
+        None => None,
     };
-    encode_icon_data_url(&path).map(Some)
+    with_caches(client_path, |c| {
+        if c.data_urls.len() >= MAX_CACHED_ICONS {
+            c.data_urls.clear();
+        }
+        c.data_urls.insert(vnum, result.clone());
+    });
+    Ok(result)
 }
 
 #[derive(serde::Serialize)]
@@ -179,6 +267,28 @@ pub fn load_icon_file_data_url(absolute_path: &str) -> Result<String, String> {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn icon_lookup_uses_case_insensitive_index_and_sees_new_files_after_invalidate() {
+        let client = std::env::temp_dir().join(format!("m2m_icon_index_{}", std::process::id()));
+        let _ = std::fs::remove_dir_all(&client);
+        let deep = client.join("pack").join("icon_extra").join("item");
+        std::fs::create_dir_all(&deep).unwrap();
+        let tga = |path: &Path| image::RgbaImage::new(2, 2).save_with_format(path, image::ImageFormat::Tga).unwrap();
+        tga(&deep.join("00020.TGA"));
+        let client_str = client.to_string_lossy().into_owned();
+
+        // vnum 25 -> decade fallback 00020.tga, found via index despite upper-case name.
+        assert!(load_item_icon_data_url(&client_str, 25).unwrap().is_some());
+        assert!(load_item_icon_data_url(&client_str, 30).unwrap().is_none());
+
+        // A file added later is only seen after the caches are dropped.
+        tga(&deep.join("00030.tga"));
+        assert!(load_item_icon_data_url(&client_str, 30).unwrap().is_none());
+        invalidate_caches();
+        assert!(load_item_icon_data_url(&client_str, 30).unwrap().is_some());
+        let _ = std::fs::remove_dir_all(&client);
+    }
 
     #[test]
     #[ignore = "braucht echte Client-Dateien (M2_TEST_CLIENT_DIR oder Client-Pfad aus M2Manager) - mit `cargo test -- --ignored` ausführen"]
