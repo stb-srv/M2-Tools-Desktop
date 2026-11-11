@@ -6,7 +6,7 @@ nach [SemVer](https://semver.org/) (`MAJOR.MINOR.PATCH`, solange < 1.0 gilt
 `MINOR` für neue Features, `PATCH` für reine Fixes). Für die vollständige
 Feature-Historie mit allen Details siehe `STATUS.md`.
 
-## [Unreleased]
+## [0.19.0] - 2026-11-11
 
 ### Hinzugefügt
 
@@ -38,7 +38,7 @@ Feature-Historie mit allen Details siehe `STATUS.md`.
 
 - **DB-Backups**: die Liste zeigt jetzt den eingestellten Backup-Ordner statt immer den Standardordner.
 
-## [Unreleased]
+## [0.17.1] - 2026-10-28
 
 ### Behoben
 
