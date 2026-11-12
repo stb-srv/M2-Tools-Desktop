@@ -28,6 +28,13 @@ struct MobDropUsage {
     percent: f64,
 }
 #[derive(Clone, Debug, Deserialize)]
+struct CommonDropUsage {
+    rank: String,
+    level_from: i64,
+    level_to: i64,
+    chance: f64,
+}
+#[derive(Clone, Debug, Deserialize)]
 struct DropGroupUsage {
     mob_vnum: i64,
     group_name: String,
@@ -66,6 +73,8 @@ struct QuestSearchMatch {
 struct ItemUsageReport {
     shops: Vec<ShopUsage>,
     mob_drops: Vec<MobDropUsage>,
+    #[serde(default)]
+    common_drops: Vec<CommonDropUsage>,
     etc_drop: Option<EtcDropUsage>,
     drop_item_groups: Vec<DropGroupUsage>,
     is_box_of: Option<String>,
@@ -80,6 +89,7 @@ impl ItemUsageReport {
     fn nothing_found(&self) -> bool {
         self.shops.is_empty()
             && self.mob_drops.is_empty()
+            && self.common_drops.is_empty()
             && self.etc_drop.is_none()
             && self.drop_item_groups.is_empty()
             && self.is_box_of.is_none()
@@ -154,6 +164,22 @@ fn report_view(vnum: i64, report: ItemUsageReport) -> AnyView {
                         <li>
                             "Mob #" {d.mob_vnum} " „" {d.group_name.clone()} "\" (" {d.source.clone()} ") - ≈"
                             {format_real_drop_chance(d.percent)} " real"
+                        </li>
+                    }).collect_view()}
+                </ul>
+            }
+            .into_any(),
+        ));
+    }
+    if !report.common_drops.is_empty() {
+        parts.push(usage_section(
+            format!("common_drop_item.txt ({})", report.common_drops.len()),
+            view! {
+                <ul class="space-y-0.5">
+                    {report.common_drops.iter().map(|d| view! {
+                        <li>
+                            "Alle " {d.rank.clone()} "-Mobs, Spieler-Level " {d.level_from} "–" {d.level_to} " - ≈"
+                            {format_real_drop_chance(d.chance)} " real"
                         </li>
                     }).collect_view()}
                 </ul>

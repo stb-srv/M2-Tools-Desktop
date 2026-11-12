@@ -3,7 +3,7 @@
 //! (special_item_group.txt) sind die eigenständigen Editoren (Mob Drop
 //! Editor/Kisten-Editor) - hier eingebettet, nicht dupliziert.
 
-pub mod common_drop_editor;
+pub mod common_drop;
 pub mod drop_item_group_editor;
 pub mod etc_drop_editor;
 pub mod join;
@@ -13,7 +13,7 @@ use crate::features::box_editor::BoxEditor;
 use crate::features::mob_drop_editor::MobDropEditor;
 use crate::features::shared::{SectionTab, SectionTabs};
 use crate::store::navigation::Section;
-use common_drop_editor::CommonDropEditor;
+use common_drop::CommonDropEditor;
 use drop_item_group_editor::DropItemGroupEditor;
 use etc_drop_editor::EtcDropEditor;
 use leptos::prelude::*;

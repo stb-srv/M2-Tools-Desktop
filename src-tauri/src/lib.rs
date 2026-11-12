@@ -11,6 +11,7 @@ mod client_unpack;
 mod commands;
 mod connection_profiles;
 mod credentials;
+mod common_drop;
 mod cube;
 mod db;
 mod drop_item_group;
@@ -116,6 +117,9 @@ pub fn run() {
             commands::create_account,
             commands::read_common_drop_file,
             commands::write_common_drop_file,
+            commands::validate_common_drop,
+            commands::parse_common_drop_line,
+            commands::check_common_drop_items,
             commands::read_etc_drop_file,
             commands::write_etc_drop_file,
             commands::read_drop_item_group_file,

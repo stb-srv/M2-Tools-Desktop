@@ -10,6 +10,7 @@
 //! jeweils nur einmal aufgelöst, nicht pro Datei neu.
 
 use super::support::{require_pool, stored_ssh_auth};
+use crate::common_drop;
 use crate::cube;
 use crate::db::item;
 use crate::db::shop::{self, ShopUsage};
@@ -26,10 +27,19 @@ use tauri::State;
 
 #[derive(Debug, Clone, Serialize)]
 pub struct MobDropUsage {
-    pub source: String, // "mob_drop_item.txt" | "common_drop_item.txt"
+    pub source: String, // "mob_drop_item.txt"
     pub mob_vnum: u32,
     pub group_name: String,
     pub percent: f64,
+}
+
+/// Ein aktiver Rang-Block in common_drop_item.txt.
+#[derive(Debug, Clone, Serialize)]
+pub struct CommonDropUsage {
+    pub rank: String,
+    pub level_from: i64,
+    pub level_to: i64,
+    pub chance: f64,
 }
 
 #[derive(Debug, Clone, Serialize)]
@@ -60,6 +70,7 @@ pub struct EtcDropUsage {
 pub struct ItemUsageReport {
     pub shops: Vec<ShopUsage>,
     pub mob_drops: Vec<MobDropUsage>,
+    pub common_drops: Vec<CommonDropUsage>,
     pub etc_drop: Option<EtcDropUsage>,
     pub drop_item_groups: Vec<DropGroupUsage>,
     pub is_box_of: Option<String>,
@@ -122,36 +133,66 @@ pub async fn find_item_usages(state: State<'_, AppState>, vnum: u32) -> Result<I
         return Ok(report);
     };
 
-    // mob_drop_item.txt + common_drop_item.txt (identische Grammatik, siehe
-    // commands/mob_drop.rs)
-    for (source, key, default) in [
-        ("mob_drop_item.txt", "mob_drop_file_path", "/usr/home/game/share/mob_drop_item.txt"),
-        ("common_drop_item.txt", "common_drop_file_path", "/usr/home/game/share/common_drop_item.txt"),
-    ] {
-        match path_setting(&state, key, default) {
-            Ok(path) => match read_optional_file(&config, &auth, &path).await {
-                Ok(Some(content)) => match mobdrop::parse(&content) {
-                    Ok(groups) => {
-                        for g in &groups {
-                            for it in &g.items {
-                                if it.item_vnum == vnum {
-                                    report.mob_drops.push(MobDropUsage {
-                                        source: source.to_string(),
-                                        mob_vnum: g.mob_vnum,
-                                        group_name: g.name.clone(),
-                                        percent: it.percent,
+    // mob_drop_item.txt
+    match path_setting(&state, "mob_drop_file_path", "/usr/home/game/share/mob_drop_item.txt") {
+        Ok(path) => match read_optional_file(&config, &auth, &path).await {
+            Ok(Some(content)) => match mobdrop::parse(&content) {
+                Ok(groups) => {
+                    for g in &groups {
+                        for it in &g.items {
+                            if it.item_vnum == vnum {
+                                report.mob_drops.push(MobDropUsage {
+                                    source: "mob_drop_item.txt".to_string(),
+                                    mob_vnum: g.mob_vnum,
+                                    group_name: g.name.clone(),
+                                    percent: it.percent,
+                                });
+                            }
+                        }
+                    }
+                }
+                Err(e) => report.warnings.push(format!("mob_drop_item.txt konnte nicht gelesen werden: {e}")),
+            },
+            Ok(None) => {}
+            Err(e) => report.warnings.push(format!("mob_drop_item.txt konnte nicht gelesen werden: {e}")),
+        },
+        Err(e) => report.warnings.push(format!("mob_drop_item.txt: {e}")),
+    }
+
+    // common_drop_item.txt (Rang-Format, siehe common_drop.rs)
+    match path_setting(&state, "common_drop_file_path", "/usr/home/game/share/common_drop_item.txt") {
+        Ok(path) => match read_optional_file(&config, &auth, &path).await {
+            Ok(Some(content)) => {
+                let file = common_drop::parse(&content);
+                let mut invalid = 0;
+                for line in &file.lines {
+                    match line {
+                        common_drop::CommonDropLine::Rule { blocks } => {
+                            for (r, b) in blocks.iter().enumerate() {
+                                if b.vnum == vnum && b.is_active() {
+                                    report.common_drops.push(CommonDropUsage {
+                                        rank: common_drop::RANK_NAMES.get(r).unwrap_or(&"?").to_string(),
+                                        level_from: b.level_from,
+                                        level_to: b.level_to,
+                                        chance: b.chance,
                                     });
                                 }
                             }
                         }
+                        common_drop::CommonDropLine::Invalid { .. } => invalid += 1,
+                        common_drop::CommonDropLine::Text { .. } => {}
                     }
-                    Err(e) => report.warnings.push(format!("{source} konnte nicht gelesen werden: {e}")),
-                },
-                Ok(None) => {}
-                Err(e) => report.warnings.push(format!("{source} konnte nicht gelesen werden: {e}")),
-            },
-            Err(e) => report.warnings.push(format!("{source}: {e}")),
-        }
+                }
+                if invalid > 0 {
+                    report
+                        .warnings
+                        .push(format!("common_drop_item.txt: {invalid} fehlerhafte Zeile(n) übersprungen."));
+                }
+            }
+            Ok(None) => {}
+            Err(e) => report.warnings.push(format!("common_drop_item.txt konnte nicht gelesen werden: {e}")),
+        },
+        Err(e) => report.warnings.push(format!("common_drop_item.txt: {e}")),
     }
 
     // etc_drop_item.txt - braucht den intern aufgelösten Namen von oben

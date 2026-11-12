@@ -396,6 +396,20 @@ pub async fn find_item_by_internal_name(pool: &MySqlPool, name: &str) -> Result<
     }))
 }
 
+/// vnum + locale_name of one item, `None` if there is no row with exactly
+/// this vnum (a vnum only covered by another row's `vnum_range` has none).
+pub async fn get_item_brief(pool: &MySqlPool, vnum: u32) -> Result<Option<ItemBrief>, String> {
+    let row = sqlx::query("SELECT vnum, locale_name FROM player.item_proto WHERE vnum = ? LIMIT 1")
+        .bind(vnum)
+        .fetch_optional(pool)
+        .await
+        .map_err(|e| e.to_string())?;
+    Ok(row.map(|row| {
+        let locale_name_raw: Vec<u8> = row.try_get("locale_name").unwrap_or_default();
+        ItemBrief { vnum: row.try_get("vnum").unwrap_or_default(), locale_name: decode_name(&locale_name_raw) }
+    }))
+}
+
 /// Fetches a full item_proto row, used to pre-fill the "create from
 /// reference item" flow in the Item Editor.
 pub async fn get_item_proto(pool: &MySqlPool, vnum: u32) -> Result<Option<ItemProtoFull>, String> {
