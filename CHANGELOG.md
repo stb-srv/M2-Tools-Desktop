@@ -6,6 +6,17 @@ nach [SemVer](https://semver.org/) (`MAJOR.MINOR.PATCH`, solange < 1.0 gilt
 `MINOR` für neue Features, `PATCH` für reine Fixes). Für die vollständige
 Feature-Historie mit allen Details siehe `STATUS.md`.
 
+## [0.20.1] - 2026-11-12
+
+### Behoben
+
+- **Kein Terminal-Fenster mehr beim Entpacken**: `EterPackConsoleLz4.exe` (und der GR2-Sidecar des Modell-Viewers) laufen unter Windows jetzt unsichtbar im Hintergrund, statt bei jedem Archiv ein eigenes Konsolenfenster zu öffnen.
+
+### Geändert
+
+- **Entpacken läuft im Hintergrund weiter**: Man kann das Dashboard oder die Einstellungen während des Entpackens verlassen und weiterarbeiten; beim Zurückkommen wird der Fortschritt wieder angezeigt, am Ende kommt eine Meldung.
+- **Entpack-Hinweis ganz oben auf dem Dashboard**: Der Hinweis „Client-Dateien sind noch gepackt“ steht jetzt direkt unter der Überschrift und ist deutlicher hervorgehoben. Während des Entpackens steht dort, welches Archiv gerade dran ist.
+
 ## [0.20.0] - 2026-11-12
 
 ### Geändert

@@ -375,6 +375,19 @@ async fn read_decoded_line(
     Ok(Some(text.trim_end_matches(['\r', '\n']).to_string()))
 }
 
+/// Windows `CREATE_NO_WINDOW`: Konsolen-Tools wie EterPackConsoleLz4.exe
+/// sollen unsichtbar im Hintergrund laufen. Ohne das Flag bekommt jeder
+/// Kindprozess der (fensterlosen) App ein eigenes Terminal-Fenster.
+#[cfg(windows)]
+pub(crate) const CREATE_NO_WINDOW: u32 = 0x0800_0000;
+
+fn hide_console_window(cmd: &mut Command) {
+    #[cfg(windows)]
+    cmd.creation_flags(CREATE_NO_WINDOW);
+    #[cfg(not(windows))]
+    let _ = cmd;
+}
+
 async fn run_streamed(
     app: &AppHandle,
     event: &str,
@@ -382,11 +395,14 @@ async fn run_streamed(
     args: &[&str],
     cwd: &Path,
 ) -> Result<String, String> {
-    let mut child = Command::new(program)
-        .args(args)
+    let mut cmd = Command::new(program);
+    cmd.args(args)
         .current_dir(cwd)
+        .stdin(Stdio::null())
         .stdout(Stdio::piped())
-        .stderr(Stdio::piped())
+        .stderr(Stdio::piped());
+    hide_console_window(&mut cmd);
+    let mut child = cmd
         .spawn()
         .map_err(|e| format!("{} konnte nicht gestartet werden: {e}", program.display()))?;
 

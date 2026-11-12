@@ -3,10 +3,11 @@
 //! EterPackConsoleLz4.exe, damit Item-Icons, Modelle und Texte im Tool
 //! auftauchen. Bereits vorhandene lose Dateien werden nie überschrieben.
 //! Genutzt im Einrichtungs-Assistenten, in den Einstellungen und auf dem
-//! Dashboard.
+//! Dashboard. Der Vorgang selbst läuft im Hintergrund (siehe
+//! [`crate::store::client_unpack`]) und überlebt das Verlassen der Seite.
 
 use crate::components::{toast, Button, ButtonSize, ButtonVariant, Icon};
-use crate::features::server_control::util::listen_while_mounted;
+use crate::store::client_unpack::client_unpack_store;
 use crate::tauri::{dialog_open_one, invoke, invoke_unit, DialogFilter, OpenDialogOptions};
 use leptos::prelude::*;
 use leptos::task::spawn_local;
@@ -38,20 +39,6 @@ impl UnpackStatus {
     }
 }
 
-#[derive(Clone, Debug, PartialEq, Deserialize)]
-struct UnpackResult {
-    name: String,
-    files_copied: usize,
-    error: Option<String>,
-}
-
-#[derive(Clone, Debug, PartialEq, Deserialize)]
-struct Progress {
-    current: usize,
-    total: usize,
-    name: String,
-}
-
 pub fn format_size(bytes: u64) -> String {
     let mb = bytes as f64 / (1024.0 * 1024.0);
     if mb >= 1024.0 {
@@ -81,14 +68,14 @@ pub async fn load_unpack_status(client_path: &str) -> Result<UnpackStatus, Strin
 #[component]
 pub fn ClientUnpackPanel(
     #[prop(into)] client_path: Signal<String>,
-    #[prop(optional, into)] on_done: Option<Callback<()>>,
 ) -> impl IntoView {
+    let job = client_unpack_store();
     let status = RwSignal::new(None::<Result<UnpackStatus, String>>);
     let selected = RwSignal::new(HashSet::<String>::new());
-    let running = RwSignal::new(false);
-    let progress = RwSignal::new(None::<Progress>);
-    let last_line = RwSignal::new(String::new());
-    let results = RwSignal::new(None::<Vec<UnpackResult>>);
+    let running = job.running;
+    let progress = job.progress;
+    let last_line = job.last_line;
+    let results = job.results;
     let show_all = RwSignal::new(false);
 
     let reload = move || {
@@ -108,17 +95,22 @@ pub fn ClientUnpackPanel(
         });
     };
 
-    Effect::new(move |_| {
-        client_path.track();
-        results.set(None);
+    Effect::new(move |prev: Option<String>| {
+        let path = client_path.get();
+        if prev.is_some_and(|p| p != path) && !running.get_untracked() {
+            results.set(None);
+        }
         reload();
+        path
     });
 
-    listen_while_mounted::<Progress>("client-unpack-progress", move |p| progress.set(Some(p)));
-    listen_while_mounted::<String>("client-unpack-output", move |l| {
-        if !l.trim().is_empty() {
-            last_line.set(l);
+    // Nach einem (evtl. im Hintergrund) abgeschlossenen Lauf neu einlesen.
+    Effect::new(move |prev: Option<u32>| {
+        let n = job.finished.get();
+        if prev.is_some_and(|p| p != n) {
+            reload();
         }
+        n
     });
 
     let pick_tool = move |_| {
@@ -147,41 +139,8 @@ pub fn ClientUnpackPanel(
                 .collect(),
             _ => Vec::new(),
         });
-        if names.is_empty() {
-            return;
-        }
-        running.set(true);
-        progress.set(None);
-        last_line.set(String::new());
-        results.set(None);
         let path = client_path.get_untracked();
-        spawn_local(async move {
-            let res = invoke::<Vec<UnpackResult>>(
-                "unpack_client_archives",
-                &json!({ "clientPath": client_arg(&path), "names": names }),
-            )
-            .await;
-            running.set(false);
-            progress.set(None);
-            match res {
-                Ok(r) => {
-                    let failed = r.iter().filter(|x| x.error.is_some()).count();
-                    if failed == 0 {
-                        toast::success("Client-Dateien entpackt");
-                    } else {
-                        toast::error(&format!("{failed} Archiv(e) konnten nicht entpackt werden"));
-                    }
-                    results.set(Some(r));
-                    reload();
-                    if failed == 0 {
-                        if let Some(cb) = on_done {
-                            cb.run(());
-                        }
-                    }
-                }
-                Err(e) => toast::error(&e),
-            }
-        });
+        job.start((!path.is_empty()).then_some(path), names);
     };
 
     let toggle = move |name: String| {
@@ -318,7 +277,11 @@ pub fn ClientUnpackPanel(
                             {move || if running.get() { "Entpacke…".to_string() } else { "Ausgewählte entpacken".to_string() }}
                         </Button>
                         <span class="text-xs text-muted-foreground">
-                            {move || format!("ca. {} - vorhandene Dateien werden nicht überschrieben.", format_size(total_selected()))}
+                            {move || if running.get() {
+                                "Läuft im Hintergrund - du kannst die Seite verlassen und weiterarbeiten.".to_string()
+                            } else {
+                                format!("ca. {} - vorhandene Dateien werden nicht überschrieben.", format_size(total_selected()))
+                            }}
                         </span>
                     </div>
 
