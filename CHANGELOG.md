@@ -6,6 +6,14 @@ nach [SemVer](https://semver.org/) (`MAJOR.MINOR.PATCH`, solange < 1.0 gilt
 `MINOR` für neue Features, `PATCH` für reine Fixes). Für die vollständige
 Feature-Historie mit allen Details siehe `STATUS.md`.
 
+## [Unveröffentlicht]
+
+### Geändert
+
+- **Drop-Generator › Common-Drops neu gebaut**: `common_drop_item.txt` wird jetzt im echten Rang-Format gelesen (eine Zeile = eine Regel mit 4 Blöcken PAWN, S_PAWN, KNIGHT, S_KNIGHT zu je 6 TAB-Feldern). Der alte Tab hatte die Datei fälschlich im Format von `mob_drop_item.txt` erwartet. Neu: Regel-Liste mit Item-Icons, Rang-Chips, Suche und Rang-Filter; pro Rang eine Karte mit Level von/bis, Chance in echten Prozent (in die Datei kommt der Wert x 4) und „≈ jeder X. Mob“; optional ein eigenes Item pro Rang; Vorschau der fertigen Zeile mit sichtbaren TABs. Kommentarzeilen bleiben erhalten, Windows-Zeilenenden auch.
+- **Prüfung vor dem Speichern**: fehlende oder doppelte TABs (mit Zeilennummer, direkt korrigierbar), Komma statt Punkt, VNUM nicht in item_proto, gesperrte VNUMs 1/2/14/18/24 und VNUMs, die der Server als Namen eines anderen Items liest, Chance über 400, falsche Level-Bereiche. Fehler sperren das Speichern, Hinweise (Regel komplett aus, unterschiedliche Level je Rang) nicht.
+- **„Wo wird das benutzt?“** zeigt Common-Drops jetzt mit Rang und Level-Bereich.
+
 ## [0.19.0] - 2026-11-11
 
 ### Hinzugefügt

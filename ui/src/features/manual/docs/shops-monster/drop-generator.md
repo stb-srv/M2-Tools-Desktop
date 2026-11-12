@@ -12,11 +12,32 @@ Der ursprüngliche, bereits bestehende Editor. Ein Item-Set **pro einzelnem Mob*
 
 ## 2. Common-Drops (`common_drop_item.txt`)
 
-**Korrigiert (2026-08-18)** nach einem echten Ladefehler: die erste Version dieses Tabs ging vom generischen Server-Quellcode aus (Rang-Level-Bracket-Format) - live gegen diesen Server geprüft, stimmt das aber nicht. Auf diesem Fork benutzt `common_drop_item.txt` tatsächlich **dasselbe Format wie Tab 1** (`Group`/`Mob`/`Type`/Item-Zeilen), pro Mob-VNUM - der Server-Quellcode-Checkout entspricht an dieser Stelle nicht dem, was auf diesem Server läuft.
+Zusatz-Drops **nach Mob-Rang** statt pro Mob. Jede Zeile der Datei ist eine Regel mit 4 Blöcken, einem pro Rang (Spalte `RANK` in mob_proto):
 
-In der Praxis also eine **zweite, separat gepflegte mob_drop_item.txt** - z.B. für Zusatz-Drops, die nicht in der Hauptdatei stehen sollen. Das echte Beispiel, das bereits auf dem Server liegt: drei Gruppen "MetinStein1" für die Mobs 8001/8002/8003, je mit Item 19 (100% Chance).
+| Block | Rang | Beispiele |
+|---|---|---|
+| 1 | PAWN | Wildhund, Wolf, Alpha-Wolf |
+| 2 | S_PAWN | Roter Keiler, Dryade |
+| 3 | KNIGHT | Verfl. Wolf, Goldener Frosch |
+| 4 | S_KNIGHT | Affenanführer, Böser Höllengeneral |
 
-**Offen:** ob diese Datei wie Tab 1 per GM-Befehl live neu ladbar ist, wurde nicht geprüft - im Zweifel nach dem Speichern einen Server-Neustart einplanen.
+Bosse (BOSS, KING) stehen nicht in dieser Datei, für sie gibt es die Mob-Drops (Tab 1).
+
+Jeder Block hat 6 TAB-getrennte Felder: **Name** (nur eine Notiz, der Server liest sie nicht), **LevelVon**, **LevelBis** (Level des Spielers mit dem meisten Schaden, nicht des Mobs), **Chance**, **VNUM** und **Anzahl** (wird gelesen, aber nicht benutzt, es dropt immer 1 Stück).
+
+**So arbeitest du im Editor**
+- Links stehen alle Regeln mit Item, Level-Bereich und den 4 Rängen als Chips (farbig = aktiv, durchgestrichen = aus). Suche nach Item, Notiz oder VNUM, Filter nach Rang.
+- Rechts bearbeitest du eine Regel: Item (über die Suche, nie frei getippt), Notiz und darunter eine Karte pro Rang mit Level von/bis, Chance und dem Schalter „aktiv“. „Pro Rang ein eigenes Item“ erlaubt unterschiedliche Items je Rang.
+- Die **Chance gibst du in echten Prozent ein**. In der Datei steht der Wert mal 4 (1 % = 4, 100 % = 400). Daneben siehst du den Datei-Wert und „≈ jeder X. Mob“. Das gilt bei gleichem Level von Spieler und Mob; ist der Spieler höher, sinkt die Chance.
+- Unten steht die Zeile genau so, wie sie in die Datei geschrieben wird (→ = TAB).
+- Kommentarzeilen (`#…`) und Leerzeilen bleiben unverändert an ihrer Stelle. Neue Regeln kommen ans Ende.
+
+**Was geprüft wird.** Fehler sperren das Speichern, Hinweise nicht.
+- Fehler: Zeilen mit falscher Feldanzahl (fehlender oder doppelter TAB), Komma statt Punkt, VNUM gibt es nicht in item_proto, VNUM 1, 2, 14, 18 oder 24 (der Server verwechselt sie mit den Goldringen), eine VNUM, die der Server als Namen eines anderen Items liest, Chance über 400, LevelBis 0 oder kleiner als LevelVon bei einem aktiven Block.
+- Hinweise: Regel ist komplett aus, die Ränge einer Regel haben unterschiedliche Level-Bereiche.
+- Fehlerhafte Zeilen zeigt die Liste rot mit Zeilennummer. Du kannst sie direkt korrigieren oder löschen.
+
+**Nach dem Speichern** (mit Backup) braucht der Server einen **Neustart**, ein Live-Neuladen gibt es für diese Datei nicht.
 
 ## 3. Etc-Drops (`etc_drop_item.txt`)
 
@@ -42,4 +63,4 @@ Sieht auf den ersten Blick wie Tab 4 aus, funktioniert aber komplett anders: jed
 
 - **Keine Live-Aktualisierung**: anders als Tab 1 (`/reload m`) gibt es für diese Dateien keinen GM-Befehl zum Neuladen - Änderungen wirken erst nach einem **kompletten Server-Neustart**.
 - **Ein Fehler in diesen Dateien verhindert den kompletten Server-Start** (nicht nur eine einzelne Funktion) - deshalb erzwingen diese Editoren die Item-Auswahl ausschließlich über die eingebaute Suche, nie als frei getippte VNUM.
-- Beide Dateien waren auf diesem Server bis 2026-08-18 leer - auf Nutzerwunsch wurde je ein einzelner, harmloser Test-Eintrag angelegt (siehe echte Beispiele oben), damit es beim ersten Ausprobieren etwas Reales zum Anschauen gibt, statt nur die konstruierten Erklärungen hier. Beide Dateien wurden vorher gesichert (`m2manager_backups/`). Das Grundformat stammt weiterhin aus dem generischen Server-Quellcode und wurde **nicht** byte-für-byte gegen eine echte, gewachsene Datei geprüft (anders als `mob_drop_item.txt`/`special_item_group.txt`) - nach dem Fund bei Common-Drops (Tab 2 wich vom generischen Quellcode ab, siehe oben) ist nicht auszuschließen, dass dieser Fork auch hier eigene Anpassungen hat. Der einzelne Test-Eintrag prüft nur, dass der Editor grundsätzlich mit echten Daten umgehen kann - kein Beleg, dass der Server ihn beim nächsten Neustart tatsächlich akzeptiert.
+- Beide Dateien waren auf diesem Server bis 2026-08-18 leer - auf Nutzerwunsch wurde je ein einzelner, harmloser Test-Eintrag angelegt (siehe echte Beispiele oben), damit es beim ersten Ausprobieren etwas Reales zum Anschauen gibt, statt nur die konstruierten Erklärungen hier. Beide Dateien wurden vorher gesichert (`m2manager_backups/`). Das Grundformat stammt weiterhin aus dem generischen Server-Quellcode und wurde **nicht** byte-für-byte gegen eine echte, gewachsene Datei geprüft (anders als `mob_drop_item.txt`/`special_item_group.txt`/`common_drop_item.txt`). Der einzelne Test-Eintrag prüft nur, dass der Editor grundsätzlich mit echten Daten umgehen kann - kein Beleg, dass der Server ihn beim nächsten Neustart tatsächlich akzeptiert.

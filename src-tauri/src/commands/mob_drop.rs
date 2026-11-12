@@ -6,6 +6,7 @@
 //! lines.
 
 use super::support::stored_ssh_auth;
+use crate::common_drop;
 use crate::db::item::{self, ItemBrief};
 use crate::drop_item_group;
 use crate::etc_drop;
@@ -78,36 +79,83 @@ fn common_drop_file_path(state: &State<'_, AppState>) -> Result<String, String> 
         .unwrap_or_else(|| "/usr/home/game/share/common_drop_item.txt".to_string()))
 }
 
-// Live gegen den echten Dev-Server verifiziert (2026-08-18, nach einem
-// realen Ladefehler): entgegen der ursprünglichen, aus dem generischen
-// game-src-Checkout abgeleiteten Annahme (24-Tab-Felder-pro-Zeile,
-// Rang-Level-Brackets - `ReadCommonDropItemFile` in
-// `item_manager_read_tables.cpp`) benutzt dieser Fork für
-// `common_drop_item.txt` tatsächlich **dieselbe Group/Mob/Type-Grammatik
-// wie `mob_drop_item.txt`** (echter Datei-Inhalt: `Group\tMetinStein1\n{\n
-// \tMob\t8001\n\tType\tdrop\n\t1\t19\t1\t100\n}`) - der generische
-// Quellcode-Checkout entspricht an dieser Stelle offenbar nicht dem, was auf
-// diesem Server tatsächlich läuft (individuelle Fork-Anpassung). Wiederverwendet
-// deshalb direkt `mobdrop::parse`/`serialize` (identischer `MobDropGroup`-Typ)
-// statt eines eigenen, nachweislich falschen Parsers.
+// Klassisches Rang-Format (4 Blöcke x 6 Felder), siehe `common_drop.rs`.
+// Unlesbare Zeilen kommen als `Invalid` zurück statt den ganzen Ladevorgang
+// abzubrechen; Speichern verweigert sie (`common_drop::serialize`).
 #[tauri::command]
-pub async fn read_common_drop_file(state: State<'_, AppState>) -> Result<Vec<mobdrop::MobDropGroup>, String> {
+pub async fn read_common_drop_file(state: State<'_, AppState>) -> Result<common_drop::CommonDropFile, String> {
     let (config, auth) = stored_ssh_auth(&state)?;
     let path = common_drop_file_path(&state)?;
     let content = ssh::read_remote_file(&config, &auth, &path).await?;
-    mobdrop::parse(&content)
+    Ok(common_drop::parse(&content))
 }
 
 #[tauri::command]
 pub async fn write_common_drop_file(
     state: State<'_, AppState>,
-    groups: Vec<mobdrop::MobDropGroup>,
+    file: common_drop::CommonDropFile,
 ) -> Result<Option<String>, String> {
+    let blocking: Vec<String> = common_drop::validate(&file)
+        .into_iter()
+        .filter(|i| i.level == common_drop::IssueLevel::Error)
+        .map(|i| format!("Zeile {}: {}", i.line_index + 1, i.message))
+        .collect();
+    if !blocking.is_empty() {
+        return Err(format!("Nicht gespeichert, die Datei hat noch Fehler:\n{}", blocking.join("\n")));
+    }
+    let content = common_drop::serialize(&file)?;
+    // Rundreise-Prüfung: nur hochladen, was wir selbst identisch zurücklesen.
+    let reparsed = common_drop::parse(&content);
+    if reparsed.lines.len() != file.lines.len()
+        || reparsed.lines.iter().any(|l| matches!(l, common_drop::CommonDropLine::Invalid { .. }))
+    {
+        return Err("Interner Fehler: die erzeugte Datei ließ sich nicht wieder einlesen - nichts gespeichert.".into());
+    }
     let (config, auth) = stored_ssh_auth(&state)?;
     let path = common_drop_file_path(&state)?;
-    let content = mobdrop::serialize(&groups);
-    mobdrop::parse(&content)?;
     ssh::write_remote_file_with_backup(&config, &auth, &path, &content).await
+}
+
+/// Prüfungen ohne Datenbank (Level, Chance, gesperrte VNUMs, Feldanzahl).
+#[tauri::command]
+pub fn validate_common_drop(file: common_drop::CommonDropFile) -> Vec<common_drop::CommonDropIssue> {
+    common_drop::validate(&file)
+}
+
+/// Eine einzelne, von Hand korrigierte Rohzeile neu lesen.
+#[tauri::command]
+pub fn parse_common_drop_line(line: String) -> common_drop::CommonDropLine {
+    let mut file = common_drop::parse(&line);
+    file.lines.pop().unwrap_or(common_drop::CommonDropLine::Text { text: String::new() })
+}
+
+#[derive(Debug, Clone, Serialize)]
+pub struct CommonDropItemCheck {
+    pub vnum: u32,
+    /// Gibt es ein Item mit dieser VNUM (auch über `vnum_range`)?
+    pub exists: bool,
+    pub locale_name: Option<String>,
+    /// Der Server versucht das VNUM-Feld zuerst als internen Item-Namen.
+    /// Heißt ein anderes Item genau so, nimmt er dieses.
+    pub name_collision: Option<ItemBrief>,
+}
+
+#[tauri::command]
+pub async fn check_common_drop_items(
+    state: State<'_, AppState>,
+    vnums: Vec<u32>,
+) -> Result<Vec<CommonDropItemCheck>, String> {
+    let pool = require_pool(&state).await?;
+    let mut out = Vec::with_capacity(vnums.len());
+    for vnum in vnums {
+        let brief = item::get_item_brief(&pool, vnum).await?;
+        let exists = brief.is_some() || item::vnum_exists(&pool, vnum).await?;
+        let name_collision = item::find_item_by_internal_name(&pool, &vnum.to_string())
+            .await?
+            .filter(|other| other.vnum != vnum);
+        out.push(CommonDropItemCheck { vnum, exists, locale_name: brief.map(|b| b.locale_name), name_collision });
+    }
+    Ok(out)
 }
 
 fn etc_drop_file_path(state: &State<'_, AppState>) -> Result<String, String> {
