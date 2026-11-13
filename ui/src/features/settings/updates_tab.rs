@@ -1,7 +1,9 @@
 //! Selbst-Update über das Tauri-Updater-Plugin (GitHub-Releases, öffentlich,
 //! kein Token nötig).
 
+use crate::components::markdown::{Markdown, COMPACT_STYLE};
 use crate::components::{Button, ButtonVariant};
+use crate::util::release_notes;
 use crate::store::update::update_store;
 use crate::tauri::{app_version, relaunch, update_check, DownloadEvent, UpdateInfo};
 use leptos::prelude::*;
@@ -129,8 +131,11 @@ pub fn UpdatesTab() -> impl IntoView {
                     Some(view! {
                         <div class="space-y-2 rounded-md border border-blue-500/40 bg-blue-500/10 p-3">
                             <p class="text-sm font-medium">{format!("Update verfügbar: v{version}")}</p>
-                            {body.filter(|b| !b.is_empty()).map(|b| view! {
-                                <p class="whitespace-pre-wrap text-xs text-muted-foreground">{b}</p>
+                            {body.filter(|b| !b.trim().is_empty()).map(|b| view! {
+                                <div class="max-h-80 overflow-y-auto rounded-md border border-border bg-card p-3">
+                                    <p class="mb-2 text-xs font-medium uppercase tracking-wide text-muted-foreground">"Was ist neu"</p>
+                                    <Markdown content=b style=COMPACT_STYLE/>
+                                </div>
                             })}
                             {move || {
                                 if !downloading.get() {
@@ -157,7 +162,56 @@ pub fn UpdatesTab() -> impl IntoView {
                     </div>
                 </Show>
             </section>
+
+            <InstalledReleaseNotes current_version=current_version/>
         </div>
+    }
+}
+
+/// Release-Notes der installierten Version und (aufklappbar) aller älteren,
+/// aus dem beim Bauen eingebetteten `CHANGELOG.md`.
+#[component]
+fn InstalledReleaseNotes(current_version: RwSignal<String>) -> impl IntoView {
+    let show_history = RwSignal::new(false);
+    view! {
+        <section class="space-y-3 rounded-xl border border-border bg-card p-5 shadow-sm">
+            <h3 class="text-sm font-semibold">
+                {move || {
+                    let v = current_version.get();
+                    if v.is_empty() { "Was ist neu in dieser Version".to_string() } else { format!("Was ist neu in v{v}") }
+                }}
+            </h3>
+            {move || {
+                let v = current_version.get();
+                if v.is_empty() {
+                    return None;
+                }
+                Some(match release_notes::notes_for(&v) {
+                    Some(n) => view! { <Markdown content=n style=COMPACT_STYLE/> }.into_any(),
+                    None => view! {
+                        <p class="text-sm text-muted-foreground">"Für diese Version sind keine Release-Notes hinterlegt."</p>
+                    }
+                    .into_any(),
+                })
+            }}
+            <Button variant=ButtonVariant::Outline on_click=move |_| show_history.update(|s| *s = !*s)>
+                {move || if show_history.get() { "Frühere Versionen ausblenden" } else { "Frühere Versionen anzeigen" }}
+            </Button>
+            <Show when=move || show_history.get()>
+                {move || {
+                    let current = current_version.get();
+                    let older: Vec<_> = release_notes::sections()
+                        .iter()
+                        .filter(|s| s.version != current && crate::util::changelog::version_key(&s.version).is_some())
+                        .collect();
+                    view! {
+                        <div class="max-h-[32rem] overflow-y-auto border-t border-border pt-3">
+                            <Markdown content=crate::util::changelog::render(&older) style=COMPACT_STYLE/>
+                        </div>
+                    }
+                }}
+            </Show>
+        </section>
     }
 }
 

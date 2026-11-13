@@ -6,6 +6,23 @@ nach [SemVer](https://semver.org/) (`MAJOR.MINOR.PATCH`, solange < 1.0 gilt
 `MINOR` für neue Features, `PATCH` für reine Fixes). Für die vollständige
 Feature-Historie mit allen Details siehe `STATUS.md`.
 
+**Diese Datei sind die Release-Notes der App.** Der Abschnitt einer Version
+erscheint in M2Manager als „Was ist neu“ nach dem Update, im Update-Hinweis
+unter Einstellungen › Updates und als Text des GitHub-Release. Neue Änderungen
+kommen zuerst unter `## [Unveröffentlicht]`; beim Release wird daraus
+`## [X.Y.Z] - JJJJ-MM-TT`. CI und die Release-Pipeline brechen ab, wenn die
+App-Version keinen Abschnitt hat (siehe `CLAUDE.md`).
+
+## [Unveröffentlicht]
+
+### Hinzugefügt
+
+- **Release-Notes in der App**: Nach einem Update erscheint einmal „Was ist neu in vX.Y.Z“ mit den Änderungen dieser Version; wurden Versionen übersprungen, stehen alle Änderungen seitdem darin. Der Update-Hinweis unter Einstellungen › Updates zeigt schon vor dem Installieren, was die neue Version bringt, und dort lassen sich die Notizen der installierten und aller früheren Versionen nachlesen. Die Notizen sind in die App eingebaut und funktionieren auch ohne Internet.
+
+### Entwicklung
+
+- **Kein Release ohne Release-Notes**: CI prüft bei jedem Pull Request, dass `CHANGELOG.md` einen Abschnitt für die App-Version hat; die Release-Pipeline übernimmt ihn automatisch als GitHub-Release-Text und als `notes` in `updater/latest.json`.
+
 ## [0.20.1] - 2026-11-12
 
 ### Behoben

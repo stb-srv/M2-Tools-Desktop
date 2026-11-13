@@ -5,9 +5,17 @@ edition = "2021"
 publish = false
 description = "Hilfsprogramme für die Release-Pipeline (.github/workflows/release.yml)"
 
+[lib]
+name = "release_tools"
+path = "src/lib.rs"
+
 [[bin]]
 name = "rewrite-latest-json"
 path = "src/main.rs"
+
+[[bin]]
+name = "changelog"
+path = "src/changelog_cli.rs"
 
 [dependencies]
 serde_json = { version = "1", features = ["preserve_order"] }

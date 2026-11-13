@@ -7,6 +7,8 @@ pub mod connection;
 pub mod csv;
 pub mod format;
 pub mod storage;
+pub mod changelog;
+pub mod release_notes;
 
 use crate::store::navigation::ModuleId;
 use serde_json::json;
