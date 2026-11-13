@@ -60,9 +60,14 @@ pub fn parse(granny_dll_path: &str, gr2_path: &str) -> Result<ModelInfo, String>
         ));
     }
 
-    let output = Command::new(sidecar)
-        .arg(granny_dll_path)
-        .arg(gr2_path)
+    let mut cmd = Command::new(sidecar);
+    cmd.arg(granny_dll_path).arg(gr2_path).stdin(std::process::Stdio::null());
+    #[cfg(windows)]
+    {
+        use std::os::windows::process::CommandExt;
+        cmd.creation_flags(crate::packtools::CREATE_NO_WINDOW);
+    }
+    let output = cmd
         .output()
         .map_err(|e| format!("GR2-Sidecar konnte nicht gestartet werden: {e}"))?;
 

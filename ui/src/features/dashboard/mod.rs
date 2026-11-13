@@ -7,6 +7,7 @@ pub mod resource_history_chart;
 use crate::components::{Button, ButtonSize, ButtonVariant, Icon, PageHeader};
 use crate::features::connection::ServerSwitcher;
 use crate::features::shared::client_unpack_panel::{load_unpack_status, ClientUnpackPanel};
+use crate::store::client_unpack::client_unpack_store;
 use crate::i18n::t;
 use crate::util::format::de_int;
 use crate::store::connection_profiles::connection_profiles;
@@ -113,10 +114,19 @@ pub fn Dashboard() -> impl IntoView {
     // Frischer Client: Icons noch gepackt -> Hinweis mit Entpack-Knopf.
     let unpack_needed = RwSignal::new(false);
     let unpack_open = RwSignal::new(false);
-    spawn_local(async move {
-        if let Ok(s) = load_unpack_status("").await {
-            unpack_needed.set(s.pack_dir_exists && s.needs_unpack());
-        }
+    let unpack_job = client_unpack_store();
+    // Beim Öffnen und nach jedem (Hintergrund-)Entpacklauf neu prüfen.
+    Effect::new(move |_| {
+        unpack_job.finished.track();
+        spawn_local(async move {
+            if let Ok(s) = load_unpack_status("").await {
+                let needed = s.pack_dir_exists && s.needs_unpack();
+                unpack_needed.set(needed);
+                if !needed {
+                    unpack_open.set(false);
+                }
+            }
+        });
     });
 
     let run_health_check = move |_| {
@@ -217,6 +227,50 @@ pub fn Dashboard() -> impl IntoView {
                 </Button>
             </div>
 
+            // Entpack-Hinweis ganz oben, damit er auf einem frischen Client
+            // nicht übersehen wird. Läuft das Entpacken, zeigt er den
+            // Fortschritt - auch wenn es von einer anderen Seite gestartet wurde.
+            <Show when=move || unpack_job.running.get()>
+                <section class="flex items-center gap-3 rounded-lg border border-primary/40 bg-primary/5 p-4">
+                    <Icon name="Loader2" class="size-5 shrink-0 animate-spin text-primary"/>
+                    <div class="min-w-0 flex-1">
+                        <div class="text-sm font-medium">"Client-Dateien werden im Hintergrund entpackt"</div>
+                        <div class="truncate text-xs text-muted-foreground">
+                            {move || unpack_job
+                                .progress
+                                .get()
+                                .map(|p| format!("Archiv {}/{}: {}", p.current, p.total, p.name))
+                                .unwrap_or_else(|| "Wird gestartet…".to_string())}
+                        </div>
+                    </div>
+                </section>
+            </Show>
+
+            <Show when=move || unpack_needed.get() && !unpack_job.running.get()>
+                <section class="space-y-3 rounded-lg border-2 border-amber-500/60 bg-amber-500/10 p-4">
+                    <div class="flex flex-wrap items-center justify-between gap-3">
+                        <div class="flex min-w-0 items-start gap-3">
+                            <Icon name="PackageOpen" class="mt-0.5 size-5 shrink-0 text-amber-600"/>
+                            <div>
+                                <div class="text-sm font-semibold">"Client-Dateien sind noch gepackt"</div>
+                                <div class="text-sm text-muted-foreground">
+                                    "Deshalb fehlen Item-Icons und Texte. Das Entpacken läuft im Hintergrund - du kannst währenddessen weiterarbeiten."
+                                </div>
+                            </div>
+                        </div>
+                        <Show when=move || !unpack_open.get()>
+                            <Button on_click=move |_| unpack_open.set(true)>
+                                <Icon name="PackageOpen" class="size-4"/>
+                                "Jetzt entpacken"
+                            </Button>
+                        </Show>
+                    </div>
+                    <Show when=move || unpack_open.get()>
+                        <ClientUnpackPanel client_path=Signal::derive(String::new)/>
+                    </Show>
+                </section>
+            </Show>
+
             <ServerSwitcher/>
 
             <section class="space-y-2">
@@ -272,35 +326,6 @@ pub fn Dashboard() -> impl IntoView {
                     </div>
                 </section>
             })}
-
-            <Show when=move || unpack_needed.get()>
-                <section class="space-y-3 rounded-lg border border-amber-500/40 bg-amber-500/5 p-4">
-                    <div class="flex flex-wrap items-center justify-between gap-3">
-                        <div class="flex items-center gap-2 text-sm">
-                            <Icon name="PackageOpen" class="size-4 text-amber-600"/>
-                            "Die Client-Dateien sind noch gepackt - deshalb fehlen Item-Icons und Texte."
-                        </div>
-                        <Show when=move || !unpack_open.get()>
-                            <Button size=ButtonSize::Sm on_click=move |_| unpack_open.set(true)>"Jetzt entpacken"</Button>
-                        </Show>
-                    </div>
-                    <Show when=move || unpack_open.get()>
-                        <ClientUnpackPanel
-                            client_path=Signal::derive(String::new)
-                            on_done=Callback::new(move |_| {
-                                spawn_local(async move {
-                                    if let Ok(s) = load_unpack_status("").await {
-                                        if !s.needs_unpack() {
-                                            unpack_needed.set(false);
-                                            unpack_open.set(false);
-                                        }
-                                    }
-                                });
-                            })
-                        />
-                    </Show>
-                </section>
-            </Show>
 
             <section class="space-y-2">
                 <div class="flex items-center justify-between">
