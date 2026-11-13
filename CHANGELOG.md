@@ -6,6 +6,13 @@ nach [SemVer](https://semver.org/) (`MAJOR.MINOR.PATCH`, solange < 1.0 gilt
 `MINOR` für neue Features, `PATCH` für reine Fixes). Für die vollständige
 Feature-Historie mit allen Details siehe `STATUS.md`.
 
+## [Unveröffentlicht]
+
+### Entwicklung
+
+- **Release per Knopf**: Releases startet man jetzt in GitHub unter Actions › Release › „Run workflow“. Der Lauf zählt die Version hoch, macht aus „Unveröffentlicht“ den Abschnitt der neuen Version, setzt den Tag selbst und baut danach. Ein Tag, der ohne fertigen Release übrig geblieben ist, wird dabei auf den richtigen Stand verschoben.
+- **Update-Datei wird zuverlässig geschrieben**: `updater/latest.json` landet auch dann auf master, wenn während des Baus ein Pull Request gemergt wurde. Bei 0.30.0 ging das schief, und installierte Apps fanden das Update nicht.
+
 ## [0.30.1] - 2026-11-13
 
 ### Geändert

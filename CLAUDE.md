@@ -20,10 +20,12 @@ vor dem Installieren).
 2. Schreibstil: für Anwender, auf Deutsch, ein Punkt pro Änderung,
    `- **Kurztitel**: was ist anders und wo findet man es`. Keine
    Code-Interna, außer unter `### Entwicklung`.
-3. Beim Release (Version hochzählen): `## [Unveröffentlicht]` umbenennen in
-   `## [X.Y.Z] - JJJJ-MM-TT` und die Version synchron in
-   `src-tauri/tauri.conf.json`, `src-tauri/Cargo.toml` und `ui/Cargo.toml`
-   setzen. Details: `howtorelease.md`.
+3. Releases nicht von Hand machen: keine Version in Pull Requests
+   hochzählen, keinen Tag setzen. Release startet man in GitHub unter
+   Actions › Release › „Run workflow“ (patch/minor/major). Der Lauf benennt
+   `## [Unveröffentlicht]` in `## [X.Y.Z] - JJJJ-MM-TT` um, setzt die Version
+   in `src-tauri/tauri.conf.json`, beiden `Cargo.toml` und `Cargo.lock`,
+   committet auf master, taggt und baut. Details: `howtorelease.md`.
 
 Abgesichert durch:
 - CI-Job „Release-Notes“ (`.github/workflows/ci.yml`) und den Test

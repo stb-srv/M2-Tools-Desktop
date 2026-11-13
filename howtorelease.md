@@ -1,19 +1,32 @@
 So machst du zukünftig einen Release
 
-## Automatisch (seit 2026-08-18, Normalfall)
+## Automatisch per Knopf (seit 2026-11-13, Normalfall)
 
-Ein gepushter Git-Tag baut, signiert und veröffentlicht die neue Version komplett automatisch per GitHub Actions (`.github/workflows/release.yml`) - die App selbst prüft dann beim Start (und über den "Nach Updates suchen"-Knopf in den Einstellungen) automatisch, ob eine neuere Version verfügbar ist, und kann sie direkt installieren.
+Du musst weder Versionen hochzählen noch Tags setzen. Das erledigt GitHub Actions (`.github/workflows/release.yml`) in einem Lauf.
 
 Ablauf:
-1. Version an drei Stellen synchron hochzählen: `src-tauri/tauri.conf.json` ("version"), `src-tauri/Cargo.toml` und `ui/Cargo.toml` (`version = ...`), z.B. alle auf `0.15.0`. Der Tag muss genau dazu passen - sonst bricht die Pipeline gleich am Anfang ab (Prüfschritt seit 0.17.1). Hintergrund: v0.17.0 wurde ohne Hochzählen getaggt, wurde dadurch als 0.16.0 gebaut, und installierte Apps fanden kein Update.
-2. **Release-Notes**: in `CHANGELOG.md` den Abschnitt `## [Unveröffentlicht]` umbenennen in `## [0.15.0] - <heutiges Datum>` (und prüfen, dass alles Wichtige drinsteht). Genau dieser Text erscheint in der App als „Was ist neu“, im Update-Hinweis und als Text des GitHub-Release. Ohne Abschnitt schlagen CI und die Release-Pipeline fehl. Lokal prüfen: `cargo run --manifest-path tools/release/Cargo.toml --bin changelog -- check`
-3. Committen: `git commit -am "Release 0.15.0"`
-4. Taggen und pushen:
-   ```
-   git tag v0.15.0
-   git push origin master v0.15.0
-   ```
-5. Fertig - GitHub Actions baut, signiert, legt ein GitHub Release mit den Windows-Installern an, übernimmt die Release-Notes aus `CHANGELOG.md` und aktualisiert `updater/latest.json` im Repo, worüber die App die neue Version findet. Fortschritt live unter github.com/stb-srv/M2-Tools-Desktop/actions verfolgbar.
+1. Alle Pull Requests für die Version sind gemergt, und ihre Änderungen stehen in `CHANGELOG.md` unter `## [Unveröffentlicht]` (das macht jeder PR selbst, siehe `CLAUDE.md`).
+2. Auf github.com/stb-srv/M2-Tools-Desktop/actions links **Release** wählen, rechts **Run workflow** drücken.
+3. Branch `master` lassen und die Art wählen:
+   - **patch**: nur Fehlerbehebungen, 0.30.1 → 0.30.2
+   - **minor**: neue Funktionen, 0.30.1 → 0.31.0
+   - **major**: 0.30.1 → 1.0.0
+   - **aktuell**: Version bleibt. Nur nötig, wenn ein Release dieser Version abgebrochen ist und wiederholt werden soll.
+   - Oder im Feld darunter eine Version ausschreiben (z. B. `0.40.0`).
+4. Grün auf **Run workflow** drücken. Fertig.
+
+Was der Lauf macht:
+- **Vorbereiten** (ein paar Sekunden): Version in `src-tauri/tauri.conf.json`, `src-tauri/Cargo.toml`, `ui/Cargo.toml` und beiden `Cargo.lock` setzen, `## [Unveröffentlicht]` in `## [X.Y.Z] - <heute>` umbenennen, als „Release X.Y.Z“ auf master committen und den Tag `vX.Y.Z` setzen. Fehlen die Release-Notes, bricht er hier ab, bevor irgendwas geändert ist.
+- **Bauen** (ca. 20 Minuten): Windows-Installer bauen und signieren, GitHub-Release mit den Notizen aus `CHANGELOG.md` anlegen, `updater/latest.json` auf master schreiben. Darüber findet die App das Update.
+
+Sicherungen:
+- Gibt es den Tag schon mit fertigem Release, bricht der Lauf ab. Gibt es ihn ohne Release (z. B. weil er früher zu früh gesetzt wurde), wird er auf den richtigen Stand verschoben.
+- Es läuft immer nur ein Release gleichzeitig.
+- Ist master während des Baus weitergewandert, wird `updater/latest.json` trotzdem geschrieben (bei v0.30.0 scheiterte genau das).
+
+### Fallback: Tag von Hand
+
+Ein von Hand gepushter Tag `vX.Y.Z` startet weiterhin nur den Bau. Dann musst du vorher selbst die Version in allen Dateien setzen und den Changelog-Abschnitt umbenennen, sonst bricht die Pipeline ab (Prüfschritt seit 0.17.1). Lieber den Knopf nehmen.
 
 **Einmalige Einrichtung, bevor das zum ersten Mal läuft** (siehe `~/.claude/plans/immutable-mapping-snowglobe.md` für die volle Herleitung):
 - (Seit 0.17.1 nicht mehr nötig: das Repo ist öffentlich, die App braucht keinen eingebetteten `GH_RELEASE_TOKEN` mehr. Das Secret kann gelöscht werden.)

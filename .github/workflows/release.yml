@@ -1,11 +1,28 @@
 name: Release
 
-# Ausgelöst durch einen gepushten Git-Tag "vX.Y.Z" (siehe howtorelease.md).
-# Baut, signiert und veröffentlicht komplett automatisch - siehe
-# ~/.claude/plans/immutable-mapping-snowglobe.md für die volle Herleitung.
+# Normalfall: in GitHub unter Actions › Release › "Run workflow" auf den Knopf
+# drücken und die Art wählen (patch/minor/major). Der Lauf zählt die Version in
+# allen Dateien hoch, macht aus "## [Unveröffentlicht]" in CHANGELOG.md den
+# Abschnitt der neuen Version, committet das auf master, setzt den Tag selbst
+# und baut, signiert und veröffentlicht danach den Release. Version und Tag
+# können so nicht mehr auseinanderlaufen (so passiert bei v0.17.0, v0.30.0 und
+# v0.30.1). Details: howtorelease.md.
+#
+# Ein von Hand gepushter Tag "vX.Y.Z" startet weiterhin nur den Bau (Fallback).
 # Das Repo ist öffentlich: die App fragt latest.json und die Installer ohne
 # Token ab (kein eingebetteter GH_RELEASE_TOKEN mehr).
 on:
+  workflow_dispatch:
+    inputs:
+      art:
+        description: "Welche Version? patch = nur Fehlerbehebungen (0.30.1 → 0.30.2), minor = neue Funktionen (→ 0.31.0), major (→ 1.0.0), aktuell = Version bleibt (abgebrochenen Release wiederholen)"
+        type: choice
+        default: patch
+        options: [patch, minor, major, aktuell]
+      version:
+        description: "Optional: Version ausgeschrieben (z. B. 0.40.0), ersetzt die Auswahl oben"
+        type: string
+        required: false
   push:
     tags:
       - "v*"
@@ -13,11 +30,91 @@ on:
 permissions:
   contents: write
 
+# Nie zwei Releases gleichzeitig: sonst überholen sie sich beim Schreiben von
+# updater/latest.json.
+concurrency:
+  group: release
+  cancel-in-progress: false
+
 jobs:
+  prepare:
+    name: Version hochzählen, Changelog, Tag
+    if: github.event_name == 'workflow_dispatch'
+    runs-on: ubuntu-latest
+    outputs:
+      tag: ${{ steps.release.outputs.tag }}
+    steps:
+      - name: Nur von master
+        if: github.ref != 'refs/heads/master'
+        run: |
+          echo "::error::Releases bitte von master starten (gewählt: ${GITHUB_REF_NAME})."
+          exit 1
+
+      - uses: actions/checkout@v4
+        with:
+          ref: master
+
+      - uses: dtolnay/rust-toolchain@stable
+
+      - uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: "tools/release -> target"
+
+      - name: Version und Changelog setzen
+        id: release
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          ART: ${{ inputs.version || inputs.art }}
+        run: |
+          set -euo pipefail
+          today=$(TZ=Europe/Berlin date +%F)
+          version=$(cargo run -q --release --manifest-path tools/release/Cargo.toml --bin changelog -- prepare "$ART" "$today")
+          tag="v$version"
+          echo "Neue Version: $version"
+
+          # Gibt es den Tag schon? Mit fertigem Release: abbrechen. Ohne Release
+          # (abgebrochener Lauf, Tag zu früh gesetzt): Tag auf den richtigen
+          # Stand verschieben, statt dass er für immer auf den falschen zeigt.
+          if git ls-remote --exit-code --tags origin "refs/tags/$tag" >/dev/null; then
+            if draft=$(gh release view "$tag" --json isDraft --jq .isDraft 2>/dev/null); then
+              if [ "$draft" != "true" ]; then
+                echo "::error::$tag ist schon veröffentlicht. Für eine neue Version bitte patch/minor/major wählen."
+                exit 1
+              fi
+              echo "::warning::Entwurf für $tag wird verworfen und neu gebaut."
+              gh release delete "$tag" --yes
+            fi
+            echo "::warning::Tag $tag existierte ohne Release und wird auf den aktuellen Stand gesetzt."
+            git push origin ":refs/tags/$tag"
+          fi
+
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          if ! git diff --quiet; then
+            git commit -am "Release $version"
+          fi
+          git tag "$tag"
+          # Commit und Tag gemeinsam oder gar nicht.
+          git push --atomic origin HEAD:master "$tag"
+          echo "tag=$tag" >> "$GITHUB_OUTPUT"
+          {
+            echo "### Release $tag vorbereitet"
+            echo
+            cargo run -q --release --manifest-path tools/release/Cargo.toml --bin changelog -- notes "$version"
+          } >> "$GITHUB_STEP_SUMMARY"
+
   build-and-release:
+    name: Bauen, signieren, veröffentlichen
+    needs: prepare
+    # Läuft nach "prepare" (Knopf) oder direkt bei einem von Hand gepushten Tag.
+    if: ${{ !failure() && !cancelled() }}
     runs-on: windows-latest
+    env:
+      TAG: ${{ needs.prepare.outputs.tag || github.ref_name }}
     steps:
       - uses: actions/checkout@v4
+        with:
+          ref: ${{ env.TAG }}
 
       - uses: dtolnay/rust-toolchain@stable
         with:
@@ -43,7 +140,7 @@ jobs:
       - name: Check that the tag matches the app version
         shell: bash
         run: |
-          tag="${GITHUB_REF_NAME#v}"
+          tag="${TAG#v}"
           conf=$(grep -m1 '"version":' src-tauri/tauri.conf.json | cut -d'"' -f4)
           cargo=$(grep -m1 '^version = ' src-tauri/Cargo.toml | cut -d'"' -f2)
           ui=$(grep -m1 '^version = ' ui/Cargo.toml | cut -d'"' -f2)
@@ -62,7 +159,7 @@ jobs:
         shell: bash
         run: |
           cargo run --release --manifest-path tools/release/Cargo.toml --bin changelog -- check
-          cargo run --release --manifest-path tools/release/Cargo.toml --bin changelog -- notes "${GITHUB_REF_NAME}" > release-notes.md
+          cargo run --release --manifest-path tools/release/Cargo.toml --bin changelog -- notes "${TAG}" > release-notes.md
           {
             echo "body<<M2_RELEASE_NOTES_EOF"
             cat release-notes.md
@@ -77,8 +174,8 @@ jobs:
           TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
           TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY_PASSWORD }}
         with:
-          tagName: ${{ github.ref_name }}
-          releaseName: "M2Manager ${{ github.ref_name }}"
+          tagName: ${{ env.TAG }}
+          releaseName: "M2Manager ${{ env.TAG }}"
           releaseBody: ${{ steps.notes.outputs.body }}
           generateReleaseNotes: false
           releaseDraft: false
@@ -90,10 +187,33 @@ jobs:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: cargo run --release --manifest-path tools/release/Cargo.toml --bin rewrite-latest-json -- "${{ steps.tauri-action.outputs.releaseId }}"
 
+      # Die App fragt updater/latest.json auf master ab. Der Bau läuft auf dem
+      # Tag-Stand; ist master inzwischen weiter (z. B. weil während des Baus ein
+      # Pull Request gemergt wurde), wird die Datei auf den neuesten master
+      # gesetzt und bei Bedarf erneut versucht. Vorher scheiterte hier v0.30.0,
+      # und die App fand das Update nie.
       - name: Commit updater/latest.json
+        shell: bash
         run: |
+          set -euo pipefail
+          cp updater/latest.json "$RUNNER_TEMP/latest.json"
           git config user.name "github-actions[bot]"
           git config user.email "github-actions[bot]@users.noreply.github.com"
-          git add updater/latest.json
-          git diff --cached --quiet || git commit -m "chore: update updater/latest.json for ${{ github.ref_name }}"
-          git push origin HEAD:master
+          for attempt in 1 2 3 4 5; do
+            git fetch origin master
+            git checkout -f -B latest-json origin/master
+            cp "$RUNNER_TEMP/latest.json" updater/latest.json
+            git add updater/latest.json
+            if git diff --cached --quiet; then
+              echo "updater/latest.json ist schon aktuell."
+              exit 0
+            fi
+            git commit -m "chore: update updater/latest.json for ${TAG}"
+            if git push origin HEAD:master; then
+              exit 0
+            fi
+            echo "Push abgelehnt (master hat sich bewegt), neuer Versuch $attempt/5 ..."
+            sleep $((attempt * 5))
+          done
+          echo "::error::updater/latest.json konnte nicht auf master geschrieben werden. Ohne die Datei finden installierte Apps das Update nicht."
+          exit 1
