@@ -17,6 +17,10 @@ Feature-Historie mit allen Details siehe `STATUS.md`.
 - **Rang im Mob-Proto-Editor**: Über dem Zeilen-Editor stehen Name, Level und Rang des Mobs (PAWN bis KING) und ob er Common-Drops bekommt.
 - **„Server jetzt neu starten“** direkt nach dem Speichern von Common-Drops, Etc-Drops, Kisten-Gruppen und Zufalls-Gruppen, die erst nach einem Neustart wirken. Nutzt die Befehle und die Wartezeit aus der Server-Steuerung.
 
+### Entfernt
+
+- **Account-Verwaltung › „Item geben / entfernen“**: Der Bereich schrieb rohe Zeilen in `player.item`, ohne dass die Bedeutung der Spalten (Fenster, Position, Besitzer) je gegen den Server geprüft wurde. Bei Live-Spielerdaten zu riskant; kann mit geprüften Feldern zurückkommen.
+
 ## [0.20.1] - 2026-11-12
 
 ### Behoben
