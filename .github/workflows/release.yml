@@ -53,6 +53,22 @@ jobs:
             exit 1
           fi
 
+      # Ohne Release-Notes kein Release: der Abschnitt "## [X.Y.Z]" aus
+      # CHANGELOG.md wird Text des GitHub-Release, landet als "notes" in
+      # updater/latest.json (Update-Hinweis in der App) und ist in die App
+      # eingebettet ("Was ist neu"). Fehlt er, bricht die Pipeline hier ab.
+      - name: Read release notes from CHANGELOG.md
+        id: notes
+        shell: bash
+        run: |
+          cargo run --release --manifest-path tools/release/Cargo.toml --bin changelog -- check
+          cargo run --release --manifest-path tools/release/Cargo.toml --bin changelog -- notes "${GITHUB_REF_NAME}" > release-notes.md
+          {
+            echo "body<<M2_RELEASE_NOTES_EOF"
+            cat release-notes.md
+            echo "M2_RELEASE_NOTES_EOF"
+          } >> "$GITHUB_OUTPUT"
+
       - name: Build, sign and publish the GitHub Release
         id: tauri-action
         uses: tauri-apps/tauri-action@v0
@@ -63,15 +79,16 @@ jobs:
         with:
           tagName: ${{ github.ref_name }}
           releaseName: "M2Manager ${{ github.ref_name }}"
-          generateReleaseNotes: true
+          releaseBody: ${{ steps.notes.outputs.body }}
+          generateReleaseNotes: false
           releaseDraft: false
           prerelease: false
           tauriScript: cargo tauri
 
-      - name: Rewrite latest.json to use api.github.com asset URLs
+      - name: Rewrite latest.json (api.github.com asset URLs + release notes)
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        run: cargo run --release --manifest-path tools/release/Cargo.toml -- "${{ steps.tauri-action.outputs.releaseId }}"
+        run: cargo run --release --manifest-path tools/release/Cargo.toml --bin rewrite-latest-json -- "${{ steps.tauri-action.outputs.releaseId }}"
 
       - name: Commit updater/latest.json
         run: |

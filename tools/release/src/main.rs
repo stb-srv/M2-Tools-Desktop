@@ -8,6 +8,9 @@
 //! abfragt. Die api.github.com-URLs funktionieren ohne Token (öffentliches Repo)
 //! und mit dem in <= 0.17.0 eingebetteten Token.
 //!
+//! Außerdem setzt es `notes` auf den passenden Abschnitt aus `CHANGELOG.md`,
+//! damit die App die Release-Notes schon im Update-Hinweis anzeigen kann.
+//!
 //! Aufruf: `rewrite-latest-json <releaseId>` (braucht `gh` und `GITHUB_REPOSITORY`).
 
 use serde_json::Value;
@@ -86,6 +89,10 @@ fn main() {
             info["url"] = Value::String(format!("https://api.github.com/repos/{repo}/releases/assets/{id}"));
         }
     }
+
+    let version = manifest.get("version").and_then(Value::as_str).unwrap_or_default().to_string();
+    let notes = release_tools::release_notes(std::path::Path::new("."), &version).unwrap_or_else(|e| fail(&e));
+    manifest["notes"] = Value::String(notes);
 
     let pretty = serde_json::to_string_pretty(&manifest).expect("serialisierbar");
     std::fs::create_dir_all("updater").unwrap_or_else(|e| fail(&format!("updater/ anlegen: {e}")));
