@@ -1,19 +1,19 @@
 {
-  "version": "0.20.1",
-  "notes": "",
-  "pub_date": "2026-11-13T14:18:23.696Z",
+  "version": "0.40.0",
+  "notes": "### Entwicklung\n\n- **Release per Knopf**: Releases startet man jetzt in GitHub unter Actions › Release › „Run workflow“. Der Lauf zählt die Version hoch, macht aus „Unveröffentlicht“ den Abschnitt der neuen Version, setzt den Tag selbst und baut danach. Ein Tag, der ohne fertigen Release übrig geblieben ist, wird dabei auf den richtigen Stand verschoben.\n- **Update-Datei wird zuverlässig geschrieben**: `updater/latest.json` landet auch dann auf master, wenn während des Baus ein Pull Request gemergt wurde. Bei 0.30.0 ging das schief, und installierte Apps fanden das Update nicht.",
+  "pub_date": "2026-11-13T19:58:31.359Z",
   "platforms": {
     "windows-x86_64": {
-      "signature": "dW50cnVzdGVkIGNvbW1lbnQ6IHNpZ25hdHVyZSBmcm9tIHRhdXJpIHNlY3JldCBrZXkKUlVRUFlocnZlQ3hhVHAwT202VDl2dXVsYnh1RHBrbS9kTm45OFNUT2orMGR1cTV6Ulh0b0hKU2x6N05xcnY1enh6VjVWeWFzR09JTmJUaE5VZFFpSk1EZnkrZ0UvVncxN2dnPQp0cnVzdGVkIGNvbW1lbnQ6IHRpbWVzdGFtcDoxNzk0NTc5NDk4CWZpbGU6TTJNYW5hZ2VyXzAuMjAuMV94NjRfZW4tVVMubXNpCXZlcnNpb246MC4yMC4xCk1Qd3kxTWYvcVlQU3lDTXVDZmloOW9NMDVQRFkwaWNTckNEdG5LaDJQeGk0VC9HSHBXRE0yN09uODAveUREcDNST1hTU1B2U1pzd0lQcUNDTnlJVERnPT0K",
-      "url": "https://api.github.com/repos/stb-srv/M2-Tools-Desktop/releases/assets/743920558"
+      "signature": "dW50cnVzdGVkIGNvbW1lbnQ6IHNpZ25hdHVyZSBmcm9tIHRhdXJpIHNlY3JldCBrZXkKUlVRUFlocnZlQ3hhVGdtc01rTkNwWmNVamFzd0QrOVkzU3hGSnJHRnE1WGFKdDVya0xsRlRLVTFQWDFiNmZPT3Z3S2lIRlJ2ZVNhSWUvNmFBSnVHbjBPRmlsY0YzT3hGd1FFPQp0cnVzdGVkIGNvbW1lbnQ6IHRpbWVzdGFtcDoxNzk0NTk5OTA1CWZpbGU6TTJNYW5hZ2VyXzAuNDAuMF94NjRfZW4tVVMubXNpCXZlcnNpb246MC40MC4wCkM1UEFvN1NwbHdWT1ZiQWVIbXVvZGk0WGlqUi9YUkRtNGl5K2I2eStWc1h6aFIrTFdKTzJWQXoxbjNHbTJFZTNlbi9XS0Voak4yRUlLZEIwUmduV0N3PT0K",
+      "url": "https://api.github.com/repos/stb-srv/M2-Tools-Desktop/releases/assets/744985654"
     },
     "windows-x86_64-msi": {
-      "signature": "dW50cnVzdGVkIGNvbW1lbnQ6IHNpZ25hdHVyZSBmcm9tIHRhdXJpIHNlY3JldCBrZXkKUlVRUFlocnZlQ3hhVHAwT202VDl2dXVsYnh1RHBrbS9kTm45OFNUT2orMGR1cTV6Ulh0b0hKU2x6N05xcnY1enh6VjVWeWFzR09JTmJUaE5VZFFpSk1EZnkrZ0UvVncxN2dnPQp0cnVzdGVkIGNvbW1lbnQ6IHRpbWVzdGFtcDoxNzk0NTc5NDk4CWZpbGU6TTJNYW5hZ2VyXzAuMjAuMV94NjRfZW4tVVMubXNpCXZlcnNpb246MC4yMC4xCk1Qd3kxTWYvcVlQU3lDTXVDZmloOW9NMDVQRFkwaWNTckNEdG5LaDJQeGk0VC9HSHBXRE0yN09uODAveUREcDNST1hTU1B2U1pzd0lQcUNDTnlJVERnPT0K",
-      "url": "https://api.github.com/repos/stb-srv/M2-Tools-Desktop/releases/assets/743920558"
+      "signature": "dW50cnVzdGVkIGNvbW1lbnQ6IHNpZ25hdHVyZSBmcm9tIHRhdXJpIHNlY3JldCBrZXkKUlVRUFlocnZlQ3hhVGdtc01rTkNwWmNVamFzd0QrOVkzU3hGSnJHRnE1WGFKdDVya0xsRlRLVTFQWDFiNmZPT3Z3S2lIRlJ2ZVNhSWUvNmFBSnVHbjBPRmlsY0YzT3hGd1FFPQp0cnVzdGVkIGNvbW1lbnQ6IHRpbWVzdGFtcDoxNzk0NTk5OTA1CWZpbGU6TTJNYW5hZ2VyXzAuNDAuMF94NjRfZW4tVVMubXNpCXZlcnNpb246MC40MC4wCkM1UEFvN1NwbHdWT1ZiQWVIbXVvZGk0WGlqUi9YUkRtNGl5K2I2eStWc1h6aFIrTFdKTzJWQXoxbjNHbTJFZTNlbi9XS0Voak4yRUlLZEIwUmduV0N3PT0K",
+      "url": "https://api.github.com/repos/stb-srv/M2-Tools-Desktop/releases/assets/744985654"
     },
     "windows-x86_64-nsis": {
-      "signature": "dW50cnVzdGVkIGNvbW1lbnQ6IHNpZ25hdHVyZSBmcm9tIHRhdXJpIHNlY3JldCBrZXkKUlVRUFlocnZlQ3hhVGxjNE1VNzRrQzluUUx6WFdkVzFBZE5RQmxWNlRDb2V5ZFhwZEtZZTY2bnhYNHJyRUxlZG5sYjJzN3A4OWdvMXZNYTBYMitHcE9rWmZNS2xUbjMzNmc0PQp0cnVzdGVkIGNvbW1lbnQ6IHRpbWVzdGFtcDoxNzk0NTc5NDk4CWZpbGU6TTJNYW5hZ2VyXzAuMjAuMV94NjQtc2V0dXAuZXhlCXZlcnNpb246MC4yMC4xClppOUZ0RlVveXg2a0JtZzl0Uk90M0Y1VW8rdElzKzBUQW13VEtvZU9UYWVJUEtPc0I5RVJwdmIvYnA1eFpCZDV1SGVUbW5tUVhRU0JZWFNmWW13VERBPT0K",
-      "url": "https://api.github.com/repos/stb-srv/M2-Tools-Desktop/releases/assets/743920674"
+      "signature": "dW50cnVzdGVkIGNvbW1lbnQ6IHNpZ25hdHVyZSBmcm9tIHRhdXJpIHNlY3JldCBrZXkKUlVRUFlocnZlQ3hhVHZhZlhiWExJbytialpuOHo1TWNHODNKWkx6Zk80WHMvMVBOWUU2bkUzc3dRK1kwN2ptWHFmVkhWNVFCVkVsa2hYVlFhVDJDaFlnVk5DekJMZk1nVGdNPQp0cnVzdGVkIGNvbW1lbnQ6IHRpbWVzdGFtcDoxNzk0NTk5OTA1CWZpbGU6TTJNYW5hZ2VyXzAuNDAuMF94NjQtc2V0dXAuZXhlCXZlcnNpb246MC40MC4wCitKd2NtWFQ3YUN6Ujd6aTN2VEg1dXN3UkdVWFg0cS8wSEQ3NWlGeGVpYUdoak1CZmtZK28vUlVScGpySktIQVEzblIxUTJrekErNXhyWm9IMGgwVEF3PT0K",
+      "url": "https://api.github.com/repos/stb-srv/M2-Tools-Desktop/releases/assets/744985725"
     }
   }
 }
