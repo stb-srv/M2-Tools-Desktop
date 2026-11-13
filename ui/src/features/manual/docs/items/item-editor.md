@@ -12,6 +12,6 @@ Legt neue Items an und bearbeitet bestehende - Werte, Flags, Icon und (optional)
 
 ## Wichtige Hinweise
 
-- Waffen/Rüstungen mit einem **neuen 3D-Modell** gehören in den **Modul-Importer**, nicht hierher - der Item Editor selbst kann kein `.gr2`-Modell zuweisen.
+- Waffen/Rüstungen mit einem **neuen 3D-Modell** gehören in den **Item-Importer**, nicht hierher - der Item Editor selbst kann kein `.gr2`-Modell zuweisen.
 - value0-5 haben für Waffen/Rüstungen echte, verifizierte Bedeutungen (Schaden, Verteidigung, Angriffstempo, Zusatzwerte) mit eigenen Feldnamen und einer Live-Vorschau. Für alle anderen Typen bleiben es rohe `value`-Felder - dort ist "Referenz-Item übernehmen" der zuverlässigste Weg.
 - Nach dem Speichern über "Neu erzeugen & einspielen" ist die Änderung sofort im Client sichtbar (kein Server-Neustart nötig), vorausgesetzt der Client wird wirklich neu gestartet (nicht nur neu eingeloggt).

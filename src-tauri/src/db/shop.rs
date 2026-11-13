@@ -194,12 +194,20 @@ pub async fn search_items(
     query: &str,
     limit: i64,
 ) -> Result<Vec<ItemSearchResult>, String> {
-    let rows = if let Ok(vnum) = query.trim().parse::<i32>() {
-        sqlx::query("SELECT vnum, locale_name FROM player.item_proto WHERE vnum = ? LIMIT ?")
-            .bind(vnum)
-            .bind(limit)
-            .fetch_all(pool)
-            .await
+    let rows = if let Ok(vnum) = query.trim().parse::<u32>() {
+        // Früher nur `WHERE vnum = ?`: eine Zahl lieferte so höchstens einen
+        // einzigen Treffer (oder keinen). Jetzt wie in den Pickern alle
+        // vnums, die die Ziffern enthalten - der exakte Treffer zuerst.
+        sqlx::query(
+            "SELECT vnum, locale_name FROM player.item_proto \
+             WHERE CAST(vnum AS CHAR) LIKE ? \
+             ORDER BY (vnum = ?) DESC, vnum LIMIT ?",
+        )
+        .bind(format!("%{vnum}%"))
+        .bind(vnum)
+        .bind(limit)
+        .fetch_all(pool)
+        .await
     } else {
         let like = format!("%{}%", query.replace('%', "\\%").replace('_', "\\_"));
         // `locale_name` is `varbinary` (raw bytes, no charset/collation - see
@@ -227,7 +235,7 @@ pub async fn search_items(
         .map(|row| {
             let name_raw: Vec<u8> = row.try_get("locale_name").unwrap_or_default();
             ItemSearchResult {
-                vnum: row.try_get("vnum").unwrap_or_default(),
+                vnum: super::get_vnum(&row, "vnum").unwrap_or_default(),
                 name: decode_name(&name_raw),
             }
         })
@@ -241,15 +249,10 @@ pub struct EntityBrowsePage {
 }
 
 /// Paginated, always-non-empty browse view (ordered by vnum) for pickers that
-/// need to let the user scroll through the whole table instead of only ever
-/// finding something when they already know an exact vnum - real complaint:
-/// `search_items`'s numeric branch does `WHERE vnum = ?`, so searching e.g.
-/// "7000" when no item happens to sit at exactly that vnum returns nothing at
-/// all, with no fallback list to browse from. `query`, if given, narrows the
-/// same way `search_items` does but as a CONTAINS match even for numeric
-/// input (not just exact-vnum) - safe to broaden here because the result is
-/// paginated with a real total count, unlike `search_items`'s fixed `LIMIT`
-/// which would otherwise silently truncate a broad match.
+/// need to let the user scroll through the whole table (empty query = all
+/// rows). `query` narrows like `search_items` (digits = vnum substring,
+/// otherwise case-insensitive name substring), but with a real total count
+/// and paging instead of `search_items`'s fixed `LIMIT`.
 pub async fn browse_items(
     pool: &MySqlPool,
     query: Option<&str>,
@@ -279,7 +282,7 @@ pub async fn fetch_all_entity_names(pool: &MySqlPool, table: &str) -> Result<Vec
         .into_iter()
         .map(|row| {
             let name_raw: Vec<u8> = row.try_get("locale_name").unwrap_or_default();
-            let vnum: u32 = row.try_get("vnum").unwrap_or_default();
+            let vnum: u32 = super::get_vnum(&row, "vnum").unwrap_or_default();
             (vnum, decode_name(&name_raw))
         })
         .collect())
@@ -337,7 +340,7 @@ async fn browse_table(
         .map(|row| {
             let name_raw: Vec<u8> = row.try_get("locale_name").unwrap_or_default();
             ItemSearchResult {
-                vnum: row.try_get("vnum").unwrap_or_default(),
+                vnum: super::get_vnum(&row, "vnum").unwrap_or_default(),
                 name: decode_name(&name_raw),
             }
         })
@@ -353,12 +356,17 @@ pub async fn search_mobs(
     query: &str,
     limit: i64,
 ) -> Result<Vec<ItemSearchResult>, String> {
-    let rows = if let Ok(vnum) = query.trim().parse::<i32>() {
-        sqlx::query("SELECT vnum, locale_name FROM player.mob_proto WHERE vnum = ? LIMIT ?")
-            .bind(vnum)
-            .bind(limit)
-            .fetch_all(pool)
-            .await
+    let rows = if let Ok(vnum) = query.trim().parse::<u32>() {
+        sqlx::query(
+            "SELECT vnum, locale_name FROM player.mob_proto \
+             WHERE CAST(vnum AS CHAR) LIKE ? \
+             ORDER BY (vnum = ?) DESC, vnum LIMIT ?",
+        )
+        .bind(format!("%{vnum}%"))
+        .bind(vnum)
+        .bind(limit)
+        .fetch_all(pool)
+        .await
     } else {
         let like = format!("%{}%", query.replace('%', "\\%").replace('_', "\\_"));
         sqlx::query(
@@ -378,7 +386,7 @@ pub async fn search_mobs(
         .map(|row| {
             let name_raw: Vec<u8> = row.try_get("locale_name").unwrap_or_default();
             ItemSearchResult {
-                vnum: row.try_get("vnum").unwrap_or_default(),
+                vnum: super::get_vnum(&row, "vnum").unwrap_or_default(),
                 name: decode_name(&name_raw),
             }
         })

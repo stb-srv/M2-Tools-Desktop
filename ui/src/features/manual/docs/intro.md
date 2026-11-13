@@ -7,7 +7,7 @@ M2Manager bündelt die Werkzeuge, die für den täglichen Betrieb eines Metin2-S
 Links findest du dieselben Gruppen wie in der Sidebar der App:
 
 - **Übersicht** - Dashboard, Server-Steuerung, Quellcode bauen & einspielen
-- **Items & Ausrüstung** - Item Editor, Item-Übersicht, Modul-Importer, Aufwertungs-Editor, Cube-Editor
+- **Items & Ausrüstung** - Item Editor, Item-Übersicht, Item-Importer, Aufwertungs-Editor, Cube-Editor
 - **Shops & Monster** - Shop-Editor, Mob-Proto-Editor, Drop-Generator (inkl. Mob-Drops und Kisten)
 - **Quests & Welt** - Quest Builder, Regen-Datei-Editor, Locale-Verwaltung
 - **Server & Accounts** - Server-Events (inkl. Tag/Nacht & Schnee), Account-Verwaltung (inkl. GM-Verwaltung), Gilden-Verwaltung, Wirtschafts-Dashboard, Datenbank-Explorer, Broadcast-System

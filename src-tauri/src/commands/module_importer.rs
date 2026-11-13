@@ -1,4 +1,4 @@
-//! Modul-Importer (beliebige Ausrüstungs-Pakete: Waffen + Rüstung), plus
+//! Item-Importer (beliebige Ausrüstungs-Pakete: Waffen + Rüstung), plus
 //! Verlauf & Rückgängig-machen.
 
 use crate::db::item;
@@ -111,7 +111,7 @@ pub async fn pack_item_effects(app: AppHandle, state: State<'_, AppState>) -> Re
     packtools::run_eterpack_pack(&app, &tool_path, "effect").await
 }
 
-// ---- Modul-Importer: Verlauf & Rückgängig-machen ----
+// ---- Item-Importer: Verlauf & Rückgängig-machen ----
 
 #[tauri::command]
 pub fn record_import_batch(

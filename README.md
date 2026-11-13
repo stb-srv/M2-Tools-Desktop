@@ -14,7 +14,7 @@ Gebaut mit [Tauri 2](https://tauri.app/) (Rust) und React/TypeScript. Läuft unt
 **Items & Ausrüstung**
 - **Item Editor**: neue Items anlegen oder bestehende bearbeiten, inkl. Icon, `item_proto`-Neuerzeugung und `icon.epk`-Packen.
 - **Item-Übersicht**: komplette `item_proto` als Liste oder Kacheln.
-- **Modul-Importer**, **Aufwertungs-Editor** (Refine), **Cube-Editor**.
+- **Item-Importer**, **Aufwertungs-Editor** (Refine), **Cube-Editor**.
 
 **Shops & Monster**
 - **Shop-Editor**, **Mob-Proto-Editor**, **Drop-Generator** (alle Drop-Dateien inkl. Mob-Drop- und Kisten-Editor).

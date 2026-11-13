@@ -1,4 +1,4 @@
-//! Modul-Importer: fertige Ausrüstungs-Pakete (Icons + 3D-Modelle) oder
+//! Item-Importer: fertige Ausrüstungs-Pakete (Icons + 3D-Modelle) oder
 //! reine Icon-Ordner automatisch als Items anlegen (Port von
 //! `src/features/module-importer`).
 
@@ -36,7 +36,7 @@ pub fn ModuleImporter() -> impl IntoView {
 
     view! {
         <div class="space-y-6 pb-10">
-            <PageHeader module=Section::ModuleImporter title="Modul-Importer"/>
+            <PageHeader module=Section::ModuleImporter title="Item-Importer"/>
 
             <div class="flex overflow-hidden rounded-md border border-border text-sm w-fit">
                 <button on:click=move |_| mode.set(ImporterMode::Package) class=move || tab_class(ImporterMode::Package)>
