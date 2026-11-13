@@ -14,6 +14,27 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
+  release-notes:
+    name: Release-Notes (CHANGELOG.md zur App-Version)
+    # Jede Version braucht einen Abschnitt in CHANGELOG.md - daraus kommen
+    # "Was ist neu" in der App, der Update-Hinweis und der GitHub-Release-Text.
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: dtolnay/rust-toolchain@stable
+
+      - uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: "tools/release -> target"
+
+      - name: Tests der Release-Tools
+        working-directory: tools/release
+        run: cargo test
+
+      - name: Changelog-Eintrag für die aktuelle Version vorhanden
+        run: cargo run --manifest-path tools/release/Cargo.toml --bin changelog -- check
+
   frontend:
     name: Frontend (Rust/Leptos, Tests + WASM-Build)
     runs-on: ubuntu-latest

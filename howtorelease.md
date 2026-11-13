@@ -6,13 +6,14 @@ Ein gepushter Git-Tag baut, signiert und veröffentlicht die neue Version komple
 
 Ablauf:
 1. Version an drei Stellen synchron hochzählen: `src-tauri/tauri.conf.json` ("version"), `src-tauri/Cargo.toml` und `ui/Cargo.toml` (`version = ...`), z.B. alle auf `0.15.0`. Der Tag muss genau dazu passen - sonst bricht die Pipeline gleich am Anfang ab (Prüfschritt seit 0.17.1). Hintergrund: v0.17.0 wurde ohne Hochzählen getaggt, wurde dadurch als 0.16.0 gebaut, und installierte Apps fanden kein Update.
-2. Committen: `git commit -am "Release 0.15.0"`
-3. Taggen und pushen:
+2. **Release-Notes**: in `CHANGELOG.md` den Abschnitt `## [Unveröffentlicht]` umbenennen in `## [0.15.0] - <heutiges Datum>` (und prüfen, dass alles Wichtige drinsteht). Genau dieser Text erscheint in der App als „Was ist neu“, im Update-Hinweis und als Text des GitHub-Release. Ohne Abschnitt schlagen CI und die Release-Pipeline fehl. Lokal prüfen: `cargo run --manifest-path tools/release/Cargo.toml --bin changelog -- check`
+3. Committen: `git commit -am "Release 0.15.0"`
+4. Taggen und pushen:
    ```
    git tag v0.15.0
    git push origin master v0.15.0
    ```
-4. Fertig - GitHub Actions baut, signiert, legt ein GitHub Release mit den Windows-Installern an, und aktualisiert `updater/latest.json` im Repo, worüber die App die neue Version findet. Fortschritt live unter github.com/stb-srv/M2-Tools-Desktop/actions verfolgbar.
+5. Fertig - GitHub Actions baut, signiert, legt ein GitHub Release mit den Windows-Installern an, übernimmt die Release-Notes aus `CHANGELOG.md` und aktualisiert `updater/latest.json` im Repo, worüber die App die neue Version findet. Fortschritt live unter github.com/stb-srv/M2-Tools-Desktop/actions verfolgbar.
 
 **Einmalige Einrichtung, bevor das zum ersten Mal läuft** (siehe `~/.claude/plans/immutable-mapping-snowglobe.md` für die volle Herleitung):
 - (Seit 0.17.1 nicht mehr nötig: das Repo ist öffentlich, die App braucht keinen eingebetteten `GH_RELEASE_TOKEN` mehr. Das Secret kann gelöscht werden.)
