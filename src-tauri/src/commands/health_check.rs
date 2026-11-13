@@ -226,6 +226,51 @@ async fn check_remote_path_values(state: &State<'_, AppState>, ssh_ok: bool, val
     }
 }
 
+/// Fasst den Drop-Check (alle 5 Drop-Dateien, siehe `drop_check.rs`) zu
+/// einer Zeile zusammen: ein unbekanntes Item dort verhindert den Serverstart.
+async fn check_drop_files(state: &State<'_, AppState>, ssh_ok: bool) -> HealthCheckResult {
+    const LABEL: &str = "Drop-Dateien";
+    if !ssh_ok {
+        return result(LABEL, "drop-files", "skipped", "Keine SSH-Verbindung.");
+    }
+    let report = match stored_ssh_auth(state) {
+        Ok((config, auth)) => super::drop_check::build_drop_check_report(state, &config, &auth).await,
+        Err(e) => Err(e),
+    };
+    let report = match report {
+        Ok(r) => r,
+        Err(e) => return result(LABEL, "drop-files", "error", e),
+    };
+    let errors: Vec<String> = report
+        .issues
+        .iter()
+        .filter(|i| i.is_error())
+        .map(|i| format!("{} · {}: {}", i.file, i.location, i.message))
+        .collect();
+    let warnings = report.issues.iter().filter(|i| !i.is_error()).count();
+    if !errors.is_empty() {
+        let mut detail = format!("{} Fehler (Server startet ggf. nicht). ", errors.len());
+        detail.push_str(&errors.iter().take(3).cloned().collect::<Vec<_>>().join(" | "));
+        if errors.len() > 3 {
+            detail.push_str(" | … Details im Drop-Generator › Drop-Check.");
+        }
+        return result(LABEL, "drop-files", "error", detail);
+    }
+    if let Some(e) = report.db_error {
+        return result(LABEL, "drop-files", "warning", format!("Dateien lesbar, Items aber nicht gegen die Datenbank geprüft: {e}"));
+    }
+    if warnings > 0 {
+        return result(
+            LABEL,
+            "drop-files",
+            "warning",
+            format!("Keine Fehler, {warnings} Hinweis(e) - Details im Drop-Generator › Drop-Check."),
+        );
+    }
+    let checked = report.files.iter().filter(|f| f.state == "ok").count();
+    result(LABEL, "drop-files", "ok", format!("{checked} Datei(en) geprüft, alle Items gefunden."))
+}
+
 #[tauri::command]
 pub async fn run_health_check(state: State<'_, AppState>) -> Result<Vec<HealthCheckResult>, String> {
     let mut results = Vec::new();
@@ -249,6 +294,7 @@ pub async fn run_health_check(state: State<'_, AppState>) -> Result<Vec<HealthCh
         .and_then(|(_, _, v)| v.clone());
     results.extend(check_client_unpacked(client_path.as_deref()));
     results.extend(check_remote_path_values(&state, ssh_ok, remote_values).await);
+    results.push(check_drop_files(&state, ssh_ok).await);
 
     Ok(results)
 }

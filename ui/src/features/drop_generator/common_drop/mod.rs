@@ -10,7 +10,7 @@ pub mod logic;
 
 use crate::components::{Button, ButtonSize, ButtonVariant, Icon};
 use crate::features::mob_drop_editor::components::shared::{js_number, num_sig, NumInput};
-use crate::features::shared::{EntityBrowser, EntityKind, EntityRow};
+use crate::features::shared::{ChangePreview, EntityBrowser, EntityKind, EntityRow, RestartServerButton};
 use crate::store::navigation::{report_section_dirty, Section};
 use crate::tauri::invoke;
 use crate::util::{log_activity, use_save_shortcut};
@@ -841,10 +841,13 @@ pub fn CommonDropEditor() -> impl IntoView {
             {move || load_error.get().map(|e| view! { <p class="text-sm text-destructive">{e}</p> })}
             {move || save_error.get().map(|e| view! { <p class="whitespace-pre-line text-sm text-destructive">{e}</p> })}
             <Show when=move || save_ok.get()>
-                <p class="flex items-center gap-1 text-sm text-green-600">
-                    <Icon name="CheckCircle2" class="size-4"/>
-                    "Gespeichert (Backup angelegt). Server neu starten, damit die Änderungen wirken."
-                </p>
+                <div class="flex flex-wrap items-center gap-3">
+                    <p class="flex items-center gap-1 text-sm text-green-600">
+                        <Icon name="CheckCircle2" class="size-4"/>
+                        "Gespeichert (Backup angelegt). Server neu starten, damit die Änderungen wirken."
+                    </p>
+                    <RestartServerButton/>
+                </div>
             </Show>
             {move || db_error.get().map(|e| view! {
                 <p class="flex items-start gap-2 text-sm text-amber-600 dark:text-amber-400">
@@ -965,13 +968,16 @@ pub fn CommonDropEditor() -> impl IntoView {
 
             <Show when=move || confirm_save.get()>
                 <div class="fixed inset-0 z-50 flex items-center justify-center bg-black/50">
-                    <div class="w-[26rem] space-y-3 rounded-lg border border-border bg-card p-4">
+                    <div class="max-h-[85vh] w-[40rem] space-y-3 overflow-y-auto rounded-lg border border-border bg-card p-4">
                         <p class="flex items-start gap-2 text-sm">
                             <Icon name="AlertTriangle" class="mt-0.5 size-4 shrink-0 text-amber-500"/>
                             <span>
                                 "common_drop_item.txt wird auf dem Server überschrieben (vorher wird ein Backup angelegt). Die Änderungen wirken erst nach einem Server-Neustart."
                             </span>
                         </p>
+                        {file.get_untracked().map(|f| view! {
+                            <ChangePreview kind="common_drop" data=serde_json::to_value(&f).unwrap_or_default()/>
+                        })}
                         <Show when=move || warning_count.get() != 0>
                             <p class="text-xs text-amber-600 dark:text-amber-400">
                                 {move || format!("Es gibt noch {} Hinweis(e) - sie blockieren das Speichern nicht.", warning_count.get())}

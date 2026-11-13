@@ -4,7 +4,7 @@ use super::join::join_all;
 use crate::components::{Button, ButtonSize, ButtonVariant, Icon};
 use crate::features::mob_drop_editor::components::shared::{js_number, num_sig, NumInput};
 use crate::features::shared::drop_chance::format_real_drop_chance;
-use crate::features::shared::{EntityBrowser, EntityKind, EntityRow};
+use crate::features::shared::{ChangePreview, EntityBrowser, EntityKind, EntityRow, RestartServerButton};
 use crate::util::{log_activity, use_save_shortcut};
 use crate::store::navigation::{report_section_dirty, Section};
 use crate::tauri::invoke;
@@ -266,10 +266,13 @@ pub fn EtcDropEditor() -> impl IntoView {
             <Show when=move || has_entries.get()>
                 {move || save_error.get().map(|e| view! { <p class="text-sm text-destructive">{e}</p> })}
                 <Show when=move || save_ok.get()>
-                    <p class="flex items-center gap-1 text-sm text-green-600">
-                        <Icon name="CheckCircle2" class="size-4"/>
-                        " Gespeichert."
-                    </p>
+                    <div class="flex flex-wrap items-center gap-3">
+                        <p class="flex items-center gap-1 text-sm text-green-600">
+                            <Icon name="CheckCircle2" class="size-4"/>
+                            " Gespeichert. Wirkt nach einem Server-Neustart."
+                        </p>
+                        <RestartServerButton/>
+                    </div>
                 </Show>
                 <Button disabled=Signal::derive(move || !can_save_m.get() || saving.get()) on_click=move |_| confirm_open.set(true)>
                     {move || if saving.get() { "Speichere…" } else { "Speichern" }}
@@ -295,13 +298,16 @@ pub fn EtcDropEditor() -> impl IntoView {
 
             <Show when=move || confirm_open.get()>
                 <div class="fixed inset-0 z-50 flex items-center justify-center bg-black/50">
-                    <div class="w-96 space-y-3 rounded-lg border border-border bg-card p-4">
+                    <div class="max-h-[85vh] w-[40rem] space-y-3 overflow-y-auto rounded-lg border border-border bg-card p-4">
                         <p class="flex items-start gap-2 text-sm">
                             <Icon name="AlertTriangle" class="mt-0.5 size-4 shrink-0 text-destructive"/>
                             <span>
                                 "etc_drop_item.txt wird komplett überschrieben (Backup wird vorher angelegt). Wirkt erst nach einem Server-Neustart."
                             </span>
                         </p>
+                        {entries.get_untracked().map(|d| view! {
+                            <ChangePreview kind="etc_drop" data=serde_json::to_value(&d).unwrap_or_default()/>
+                        })}
                         <div class="flex justify-end gap-2">
                             <Button variant=ButtonVariant::Outline on_click=move |_| confirm_open.set(false)>
                                 "Abbrechen"

@@ -5,7 +5,7 @@
 use crate::components::{toast, Button, ButtonSize, ButtonVariant, Icon, PageHeader};
 use crate::features::mob_drop_editor::components::shared::{fmt_num, js_number, js_number_or, Field, NumInput};
 use crate::features::mob_drop_editor::{ensure_icons, IconMap};
-use crate::features::shared::{EntityBrowser, EntityKind, EntityRow, RowRenderer};
+use crate::features::shared::{ChangePreview, EntityBrowser, EntityKind, EntityRow, RestartServerButton, RowRenderer};
 use crate::util::{log_activity, use_save_shortcut};
 use crate::store::navigation::{nav, report_section_dirty, EmbeddedModule, Section};
 use crate::tauri::invoke;
@@ -438,6 +438,7 @@ pub fn BoxEditor() -> impl IntoView {
     let delete_confirm = RwSignal::new(None::<usize>);
     let saving = RwSignal::new(false);
     let save_confirm = RwSignal::new(false);
+    let saved_needs_restart = RwSignal::new(false);
 
     let undo_confirm = RwSignal::new(false);
     let undoing = RwSignal::new(false);
@@ -552,6 +553,7 @@ pub fn BoxEditor() -> impl IntoView {
                         _ => "Gespeichert.".to_string(),
                     });
                     let n = gs.as_ref().map(|g| g.len()).unwrap_or(0);
+                    saved_needs_restart.set(true);
                     loaded_snapshot.set(gs);
                     log_activity(
                         EmbeddedModule::BoxEditor.into(),
@@ -654,6 +656,12 @@ pub fn BoxEditor() -> impl IntoView {
                 </Button>
             </div>
             {move || load_error.get().map(|e| view! { <p class="text-sm text-destructive">{e}</p> })}
+            <Show when=move || saved_needs_restart.get()>
+                <div class="flex flex-wrap items-center gap-3 text-sm text-muted-foreground">
+                    "Gespeichert. Die Kisten-Gruppen wirken nach einem Server-Neustart."
+                    <RestartServerButton/>
+                </div>
+            </Show>
 
             <Show when=move || creating.get()>
                 <div class="fixed inset-0 flex items-center justify-center bg-black/50">
@@ -855,9 +863,12 @@ pub fn BoxEditor() -> impl IntoView {
 
             <Show when=move || save_confirm.get()>
                 <div class="fixed inset-0 flex items-center justify-center bg-black/50">
-                    <div class="w-96 space-y-3 rounded-lg border border-border bg-card p-4">
+                    <div class="max-h-[85vh] w-[40rem] space-y-3 overflow-y-auto rounded-lg border border-border bg-card p-4">
                         <p class="text-sm font-medium">"special_item_group.txt jetzt überschreiben?"</p>
                         <p class="text-xs text-muted-foreground">"Ein Backup der aktuellen Datei wird vorher auf dem Server angelegt."</p>
+                        {groups.get_untracked().map(|d| view! {
+                            <ChangePreview kind="special_item_group" data=serde_json::to_value(&d).unwrap_or_default()/>
+                        })}
                         <div class="flex justify-end gap-2">
                             <Button variant=ButtonVariant::Outline on_click=move |_| save_confirm.set(false)>
                                 "Abbrechen"

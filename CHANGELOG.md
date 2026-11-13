@@ -6,6 +6,17 @@ nach [SemVer](https://semver.org/) (`MAJOR.MINOR.PATCH`, solange < 1.0 gilt
 `MINOR` für neue Features, `PATCH` für reine Fixes). Für die vollständige
 Feature-Historie mit allen Details siehe `STATUS.md`.
 
+## [Unveröffentlicht]
+
+### Hinzugefügt
+
+- **Drop-Check**: Im Drop-Generator prüft „Jetzt prüfen“ alle 5 Drop-Dateien auf einmal. Gemeldet werden Items, die es in item_proto nicht gibt (dann startet der Server nicht), Nummern, die der Server als Namen eines anderen Items liest (z.B. 1, 2, 14, 18, 24), unbekannte interne Namen in etc_drop_item.txt, Mobs, die es nicht gibt, und unlesbare Dateien. Das Ergebnis steht auch in der System-Diagnose auf dem Dashboard.
+- **Speichern gesperrt bei unbekannten Items**: Mob-Drops, Common-Drops, Etc-Drops, Kisten-Gruppen und Zufalls-Gruppen werden nicht mehr gespeichert, wenn sie auf ein Item verweisen, das der Server nicht findet (nur mit Datenbankverbindung prüfbar).
+- **Änderungsvorschau vor dem Hochladen**: Der Speichern-Dialog aller 5 Drop-Editoren zeigt, welche Zeilen sich gegenüber der Datei auf dem Server ändern (+/−, mit etwas Kontext).
+- **„Was droppt dieser Mob?“**: Zeigt für einen Mob alle Drops aus Mob-Drops, Zufalls-Gruppen und den Common-Drops seines Rangs in einer Liste, mit realer Chance. Zu finden im Mob-Proto-Editor und im Mob-Drop-Editor („Alle Drops“).
+- **Rang im Mob-Proto-Editor**: Über dem Zeilen-Editor stehen Name, Level und Rang des Mobs (PAWN bis KING) und ob er Common-Drops bekommt.
+- **„Server jetzt neu starten“** direkt nach dem Speichern von Common-Drops, Etc-Drops, Kisten-Gruppen und Zufalls-Gruppen, die erst nach einem Neustart wirken. Nutzt die Befehle und die Wartezeit aus der Server-Steuerung.
+
 ## [0.20.1] - 2026-11-12
 
 ### Behoben

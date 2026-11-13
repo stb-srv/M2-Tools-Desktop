@@ -1,7 +1,11 @@
 //! Mob-Proto-Editor (Port von `src/features/mob-proto-editor/MobProtoEditor.tsx`).
 
-use crate::components::PageHeader;
-use crate::features::shared::{EntityBrowser, EntityKind, EntityRow, GenericRowEditor};
+use crate::components::{Button, ButtonSize, ButtonVariant, Icon, PageHeader};
+use crate::features::shared::mob_drops_modal::rank_label;
+use crate::features::shared::{EntityBrowser, EntityKind, EntityRow, GenericRowEditor, MobBrief, MobDropsModal};
+use crate::tauri::invoke;
+use leptos::task::spawn_local;
+use serde_json::json;
 use crate::store::navigation::{nav, ModuleId, Section};
 use leptos::prelude::*;
 
@@ -19,6 +23,55 @@ pub fn normalize_vnum(s: &str) -> String {
         Ok(n) if n.is_finite() && n.fract() == 0.0 && n.abs() < 1e21 => format!("{}", n as i64),
         Ok(n) if n.is_finite() => n.to_string(),
         _ => "NaN".into(),
+    }
+}
+
+/// Rang, Level und „Was droppt dieser Mob?“ über dem Zeilen-Editor.
+#[component]
+fn MobInfoBar(vnum: u32) -> impl IntoView {
+    let brief = RwSignal::new(None::<Result<Option<MobBrief>, String>>);
+    let drops_open = RwSignal::new(false);
+    spawn_local(async move {
+        brief.set(Some(invoke::<Option<MobBrief>>("get_mob_brief", &json!({ "vnum": vnum })).await));
+    });
+    view! {
+        <div class="flex flex-wrap items-center gap-3 rounded-lg border border-border p-3 text-sm">
+            {move || match brief.get() {
+                None => view! { <span class="text-muted-foreground">"Lade Mob…"</span> }.into_any(),
+                Some(Err(e)) => view! { <span class="text-xs text-amber-600 dark:text-amber-400">"Rang nicht lesbar: " {e}</span> }.into_any(),
+                Some(Ok(None)) => view! { <span class="text-muted-foreground">{format!("Mob #{vnum} nicht gefunden.")}</span> }.into_any(),
+                Some(Ok(Some(m))) => {
+                    let rank = m.rank.clone();
+                    view! {
+                        <span class="font-medium">{m.name.clone()}</span>
+                        {m.level.map(|l| view! { <span class="text-muted-foreground">{format!("Level {l}")}</span> })}
+                        {match rank {
+                            Some(r) => {
+                                let common = matches!(r.as_str(), "PAWN" | "S_PAWN" | "KNIGHT" | "S_KNIGHT");
+                                view! {
+                                    <span class="rounded-md border border-border bg-muted px-2 py-0.5 text-xs font-medium">
+                                        {format!("Rang {r} · {}", rank_label(&r))}
+                                    </span>
+                                    <span class="text-xs text-muted-foreground">
+                                        {if common {
+                                            format!("Bekommt die Common-Drops aus Block {r}.")
+                                        } else {
+                                            "Bosse bekommen keine Common-Drops, nur Mob-Drops.".to_string()
+                                        }}
+                                    </span>
+                                }.into_any()
+                            }
+                            None => view! { <span class="text-xs text-muted-foreground">"Rang unbekannt"</span> }.into_any(),
+                        }}
+                    }.into_any()
+                }
+            }}
+            <Button class="ml-auto" size=ButtonSize::Sm variant=ButtonVariant::Outline on_click=move |_| drops_open.set(true)>
+                <Icon name="List" class="size-3.5"/>
+                "Was droppt dieser Mob?"
+            </Button>
+            {move || drops_open.get().then(|| view! { <MobDropsModal vnum=vnum on_close=move |_| drops_open.set(false)/> })}
+        </div>
     }
 }
 
@@ -49,6 +102,7 @@ pub fn MobProtoEditor() -> impl IntoView {
             />
 
             {move || editing_vnum.get().map(|vnum| view! {
+                {vnum.parse::<u32>().ok().map(|v| view! { <MobInfoBar vnum=v/> })}
                 <GenericRowEditor
                     database="player"
                     table="mob_proto"

@@ -410,6 +410,84 @@ pub async fn get_item_brief(pool: &MySqlPool, vnum: u32) -> Result<Option<ItemBr
     }))
 }
 
+/// Which of `vnums` exist as an item (literal row or inside another row's
+/// `vnum_range`, see `range_owning_rows`). One query per 500 vnums instead
+/// of one per vnum - used by the drop file check, which can touch hundreds.
+pub async fn existing_item_vnums(pool: &MySqlPool, vnums: &[u32]) -> Result<std::collections::HashSet<u32>, String> {
+    let mut found = std::collections::HashSet::new();
+    for chunk in vnums.chunks(500) {
+        let placeholders = vec!["?"; chunk.len()].join(",");
+        let sql = format!("SELECT vnum FROM player.item_proto WHERE vnum IN ({placeholders})");
+        let mut q = sqlx::query(&sql);
+        for v in chunk {
+            q = q.bind(*v);
+        }
+        for row in q.fetch_all(pool).await.map_err(|e| e.to_string())? {
+            found.insert(row.try_get::<u32, _>("vnum").unwrap_or_default());
+        }
+    }
+    let missing: Vec<u32> = vnums.iter().copied().filter(|v| !found.contains(v)).collect();
+    if !missing.is_empty() {
+        let ranges = range_owning_rows(pool).await?;
+        for v in missing {
+            if is_range_aliased(v, &ranges) {
+                found.insert(v);
+            }
+        }
+    }
+    Ok(found)
+}
+
+/// Items whose internal `item_proto.name` equals one of `names` (compared
+/// the way MySQL compares, then mapped back by lower-case name). Returns
+/// lower-cased name -> (vnum, locale_name) of the first match.
+pub async fn items_by_internal_names(
+    pool: &MySqlPool,
+    names: &[String],
+) -> Result<std::collections::HashMap<String, ItemBrief>, String> {
+    let mut out = std::collections::HashMap::new();
+    for chunk in names.chunks(500) {
+        let placeholders = vec!["?"; chunk.len()].join(",");
+        let sql = format!(
+            "SELECT vnum, name, locale_name FROM player.item_proto WHERE name IN ({placeholders}) ORDER BY vnum"
+        );
+        let mut q = sqlx::query(&sql);
+        for n in chunk {
+            q = q.bind(encode_name(n));
+        }
+        for row in q.fetch_all(pool).await.map_err(|e| e.to_string())? {
+            let name_raw: Vec<u8> = row.try_get("name").unwrap_or_default();
+            let locale_raw: Vec<u8> = row.try_get("locale_name").unwrap_or_default();
+            out.entry(decode_name(&name_raw).to_lowercase()).or_insert(ItemBrief {
+                vnum: row.try_get("vnum").unwrap_or_default(),
+                locale_name: decode_name(&locale_raw),
+            });
+        }
+    }
+    Ok(out)
+}
+
+/// locale_name per vnum, for labels in reports.
+pub async fn item_locale_names(
+    pool: &MySqlPool,
+    vnums: &[u32],
+) -> Result<std::collections::HashMap<u32, String>, String> {
+    let mut out = std::collections::HashMap::new();
+    for chunk in vnums.chunks(500) {
+        let placeholders = vec!["?"; chunk.len()].join(",");
+        let sql = format!("SELECT vnum, locale_name FROM player.item_proto WHERE vnum IN ({placeholders})");
+        let mut q = sqlx::query(&sql);
+        for v in chunk {
+            q = q.bind(*v);
+        }
+        for row in q.fetch_all(pool).await.map_err(|e| e.to_string())? {
+            let raw: Vec<u8> = row.try_get("locale_name").unwrap_or_default();
+            out.insert(row.try_get::<u32, _>("vnum").unwrap_or_default(), decode_name(&raw));
+        }
+    }
+    Ok(out)
+}
+
 /// Fetches a full item_proto row, used to pre-fill the "create from
 /// reference item" flow in the Item Editor.
 pub async fn get_item_proto(pool: &MySqlPool, vnum: u32) -> Result<Option<ItemProtoFull>, String> {

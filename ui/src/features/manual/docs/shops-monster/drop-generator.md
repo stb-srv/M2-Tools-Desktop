@@ -4,6 +4,15 @@ Bündelt alle 5 Drop-relevanten Server-Dateien in einem Tab-System. Zwei der Tab
 
 Alle 5 Dateien liegen im selben Server-Ordner (Standard `/usr/home/game/share/`, in den Einstellungen pro Datei änderbar) und nutzen dieselbe Prozent-Kodierung: der Wert in der Datei ist **nicht** die reale Prozentzahl - die reale Chance ist ungefähr **Datei-Wert ÷ 4** (bei jedem Prozentfeld als "≈X%" angezeigt).
 
+## Drop-Check
+
+Ganz oben im Drop-Generator. „Jetzt prüfen“ liest alle 5 Dateien vom Server und prüft jeden Verweis gegen die Datenbank:
+
+- **Fehler** (der Server startet nicht oder nimmt ein falsches Item): Item gibt es nicht in item_proto, eine Nummer, die der Server als internen Namen eines anderen Items liest (z.B. 1, 2, 14, 18, 24), ein unbekannter interner Name in etc_drop_item.txt, eine Datei, die sich nicht lesen lässt.
+- **Hinweise**: Mob gibt es nicht in mob_proto (die Drops wirken dann nie), Kisten-Item einer Kisten-Gruppe fehlt.
+
+Die Editoren speichern eine Datei mit solchen Fehlern nicht mehr. Der Speichern-Dialog zeigt außerdem, welche Zeilen sich gegenüber der Datei auf dem Server ändern. Bei Dateien, die erst nach einem Neustart wirken, erscheint nach dem Speichern „Server jetzt neu starten“.
+
 ## 1. Mob-Drops (`mob_drop_item.txt`)
 
 Der ursprüngliche, bereits bestehende Editor. Ein Item-Set **pro einzelnem Mob** - z.B. "Wildhund (VNUM 101) droppt Item A mit 0,5%, Item B mit 0,3%".

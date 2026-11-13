@@ -118,6 +118,35 @@ fn is_digits(s: &str) -> bool {
     !s.is_empty() && s.chars().all(|c| c.is_ascii_digit())
 }
 
+/// Neustart wie der Knopf hier (Stopp, Wartezeit, Start) mit den für das
+/// aktive Profil gespeicherten Befehlen - für den „Server jetzt neu
+/// starten“-Knopf nach dem Speichern in anderen Modulen. Die Ausgabe landet
+/// wie immer im `server-output`-Event (sichtbar in der Server-Steuerung).
+pub async fn restart_server_with_saved_commands() -> Result<(), String> {
+    let workdir = get_setting("server_workdir").await.filter(|s| !s.is_empty()).unwrap_or_else(|| DEFAULT_WORKDIR.to_string());
+    let command_for = |id: ActionId, saved: Option<String>| saved.unwrap_or_else(|| default_command(&workdir, id.default_choice()));
+    let stop = command_for(ActionId::Stop, get_setting(ActionId::Stop.setting_key()).await.filter(|s| !s.is_empty()));
+    let start = command_for(ActionId::Start, get_setting(ActionId::Start.setting_key()).await.filter(|s| !s.is_empty()));
+    let delay = get_setting("server_restart_delay_seconds").await.filter(|s| !s.is_empty()).unwrap_or_else(|| "5".into());
+
+    for (i, command) in [stop, start].into_iter().enumerate() {
+        if i == 1 {
+            let n = js_number(&delay);
+            if n.is_finite() && n > 0.0 {
+                sleep_ms(n * 1000.0).await;
+            }
+        }
+        let result = invoke::<ServerCommandResult>("run_server_command", &json!({ "command": command })).await?;
+        if let Some(code) = result.exit_status.filter(|c| *c != 0) {
+            return Err(format!(
+                "{} endete mit Code {code} - Details in der Server-Steuerung.",
+                if i == 0 { "Stoppen" } else { "Starten" }
+            ));
+        }
+    }
+    Ok(())
+}
+
 const INPUT_MONO: &str = "w-full rounded-md border border-border bg-background px-2 py-1 font-mono text-sm";
 
 #[component]

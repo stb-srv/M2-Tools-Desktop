@@ -6,5 +6,6 @@ pub mod guild;
 pub mod item;
 pub mod item_explorer;
 pub mod mapping;
+pub mod mob;
 pub mod mysql;
 pub mod shop;

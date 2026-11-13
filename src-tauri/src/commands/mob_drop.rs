@@ -7,6 +7,7 @@
 
 use super::support::stored_ssh_auth;
 use crate::common_drop;
+use crate::drop_check::{self, DropFileKind};
 use crate::db::item::{self, ItemBrief};
 use crate::drop_item_group;
 use crate::etc_drop;
@@ -58,6 +59,7 @@ pub async fn write_mob_drop_file(
     // Round-trip-check what we're about to write before touching the
     // server - refuse to upload something we couldn't parse back ourselves.
     mobdrop::parse(&content)?;
+    super::drop_check::guard_items(&state, DropFileKind::MobDrop, drop_check::refs_mob_drop(&groups)).await?;
     ssh::write_remote_file_with_backup(&config, &auth, &path, &content).await
 }
 
@@ -103,6 +105,7 @@ pub async fn write_common_drop_file(
     if !blocking.is_empty() {
         return Err(format!("Nicht gespeichert, die Datei hat noch Fehler:\n{}", blocking.join("\n")));
     }
+    super::drop_check::guard_items(&state, DropFileKind::CommonDrop, drop_check::refs_common_drop(&file)).await?;
     let content = common_drop::serialize(&file)?;
     // Rundreise-Prüfung: nur hochladen, was wir selbst identisch zurücklesen.
     let reparsed = common_drop::parse(&content);
@@ -182,6 +185,7 @@ pub async fn write_etc_drop_file(
     let path = etc_drop_file_path(&state)?;
     let content = etc_drop::serialize(&entries);
     etc_drop::parse(&content)?;
+    super::drop_check::guard_items(&state, DropFileKind::EtcDrop, drop_check::refs_etc_drop(&entries)).await?;
     ssh::write_remote_file_with_backup(&config, &auth, &path, &content).await
 }
 
@@ -211,6 +215,7 @@ pub async fn write_drop_item_group_file(
     let path = drop_item_group_file_path(&state)?;
     let content = drop_item_group::serialize(&groups);
     drop_item_group::parse(&content)?;
+    super::drop_check::guard_items(&state, DropFileKind::DropItemGroup, drop_check::refs_drop_item_group(&groups)).await?;
     ssh::write_remote_file_with_backup(&config, &auth, &path, &content).await
 }
 
