@@ -1,19 +1,19 @@
 {
-  "version": "0.40.0",
-  "notes": "### Entwicklung\n\n- **Release per Knopf**: Releases startet man jetzt in GitHub unter Actions › Release › „Run workflow“. Der Lauf zählt die Version hoch, macht aus „Unveröffentlicht“ den Abschnitt der neuen Version, setzt den Tag selbst und baut danach. Ein Tag, der ohne fertigen Release übrig geblieben ist, wird dabei auf den richtigen Stand verschoben.\n- **Update-Datei wird zuverlässig geschrieben**: `updater/latest.json` landet auch dann auf master, wenn während des Baus ein Pull Request gemergt wurde. Bei 0.30.0 ging das schief, und installierte Apps fanden das Update nicht.",
-  "pub_date": "2026-11-13T19:58:31.359Z",
+  "version": "0.40.1",
+  "notes": "### Hinzugefügt\n\n- **„Wo wird das benutzt?“ zeigt Aufwertungen**: Der Bericht nennt jetzt auch Aufwertungs-Rezepte, die das Item als Material brauchen (mit den Items, die das Rezept nutzen), und aus welchem Item es durch Aufwerten entsteht.\n\n### Behoben\n\n- **„Wo wird das benutzt?“ fand jede Zahl in den Quests**: Für z.B. Schwert+0 (VNUM 10) kam jede Quest, in der irgendwo „10“ steht (100, 2010, `pc.level >= 10`, Texte). Jetzt zählen nur echte Item-Stellen: Item-Funktionen wie `pc.give_item2(10, …)`, `pc.count_item(10)`, `pc.remove_item(10)`, Vergleiche mit `item.vnum` und Trigger wie `when 10.use`. Texte und Kommentare werden ignoriert. Jeder Treffer zeigt Datei, Zeile und die Codezeile. Stellen, an denen die Zahl nur allein steht (z.B. in einer Tabelle), sind aufklappbar als „nicht als Item erkennbar“ aufgeführt.",
+  "pub_date": "2026-11-13T21:16:29.842Z",
   "platforms": {
     "windows-x86_64": {
-      "signature": "dW50cnVzdGVkIGNvbW1lbnQ6IHNpZ25hdHVyZSBmcm9tIHRhdXJpIHNlY3JldCBrZXkKUlVRUFlocnZlQ3hhVGdtc01rTkNwWmNVamFzd0QrOVkzU3hGSnJHRnE1WGFKdDVya0xsRlRLVTFQWDFiNmZPT3Z3S2lIRlJ2ZVNhSWUvNmFBSnVHbjBPRmlsY0YzT3hGd1FFPQp0cnVzdGVkIGNvbW1lbnQ6IHRpbWVzdGFtcDoxNzk0NTk5OTA1CWZpbGU6TTJNYW5hZ2VyXzAuNDAuMF94NjRfZW4tVVMubXNpCXZlcnNpb246MC40MC4wCkM1UEFvN1NwbHdWT1ZiQWVIbXVvZGk0WGlqUi9YUkRtNGl5K2I2eStWc1h6aFIrTFdKTzJWQXoxbjNHbTJFZTNlbi9XS0Voak4yRUlLZEIwUmduV0N3PT0K",
-      "url": "https://api.github.com/repos/stb-srv/M2-Tools-Desktop/releases/assets/744985654"
+      "signature": "dW50cnVzdGVkIGNvbW1lbnQ6IHNpZ25hdHVyZSBmcm9tIHRhdXJpIHNlY3JldCBrZXkKUlVRUFlocnZlQ3hhVHEvS01DVi92WVZOQ1FDcFlOMk1CVkszY1hwMHUvWmh6VTE0MEE1RmlJVGJ3dmg4WUMycGZhL3VZRzArR3NBQUN4V2dObVptQndtdnVYQUFUV1EzZUFRPQp0cnVzdGVkIGNvbW1lbnQ6IHRpbWVzdGFtcDoxNzk0NjA0NTg1CWZpbGU6TTJNYW5hZ2VyXzAuNDAuMV94NjRfZW4tVVMubXNpCXZlcnNpb246MC40MC4xCnpUQ0RncEU2TzJzT1ltcXg3NzZKaUhwVWRRSHNNemJRYUxhSjU2ajYveEx4SVlPcEh6Z2FQYitCaS9mYjN5YkQ3SW5ZSUd4SFFWaVBSZUhtWVVBS0FRPT0K",
+      "url": "https://api.github.com/repos/stb-srv/M2-Tools-Desktop/releases/assets/745212578"
     },
     "windows-x86_64-msi": {
-      "signature": "dW50cnVzdGVkIGNvbW1lbnQ6IHNpZ25hdHVyZSBmcm9tIHRhdXJpIHNlY3JldCBrZXkKUlVRUFlocnZlQ3hhVGdtc01rTkNwWmNVamFzd0QrOVkzU3hGSnJHRnE1WGFKdDVya0xsRlRLVTFQWDFiNmZPT3Z3S2lIRlJ2ZVNhSWUvNmFBSnVHbjBPRmlsY0YzT3hGd1FFPQp0cnVzdGVkIGNvbW1lbnQ6IHRpbWVzdGFtcDoxNzk0NTk5OTA1CWZpbGU6TTJNYW5hZ2VyXzAuNDAuMF94NjRfZW4tVVMubXNpCXZlcnNpb246MC40MC4wCkM1UEFvN1NwbHdWT1ZiQWVIbXVvZGk0WGlqUi9YUkRtNGl5K2I2eStWc1h6aFIrTFdKTzJWQXoxbjNHbTJFZTNlbi9XS0Voak4yRUlLZEIwUmduV0N3PT0K",
-      "url": "https://api.github.com/repos/stb-srv/M2-Tools-Desktop/releases/assets/744985654"
+      "signature": "dW50cnVzdGVkIGNvbW1lbnQ6IHNpZ25hdHVyZSBmcm9tIHRhdXJpIHNlY3JldCBrZXkKUlVRUFlocnZlQ3hhVHEvS01DVi92WVZOQ1FDcFlOMk1CVkszY1hwMHUvWmh6VTE0MEE1RmlJVGJ3dmg4WUMycGZhL3VZRzArR3NBQUN4V2dObVptQndtdnVYQUFUV1EzZUFRPQp0cnVzdGVkIGNvbW1lbnQ6IHRpbWVzdGFtcDoxNzk0NjA0NTg1CWZpbGU6TTJNYW5hZ2VyXzAuNDAuMV94NjRfZW4tVVMubXNpCXZlcnNpb246MC40MC4xCnpUQ0RncEU2TzJzT1ltcXg3NzZKaUhwVWRRSHNNemJRYUxhSjU2ajYveEx4SVlPcEh6Z2FQYitCaS9mYjN5YkQ3SW5ZSUd4SFFWaVBSZUhtWVVBS0FRPT0K",
+      "url": "https://api.github.com/repos/stb-srv/M2-Tools-Desktop/releases/assets/745212578"
     },
     "windows-x86_64-nsis": {
-      "signature": "dW50cnVzdGVkIGNvbW1lbnQ6IHNpZ25hdHVyZSBmcm9tIHRhdXJpIHNlY3JldCBrZXkKUlVRUFlocnZlQ3hhVHZhZlhiWExJbytialpuOHo1TWNHODNKWkx6Zk80WHMvMVBOWUU2bkUzc3dRK1kwN2ptWHFmVkhWNVFCVkVsa2hYVlFhVDJDaFlnVk5DekJMZk1nVGdNPQp0cnVzdGVkIGNvbW1lbnQ6IHRpbWVzdGFtcDoxNzk0NTk5OTA1CWZpbGU6TTJNYW5hZ2VyXzAuNDAuMF94NjQtc2V0dXAuZXhlCXZlcnNpb246MC40MC4wCitKd2NtWFQ3YUN6Ujd6aTN2VEg1dXN3UkdVWFg0cS8wSEQ3NWlGeGVpYUdoak1CZmtZK28vUlVScGpySktIQVEzblIxUTJrekErNXhyWm9IMGgwVEF3PT0K",
-      "url": "https://api.github.com/repos/stb-srv/M2-Tools-Desktop/releases/assets/744985725"
+      "signature": "dW50cnVzdGVkIGNvbW1lbnQ6IHNpZ25hdHVyZSBmcm9tIHRhdXJpIHNlY3JldCBrZXkKUlVRUFlocnZlQ3hhVGdTMHU1cFFYSE0vSEwzVHRZT1VvRmlWMFdFSktxZzF1THZVZkVEeXE3ayt1MVZleTBPWEt5bzJQL1RnTGNVN1RiL3FWaUd4ZUZnVlFha1Z0TWtlWHc4PQp0cnVzdGVkIGNvbW1lbnQ6IHRpbWVzdGFtcDoxNzk0NjA0NTg1CWZpbGU6TTJNYW5hZ2VyXzAuNDAuMV94NjQtc2V0dXAuZXhlCXZlcnNpb246MC40MC4xCkg2TlQ4WEdZbW5iU3lIbFdneWJ4WWpuVlVOZ05wV0dlamFLcnBzdmpIL0FyeSt6M2lxcDloVkx5bUZvaXVJTlFTYmZGTUtOQVdjblR3a0FVSUZITEN3PT0K",
+      "url": "https://api.github.com/repos/stb-srv/M2-Tools-Desktop/releases/assets/745212660"
     }
   }
 }
