@@ -17,6 +17,15 @@ Feature-Historie mit allen Details siehe `STATUS.md`.
 - **Rang im Mob-Proto-Editor**: Über dem Zeilen-Editor stehen Name, Level und Rang des Mobs (PAWN bis KING) und ob er Common-Drops bekommt.
 - **„Server jetzt neu starten“** direkt nach dem Speichern von Common-Drops, Etc-Drops, Kisten-Gruppen und Zufalls-Gruppen, die erst nach einem Neustart wirken. Nutzt die Befehle und die Wartezeit aus der Server-Steuerung.
 
+### Geändert
+
+- **„Modul-Importer“ heißt jetzt „Item-Importer“**: in der Seitenleiste, der Befehlspalette, im Seitenkopf, im Änderungsprotokoll und im Handbuch.
+- **Suche nach einer Zahl findet mehr**: In der globalen Suche (Strg+Umschalt+F) und den Item-Suchen im Item-Importer liefert eine Zahl jetzt alle Items/Mobs, deren VNUM diese Ziffern enthält, der exakte Treffer steht oben. Vorher kam höchstens ein einziges Item.
+
+### Behoben
+
+- **Item-Suche zeigte nur 1 Item**: Je nach Datenbank-Schema (VNUM-Spalte mit oder ohne Vorzeichen) kamen alle Treffer mit VNUM 0 an und fielen in der Liste zu einem einzigen Eintrag zusammen. Betroffen waren vor allem die Item-Übersicht, außerdem Item-Editor-Suche, Referenz-Item-Auswahl und Cache-Abgleich. Die VNUM wird jetzt in beiden Varianten richtig gelesen.
+
 ### Entfernt
 
 - **Account-Verwaltung › „Item geben / entfernen“**: Der Bereich schrieb rohe Zeilen in `player.item`, ohne dass die Bedeutung der Spalten (Fenster, Position, Besitzer) je gegen den Server geprüft wurde. Bei Live-Spielerdaten zu riskant; kann mit geprüften Feldern zurückkommen.

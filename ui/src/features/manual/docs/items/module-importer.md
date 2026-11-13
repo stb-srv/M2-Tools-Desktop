@@ -1,4 +1,4 @@
-# Modul-Importer
+# Item-Importer
 
 Importiert fertige Waffen-/Rüstungs-/Zubehör-Pakete (wie man sie oft aus Community-Quellen bekommt) automatisch als neue Items, statt jede Datei von Hand an die richtige Stelle zu kopieren.
 

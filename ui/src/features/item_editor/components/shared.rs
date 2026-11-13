@@ -62,7 +62,7 @@ pub fn FlagSelect(
 
 /// Eine Zeile der Schritt-Anzeige einer Pipeline. `spacer_class` ist der
 /// Platzhalter für "noch nicht gestartet" (Item Editor: `size-4`,
-/// Modul-Importer: `size-4 shrink-0`).
+/// Item-Importer: `size-4 shrink-0`).
 #[component]
 pub fn StepRow(
     #[prop(into)] label: Signal<String>,

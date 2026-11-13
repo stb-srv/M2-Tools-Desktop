@@ -29,7 +29,7 @@ const SECTION_LABELS: &[&str] = &[
     "Quellcode Bauen & Einspielen",
     "Item Editor",
     "Item-Übersicht",
-    "Modul-Importer",
+    "Item-Importer",
     "Aufwertungs-Editor",
     "Cube-Editor",
     "Shop-Editor",

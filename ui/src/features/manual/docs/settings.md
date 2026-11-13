@@ -25,7 +25,7 @@ Wo die Dateien auf dem Gameserver liegen, nach Zweck gruppiert. **Jedes Server-P
 
 ## Client & Werkzeuge
 
-- **Client-Ordner**: der lokale Ordner deines Spiel-Clients - Grundlage für Item-Icons, Modul-Importer, Icon-Browser, 3D-Modell-Viewer.
+- **Client-Ordner**: der lokale Ordner deines Spiel-Clients - Grundlage für Item-Icons, Item-Importer, Icon-Browser, 3D-Modell-Viewer.
 - **NPC-Liste**: nur nötig, wenn `npclist.txt` nicht automatisch gefunden wird.
 - **EterPackConsoleLz4.exe** und **Mysql2Proto-Ordner**: externe Werkzeuge, die der Item Editor beim Anlegen/Bearbeiten von Items aufruft.
 

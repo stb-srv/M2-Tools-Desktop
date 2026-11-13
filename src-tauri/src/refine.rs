@@ -172,7 +172,7 @@ pub async fn get_refine_chain(pool: &MySqlPool, vnum: u32) -> Result<Vec<RefineC
         .fetch_optional(pool)
         .await
         .map_err(|e| e.to_string())?
-        .map(|row| row.try_get("vnum").unwrap_or_default());
+        .map(|row| crate::db::get_vnum(&row, "vnum").unwrap_or_default());
 
         match prev {
             Some(p) if p != start => start = p,

@@ -99,7 +99,7 @@ pub(super) fn build_deploy_setting(state: &State<'_, AppState>, key: &str, defau
         .unwrap_or_else(|| default.to_string()))
 }
 
-// ---- Item Editor: gemeinsame Pfad-Einstellung, auch vom Modul-Importer
+// ---- Item Editor: gemeinsame Pfad-Einstellung, auch vom Item-Importer
 // gebraucht (Waffen/Rüstungs-Import legt neue Items an, ohne den Item Editor
 // selbst zu öffnen). ----
 pub(super) fn item_editor_setting(state: &State<'_, AppState>, key: &str) -> Result<String, String> {

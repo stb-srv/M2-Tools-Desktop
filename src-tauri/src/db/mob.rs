@@ -55,7 +55,7 @@ pub async fn get_mob_brief(pool: &MySqlPool, vnum: u32) -> Result<Option<MobBrie
             .flatten()
             .or_else(|| row.try_get::<Option<Vec<u8>>, _>("rank_text").ok().flatten().map(|b| decode_name(&b)));
         MobBrief {
-            vnum: row.try_get("vnum").unwrap_or(vnum),
+            vnum: super::get_vnum(&row, "vnum").unwrap_or(vnum),
             name: decode_name(&name_raw),
             rank: rank_text.as_deref().and_then(normalize_rank),
             level: row.try_get::<Option<i64>, _>("lvl").ok().flatten(),
@@ -73,7 +73,7 @@ pub async fn existing_mob_vnums(pool: &MySqlPool, vnums: &[u32]) -> Result<HashS
             q = q.bind(*v);
         }
         for row in q.fetch_all(pool).await.map_err(|e| e.to_string())? {
-            found.insert(row.try_get::<u32, _>("vnum").unwrap_or_default());
+            found.insert(super::get_vnum(&row, "vnum").unwrap_or_default());
         }
     }
     Ok(found)

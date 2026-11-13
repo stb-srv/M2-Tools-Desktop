@@ -137,7 +137,7 @@ async fn range_owning_rows(pool: &MySqlPool) -> Result<Vec<(u32, u32)>, String> 
         .into_iter()
         .map(|row| {
             (
-                row.try_get::<u32, _>("vnum").unwrap_or_default(),
+                super::get_vnum(&row, "vnum").unwrap_or_default(),
                 row.try_get::<u32, _>("vnum_range").unwrap_or_default(),
             )
         })
@@ -172,7 +172,7 @@ pub async fn next_free_vnum(pool: &MySqlPool, range_start: u32) -> Result<u32, S
         .map_err(|e| e.to_string())?;
     let taken: HashSet<u32> = rows
         .into_iter()
-        .map(|row| row.try_get::<u32, _>("vnum").unwrap_or_default())
+        .map(|row| super::get_vnum(&row, "vnum").unwrap_or_default())
         .collect();
     let ranges = range_owning_rows(pool).await?;
     let mut candidate = range_start;
@@ -391,7 +391,7 @@ pub async fn find_item_by_internal_name(pool: &MySqlPool, name: &str) -> Result<
     };
     let locale_name_raw: Vec<u8> = row.try_get("locale_name").unwrap_or_default();
     Ok(Some(ItemBrief {
-        vnum: row.try_get("vnum").unwrap_or_default(),
+        vnum: super::get_vnum(&row, "vnum").unwrap_or_default(),
         locale_name: decode_name(&locale_name_raw),
     }))
 }
@@ -406,7 +406,7 @@ pub async fn get_item_brief(pool: &MySqlPool, vnum: u32) -> Result<Option<ItemBr
         .map_err(|e| e.to_string())?;
     Ok(row.map(|row| {
         let locale_name_raw: Vec<u8> = row.try_get("locale_name").unwrap_or_default();
-        ItemBrief { vnum: row.try_get("vnum").unwrap_or_default(), locale_name: decode_name(&locale_name_raw) }
+        ItemBrief { vnum: super::get_vnum(&row, "vnum").unwrap_or_default(), locale_name: decode_name(&locale_name_raw) }
     }))
 }
 
@@ -423,7 +423,7 @@ pub async fn existing_item_vnums(pool: &MySqlPool, vnums: &[u32]) -> Result<std:
             q = q.bind(*v);
         }
         for row in q.fetch_all(pool).await.map_err(|e| e.to_string())? {
-            found.insert(row.try_get::<u32, _>("vnum").unwrap_or_default());
+            found.insert(super::get_vnum(&row, "vnum").unwrap_or_default());
         }
     }
     let missing: Vec<u32> = vnums.iter().copied().filter(|v| !found.contains(v)).collect();
@@ -459,7 +459,7 @@ pub async fn items_by_internal_names(
             let name_raw: Vec<u8> = row.try_get("name").unwrap_or_default();
             let locale_raw: Vec<u8> = row.try_get("locale_name").unwrap_or_default();
             out.entry(decode_name(&name_raw).to_lowercase()).or_insert(ItemBrief {
-                vnum: row.try_get("vnum").unwrap_or_default(),
+                vnum: super::get_vnum(&row, "vnum").unwrap_or_default(),
                 locale_name: decode_name(&locale_raw),
             });
         }
@@ -482,7 +482,7 @@ pub async fn item_locale_names(
         }
         for row in q.fetch_all(pool).await.map_err(|e| e.to_string())? {
             let raw: Vec<u8> = row.try_get("locale_name").unwrap_or_default();
-            out.insert(row.try_get::<u32, _>("vnum").unwrap_or_default(), decode_name(&raw));
+            out.insert(super::get_vnum(&row, "vnum").unwrap_or_default(), decode_name(&raw));
         }
     }
     Ok(out)
@@ -514,7 +514,7 @@ pub async fn get_item_proto(pool: &MySqlPool, vnum: u32) -> Result<Option<ItemPr
     let locale_name_raw: Vec<u8> = row.try_get("locale_name").unwrap_or_default();
 
     Ok(Some(ItemProtoFull {
-        vnum: row.try_get("vnum").unwrap_or_default(),
+        vnum: super::get_vnum(&row, "vnum").unwrap_or_default(),
         vnum_range: row.try_get("vnum_range").unwrap_or_default(),
         name: decode_name(&name_raw),
         locale_name: decode_name(&locale_name_raw),
@@ -649,7 +649,7 @@ mod tests {
         }
     }
 
-    // Regression test for a real live report (2026-08-11): the Modul-Importer
+    // Regression test for a real live report (2026-08-11): the Item-Importer
     // picked vnum 500000 as "free" even though it was occupied - not by a
     // literal item_proto row, but by falling inside another row's
     // `vnum_range` alias interval, exactly like the real server's

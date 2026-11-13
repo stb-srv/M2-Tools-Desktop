@@ -11,7 +11,7 @@ pub struct ImportBatch {
     pub had_effects: bool,
 }
 
-/// Records a completed Modul-Importer batch so it can be undone later (even
+/// Records a completed Item-Importer batch so it can be undone later (even
 /// after restarting the app) - see `commands::undo_import_batch`. Written
 /// once, right after the import pipeline finishes successfully.
 pub fn record_batch(

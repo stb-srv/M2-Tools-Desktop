@@ -5,7 +5,7 @@ use super::shop::decode_name;
 
 #[derive(Debug, Clone, Serialize)]
 pub struct ItemProtoSummary {
-    pub vnum: i32,
+    pub vnum: u32,
     pub name: String,
     pub item_type: i8,
     pub subtype: i8,
@@ -89,7 +89,7 @@ pub async fn browse_item_proto(
         .map(|row| {
             let name_raw: Vec<u8> = row.try_get("locale_name").unwrap_or_default();
             ItemProtoSummary {
-                vnum: row.try_get("vnum").unwrap_or_default(),
+                vnum: super::get_vnum(&row, "vnum").unwrap_or_default(),
                 name: decode_name(&name_raw),
                 item_type: row.try_get("type").unwrap_or_default(),
                 subtype: row.try_get("subtype").unwrap_or_default(),

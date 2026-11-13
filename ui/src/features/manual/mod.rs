@@ -64,7 +64,7 @@ fn nav() -> Vec<NavEntry> {
             children: vec![
                 p("item-editor", "Item Editor"),
                 p("item-proto-explorer", "Item-Übersicht"),
-                p("module-importer", "Modul-Importer"),
+                p("module-importer", "Item-Importer"),
                 p("refine-editor", "Aufwertungs-Editor"),
                 p("cube-editor", "Cube-Editor"),
             ],

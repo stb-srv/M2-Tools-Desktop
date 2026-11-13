@@ -1,4 +1,4 @@
-//! Typen und reine Hilfsfunktionen des Modul-Importers (Port von
+//! Typen und reine Hilfsfunktionen des Item-Importers (Port von
 //! `shared.ts`). `ItemProtoInput` wird aus dem Item Editor übernommen statt
 //! dupliziert.
 

@@ -23,7 +23,7 @@ pub fn ClientTab() -> impl IntoView {
             <SettingsCard title="Spiel-Client".to_string() icon="Gamepad2">
                 <PathSetting def=PathSettingDef {
                     directory: true,
-                    hint: Some("Ordner des Metin2-Clients (enthält <code>granny2.dll</code>) - für 3D-Modelle, Item-Icons, Icon-Browser und Modul-Importer."),
+                    hint: Some("Ordner des Metin2-Clients (enthält <code>granny2.dll</code>) - für 3D-Modelle, Item-Icons, Icon-Browser und Item-Importer."),
                     ..def("client_path", "Client-Ordner", "Metin2-Client-Ordner auswählen")
                 }/>
                 <PathSetting def=PathSettingDef {

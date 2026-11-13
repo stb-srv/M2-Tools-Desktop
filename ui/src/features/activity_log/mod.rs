@@ -136,7 +136,7 @@ pub fn ActivityLog() -> impl IntoView {
             <div>
                 <PageHeader module=Section::ActivityLog title=Signal::derive(|| t("nav.activityLog"))/>
                 <p class="max-w-4xl text-sm text-muted-foreground">
-                    "Gemeinsame Zeitleiste aller Änderungen über die App - Item-/Shop-/Mob-Drop-/Quest-Edits, Account-/GM-Aktionen, Server-Events und mehr, zusammen mit den bereits bestehenden Verläufen für „Bauen & Einspielen\" und den Modul-Importer."
+                    "Gemeinsame Zeitleiste aller Änderungen über die App - Item-/Shop-/Mob-Drop-/Quest-Edits, Account-/GM-Aktionen, Server-Events und mehr, zusammen mit den bereits bestehenden Verläufen für „Bauen & Einspielen\" und den Item-Importer."
                 </p>
             </div>
 
