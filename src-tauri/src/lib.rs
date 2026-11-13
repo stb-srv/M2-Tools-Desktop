@@ -31,6 +31,7 @@ mod modulescan;
 mod msm;
 mod packtools;
 mod quest;
+mod quest_item_refs;
 mod refine;
 mod refine_undo;
 mod regen;

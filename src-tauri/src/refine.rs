@@ -354,6 +354,91 @@ pub async fn find_shop_sources(pool: &MySqlPool, vnum: u32) -> Result<Vec<ShopSo
         .collect())
 }
 
+/// Ein Aufwertungs-Rezept, das ein Item als Material braucht - für
+/// „Wo wird das benutzt?“.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct RefineMaterialUsage {
+    pub recipe_id: i32,
+    pub count: i16,
+    /// Items, deren `refine_set` auf dieses Rezept zeigt (höchstens 5).
+    pub used_by: Vec<(u32, String)>,
+    pub used_by_count: i64,
+}
+
+fn decode_locale(bytes: &[u8]) -> String {
+    let (text, _, _) = encoding_rs::WINDOWS_1252.decode(bytes);
+    text.trim().to_string()
+}
+
+/// Rezepte in `refine_proto`, die `vnum` in einem der Material-Slots
+/// vnum0-4 führen.
+pub async fn find_recipes_using_material(pool: &MySqlPool, vnum: u32) -> Result<Vec<RefineMaterialUsage>, String> {
+    let rows = sqlx::query(
+        "SELECT * FROM player.refine_proto \
+         WHERE vnum0 = ? OR vnum1 = ? OR vnum2 = ? OR vnum3 = ? OR vnum4 = ? ORDER BY id",
+    )
+    .bind(vnum)
+    .bind(vnum)
+    .bind(vnum)
+    .bind(vnum)
+    .bind(vnum)
+    .fetch_all(pool)
+    .await
+    .map_err(|e| e.to_string())?;
+
+    let mut out = Vec::new();
+    for row in &rows {
+        let recipe = row_to_recipe(row, 0);
+        let count: i16 = recipe
+            .materials
+            .iter()
+            .filter(|m| m.vnum == vnum)
+            .map(|m| m.count)
+            .sum();
+        let used_by_count: i64 = sqlx::query("SELECT COUNT(*) AS c FROM player.item_proto WHERE refine_set = ?")
+            .bind(recipe.id)
+            .fetch_one(pool)
+            .await
+            .map_err(|e| e.to_string())?
+            .try_get("c")
+            .unwrap_or_default();
+        let used_by = sqlx::query(
+            "SELECT vnum, locale_name FROM player.item_proto WHERE refine_set = ? ORDER BY vnum LIMIT 5",
+        )
+        .bind(recipe.id)
+        .fetch_all(pool)
+        .await
+        .map_err(|e| e.to_string())?
+        .iter()
+        .map(|r| {
+            let name: Vec<u8> = r.try_get("locale_name").unwrap_or_default();
+            (crate::db::get_vnum(r, "vnum").unwrap_or_default(), decode_locale(&name))
+        })
+        .collect();
+        out.push(RefineMaterialUsage { recipe_id: recipe.id, count, used_by, used_by_count });
+    }
+    Ok(out)
+}
+
+/// Items, die per `refined_vnum` zu `vnum` aufgewertet werden (z.B. ist
+/// „Schwert+0“ die Vorstufe von „Schwert+1“).
+pub async fn find_refine_predecessors(pool: &MySqlPool, vnum: u32) -> Result<Vec<(u32, String)>, String> {
+    Ok(sqlx::query(
+        "SELECT vnum, locale_name FROM player.item_proto WHERE refined_vnum = ? AND vnum <> ? ORDER BY vnum",
+    )
+    .bind(vnum)
+    .bind(vnum)
+    .fetch_all(pool)
+    .await
+    .map_err(|e| e.to_string())?
+    .iter()
+    .map(|r| {
+        let name: Vec<u8> = r.try_get("locale_name").unwrap_or_default();
+        (crate::db::get_vnum(r, "vnum").unwrap_or_default(), decode_locale(&name))
+    })
+    .collect())
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;

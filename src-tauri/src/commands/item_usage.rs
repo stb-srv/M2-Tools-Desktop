@@ -2,7 +2,7 @@
 //! Ideen-Session vom 2026-08-24 (siehe [[m2manager_activity_log]]-
 //! Nachfolgeplan). Fasst 6 unabhängige Quellen (Shops, mob_drop_item.txt/
 //! common_drop_item.txt, etc_drop_item.txt, drop_item_group.txt,
-//! special_item_group.txt, cube.txt, Quest-Volltextsuche) zu einem Bericht
+//! special_item_group.txt, cube.txt, Aufwertungs-Rezepte, Quests) zu einem Bericht
 //! zusammen, ruft dafür ausschließlich bereits bestehende, andernorts
 //! verifizierte Parser/Queries auf statt selbst zu parsen. Eine nicht
 //! erreichbare/nicht konfigurierte Quelle landet als Warnung im Bericht statt
@@ -18,6 +18,8 @@ use crate::drop_item_group;
 use crate::etc_drop;
 use crate::mobdrop;
 use crate::quest;
+use crate::quest_item_refs::{self, QuestItemRef};
+use crate::refine::{self, RefineMaterialUsage};
 use crate::settings;
 use crate::special_item_group;
 use crate::ssh::{self, SshAuth, SshConfig};
@@ -77,7 +79,14 @@ pub struct ItemUsageReport {
     pub possible_reward_in: Vec<BoxRewardUsage>,
     pub cube_ingredient_in: Vec<CubeUsage>,
     pub cube_reward_in: Vec<CubeUsage>,
-    pub quests: Vec<quest::QuestSearchMatch>,
+    pub refine_materials: Vec<RefineMaterialUsage>,
+    /// Items, die zu diesem Item aufgewertet werden (refined_vnum).
+    pub refine_from: Vec<(u32, String)>,
+    /// Quest-Stellen, an denen die VNUM erkennbar als Item steht.
+    pub quest_refs: Vec<QuestItemRef>,
+    /// Quest-Stellen, an denen die Zahl eigenständig steht, aber nicht als
+    /// Item erkennbar ist (z.B. in einer Tabelle) - nur als Hinweis.
+    pub quest_unconfirmed: Vec<QuestItemRef>,
     pub warnings: Vec<String>,
 }
 
@@ -108,6 +117,17 @@ pub async fn find_item_usages(state: State<'_, AppState>, vnum: u32) -> Result<I
             Err(e) => report.warnings.push(format!("Shops konnten nicht geprüft werden: {e}")),
         },
         Err(e) => report.warnings.push(format!("Shops konnten nicht geprüft werden: {e}")),
+    }
+
+    if let Ok(pool) = &pool {
+        match refine::find_recipes_using_material(pool, vnum).await {
+            Ok(r) => report.refine_materials = r,
+            Err(e) => report.warnings.push(format!("Aufwertungs-Rezepte konnten nicht geprüft werden: {e}")),
+        }
+        match refine::find_refine_predecessors(pool, vnum).await {
+            Ok(r) => report.refine_from = r,
+            Err(e) => report.warnings.push(format!("Aufwertungs-Kette konnte nicht geprüft werden: {e}")),
+        }
     }
 
     let internal_name: Option<String> = match &pool {
@@ -296,8 +316,8 @@ pub async fn find_item_usages(state: State<'_, AppState>, vnum: u32) -> Result<I
         Err(e) => report.warnings.push(format!("cube.txt: {e}")),
     }
 
-    // Quests - Volltextsuche nach der vnum als Zeichenkette (gleicher
-    // Teilstring-Vorbehalt wie überall sonst im Projekt, im UI zu benennen).
+    // Quests - nur eigenständige Zahlen außerhalb von Texten/Kommentaren,
+    // getrennt nach erkennbarem Item-Bezug und ungeprüft (quest_item_refs.rs).
     match path_setting(&state, "quest_dir", "/usr/home/game/share/quest") {
         Ok(dir) => match read_optional_file(&config, &auth, &format!("{dir}/quest_list")).await {
             Ok(Some(list_content)) => {
@@ -305,7 +325,9 @@ pub async fn find_item_usages(state: State<'_, AppState>, vnum: u32) -> Result<I
                 let paths: Vec<String> = files.iter().map(|f| format!("{dir}/{}", f.relative_path)).collect();
                 match ssh::read_remote_files(&config, &auth, &paths).await {
                     Ok(contents) => {
-                        report.quests = quest::search_contents(&files, &contents, &vnum.to_string());
+                        let scan = quest_item_refs::scan_files(&files, &contents, vnum);
+                        report.quest_refs = scan.confirmed;
+                        report.quest_unconfirmed = scan.unconfirmed;
                     }
                     Err(e) => report.warnings.push(format!("Quest-Dateien konnten nicht durchsucht werden: {e}")),
                 }

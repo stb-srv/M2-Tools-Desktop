@@ -6,6 +6,16 @@ nach [SemVer](https://semver.org/) (`MAJOR.MINOR.PATCH`, solange < 1.0 gilt
 `MINOR` für neue Features, `PATCH` für reine Fixes). Für die vollständige
 Feature-Historie mit allen Details siehe `STATUS.md`.
 
+## [Unveröffentlicht]
+
+### Hinzugefügt
+
+- **„Wo wird das benutzt?“ zeigt Aufwertungen**: Der Bericht nennt jetzt auch Aufwertungs-Rezepte, die das Item als Material brauchen (mit den Items, die das Rezept nutzen), und aus welchem Item es durch Aufwerten entsteht.
+
+### Behoben
+
+- **„Wo wird das benutzt?“ fand jede Zahl in den Quests**: Für z.B. Schwert+0 (VNUM 10) kam jede Quest, in der irgendwo „10“ steht (100, 2010, `pc.level >= 10`, Texte). Jetzt zählen nur echte Item-Stellen: Item-Funktionen wie `pc.give_item2(10, …)`, `pc.count_item(10)`, `pc.remove_item(10)`, Vergleiche mit `item.vnum` und Trigger wie `when 10.use`. Texte und Kommentare werden ignoriert. Jeder Treffer zeigt Datei, Zeile und die Codezeile. Stellen, an denen die Zahl nur allein steht (z.B. in einer Tabelle), sind aufklappbar als „nicht als Item erkennbar“ aufgeführt.
+
 ## [0.40.0] - 2026-11-13
 
 ### Entwicklung

@@ -1,6 +1,6 @@
 //! "Wo wird das benutzt?" - fasst Shops, Mob-Drops (mob_drop_item.txt/
 //! common_drop_item.txt), etc_drop_item.txt, drop_item_group.txt,
-//! special_item_group.txt (Kisten), cube.txt und eine Quest-Volltextsuche zu
+//! special_item_group.txt (Kisten), cube.txt, Aufwertungs-Rezepte und Quests zu
 //! einem Bericht zusammen (`find_item_usages`, siehe
 //! src-tauri/src/commands/item_usage.rs). Jede Quelle, die nicht geprüft
 //! werden konnte, landet unten als Warnung statt den ganzen Bericht
@@ -55,18 +55,18 @@ struct EtcDropUsage {
     percent: f64,
 }
 #[derive(Clone, Debug, Deserialize)]
-struct QuestSearchLine {
+struct QuestItemRef {
+    relative_path: String,
     line_number: i64,
     text: String,
+    kind: String,
 }
 #[derive(Clone, Debug, Deserialize)]
-struct QuestSearchMatch {
-    relative_path: String,
-    #[allow(dead_code)]
-    category: String,
-    #[allow(dead_code)]
-    name: String,
-    lines: Vec<QuestSearchLine>,
+struct RefineMaterialUsage {
+    recipe_id: i64,
+    count: i64,
+    used_by: Vec<(i64, String)>,
+    used_by_count: i64,
 }
 
 #[derive(Clone, Debug, Deserialize)]
@@ -81,7 +81,14 @@ struct ItemUsageReport {
     possible_reward_in: Vec<BoxRewardUsage>,
     cube_ingredient_in: Vec<CubeUsage>,
     cube_reward_in: Vec<CubeUsage>,
-    quests: Vec<QuestSearchMatch>,
+    #[serde(default)]
+    refine_materials: Vec<RefineMaterialUsage>,
+    #[serde(default)]
+    refine_from: Vec<(i64, String)>,
+    #[serde(default)]
+    quest_refs: Vec<QuestItemRef>,
+    #[serde(default)]
+    quest_unconfirmed: Vec<QuestItemRef>,
     warnings: Vec<String>,
 }
 
@@ -96,7 +103,9 @@ impl ItemUsageReport {
             && self.possible_reward_in.is_empty()
             && self.cube_ingredient_in.is_empty()
             && self.cube_reward_in.is_empty()
-            && self.quests.is_empty()
+            && self.refine_materials.is_empty()
+            && self.refine_from.is_empty()
+            && self.quest_refs.is_empty()
     }
 }
 
@@ -134,7 +143,32 @@ fn cube_list(items: &[CubeUsage]) -> AnyView {
     .into_any()
 }
 
-fn report_view(vnum: i64, report: ItemUsageReport) -> AnyView {
+fn quest_ref_list(refs: &[QuestItemRef]) -> AnyView {
+    view! {
+        <ul class="space-y-0.5">
+            {refs.iter().map(|r| view! {
+                <li class="text-xs">
+                    <span class="font-mono">{r.relative_path.clone()} ":" {r.line_number}</span>
+                    {(!r.kind.is_empty()).then(|| view! {
+                        <span class="text-muted-foreground">" (" {r.kind.clone()} ")"</span>
+                    })}
+                    <p class="truncate pl-2 font-mono text-muted-foreground">{r.text.clone()}</p>
+                </li>
+            }).collect_view()}
+        </ul>
+    }
+    .into_any()
+}
+
+fn item_list_text(items: &[(i64, String)]) -> String {
+    items
+        .iter()
+        .map(|(v, n)| if n.is_empty() { format!("#{v}") } else { format!("{n} (#{v})") })
+        .collect::<Vec<_>>()
+        .join(", ")
+}
+
+fn report_view(report: ItemUsageReport) -> AnyView {
     let mut parts: Vec<AnyView> = vec![];
     if report.nothing_found() {
         parts.push(
@@ -240,28 +274,55 @@ fn report_view(vnum: i64, report: ItemUsageReport) -> AnyView {
             cube_list(&report.cube_reward_in),
         ));
     }
-    if !report.quests.is_empty() {
+    if !report.refine_from.is_empty() {
         parts.push(usage_section(
-            format!("Quests ({}, Volltextsuche nach \"{}\")", report.quests.len(), vnum),
+            "Aufwertung - entsteht aus".into(),
+            view! { <p>{item_list_text(&report.refine_from)}</p> }.into_any(),
+        ));
+    }
+    if !report.refine_materials.is_empty() {
+        parts.push(usage_section(
+            format!("Aufwertung - als Material ({})", report.refine_materials.len()),
             view! {
-                <ul class="space-y-1">
-                    {report.quests.iter().map(|q| view! {
-                        <li>
-                            <p class="font-mono text-xs">{q.relative_path.clone()}</p>
-                            {q.lines.iter().take(2).map(|l| view! {
-                                <p class="truncate pl-2 text-xs text-muted-foreground">
-                                    "Zeile " {l.line_number} ": " {l.text.trim().to_string()}
-                                </p>
-                            }).collect_view()}
-                        </li>
+                <ul class="space-y-0.5">
+                    {report.refine_materials.iter().map(|m| {
+                        let more = m.used_by_count - m.used_by.len() as i64;
+                        let users = if m.used_by.is_empty() {
+                            "von keinem Item genutzt".to_string()
+                        } else if more > 0 {
+                            format!("für {} und {more} weitere", item_list_text(&m.used_by))
+                        } else {
+                            format!("für {}", item_list_text(&m.used_by))
+                        };
+                        view! { <li>"Rezept #" {m.recipe_id} " - " {m.count} "× benötigt, " {users}</li> }
                     }).collect_view()}
                 </ul>
-                <p class="text-xs text-muted-foreground">
-                    "Reine Teilstring-Suche - kann auch Treffer enthalten, bei denen die Zahl in einem anderen Zusammenhang vorkommt (z.B. eine andere vnum, ein Betrag)."
-                </p>
             }
             .into_any(),
         ));
+    }
+    if !report.quest_refs.is_empty() {
+        parts.push(usage_section(
+            format!("Quests ({})", report.quest_refs.len()),
+            quest_ref_list(&report.quest_refs),
+        ));
+    }
+    if !report.quest_unconfirmed.is_empty() {
+        let n = report.quest_unconfirmed.len();
+        parts.push(
+            view! {
+                <details class="text-xs">
+                    <summary class="cursor-pointer text-muted-foreground">
+                        {format!("{n} weitere Quest-Stelle(n), an denen die Zahl steht, aber nicht als Item erkennbar ist")}
+                    </summary>
+                    <div class="mt-1">{quest_ref_list(&report.quest_unconfirmed)}</div>
+                    <p class="mt-1 text-muted-foreground">
+                        "Z.B. Anzahlen, Level oder VNUM-Tabellen. Gezählt werden nur Treffer als Item-Funktion (pc.give_item2, pc.count_item, pc.remove_item …), Vergleich mit item.vnum oder Trigger wie „when 10.use“; Texte und Kommentare werden ignoriert."
+                    </p>
+                </details>
+            }
+            .into_any(),
+        );
     }
     if !report.warnings.is_empty() {
         parts.push(
@@ -308,7 +369,7 @@ pub fn ItemUsageModal(vnum: i64, #[prop(into)] on_close: Callback<()>) -> impl I
                 </Show>
                 {move || error.get().map(|e| view! { <p class="text-sm text-destructive">{e}</p> })}
 
-                {move || report.get().map(|r| report_view(vnum, r))}
+                {move || report.get().map(report_view)}
 
                 <div class="flex justify-end">
                     <Button variant=ButtonVariant::Outline on_click=move |_| on_close.run(())>"Schließen"</Button>
