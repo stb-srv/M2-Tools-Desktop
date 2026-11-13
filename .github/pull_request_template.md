@@ -3,6 +3,6 @@
 ## Release-Notes
 
 - [ ] `CHANGELOG.md` unter `## [Unveröffentlicht]` ergänzt (oder: keine für Nutzer sichtbare Änderung)
-- [ ] Bei einem Release: Abschnitt in `## [X.Y.Z] - JJJJ-MM-TT` umbenannt und Version in allen drei Dateien hochgezählt
+- [ ] Keine Version hochgezählt, kein Tag gesetzt (macht der Release-Knopf unter Actions › Release)
 
 ## Getestet
