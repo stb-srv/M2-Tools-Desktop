@@ -38,6 +38,12 @@ pub async fn write_special_item_group_file(
     // Round-trip-check what we're about to write before touching the
     // server - refuse to upload something we couldn't parse back ourselves.
     special_item_group::parse(&content)?;
+    super::drop_check::guard_items(
+        &state,
+        crate::drop_check::DropFileKind::SpecialItemGroup,
+        crate::drop_check::refs_special_item_group(&groups),
+    )
+    .await?;
     ssh::write_remote_file_with_backup(&config, &auth, &path, &content).await
 }
 

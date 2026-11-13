@@ -4,6 +4,7 @@
 //! Editor/Kisten-Editor) - hier eingebettet, nicht dupliziert.
 
 pub mod common_drop;
+pub mod drop_check_panel;
 pub mod drop_item_group_editor;
 pub mod etc_drop_editor;
 pub mod join;
@@ -14,6 +15,7 @@ use crate::features::mob_drop_editor::MobDropEditor;
 use crate::features::shared::{SectionTab, SectionTabs};
 use crate::store::navigation::Section;
 use common_drop::CommonDropEditor;
+use drop_check_panel::DropCheckPanel;
 use drop_item_group_editor::DropItemGroupEditor;
 use etc_drop_editor::EtcDropEditor;
 use leptos::prelude::*;
@@ -43,6 +45,7 @@ pub fn DropGenerator() -> impl IntoView {
             <p class="max-w-4xl text-sm text-muted-foreground">
                 "Alle 5 Drop-relevanten Server-Dateien an einem Ort. Jeder Tab erklärt oben kurz, wofür seine Datei zuständig ist und wie sie sich von den anderen unterscheidet - ausführlicher im Handbuch (Hilfe-Knopf oben)."
             </p>
+            <DropCheckPanel/>
             <SectionTabs tabs=tabs/>
         </div>
     }

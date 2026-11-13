@@ -11,3 +11,7 @@ Jede Spalte wird roh mit einem typgerechten Eingabefeld angezeigt; die Primärsc
 - **Nur Bearbeiten, kein Neuanlegen** - für `mob_proto` gibt es kein bekanntes Äquivalent zu `Mysql2Proto` für Items, ein sicherer Neuanlage-Weg ist nicht verifiziert.
 - Änderungen wirken in der Regel erst nach einem **Server-Neustart**.
 - Diese Tabelle wurde (anders als `item_proto`) nie live gegen einen laufenden Server durchgetestet - ein Blick auf die tatsächliche Auswirkung einer Änderung lohnt sich beim ersten Einsatz.
+
+## Rang und Drops
+
+Über dem Zeilen-Editor stehen Name, Level und **Rang** des gewählten Mobs (PAWN, S_PAWN, KNIGHT, S_KNIGHT, BOSS, KING). Die ersten vier bekommen zusätzlich die Common-Drops ihres Rangs, Bosse nicht. „Was droppt dieser Mob?“ zeigt alle Drops des Mobs aus Mob-Drops, Zufalls-Gruppen und Common-Drops in einer Liste.

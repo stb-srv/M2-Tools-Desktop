@@ -8,7 +8,7 @@ pub mod types;
 
 use crate::components::{Button, ButtonSize, ButtonVariant, Icon, Skeleton};
 use crate::features::shared::drop_chance::real_drop_chance_percent;
-use crate::features::shared::EntityRow;
+use crate::features::shared::{ChangePreview, EntityRow};
 use crate::util::csv::export_rows_as_csv;
 use crate::util::{log_activity, open_manual};
 use crate::store::navigation::{nav, report_section_dirty, EmbeddedModule, Section};
@@ -708,7 +708,7 @@ pub fn MobDropEditor() -> impl IntoView {
 
                     <Show when=move || save_confirm.get()>
                         <div class="fixed inset-0 flex items-center justify-center bg-black/50">
-                            <div class="w-96 space-y-3 rounded-lg border border-border bg-card p-4">
+                            <div class="max-h-[85vh] w-[40rem] space-y-3 overflow-y-auto rounded-lg border border-border bg-card p-4">
                                 <p class="flex items-start gap-2 text-sm">
                                     <Icon name="AlertTriangle" class="mt-0.5 size-4 shrink-0 text-destructive"/>
                                     <span>
@@ -719,6 +719,9 @@ pub fn MobDropEditor() -> impl IntoView {
                                         }}
                                     </span>
                                 </p>
+                                {(source.get_untracked() == Source::Server).then(|| groups.get_untracked()).flatten().map(|d| view! {
+                                    <ChangePreview kind="mob_drop" data=serde_json::to_value(&d).unwrap_or_default()/>
+                                })}
                                 <div class="flex justify-end gap-2">
                                     <Button variant=ButtonVariant::Outline on_click=move |_| save_confirm.set(false)>
                                         "Abbrechen"

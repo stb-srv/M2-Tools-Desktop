@@ -14,6 +14,7 @@ mod credentials;
 mod common_drop;
 mod cube;
 mod db;
+mod drop_check;
 mod drop_item_group;
 mod entity_cache;
 mod etc_drop;
@@ -120,6 +121,10 @@ pub fn run() {
             commands::validate_common_drop,
             commands::parse_common_drop_line,
             commands::check_common_drop_items,
+            commands::run_drop_check,
+            commands::preview_drop_file,
+            commands::get_mob_brief,
+            commands::find_mob_drops,
             commands::read_etc_drop_file,
             commands::write_etc_drop_file,
             commands::read_drop_item_group_file,

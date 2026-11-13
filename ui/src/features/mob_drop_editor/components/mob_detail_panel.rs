@@ -3,6 +3,7 @@ use super::super::{with_group, IconMap};
 use super::shared::{clamp_percent, fmt_num, js_number_or, num_sig, Field, NumInput, MAX_PERCENT_ATTR};
 use crate::components::{Button, ButtonSize, ButtonVariant, Icon};
 use crate::features::shared::drop_chance::format_real_drop_chance;
+use crate::features::shared::MobDropsModal;
 use leptos::prelude::*;
 
 #[component]
@@ -17,6 +18,7 @@ pub fn MobDetailPanel(
     #[prop(into)] on_simulate_click: Callback<()>,
 ) -> impl IntoView {
     let gi = selected_index;
+    let all_drops_open = RwSignal::new(false);
     let update_group = move |f: Box<dyn FnOnce(&mut MobDropGroup)>| {
         groups.update(|g| {
             if let Some(g) = g.as_mut().and_then(|g| g.get_mut(gi)) {
@@ -89,6 +91,19 @@ pub fn MobDetailPanel(
                         <Icon name="Dices" class="size-3.5"/>
                         "Simulieren"
                     </Button>
+                    <Button
+                        size=ButtonSize::Sm
+                        variant=ButtonVariant::Outline
+                        on_click=move |_| all_drops_open.set(true)
+                        title="Alle Drops dieses Mobs aus Mob-Drops, Zufalls-Gruppen und Common-Drops"
+                    >
+                        <Icon name="List" class="size-3.5"/>
+                        "Alle Drops"
+                    </Button>
+                    {move || all_drops_open.get().then(|| {
+                        let vnum = with_group(groups, gi, |g| g.mob_vnum).unwrap_or(0.0).max(0.0) as u32;
+                        view! { <MobDropsModal vnum=vnum on_close=move |_| all_drops_open.set(false)/> }
+                    })}
                     <Button size=ButtonSize::Sm variant=ButtonVariant::Outline on_click=move |_| on_add_item_click.run(())>
                         <Icon name="Plus" class="size-3.5"/>
                         "Item hinzufügen"

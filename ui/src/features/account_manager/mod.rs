@@ -7,7 +7,7 @@ use crate::components::PageHeader;
 use crate::features::gm_manager::GmManager;
 use crate::features::shared::{SectionTab, SectionTabs};
 use crate::store::navigation::Section;
-use components::{AccountSection, GiveItemSection, TableSearchSection};
+use components::{AccountSection, TableSearchSection};
 use leptos::prelude::*;
 use shared::PLAYER_TABLE;
 
@@ -40,7 +40,6 @@ fn AccountsAndPlayers() -> impl IntoView {
                 placeholder="Charaktername suchen…"
                 player_tools=true
             />
-            <GiveItemSection/>
         </div>
     }
 }

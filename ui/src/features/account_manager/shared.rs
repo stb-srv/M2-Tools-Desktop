@@ -46,7 +46,6 @@ pub struct BanRecord {
 // is auto-detected at runtime by GenericRowEditor via `is_primary_key`, never
 // guessed as "id".
 pub const PLAYER_TABLE: TableTarget = TableTarget { database: "player", table: "player" };
-pub const ITEM_TABLE: TableTarget = TableTarget { database: "player", table: "item" };
 
 /// Entspricht JavaScripts `Number(s)`: Leerraum wird ignoriert, leer = 0,
 /// ungültig = NaN.
