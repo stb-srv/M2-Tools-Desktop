@@ -9,6 +9,7 @@ use crate::components::PageHeader;
 use crate::store::navigation::Section;
 use components::icon_item_importer::IconItemImporter;
 use components::import_history::ImportHistory;
+use components::m2pkg_importer::M2PkgImporter;
 use components::package_importer::PackageImporter;
 use components::quick_remove_item::QuickRemoveItem;
 use leptos::prelude::*;
@@ -18,6 +19,7 @@ use leptos::prelude::*;
 enum ImporterMode {
     Package,
     IconOnly,
+    M2Pkg,
 }
 
 #[component]
@@ -45,6 +47,9 @@ pub fn ModuleImporter() -> impl IntoView {
                 <button on:click=move |_| mode.set(ImporterMode::IconOnly) class=move || tab_class(ImporterMode::IconOnly)>
                     "Zubehör (nur Icon, z. B. Schuhe/Ketten/Schilder)"
                 </button>
+                <button on:click=move |_| mode.set(ImporterMode::M2Pkg) class=move || tab_class(ImporterMode::M2Pkg)>
+                    "Paket-Import (DB-Tool)"
+                </button>
             </div>
 
             {move || match mode.get() {
@@ -62,6 +67,7 @@ pub fn ModuleImporter() -> impl IntoView {
                     <IconItemImporter on_imported=bump/>
                 }
                 .into_any(),
+                ImporterMode::M2Pkg => view! { <M2PkgImporter on_imported=bump/> }.into_any(),
             }}
 
             <ImportHistory refresh_key=history_version/>
