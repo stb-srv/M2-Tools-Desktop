@@ -1,19 +1,19 @@
 {
-  "version": "1.0.0",
-  "notes": "### Behoben\n\n- **Paket-Import findet Textdateien im Client**: Die Suche nach `item_list.txt` und `item_names.txt` schaut jetzt nicht nur in `locale/<Sprache>/`, sondern auch direkt in `locale/` und im Client-Ordner. Fehlt eine der Dateien, bricht der Import nicht mehr ab, sondern überspringt sie und meldet das im Bericht deutlich.\n\n### Hinzugefügt\n\n- **Eigene Zielpfade im Paket-Import**: Im Reiter „Paket-Import (DB-Tool)“ lassen sich `item_list.txt` und `item_names.txt` per Dateiauswahl von Hand angeben (wird gespeichert). Die Vorprüfung zeigt, welche Dateien verwendet werden; auch „Rückgängig machen“ funktioniert für Dateien außerhalb des Client-Ordners.\n- **Effekt-Dateien (.msm/.mse) gut sichtbar**: Vermutete Effekt-Dateien stehen in der Liste der vermuteten Dateien ganz oben, mit Zähler und Knopf „Alle Effekte anhaken“. Sie werden wie alle vermuteten Dateien nur mitkopiert, wenn man sie anhakt.",
-  "pub_date": "2026-11-15T13:18:02.156Z",
+  "version": "1.0.1",
+  "notes": "### Geändert\n\n- **Paket-Import: item_names.txt ist optional**: Gibt es die Datei im Client nicht, wird sie ohne Fehler übersprungen. Der Bericht erklärt dann, dass die Namen über die item_proto kommen. Die Beschreibung der Zieldateien im Reiter sagt jetzt klar, was wichtig (item_list.txt) und was optional ist.\n\n### Hinzugefügt\n\n- **Paket-Import: nächster Schritt und Knopf für die item_proto**: Nach dem Einspielen weist der Bericht darauf hin, dass die Client-item_proto neu erzeugt werden muss. Wurde in MySQL geschrieben, startet der Knopf „Client-item_proto jetzt erzeugen und einspielen“ mysql2proto und legt die Datei in den Client (mit Backup, wie im Item-Editor).",
+  "pub_date": "2026-11-15T13:58:15.680Z",
   "platforms": {
     "windows-x86_64": {
-      "signature": "dW50cnVzdGVkIGNvbW1lbnQ6IHNpZ25hdHVyZSBmcm9tIHRhdXJpIHNlY3JldCBrZXkKUlVRUFlocnZlQ3hhVG0vMDU2WU03dHBvd3BFTitVTnRZRHNXSkhPN09KUjM1ckRPd1lsUkJETXNJdDRlMi8zZjg0WjJPSmFXY2VOdTZXVzNsRHVJayszNlRwdmcwWDcyR3cwPQp0cnVzdGVkIGNvbW1lbnQ6IHRpbWVzdGFtcDoxNzk0NzQ4Njc3CWZpbGU6TTJNYW5hZ2VyXzEuMC4wX3g2NF9lbi1VUy5tc2kJdmVyc2lvbjoxLjAuMApZdmpoR2I3aCtuZXVZTjA0SEduYk9aVmp3c0Q5Q3lQaGc2R1B2NjNrK3JmOEx2ZXgva25Lbm44YlgxcFpOU0xGVDVmTzRaOVQ5Zy8yTXRQVzBJTEtDdz09Cg==",
-      "url": "https://api.github.com/repos/stb-srv/M2-Tools-Desktop/releases/assets/751065705"
+      "signature": "dW50cnVzdGVkIGNvbW1lbnQ6IHNpZ25hdHVyZSBmcm9tIHRhdXJpIHNlY3JldCBrZXkKUlVRUFlocnZlQ3hhVGlPM2JRdFNpcDJCQ2JRZk9Wd0VJQjZ6MVdZMjBLYk5VeUttNitBaVhnK3IzSGdSU1ZFQXQxT3RNaUZlQjAxMml1Z2ROUm9XaUFkS3h1UEErNzN0K0FJPQp0cnVzdGVkIGNvbW1lbnQ6IHRpbWVzdGFtcDoxNzk0NzUxMDkxCWZpbGU6TTJNYW5hZ2VyXzEuMC4xX3g2NF9lbi1VUy5tc2kJdmVyc2lvbjoxLjAuMQpnU3p3cGZURWUzQUtzRlRHdFdtNk9acDFXQlVSWVRZeDZjeDg1UnJxaUZzZ2dzZkFoNXFaUjlsVS9LV0hXbkdhejdRNHZ4Q1JJWU5yZmRWS01jS2tEQT09Cg==",
+      "url": "https://api.github.com/repos/stb-srv/M2-Tools-Desktop/releases/assets/751173727"
     },
     "windows-x86_64-msi": {
-      "signature": "dW50cnVzdGVkIGNvbW1lbnQ6IHNpZ25hdHVyZSBmcm9tIHRhdXJpIHNlY3JldCBrZXkKUlVRUFlocnZlQ3hhVG0vMDU2WU03dHBvd3BFTitVTnRZRHNXSkhPN09KUjM1ckRPd1lsUkJETXNJdDRlMi8zZjg0WjJPSmFXY2VOdTZXVzNsRHVJayszNlRwdmcwWDcyR3cwPQp0cnVzdGVkIGNvbW1lbnQ6IHRpbWVzdGFtcDoxNzk0NzQ4Njc3CWZpbGU6TTJNYW5hZ2VyXzEuMC4wX3g2NF9lbi1VUy5tc2kJdmVyc2lvbjoxLjAuMApZdmpoR2I3aCtuZXVZTjA0SEduYk9aVmp3c0Q5Q3lQaGc2R1B2NjNrK3JmOEx2ZXgva25Lbm44YlgxcFpOU0xGVDVmTzRaOVQ5Zy8yTXRQVzBJTEtDdz09Cg==",
-      "url": "https://api.github.com/repos/stb-srv/M2-Tools-Desktop/releases/assets/751065705"
+      "signature": "dW50cnVzdGVkIGNvbW1lbnQ6IHNpZ25hdHVyZSBmcm9tIHRhdXJpIHNlY3JldCBrZXkKUlVRUFlocnZlQ3hhVGlPM2JRdFNpcDJCQ2JRZk9Wd0VJQjZ6MVdZMjBLYk5VeUttNitBaVhnK3IzSGdSU1ZFQXQxT3RNaUZlQjAxMml1Z2ROUm9XaUFkS3h1UEErNzN0K0FJPQp0cnVzdGVkIGNvbW1lbnQ6IHRpbWVzdGFtcDoxNzk0NzUxMDkxCWZpbGU6TTJNYW5hZ2VyXzEuMC4xX3g2NF9lbi1VUy5tc2kJdmVyc2lvbjoxLjAuMQpnU3p3cGZURWUzQUtzRlRHdFdtNk9acDFXQlVSWVRZeDZjeDg1UnJxaUZzZ2dzZkFoNXFaUjlsVS9LV0hXbkdhejdRNHZ4Q1JJWU5yZmRWS01jS2tEQT09Cg==",
+      "url": "https://api.github.com/repos/stb-srv/M2-Tools-Desktop/releases/assets/751173727"
     },
     "windows-x86_64-nsis": {
-      "signature": "dW50cnVzdGVkIGNvbW1lbnQ6IHNpZ25hdHVyZSBmcm9tIHRhdXJpIHNlY3JldCBrZXkKUlVRUFlocnZlQ3hhVGtvdGxJV244Mk1ZeWFOTjZRaktyeFdwNkhpT292SGZBTktZNFhaNWlUTEk3MFZSZngzbTdyN3FwT3NQQmxvM1crejBDamN1TDExL1lkSHM4OXdzYWdJPQp0cnVzdGVkIGNvbW1lbnQ6IHRpbWVzdGFtcDoxNzk0NzQ4Njc3CWZpbGU6TTJNYW5hZ2VyXzEuMC4wX3g2NC1zZXR1cC5leGUJdmVyc2lvbjoxLjAuMApKTXVWcnphYThQYVpwdXhVRXdJb0tHRU44cVZGV0NGQkphQ0dLUGc0RGN3Sjc2MlFyNTltZlVMbHVFNFdIZ3Naem5tU3pKOXh1ZmhGUWd6RjZXd09EZz09Cg==",
-      "url": "https://api.github.com/repos/stb-srv/M2-Tools-Desktop/releases/assets/751065763"
+      "signature": "dW50cnVzdGVkIGNvbW1lbnQ6IHNpZ25hdHVyZSBmcm9tIHRhdXJpIHNlY3JldCBrZXkKUlVRUFlocnZlQ3hhVGlBNmJwZTUrUUtZSm51dWkxVC9BeTd4YnVBaytSdndXMFJZYTkxWllTcnBjK2M0ajRpK1YvSE1laWpGRTJsUXZkbTJVcUIrQyt4QUhVSWREYmYvTVE0PQp0cnVzdGVkIGNvbW1lbnQ6IHRpbWVzdGFtcDoxNzk0NzUxMDkxCWZpbGU6TTJNYW5hZ2VyXzEuMC4xX3g2NC1zZXR1cC5leGUJdmVyc2lvbjoxLjAuMQo1RTZpVHFHUWIzbVVQWEpEdkxnMW96UnV1ZnZESlA0WnJLTEZ6Mzc2ZVJSNWdCUTRwQWZuNWZYM25KUVIzQkVGU29NNUZTVElnTFNjdVVQNnE4a2ZCZz09Cg==",
+      "url": "https://api.github.com/repos/stb-srv/M2-Tools-Desktop/releases/assets/751173794"
     }
   }
 }
