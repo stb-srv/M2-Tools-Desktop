@@ -169,6 +169,12 @@ pub struct ApplyOptions {
     pub guessed_paths: Vec<String>,
     #[serde(default)]
     pub confirm_assumptions: bool,
+    /// Eigener Pfad zur `item_list.txt` des Clients (sonst automatische Suche).
+    #[serde(default)]
+    pub item_list_path: Option<String>,
+    /// Eigener Pfad zur `item_names.txt` des Clients (sonst automatische Suche).
+    #[serde(default)]
+    pub item_names_path: Option<String>,
     /// SQL direkt in MySQL schreiben.
     pub write_db: bool,
     /// SQL-/Server-Dateien in einen Ordner schreiben.
@@ -208,9 +214,12 @@ fn client_target(client_dir: &Path, zip_path: &str) -> Result<PathBuf, String> {
     Ok(rel.split('/').fold(client_dir.to_path_buf(), |p, c| p.join(c)))
 }
 
+/// Findet eine Textdatei des Clients automatisch: in jedem `locale/<Sprache>/`,
+/// direkt in `locale/` und im Client-Ordner selbst.
 fn locale_files(client_dir: &Path, file_name: &str) -> Vec<PathBuf> {
     let mut found = Vec::new();
-    if let Ok(rd) = std::fs::read_dir(client_dir.join("locale")) {
+    let locale = client_dir.join("locale");
+    if let Ok(rd) = std::fs::read_dir(&locale) {
         for e in rd.flatten() {
             let p = e.path().join(file_name);
             if p.is_file() {
@@ -219,7 +228,28 @@ fn locale_files(client_dir: &Path, file_name: &str) -> Vec<PathBuf> {
         }
     }
     found.sort();
+    for p in [locale.join(file_name), client_dir.join(file_name)] {
+        if p.is_file() {
+            found.push(p);
+        }
+    }
     found
+}
+
+/// Ziel(e) einer Textdatei: ein von Hand angegebener Pfad hat Vorrang und
+/// ersetzt die automatische Suche; ohne ihn wird gesucht. Leer = nicht gefunden.
+fn text_targets(client_dir: &Path, file_name: &str, custom: Option<&str>) -> Result<Vec<PathBuf>, String> {
+    match custom.map(str::trim).filter(|c| !c.is_empty()) {
+        Some(c) => {
+            let p = PathBuf::from(c);
+            if p.is_file() {
+                Ok(vec![p])
+            } else {
+                Err(format!("Der angegebene Pfad für {file_name} existiert nicht: {c}"))
+            }
+        }
+        None => Ok(locale_files(client_dir, file_name)),
+    }
 }
 
 // ------------------------------------------------------------------ Vorprüfung
@@ -232,8 +262,8 @@ pub struct Preflight {
     /// Dateien im Client, die schon da sind, aber anderen Inhalt haben.
     pub differing_files: Vec<String>,
     pub identical_files: usize,
-    pub item_list_files: usize,
-    pub item_names_files: usize,
+    pub item_list_files: Vec<String>,
+    pub item_names_files: Vec<String>,
     pub notes: Vec<String>,
 }
 
@@ -259,8 +289,8 @@ pub async fn preflight(
         }
     }
 
-    let list_files = locale_files(client_dir, "item_list.txt");
-    let names_files = locale_files(client_dir, "item_names.txt");
+    let list_files = text_targets(client_dir, "item_list.txt", opts.item_list_path.as_deref())?;
+    let names_files = text_targets(client_dir, "item_names.txt", opts.item_names_path.as_deref())?;
     let mut in_list = BTreeSet::new();
     for f in &list_files {
         for l in std::fs::read(f).map_err(|e| e.to_string())?.split(|b| *b == b'\n') {
@@ -272,10 +302,10 @@ pub async fn preflight(
 
     let mut notes = Vec::new();
     if list_files.is_empty() {
-        notes.push("Im Client-Ordner gibt es keine locale/<Sprache>/item_list.txt. Ohne sie kann nicht eingespielt werden.".into());
+        notes.push("Keine item_list.txt gefunden. Ohne sie bekommen die Items im Client kein Icon und kein Modell. Bitte unten den Pfad angeben, sonst wird die Datei übersprungen.".into());
     }
     if names_files.is_empty() {
-        notes.push("Im Client-Ordner gibt es keine locale/<Sprache>/item_names.txt. Die Namen werden dort nicht eingetragen.".into());
+        notes.push("Keine item_names.txt gefunden. Ohne Pfad werden die Namen dort nicht eingetragen (übersprungen).".into());
     }
     let existing_in_db = match pool {
         Some(pool) => Some(existing_db_vnums(&pool, &vnums.iter().copied().collect::<Vec<_>>()).await?.into_iter().collect()),
@@ -286,8 +316,8 @@ pub async fn preflight(
         existing_in_client_list: in_list.into_iter().collect(),
         differing_files: differing,
         identical_files: identical,
-        item_list_files: list_files.len(),
-        item_names_files: names_files.len(),
+        item_list_files: list_files.iter().map(|p| p.display().to_string()).collect(),
+        item_names_files: names_files.iter().map(|p| p.display().to_string()).collect(),
         notes,
     })
 }
@@ -298,6 +328,9 @@ pub async fn preflight(
 pub struct TextEdit {
     /// Pfad relativ zum Client-Ordner (mit `/`).
     pub rel: String,
+    /// Absoluter Pfad, wenn die Datei außerhalb des Client-Ordners liegt (eigener Pfad).
+    #[serde(default)]
+    pub abs: Option<String>,
     pub added: Vec<u32>,
     pub replaced: Vec<ReplacedLine>,
 }
@@ -424,9 +457,9 @@ impl Run {
                 flags.join(", ")
             ));
         }
-        if list_files_missing(&client_dir) {
-            return Err("Im Client-Ordner gibt es keine locale/<Sprache>/item_list.txt. Bitte den Client-Pfad in den Einstellungen prüfen.".into());
-        }
+        // eigene Pfade vor dem ersten Schreiben prüfen
+        text_targets(&client_dir, "item_list.txt", opts.item_list_path.as_deref())?;
+        text_targets(&client_dir, "item_names.txt", opts.item_names_path.as_deref())?;
         if opts.write_db && !has_pool {
             return Err("Keine aktive MySQL-Verbindung. Bitte zuerst verbinden oder „nur SQL-Dateien“ wählen.".into());
         }
@@ -576,10 +609,6 @@ pub async fn import(
     Ok(run.finish())
 }
 
-fn list_files_missing(client_dir: &Path) -> bool {
-    locale_files(client_dir, "item_list.txt").is_empty()
-}
-
 fn join_vnums(v: &[u32]) -> String {
     v.iter().map(|n| n.to_string()).collect::<Vec<_>>().join(", ")
 }
@@ -594,7 +623,14 @@ fn rel_of(client_dir: &Path, p: &Path) -> String {
 }
 
 fn backup_copy(client_dir: &Path, backup_dir: &Path, target: &Path) -> Result<String, String> {
-    let rel = rel_of(client_dir, target);
+    let inside = target.starts_with(client_dir);
+    let rel = if inside {
+        rel_of(client_dir, target)
+    } else {
+        // eigener Pfad außerhalb des Clients: Sicherung unter _extern/
+        let n = std::fs::read_dir(backup_dir.join("files").join("_extern")).map(|r| r.count()).unwrap_or(0);
+        format!("_extern/{n}_{}", target.file_name().map(|f| f.to_string_lossy().into_owned()).unwrap_or_default())
+    };
     let dest = rel.split('/').fold(backup_dir.join("files"), |p, c| p.join(c));
     if let Some(parent) = dest.parent() {
         std::fs::create_dir_all(parent).map_err(|e| format!("Backup nicht anlegbar: {e}"))?;
@@ -654,9 +690,12 @@ fn apply_client(
     for (bytes, file_name, is_list) in [(list_bytes, "item_list.txt", true), (names_bytes, "item_names.txt", false)] {
         let Some(bytes) = bytes else { continue };
         let lines = textmerge::package_lines(&bytes, &wanted);
-        let targets = locale_files(client_dir, file_name);
-        if targets.is_empty() && !is_list {
-            report.notes.push("Keine item_names.txt im Client gefunden, die Namen wurden dort nicht eingetragen.".into());
+        let custom = if is_list { opts.item_list_path.as_deref() } else { opts.item_names_path.as_deref() };
+        let targets = text_targets(client_dir, file_name, custom)?;
+        if targets.is_empty() {
+            report.notes.push(format!(
+                "ÜBERSPRUNGEN: {file_name} wurde im Client nicht gefunden, es wurde nichts eingetragen. Pfad im Reiter angeben und erneut einspielen."
+            ));
             continue;
         }
         for target in targets {
@@ -669,7 +708,8 @@ fn apply_client(
                 continue;
             }
             let rel = backup_copy(client_dir, backup_dir, &target)?;
-            journal.text_edits.push(TextEdit { rel: rel.clone(), added: merged.added.clone(), replaced: merged.replaced.clone() });
+            let abs = (!target.starts_with(client_dir)).then(|| target.display().to_string());
+            journal.text_edits.push(TextEdit { rel: rel.clone(), abs, added: merged.added.clone(), replaced: merged.replaced.clone() });
             let _ = save_journal(backup_dir, journal);
             std::fs::write(&target, &merged.bytes).map_err(|e| format!("{}: {e}", target.display()))?;
             if is_list {
@@ -930,10 +970,11 @@ fn undo_client(client_dir: &Path, backup_dir: &Path, j: &Journal) -> Result<(), 
         }
     }
     for edit in &j.text_edits {
-        if !safe(&edit.rel) {
-            continue;
-        }
-        let target = edit.rel.split('/').fold(client_dir.to_path_buf(), |p, c| p.join(c));
+        let target = match &edit.abs {
+            Some(abs) => PathBuf::from(abs),
+            None if safe(&edit.rel) => edit.rel.split('/').fold(client_dir.to_path_buf(), |p, c| p.join(c)),
+            None => continue,
+        };
         match std::fs::read(&target) {
             Ok(cur) => {
                 let back = textmerge::unmerge_lines(&cur, &edit.added, &edit.replaced);
@@ -1024,6 +1065,8 @@ mod tests {
             vnums,
             guessed_paths: vec![],
             confirm_assumptions: true,
+            item_list_path: None,
+            item_names_path: None,
             write_db: false,
             write_files: true,
             out_dir: None,
@@ -1161,14 +1204,66 @@ mod tests {
     }
 
     #[test]
-    fn missing_item_list_aborts_before_writing() {
+    fn missing_text_files_are_skipped_and_reported_not_fatal() {
         let dir = temp_dir("nolist");
         let zip = build(&dir, 1, false, false);
         let pkg = Package::open(&zip).unwrap();
         let c = temp_dir("nolist2");
-        let o = opts(&zip, vec![300], ConflictMode::Overwrite);
-        assert!(run(import(pkg, c.clone(), o, None)).is_err());
-        assert!(std::fs::read_dir(&c).unwrap().next().is_none());
+        let mut o = opts(&zip, vec![300], ConflictMode::Overwrite);
+        o.out_dir = Some(dir.display().to_string());
+        let rep = run(import(pkg, c.clone(), o, None)).unwrap();
+        assert_eq!(rep.files_created, 2);
+        assert_eq!(rep.notes.iter().filter(|n| n.contains("ÜBERSPRUNGEN")).count(), 2, "{:?}", rep.notes);
+    }
+
+    #[test]
+    fn finds_text_files_without_locale_in_client_root() {
+        let dir = temp_dir("root");
+        let zip = build(&dir, 1, false, false);
+        let pkg = Package::open(&zip).unwrap();
+        let c = temp_dir("root2");
+        std::fs::write(c.join("item_list.txt"), b"100\tETC\ta.tga\r\n").unwrap();
+        let mut o = opts(&zip, vec![300], ConflictMode::Overwrite);
+        o.out_dir = Some(dir.display().to_string());
+        let rep = run(import(pkg, c.clone(), o, None)).unwrap();
+        assert_eq!(rep.list_added, 1);
+        assert!(String::from_utf8_lossy(&std::fs::read(c.join("item_list.txt")).unwrap()).contains("300\tWEAPON"));
+    }
+
+    #[test]
+    fn custom_paths_outside_client_work_and_undo() {
+        let dir = temp_dir("custom");
+        let zip = build(&dir, 1, false, false);
+        let pkg = Package::open(&zip).unwrap();
+        let c = temp_dir("custom2");
+        let extern_dir = temp_dir("custom3");
+        let list = extern_dir.join("meine_liste.txt");
+        let names = extern_dir.join("namen.txt");
+        std::fs::write(&list, b"100\tETC\ta.tga\r\n").unwrap();
+        std::fs::write(&names, b"VNUM\tLOCALE_NAME\r\n").unwrap();
+        let mut o = opts(&zip, vec![300], ConflictMode::Overwrite);
+        o.item_list_path = Some(list.display().to_string());
+        o.item_names_path = Some(names.display().to_string());
+        o.out_dir = Some(dir.display().to_string());
+        let rep = run(import(pkg, c.clone(), o, None)).unwrap();
+        assert_eq!(rep.list_added, 1);
+        assert!(std::fs::read(&names).unwrap().len() > 20);
+        run(undo(c.clone(), rep.backup_id.clone(), None)).unwrap();
+        assert_eq!(std::fs::read(&list).unwrap(), b"100\tETC\ta.tga\r\n");
+        assert_eq!(std::fs::read(&names).unwrap(), b"VNUM\tLOCALE_NAME\r\n");
+    }
+
+    #[test]
+    fn wrong_custom_path_is_an_error_before_writing() {
+        let dir = temp_dir("badpath");
+        let zip = build(&dir, 1, false, false);
+        let pkg = Package::open(&zip).unwrap();
+        let c = client("badpath");
+        let mut o = opts(&zip, vec![300], ConflictMode::Overwrite);
+        o.item_list_path = Some("/gibt/es/nicht.txt".into());
+        let err = run(import(pkg, c.clone(), o, None)).unwrap_err();
+        assert!(err.contains("existiert nicht"), "{err}");
+        assert!(!c.join("icon").exists());
     }
 
     #[test]

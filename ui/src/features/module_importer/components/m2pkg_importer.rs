@@ -70,8 +70,8 @@ struct Preflight {
     existing_in_client_list: Vec<u32>,
     differing_files: Vec<String>,
     identical_files: usize,
-    item_list_files: usize,
-    item_names_files: usize,
+    item_list_files: Vec<String>,
+    item_names_files: Vec<String>,
     notes: Vec<String>,
 }
 
@@ -122,6 +122,8 @@ const KEY_DB: &str = "m2pkg_write_db";
 const KEY_FILES: &str = "m2pkg_write_files";
 const KEY_OUT: &str = "m2pkg_out_dir";
 const KEY_CONFLICT: &str = "m2pkg_conflict";
+const KEY_LIST: &str = "m2pkg_item_list_path";
+const KEY_NAMES: &str = "m2pkg_item_names_path";
 
 async fn load_setting(key: &str) -> Option<String> {
     invoke::<Option<String>>("get_setting", &json!({ "key": key })).await.ok().flatten()
@@ -165,6 +167,9 @@ pub fn M2PkgImporter(#[prop(into)] on_imported: Callback<()>) -> impl IntoView {
     let out_dir = RwSignal::new(String::new());
     // "ask" | "overwrite" | "keep"
     let conflict_pref = RwSignal::new("ask".to_string());
+    // eigene Zielpfade im Client (leer = automatisch suchen)
+    let item_list_path = RwSignal::new(String::new());
+    let item_names_path = RwSignal::new(String::new());
 
     let preflight = RwSignal::new(None::<Preflight>);
     let dialog_conflict = RwSignal::new("keep".to_string());
@@ -193,6 +198,12 @@ pub fn M2PkgImporter(#[prop(into)] on_imported: Callback<()>) -> impl IntoView {
         }
         if let Some(v) = load_setting(KEY_OUT).await {
             out_dir.set(v);
+        }
+        if let Some(v) = load_setting(KEY_LIST).await {
+            item_list_path.set(v);
+        }
+        if let Some(v) = load_setting(KEY_NAMES).await {
+            item_names_path.set(v);
         }
         if let Some(v) = load_setting(KEY_CONFLICT).await {
             if ["ask", "overwrite", "keep"].contains(&v.as_str()) {
@@ -240,6 +251,21 @@ pub fn M2PkgImporter(#[prop(into)] on_imported: Callback<()>) -> impl IntoView {
         });
     };
 
+    let choose_text_file = move |target: RwSignal<String>, key: &'static str, title: &'static str| {
+        spawn_local(async move {
+            if let Ok(Some(p)) = dialog_open_one(&OpenDialogOptions {
+                title: Some(title.into()),
+                filters: vec![DialogFilter::new("Textdatei", &["txt"])],
+                ..Default::default()
+            })
+            .await
+            {
+                target.set(p.clone());
+                save_setting(key, p);
+            }
+        });
+    };
+
     // Items mit angenommenen AntiFlags unter den gewählten
     let flagged = Memo::new(move |_| {
         inspect.with(|i| {
@@ -281,6 +307,8 @@ pub fn M2PkgImporter(#[prop(into)] on_imported: Callback<()>) -> impl IntoView {
             "vnums": vnums,
             "guessed_paths": g,
             "confirm_assumptions": confirm_flags.get_untracked(),
+            "item_list_path": item_list_path.get_untracked(),
+            "item_names_path": item_names_path.get_untracked(),
             "write_db": write_db.get_untracked(),
             "write_files": write_files.get_untracked(),
             "out_dir": out_dir.get_untracked(),
@@ -460,33 +488,52 @@ pub fn M2PkgImporter(#[prop(into)] on_imported: Callback<()>) -> impl IntoView {
 
                         {move || {
                             let g = guessed_files.get();
-                            (!g.is_empty()).then(|| view! {
-                                <div class="space-y-1 rounded-md border border-border p-3">
-                                    <p class="text-sm font-medium">"Vermutete Dateien"</p>
-                                    <p class="text-xs text-muted-foreground">
-                                        "Diese Dateien sind nur nach Namen zugeordnet und werden nicht ungefragt übernommen. Anhaken, was mit soll."
-                                    </p>
-                                    {g.into_iter().map(|(path, (role, size, used))| {
-                                        let p1 = path.clone();
-                                        let p2 = path.clone();
-                                        view! {
-                                            <label class="flex items-center gap-2 text-xs">
-                                                <input
-                                                    type="checkbox"
-                                                    prop:checked=move || guessed_ok.with(|g| g.contains(&p1))
-                                                    on:change=move |e| {
-                                                        let c = event_target_checked(&e);
-                                                        let p = p2.clone();
-                                                        guessed_ok.update(|g| { if c { g.insert(p); } else { g.remove(&p); } });
-                                                    }
-                                                />
-                                                <span>{role_label(&role)}</span>
-                                                <code class="break-all">{path.trim_start_matches("client/").to_string()}</code>
-                                                <span class="text-muted-foreground">{bytes(size)} {(used > 1).then(|| format!(" · {used} Items"))}</span>
-                                            </label>
-                                        }
-                                    }).collect_view()}
-                                </div>
+                            (!g.is_empty()).then(|| {
+                                let effects: Vec<String> = g.iter().filter(|(_, (r, _, _))| r == "effect").map(|(p, _)| p.clone()).collect();
+                                let n_effects = effects.len();
+                                let open_effects = move || guessed_ok.with(|s| effects.iter().filter(|p| !s.contains(*p)).count());
+                                let effects_all = g.iter().filter(|(_, (r, _, _))| r == "effect").map(|(p, _)| p.clone()).collect::<Vec<_>>();
+                                let mut sorted = g.clone();
+                                // Effekte (.msm/.mse) zuerst, damit sie nicht untergehen
+                                sorted.sort_by_key(|(_, (r, _, _))| if r == "effect" { 0 } else { 1 });
+                                view! {
+                                    <div class="space-y-1 rounded-md border border-border p-3">
+                                        <p class="text-sm font-medium">"Vermutete Dateien"</p>
+                                        <p class="text-xs text-muted-foreground">
+                                            "Diese Dateien sind nur nach Namen zugeordnet und werden nicht ungefragt übernommen. Anhaken, was mit soll."
+                                        </p>
+                                        {(n_effects > 0).then(|| view! {
+                                            <div class="flex flex-wrap items-center gap-2 rounded-md bg-muted/50 p-2 text-xs">
+                                                <span>{n_effects} " Effekt-Datei(en) (.msm/.mse) gehören zu den Modellen. "
+                                                    <strong>{move || open_effects()}</strong> " davon sind noch nicht angehakt."</span>
+                                                <Button variant=ButtonVariant::Outline size=ButtonSize::Xs on_click=move |_| {
+                                                    let all = effects_all.clone();
+                                                    guessed_ok.update(|g| g.extend(all));
+                                                }>"Alle Effekte anhaken"</Button>
+                                            </div>
+                                        })}
+                                        {sorted.into_iter().map(|(path, (role, size, used))| {
+                                            let p1 = path.clone();
+                                            let p2 = path.clone();
+                                            view! {
+                                                <label class="flex items-center gap-2 text-xs">
+                                                    <input
+                                                        type="checkbox"
+                                                        prop:checked=move || guessed_ok.with(|g| g.contains(&p1))
+                                                        on:change=move |e| {
+                                                            let c = event_target_checked(&e);
+                                                            let p = p2.clone();
+                                                            guessed_ok.update(|g| { if c { g.insert(p); } else { g.remove(&p); } });
+                                                        }
+                                                    />
+                                                    <span>{role_label(&role)}</span>
+                                                    <code class="break-all">{path.trim_start_matches("client/").to_string()}</code>
+                                                    <span class="text-muted-foreground">{bytes(size)} {(used > 1).then(|| format!(" · {used} Items"))}</span>
+                                                </label>
+                                            }
+                                        }).collect_view()}
+                                    </div>
+                                }
                             })
                         }}
 
@@ -555,6 +602,29 @@ pub fn M2PkgImporter(#[prop(into)] on_imported: Callback<()>) -> impl IntoView {
                                     <Button variant=ButtonVariant::Outline size=ButtonSize::Xs on_click=move |_| choose_out_dir()>"Wählen…"</Button>
                                 </div>
                             })}
+                            <div class="space-y-1 text-xs">
+                                <p class="text-muted-foreground">
+                                    "Zieldateien im Client: leer lassen = automatisch suchen (locale/<Sprache>/, locale/, Client-Ordner). "
+                                    "Wird eine Datei nicht gefunden, hier den Pfad angeben, sonst wird sie übersprungen."
+                                </p>
+                                {[
+                                    ("item_list.txt", item_list_path, KEY_LIST),
+                                    ("item_names.txt", item_names_path, KEY_NAMES),
+                                ].into_iter().map(|(label, sig, key)| view! {
+                                    <div class="flex flex-wrap items-center gap-2">
+                                        <span class="w-24 text-muted-foreground">{label}</span>
+                                        <input
+                                            class="w-80 rounded-md border border-border bg-background px-2 py-1"
+                                            placeholder="automatisch"
+                                            prop:value=move || sig.get()
+                                            on:input=move |e| sig.set(event_target_value(&e))
+                                            on:change=move |e| save_setting(key, event_target_value(&e))
+                                        />
+                                        <Button variant=ButtonVariant::Outline size=ButtonSize::Xs on_click=move |_| choose_text_file(sig, key, "Zieldatei im Client wählen")>"Wählen…"</Button>
+                                        <Button variant=ButtonVariant::Ghost size=ButtonSize::Xs on_click=move |_| { sig.set(String::new()); save_setting(key, String::new()); }>"Zurücksetzen"</Button>
+                                    </div>
+                                }).collect_view()}
+                            </div>
                             <label class="flex flex-wrap items-center gap-2">
                                 "Vorhandene Vnum:"
                                 <select
@@ -671,14 +741,21 @@ pub fn M2PkgImporter(#[prop(into)] on_imported: Callback<()>) -> impl IntoView {
                 let db_list = p.existing_in_db.clone().unwrap_or_default();
                 let conflicts = !db_list.is_empty() || !p.existing_in_client_list.is_empty() || !p.differing_files.is_empty();
                 let ask = conflict_pref.get() == "ask";
-                let blocked = p.item_list_files == 0;
+                let blocked = false;
                 view! {
                     <div class="fixed inset-0 z-50 flex items-center justify-center bg-black/50">
                         <div class="max-h-[85vh] w-[34rem] space-y-3 overflow-y-auto rounded-lg border border-border bg-card p-4">
                             <p class="text-sm font-medium">{sel} " Item(s) jetzt einspielen?"</p>
                             <ul class="list-disc space-y-1 pl-5 text-sm text-muted-foreground">
                                 <li>"Vorher wird alles gesichert (Dateien, Textzeilen" {write_db.get().then_some(", item_proto-Zeilen")} ")"</li>
-                                <li>"item_list.txt in " {p.item_list_files} " Sprache(n), item_names.txt in " {p.item_names_files}</li>
+                                <li>
+                                    "item_list.txt: "
+                                    {if p.item_list_files.is_empty() { "nicht gefunden (wird übersprungen)".to_string() } else { p.item_list_files.join(", ") }}
+                                </li>
+                                <li>
+                                    "item_names.txt: "
+                                    {if p.item_names_files.is_empty() { "nicht gefunden (wird übersprungen)".to_string() } else { p.item_names_files.join(", ") }}
+                                </li>
                                 {write_db.get().then(|| view! { <li>"Server: direkt in MySQL (player.item_proto)"</li> })}
                                 {write_files.get().then(|| view! { <li>"Server: SQL-Dateien werden bereitgestellt"</li> })}
                                 <li>{p.identical_files} " Client-Datei(en) sind schon identisch vorhanden"</li>

@@ -6,6 +6,17 @@ nach [SemVer](https://semver.org/) (`MAJOR.MINOR.PATCH`, solange < 1.0 gilt
 `MINOR` für neue Features, `PATCH` für reine Fixes). Für die vollständige
 Feature-Historie mit allen Details siehe `STATUS.md`.
 
+## [Unveröffentlicht]
+
+### Behoben
+
+- **Paket-Import findet Textdateien im Client**: Die Suche nach `item_list.txt` und `item_names.txt` schaut jetzt nicht nur in `locale/<Sprache>/`, sondern auch direkt in `locale/` und im Client-Ordner. Fehlt eine der Dateien, bricht der Import nicht mehr ab, sondern überspringt sie und meldet das im Bericht deutlich.
+
+### Hinzugefügt
+
+- **Eigene Zielpfade im Paket-Import**: Im Reiter „Paket-Import (DB-Tool)“ lassen sich `item_list.txt` und `item_names.txt` per Dateiauswahl von Hand angeben (wird gespeichert). Die Vorprüfung zeigt, welche Dateien verwendet werden; auch „Rückgängig machen“ funktioniert für Dateien außerhalb des Client-Ordners.
+- **Effekt-Dateien (.msm/.mse) gut sichtbar**: Vermutete Effekt-Dateien stehen in der Liste der vermuteten Dateien ganz oben, mit Zähler und Knopf „Alle Effekte anhaken“. Sie werden wie alle vermuteten Dateien nur mitkopiert, wenn man sie anhakt.
+
 ## [0.40.2] - 2026-11-15
 
 ### Hinzugefügt
