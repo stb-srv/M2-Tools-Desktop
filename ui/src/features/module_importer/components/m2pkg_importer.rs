@@ -355,6 +355,27 @@ pub fn M2PkgImporter(#[prop(into)] on_imported: Callback<()>) -> impl IntoView {
         });
     };
 
+    // Nutzt die vorhandenen Befehle des Item-Editors: mysql2proto laufen lassen,
+    // dann die erzeugte item_proto in die Client-Ordner legen (mit Backup).
+    let proto_busy = RwSignal::new(false);
+    let proto_msg = RwSignal::new(None::<String>);
+    let rebuild_proto = move || {
+        proto_busy.set(true);
+        proto_msg.set(None);
+        spawn_local(async move {
+            let res: Result<Vec<String>, String> = async {
+                let generated = invoke::<String>("regenerate_item_proto", &json!({})).await?;
+                invoke::<Vec<String>>("deploy_item_proto", &json!({ "generatedProtoPath": generated })).await
+            }
+            .await;
+            proto_msg.set(Some(match res {
+                Ok(paths) => format!("item_proto erzeugt und eingespielt: {}", paths.join(", ")),
+                Err(e) => format!("item_proto konnte nicht erzeugt werden: {e}"),
+            }));
+            proto_busy.set(false);
+        });
+    };
+
     let run_undo = move |id: String| {
         undo_confirm.set(None);
         undoing.set(true);
@@ -604,8 +625,9 @@ pub fn M2PkgImporter(#[prop(into)] on_imported: Callback<()>) -> impl IntoView {
                             })}
                             <div class="space-y-1 text-xs">
                                 <p class="text-muted-foreground">
-                                    "Zieldateien im Client: leer lassen = automatisch suchen (locale/<Sprache>/, locale/, Client-Ordner). "
-                                    "Wird eine Datei nicht gefunden, hier den Pfad angeben, sonst wird sie übersprungen."
+                                    "Zieldateien im Client, leer lassen = automatisch suchen (locale/<Sprache>/, locale/, Client-Ordner). "
+                                    "item_list.txt ist wichtig (Icon und Modell der Items); wird sie nicht gefunden, hier den Pfad angeben, sonst wird sie übersprungen. "
+                                    "item_names.txt ist optional und gibt es bei vielen Clients nicht: die Namen kommen dann über die item_proto (per mysql2proto aus der Datenbank erzeugt)."
                                 </p>
                                 {[
                                     ("item_list.txt", item_list_path, KEY_LIST),
@@ -661,6 +683,7 @@ pub fn M2PkgImporter(#[prop(into)] on_imported: Callback<()>) -> impl IntoView {
 
             {move || report.get().map(|r| {
                 let id = r.backup_id.clone();
+                let has_db = r.db_written.is_some();
                 view! {
                     <section class="space-y-2 rounded-lg border border-border p-4 text-sm">
                         <h2 class="text-base font-medium">"Bericht"</h2>
@@ -687,9 +710,20 @@ pub fn M2PkgImporter(#[prop(into)] on_imported: Callback<()>) -> impl IntoView {
                         {(!r.files_kept.is_empty()).then(|| view! {
                             <p class="text-xs text-muted-foreground">"Behalten (schon vorhanden): " {r.files_kept.join(", ")}</p>
                         })}
-                        <p class="text-xs text-muted-foreground">
-                            "Hinweis: Die Client-Datei item_proto (Binärdatei) wird hier nicht erzeugt. Bitte wie gewohnt neu erzeugen und packen."
-                        </p>
+                        {has_db.then(|| view! {
+                            <div class="flex flex-wrap items-center gap-2 rounded-md bg-muted/50 p-2 text-xs">
+                                <span>"Damit die Items im Client mit Namen und Werten erscheinen, muss die Client-item_proto neu erzeugt werden (mysql2proto, Einstellung wie im Item-Editor)."</span>
+                                <Button
+                                    variant=ButtonVariant::Outline
+                                    size=ButtonSize::Xs
+                                    disabled=Signal::derive(move || proto_busy.get())
+                                    on_click=move |_| rebuild_proto()
+                                >
+                                    {move || if proto_busy.get() { "Erzeuge…" } else { "Client-item_proto jetzt erzeugen und einspielen" }}
+                                </Button>
+                            </div>
+                        })}
+                        {move || proto_msg.get().map(|m| view! { <p class="text-xs">{m}</p> })}
                         <p class="text-xs text-muted-foreground">"Backup: " <code class="break-all">{r.backup_dir.clone()}</code></p>
                         <Button variant=ButtonVariant::Destructive size=ButtonSize::Sm on_click=move |_| undo_confirm.set(Some(id.clone()))>
                             <Icon name="Undo2" class="size-3.5"/>

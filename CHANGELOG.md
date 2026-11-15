@@ -6,6 +6,16 @@ nach [SemVer](https://semver.org/) (`MAJOR.MINOR.PATCH`, solange < 1.0 gilt
 `MINOR` für neue Features, `PATCH` für reine Fixes). Für die vollständige
 Feature-Historie mit allen Details siehe `STATUS.md`.
 
+## [Unveröffentlicht]
+
+### Geändert
+
+- **Paket-Import: item_names.txt ist optional**: Gibt es die Datei im Client nicht, wird sie ohne Fehler übersprungen. Der Bericht erklärt dann, dass die Namen über die item_proto kommen. Die Beschreibung der Zieldateien im Reiter sagt jetzt klar, was wichtig (item_list.txt) und was optional ist.
+
+### Hinzugefügt
+
+- **Paket-Import: nächster Schritt und Knopf für die item_proto**: Nach dem Einspielen weist der Bericht darauf hin, dass die Client-item_proto neu erzeugt werden muss. Wurde in MySQL geschrieben, startet der Knopf „Client-item_proto jetzt erzeugen und einspielen“ mysql2proto und legt die Datei in den Client (mit Backup, wie im Item-Editor).
+
 ## [1.0.0] - 2026-11-15
 
 ### Behoben

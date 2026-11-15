@@ -305,7 +305,7 @@ pub async fn preflight(
         notes.push("Keine item_list.txt gefunden. Ohne sie bekommen die Items im Client kein Icon und kein Modell. Bitte unten den Pfad angeben, sonst wird die Datei übersprungen.".into());
     }
     if names_files.is_empty() {
-        notes.push("Keine item_names.txt gefunden. Ohne Pfad werden die Namen dort nicht eingetragen (übersprungen).".into());
+        notes.push("Keine item_names.txt gefunden. Das ist in Ordnung: die Datei ist optional, die Namen kommen im Client über die item_proto (aus der Datenbank per mysql2proto erzeugt).".into());
     }
     let existing_in_db = match pool {
         Some(pool) => Some(existing_db_vnums(&pool, &vnums.iter().copied().collect::<Vec<_>>()).await?.into_iter().collect()),
@@ -555,6 +555,11 @@ impl Run {
     }
 
     fn finish(mut self) -> ApplyReport {
+        self.report.notes.push(if self.report.db_written.is_some() {
+            "Nächster Schritt: Die Namen und Werte kommen im Client über die item_proto. Sie jetzt per mysql2proto aus der Datenbank neu erzeugen und in den Client legen (Knopf unten).".to_string()
+        } else {
+            "Nächster Schritt: Das SQL aus den bereitgestellten Dateien in die Live-Datenbank einspielen, danach die Client-item_proto per mysql2proto neu erzeugen und in den Client legen.".to_string()
+        });
         if self.opts.write_files {
             match write_server_files(&self.pkg, &self.opts, &self.vnums, self.sql_name, &self.sql_text) {
                 Ok(paths) => self.report.server_files = paths,
@@ -693,9 +698,11 @@ fn apply_client(
         let custom = if is_list { opts.item_list_path.as_deref() } else { opts.item_names_path.as_deref() };
         let targets = text_targets(client_dir, file_name, custom)?;
         if targets.is_empty() {
-            report.notes.push(format!(
-                "ÜBERSPRUNGEN: {file_name} wurde im Client nicht gefunden, es wurde nichts eingetragen. Pfad im Reiter angeben und erneut einspielen."
-            ));
+            report.notes.push(if is_list {
+                "ÜBERSPRUNGEN: item_list.txt wurde im Client nicht gefunden. Ohne sie bekommen die Items kein Icon und kein Modell. Pfad im Reiter angeben und erneut einspielen.".to_string()
+            } else {
+                "item_names.txt übersprungen: die Datei ist optional und gibt es bei diesem Client nicht. Die Namen kommen über die item_proto (aus der Datenbank per mysql2proto erzeugt).".to_string()
+            });
             continue;
         }
         for target in targets {
@@ -1213,7 +1220,9 @@ mod tests {
         o.out_dir = Some(dir.display().to_string());
         let rep = run(import(pkg, c.clone(), o, None)).unwrap();
         assert_eq!(rep.files_created, 2);
-        assert_eq!(rep.notes.iter().filter(|n| n.contains("ÜBERSPRUNGEN")).count(), 2, "{:?}", rep.notes);
+        assert_eq!(rep.notes.iter().filter(|n| n.contains("ÜBERSPRUNGEN: item_list.txt")).count(), 1, "{:?}", rep.notes);
+        assert!(rep.notes.iter().any(|n| n.contains("item_names.txt übersprungen") && n.contains("optional")));
+        assert!(rep.notes.iter().any(|n| n.contains("Nächster Schritt")));
     }
 
     #[test]
