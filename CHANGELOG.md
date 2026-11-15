@@ -6,6 +6,15 @@ nach [SemVer](https://semver.org/) (`MAJOR.MINOR.PATCH`, solange < 1.0 gilt
 `MINOR` für neue Features, `PATCH` für reine Fixes). Für die vollständige
 Feature-Historie mit allen Details siehe `STATUS.md`.
 
+## [Unveröffentlicht]
+
+### Hinzugefügt
+
+- **Paket-Import für DB-Tool-Pakete**: Im Item-Importer gibt es einen neuen Reiter „Paket-Import (DB-Tool)“. Er liest Import-Pakete im Format m2pkg (ZIP aus dem DB-Tool) und nimmt alles aus dem Paket selbst: Items, Namen und Dateizuordnung. Dateien, die sich mehrere Items teilen (z. B. 8 Waffen mit demselben Modell), stehen nur einmal im Paket und werden jedem Item zugeordnet. So entstehen bei einem Paket mit 56 Waffen auch wirklich 56 Items mit den richtigen Namen. Der bisherige Datei-/Ordner-Import bleibt unverändert.
+- **Prüfung vor dem Import**: Format-Version und alle Prüfsummen des Pakets werden geprüft; bei einem Fehler wird nichts geschrieben. Die Vorschau zeigt jedes Item mit Icon, Name und den Warnungen aus dem Paket.
+- **Vermutete Dateien und angenommene AntiFlags**: Dateien, die nur nach dem Namen zugeordnet sind, werden nicht ungefragt übernommen und lassen sich einzeln anhaken. Angenommene AntiFlags (Standard-Layout von Metin2, nicht aus den Daten belegt) müssen vor dem Einspielen ausdrücklich bestätigt werden.
+- **Einspielen mit Backup und Rückgängig**: Client-Dateien kommen in den eingestellten Client-Ordner, `item_list.txt` und `item_names.txt` werden um die Zeilen ergänzt (vorhandene Vnum werden nicht doppelt eingetragen). Für den Server wählbar: SQL direkt in MySQL schreiben, nur SQL-Dateien bereitstellen oder beides. Bei bereits vorhandenen Vnum kann man überschreiben, behalten oder pro Import fragen. Vorher werden die betroffenen Dateien, Textzeilen und `item_proto`-Zeilen gesichert; nach dem Import gibt es einen Bericht und einen Knopf „Rückgängig machen“, auch später aus der Liste „Eingespielte Pakete“.
+
 ## [0.40.1] - 2026-11-13
 
 ### Hinzugefügt

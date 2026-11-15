@@ -25,6 +25,7 @@ mod import_history;
 mod item_presets;
 mod itemdesc;
 mod locale;
+mod m2pkg;
 mod mapdata;
 mod mobdrop;
 mod modulescan;
@@ -188,6 +189,11 @@ pub fn run() {
             commands::list_item_presets,
             commands::delete_item_preset,
             commands::scan_module,
+            commands::m2pkg_inspect,
+            commands::m2pkg_preflight,
+            commands::m2pkg_import,
+            commands::m2pkg_list_imports,
+            commands::m2pkg_undo,
             commands::scan_icon_folder,
             commands::import_weapon_model,
             commands::next_free_shape_index,
