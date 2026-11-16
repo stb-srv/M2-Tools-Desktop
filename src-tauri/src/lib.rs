@@ -190,6 +190,7 @@ pub fn run() {
             commands::delete_item_preset,
             commands::scan_module,
             commands::m2pkg_inspect,
+            commands::m2pkg_icons,
             commands::m2pkg_preflight,
             commands::m2pkg_import,
             commands::m2pkg_list_imports,

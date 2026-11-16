@@ -7,6 +7,7 @@ use std::collections::BTreeMap;
 use std::fs::File;
 use std::io::{Read, Write};
 use std::path::{Path, PathBuf};
+use std::sync::Mutex;
 
 pub const SUPPORTED_FORMAT_VERSION: u64 = 1;
 
@@ -86,7 +87,8 @@ impl Manifest {
     }
 }
 
-/// Geöffnetes, vollständig geprüftes Paket.
+/// Geöffnetes, vollständig geprüftes Paket. Das ZIP-Archiv bleibt offen, damit
+/// Einzelzugriffe (Icons, Dateien) nicht bei jedem Mal das Zentralverzeichnis neu lesen.
 pub struct Package {
     pub path: PathBuf,
     pub manifest: Manifest,
@@ -94,6 +96,7 @@ pub struct Package {
     pub entries: BTreeMap<String, u64>,
     /// Pfad im ZIP → geprüfte SHA-256
     pub hashes: BTreeMap<String, String>,
+    archive: Mutex<Archive>,
 }
 
 /// `..`, absolute Pfade, `\`, `:` und leere Teile sind in einem Paket nie erlaubt.
@@ -193,17 +196,23 @@ impl Package {
         let manifest: Manifest =
             serde_json::from_value(raw).map_err(|e| format!("manifest.json ist unvollständig oder fehlerhaft: {e}"))?;
 
-        let mut pkg = Package { path: path.to_path_buf(), manifest, entries, hashes: BTreeMap::new() };
-        pkg.verify_checksums(&mut ar)?;
+        let mut pkg = Package {
+            path: path.to_path_buf(),
+            manifest,
+            entries,
+            hashes: BTreeMap::new(),
+            archive: Mutex::new(ar),
+        };
+        pkg.verify_checksums()?;
         pkg.verify_manifest_files()?;
         Ok(pkg)
     }
 
-    fn verify_checksums(&mut self, ar: &mut Archive) -> Result<(), String> {
+    fn verify_checksums(&mut self) -> Result<(), String> {
         if !self.entries.contains_key("checksums.sha256") {
             return Err("checksums.sha256 fehlt im Paket. Ohne Prüfsummen wird nicht importiert.".into());
         }
-        let text = String::from_utf8(read_entry(ar, "checksums.sha256")?)
+        let text = String::from_utf8(self.read("checksums.sha256")?)
             .map_err(|_| "checksums.sha256 ist kein gültiger UTF-8-Text".to_string())?;
         let listed = parse_checksums(&text)?;
         let mut problems: Vec<String> = Vec::new();
@@ -215,8 +224,11 @@ impl Package {
                 problems.push(format!("{name}: fehlt im ZIP"));
                 continue;
             }
-            let mut f = ar.by_name(name).map_err(|e| format!("{name}: {e}"))?;
-            let actual = sha256_reader(&mut f)?;
+            let actual = {
+                let mut ar = self.lock_archive()?;
+                let mut f = ar.by_name(name).map_err(|e| format!("{name}: {e}"))?;
+                sha256_reader(&mut f)?
+            };
             if &actual != hash {
                 problems.push(format!("{name}: Prüfsumme stimmt nicht"));
             }
@@ -263,8 +275,12 @@ impl Package {
 
     /// Liest einen ZIP-Eintrag komplett.
     pub fn read(&self, name: &str) -> Result<Vec<u8>, String> {
-        let mut ar = open_archive(&self.path)?;
+        let mut ar = self.lock_archive()?;
         read_entry(&mut ar, name)
+    }
+
+    fn lock_archive(&self) -> Result<std::sync::MutexGuard<'_, Archive>, String> {
+        self.archive.lock().map_err(|_| "ZIP-Archiv ist nicht mehr verfügbar.".to_string())
     }
 
     pub fn read_optional(&self, name: &str) -> Result<Option<Vec<u8>>, String> {
@@ -277,7 +293,7 @@ impl Package {
 
     /// Schreibt einen ZIP-Eintrag und gibt dessen Prüfsumme zurück.
     pub fn extract_to(&self, name: &str, dest: &Path) -> Result<String, String> {
-        let mut ar = open_archive(&self.path)?;
+        let mut ar = self.lock_archive()?;
         let mut f = ar.by_name(name).map_err(|e| format!("{name}: {e}"))?;
         let mut out = File::create(dest).map_err(|e| format!("{}: {e}", dest.display()))?;
         let mut hasher = Sha256::new();

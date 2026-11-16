@@ -10,7 +10,19 @@ use leptos::prelude::*;
 use leptos::task::spawn_local;
 use serde::Deserialize;
 use serde_json::json;
-use std::collections::{BTreeMap, HashSet};
+use std::collections::{BTreeMap, HashMap, HashSet};
+
+/// Vorschaubilder der Icons nach und nach holen (je 300 Pfade pro Anfrage), damit die Liste sofort erscheint.
+fn load_icons(zip: String, paths: Vec<String>, icons: RwSignal<HashMap<String, String>>) {
+    spawn_local(async move {
+        for chunk in paths.chunks(300) {
+            let req = json!({ "zipPath": zip, "paths": chunk });
+            if let Ok(m) = invoke::<HashMap<String, String>>("m2pkg_icons", &req).await {
+                icons.update(|h| h.extend(m));
+            }
+        }
+    });
+}
 
 #[derive(Clone, Debug, PartialEq, Deserialize)]
 struct Warning {
@@ -41,7 +53,7 @@ struct PkgItem {
     vnum: u32,
     name: Option<String>,
     item_type: String,
-    icon_data_url: Option<String>,
+    icon_file: Option<String>,
     files: Vec<PkgFile>,
     assumed_antiflags: Vec<String>,
     warnings: Vec<Warning>,
@@ -161,6 +173,7 @@ fn role_label(role: &str) -> &'static str {
 #[component]
 pub fn M2PkgImporter(#[prop(into)] on_imported: Callback<()>) -> impl IntoView {
     let inspect = RwSignal::new(None::<Inspect>);
+    let icons = RwSignal::new(HashMap::<String, String>::new());
     let loading = RwSignal::new(false);
     let error = RwSignal::new(None::<String>);
     let selected = RwSignal::new(HashSet::<u32>::new());
@@ -242,6 +255,11 @@ pub fn M2PkgImporter(#[prop(into)] on_imported: Callback<()>) -> impl IntoView {
                     selected.set(i.items.iter().map(|x| x.vnum).collect());
                     guessed_ok.set(HashSet::new());
                     confirm_flags.set(false);
+                    let mut icon_paths: Vec<String> = i.items.iter().filter_map(|x| x.icon_file.clone()).collect();
+                    icon_paths.sort();
+                    icon_paths.dedup();
+                    icons.set(HashMap::new());
+                    load_icons(path.clone(), icon_paths, icons);
                     inspect.set(Some(i));
                 }
                 Err(e) => error.set(Some(e)),
@@ -494,7 +512,8 @@ pub fn M2PkgImporter(#[prop(into)] on_imported: Callback<()>) -> impl IntoView {
                                             }
                                         />
                                         <div class="flex size-10 shrink-0 items-center justify-center rounded border border-border bg-muted/40">
-                                            {match it.icon_data_url.clone() {
+                                            {let icon_key = it.icon_file.clone().unwrap_or_default();
+                                            move || match icons.with(|m| m.get(&icon_key).cloned()) {
                                                 Some(u) => view! { <img src=u class="max-h-10 max-w-10 [image-rendering:pixelated]"/> }.into_any(),
                                                 None => view! { <Icon name="Package" class="size-4 text-muted-foreground"/> }.into_any(),
                                             }}

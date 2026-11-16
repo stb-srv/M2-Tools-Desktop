@@ -43,7 +43,8 @@ pub struct InspectItem {
     pub item_type: String,
     pub icon_path: Option<String>,
     pub model_path: Option<String>,
-    pub icon_data_url: Option<String>,
+    /// ZIP-Pfad der Icon-Datei. Das Vorschaubild holt die Oberfläche separat (`m2pkg_icons`).
+    pub icon_file: Option<String>,
     pub files: Vec<InspectFile>,
     pub assumed_antiflags: Vec<String>,
     pub warnings: Vec<Warning>,
@@ -68,16 +69,42 @@ pub struct Inspect {
     pub has_sql: bool,
 }
 
-fn icon_data_url(bytes: &[u8], path: &str) -> Option<String> {
+/// Kantenlänge der Vorschaubilder in der Paket-Vorschau (Pixel).
+const ICON_PREVIEW_PX: u32 = 40;
+
+/// Icon aus den Bytes als kleines PNG (Data-URL). Verkleinert, damit die Antwort klein bleibt.
+fn thumbnail_data_url(bytes: &[u8], path: &str) -> Option<String> {
     let format = if path.to_ascii_lowercase().ends_with(".tga") {
         image::ImageFormat::Tga
     } else {
         image::guess_format(bytes).ok()?
     };
     let img = image::load_from_memory_with_format(bytes, format).ok()?;
+    let small = img.thumbnail(ICON_PREVIEW_PX, ICON_PREVIEW_PX);
     let mut png = Vec::new();
-    img.write_to(&mut std::io::Cursor::new(&mut png), image::ImageFormat::Png).ok()?;
+    small.write_to(&mut std::io::Cursor::new(&mut png), image::ImageFormat::Png).ok()?;
     Some(format!("data:image/png;base64,{}", base64::engine::general_purpose::STANDARD.encode(png)))
+}
+
+/// Vorschaubilder für die angegebenen ZIP-Pfade. Liest nur diese Einträge, ohne die Prüfsummen des
+/// ganzen Pakets erneut zu rechnen (die Vorschau ist nur Anzeige, eingespielt wird weiter geprüft).
+/// Einträge, die fehlen oder nicht dekodierbar sind, fehlen im Ergebnis.
+pub fn icon_thumbnails(zip_path: &Path, paths: &[String]) -> Result<HashMap<String, String>, String> {
+    use std::io::Read;
+    let file = std::fs::File::open(zip_path).map_err(|e| format!("ZIP-Datei nicht lesbar: {e}"))?;
+    let mut ar = zip::ZipArchive::new(file).map_err(|e| format!("Das ist keine gültige ZIP-Datei: {e}"))?;
+    let mut out = HashMap::new();
+    for p in paths {
+        let Ok(mut entry) = ar.by_name(p) else { continue };
+        let mut buf = Vec::new();
+        if entry.read_to_end(&mut buf).is_err() {
+            continue;
+        }
+        if let Some(url) = thumbnail_data_url(&buf, p) {
+            out.insert(p.clone(), url);
+        }
+    }
+    Ok(out)
 }
 
 fn sql_vnums(pkg: &Package) -> Result<BTreeSet<u32>, String> {
@@ -96,28 +123,21 @@ pub fn inspect(pkg: &Package, zip_path: &str) -> Result<Inspect, String> {
             *usage.entry(f.path.as_str()).or_default() += 1;
         }
     }
-    let mut icons: HashMap<String, Option<String>> = HashMap::new();
     let mut items = Vec::new();
     for item in &m.items {
         let icon_file = item
             .files
             .iter()
             .find(|f| f.role == "icon" && !f.guessed)
-            .or_else(|| item.files.iter().find(|f| f.role == "icon"));
-        let icon = match icon_file {
-            Some(f) => icons
-                .entry(f.path.clone())
-                .or_insert_with(|| pkg.read(&f.path).ok().and_then(|b| icon_data_url(&b, &f.path)))
-                .clone(),
-            None => None,
-        };
+            .or_else(|| item.files.iter().find(|f| f.role == "icon"))
+            .map(|f| f.path.clone());
         items.push(InspectItem {
             vnum: item.vnum,
             name: item.name.clone(),
             item_type: item.item_type.clone(),
             icon_path: item.icon_path.clone(),
             model_path: item.model_path.clone(),
-            icon_data_url: icon,
+            icon_file,
             files: item
                 .files
                 .iter()
@@ -160,10 +180,35 @@ pub enum ConflictMode {
     Keep,
 }
 
+fn default_true() -> bool {
+    true
+}
+
+/// `pack/<Ordner>` (erste Ebene nach `client/pack/`) aller Dateien, die die gewählten Items im Paket brauchen.
+pub fn touched_pack_folders(pkg: &Package, vnums: &[u32]) -> Vec<String> {
+    let mut out: BTreeSet<String> = BTreeSet::new();
+    for item in pkg.manifest.items.iter().filter(|i| vnums.contains(&i.vnum)) {
+        for f in &item.files {
+            if let Some(rest) = f.path.strip_prefix("client/pack/") {
+                if let Some(folder) = rest.split('/').next() {
+                    if !folder.is_empty() {
+                        out.insert(folder.to_string());
+                    }
+                }
+            }
+        }
+    }
+    out.into_iter().collect()
+}
+
 #[derive(Debug, Clone, Deserialize)]
 pub struct ApplyOptions {
     pub zip_path: String,
     pub vnums: Vec<u32>,
+    /// Nach dem Einspielen die berührten `pack/<Ordner>` neu packen (`.epk`). Ohne das sieht der Client
+    /// neue Dateien nicht, weil er die gepackten Archive liest. Standard: an.
+    #[serde(default = "default_true")]
+    pub repack: bool,
     /// Vermutete Dateien (`guessed`), die ausdrücklich mitgenommen werden sollen.
     #[serde(default)]
     pub guessed_paths: Vec<String>,
@@ -697,6 +742,20 @@ fn apply_client(
             "Das Paket enthält für die gewählten Items keine Client-Dateien (Icons, Modelle, Texturen); kopiert werden konnte nichts.".to_string()
         });
     }
+    // Neue Dateien stehen vorab im Journal, mit einem einzigen Speichern. Das Rückgängigmachen überspringt
+    // Dateien, die es nicht gibt. Vorher wurde das Journal nach jeder Datei neu geschrieben (quadratisch).
+    let new_rels: Vec<String> = planned
+        .iter()
+        .filter_map(|(zip_path, _)| {
+            let target = client_target(client_dir, zip_path).ok()?;
+            (!target.exists()).then(|| rel_of(client_dir, &target))
+        })
+        .collect();
+    if !new_rels.is_empty() {
+        journal.files_created.extend(new_rels);
+        save_journal(backup_dir, journal)?;
+    }
+
     for (zip_path, f) in planned {
         let target = client_target(client_dir, zip_path)?;
         let rel = rel_of(client_dir, &target);
@@ -714,15 +773,13 @@ fn apply_client(
             }
             backup_copy(client_dir, backup_dir, &target)?;
             journal.files_replaced.push(rel.clone());
-            let _ = save_journal(backup_dir, journal);
+            save_journal(backup_dir, journal)?;
             write_verified(pkg, zip_path, &target, &f.sha256)?;
             report.files_replaced += 1;
         } else {
             if let Some(parent) = target.parent() {
                 std::fs::create_dir_all(parent).map_err(|e| format!("{}: {e}", parent.display()))?;
             }
-            journal.files_created.push(rel);
-            let _ = save_journal(backup_dir, journal);
             write_verified(pkg, zip_path, &target, &f.sha256)?;
             report.files_created += 1;
         }
@@ -1126,6 +1183,7 @@ mod tests {
             write_db: false,
             write_files: true,
             out_dir: None,
+            repack: false,
             conflict,
         }
     }
@@ -1351,7 +1409,7 @@ mod tests {
         let i = inspect(&pkg, &zip).unwrap();
         println!("{} Items, {} Dateien, {} geteilt", i.items.len(), i.file_count, i.shared_file_count);
         assert_eq!(i.items.len(), 56);
-        assert!(i.items.iter().all(|x| x.has_proto && x.icon_data_url.is_some()));
+        assert!(i.items.iter().all(|x| x.has_proto && x.icon_file.is_some()));
     }
 }
 
