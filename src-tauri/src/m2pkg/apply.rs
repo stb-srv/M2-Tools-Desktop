@@ -392,6 +392,12 @@ pub struct ApplyReport {
     pub db_written: Option<DbReport>,
     pub server_files: Vec<String>,
     pub notes: Vec<String>,
+    /// Client-Ordner, in den geschrieben wurde (Einstellung „Client-Pfad“).
+    pub client_dir: String,
+    /// Textdateien (item_list.txt/item_names.txt), die geprüft wurden.
+    pub text_files_checked: Vec<String>,
+    /// Wie viele Dateien das Paket für die Auswahl zum Kopieren vorsieht.
+    pub files_planned: usize,
 }
 
 #[derive(Debug, Clone, Default, Serialize)]
@@ -474,7 +480,11 @@ impl Run {
         .map_err(|_| format!("{sql_name} ist kein gültiger Text."))?;
         let statements = sql::filter_statements(&sql_text, &|v| vnums.contains(&v));
 
-        let mut report = ApplyReport { items_selected: vnums.len(), ..Default::default() };
+        let mut report = ApplyReport {
+            items_selected: vnums.len(),
+            client_dir: client_dir.display().to_string(),
+            ..Default::default()
+        };
         let have: HashSet<u32> = statements.iter().map(|(v, _)| *v).collect();
         let mut without_proto: Vec<u32> = vnums.iter().copied().filter(|v| !have.contains(v)).collect();
         without_proto.sort_unstable();
@@ -555,6 +565,17 @@ impl Run {
     }
 
     fn finish(mut self) -> ApplyReport {
+        let r = &self.report;
+        let client_changed = r.files_created + r.files_replaced + r.list_added + r.list_replaced > 0;
+        if !client_changed {
+            self.report.notes.insert(0, format!(
+                "Am Client wurde NICHTS geändert (Client-Ordner: {}). Geplant waren {} Datei(en); {} davon waren schon identisch, {} wurden behalten. \
+                 In item_list.txt gab es nichts zu ergänzen ({} Zeile(n) schon vorhanden). Gründe siehe weitere Hinweise; \
+                 bei „Vorhandene behalten“ auf „Überschreiben“ umstellen, wenn das Paket neuere Dateien enthält.",
+                self.report.client_dir, self.report.files_planned, self.report.files_unchanged,
+                self.report.files_kept.len(), self.report.list_kept
+            ));
+        }
         self.report.notes.push(if self.report.db_written.is_some() {
             "Nächster Schritt: Die Namen und Werte kommen im Client über die item_proto. Sie jetzt per mysql2proto aus der Datenbank neu erzeugen und in den Client legen (Knopf unten).".to_string()
         } else {
@@ -657,7 +678,26 @@ fn apply_client(
     let guessed: HashSet<&str> = opts.guessed_paths.iter().map(|s| s.as_str()).collect();
 
     // Dateien: geteilte Dateien stehen einmal im ZIP und werden einmal kopiert.
-    for (zip_path, f) in selected_files(pkg, vnums, &guessed) {
+    let planned = selected_files(pkg, vnums, &guessed);
+    report.files_planned = planned.len();
+    if planned.is_empty() {
+        let skipped_guessed = pkg
+            .manifest
+            .items
+            .iter()
+            .filter(|i| vnums.contains(&i.vnum))
+            .flat_map(|i| i.files.iter())
+            .filter(|f| f.guessed && !guessed.contains(f.path.as_str()))
+            .map(|f| f.path.as_str())
+            .collect::<HashSet<_>>()
+            .len();
+        report.notes.push(if skipped_guessed > 0 {
+            format!("Es wurden keine Client-Dateien kopiert: {skipped_guessed} Datei(en) des Pakets sind nur „vermutet“ und waren nicht angehakt (Liste „Vermutete Dateien“ im Reiter).")
+        } else {
+            "Das Paket enthält für die gewählten Items keine Client-Dateien (Icons, Modelle, Texturen); kopiert werden konnte nichts.".to_string()
+        });
+    }
+    for (zip_path, f) in planned {
         let target = client_target(client_dir, zip_path)?;
         let rel = rel_of(client_dir, &target);
         if target.exists() {
@@ -693,8 +733,16 @@ fn apply_client(
     let names_bytes = pkg.read_optional("client/item_names.txt")?;
     let wanted = |v: u32| vnums.contains(&v);
     for (bytes, file_name, is_list) in [(list_bytes, "item_list.txt", true), (names_bytes, "item_names.txt", false)] {
-        let Some(bytes) = bytes else { continue };
+        let Some(bytes) = bytes else {
+            if is_list {
+                report.notes.push("Das Paket enthält keine client/item_list.txt: es wurde nichts in die item_list.txt des Clients eingetragen. Bitte das Paket im DB-Tool neu erzeugen.".to_string());
+            }
+            continue;
+        };
         let lines = textmerge::package_lines(&bytes, &wanted);
+        if lines.is_empty() && is_list {
+            report.notes.push("Die item_list.txt des Pakets enthält keine Zeile für die gewählten Items: nichts einzutragen.".to_string());
+        }
         let custom = if is_list { opts.item_list_path.as_deref() } else { opts.item_names_path.as_deref() };
         let targets = text_targets(client_dir, file_name, custom)?;
         if targets.is_empty() {
@@ -706,6 +754,7 @@ fn apply_client(
             continue;
         }
         for target in targets {
+            report.text_files_checked.push(target.display().to_string());
             let existing = std::fs::read(&target).map_err(|e| format!("{}: {e}", target.display()))?;
             let merged = textmerge::merge_lines(&existing, &lines, overwrite);
             if merged.bytes == existing {

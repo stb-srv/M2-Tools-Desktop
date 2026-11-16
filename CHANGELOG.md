@@ -6,6 +6,16 @@ nach [SemVer](https://semver.org/) (`MAJOR.MINOR.PATCH`, solange < 1.0 gilt
 `MINOR` für neue Features, `PATCH` für reine Fixes). Für die vollständige
 Feature-Historie mit allen Details siehe `STATUS.md`.
 
+## [Unveröffentlicht]
+
+### Hinzugefügt
+
+- **Paket-Import: item_proto automatisch erneuern**: Nach dem Einspielen in MySQL erzeugt der Paket-Import jetzt von selbst die Client-item_proto (mysql2proto) und legt sie in den Client (mit Backup der alten Datei). Abschaltbar im Reiter „Paket-Import“ unter „Einspielen“. Fehlt der mysql2proto-Ordner, steht im Bericht eine deutliche Warnung statt Stille.
+
+### Behoben
+
+- **Paket-Import: kein stilles „Nichts getan“ mehr**: Wurde am Client nichts geändert (keine Dateien im Paket, vermutete Dateien nicht angehakt, item_list.txt fehlt im Paket oder Client, alles schon vorhanden), steht das jetzt ganz oben im Bericht mit dem Grund. Der Bericht zeigt außerdem den verwendeten Client-Ordner und die geprüften Textdateien.
+
 ## [1.0.1] - 2026-11-15
 
 ### Geändert

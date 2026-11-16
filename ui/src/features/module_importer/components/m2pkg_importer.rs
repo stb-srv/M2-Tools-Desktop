@@ -97,6 +97,10 @@ struct Report {
     db_written: Option<DbReport>,
     server_files: Vec<String>,
     notes: Vec<String>,
+    #[serde(default)]
+    client_dir: String,
+    #[serde(default)]
+    text_files_checked: Vec<String>,
 }
 
 #[derive(Clone, Debug, PartialEq, Deserialize)]
@@ -124,6 +128,7 @@ const KEY_OUT: &str = "m2pkg_out_dir";
 const KEY_CONFLICT: &str = "m2pkg_conflict";
 const KEY_LIST: &str = "m2pkg_item_list_path";
 const KEY_NAMES: &str = "m2pkg_item_names_path";
+const KEY_AUTO_PROTO: &str = "m2pkg_auto_proto";
 
 async fn load_setting(key: &str) -> Option<String> {
     invoke::<Option<String>>("get_setting", &json!({ "key": key })).await.ok().flatten()
@@ -164,6 +169,8 @@ pub fn M2PkgImporter(#[prop(into)] on_imported: Callback<()>) -> impl IntoView {
 
     let write_db = RwSignal::new(true);
     let write_files = RwSignal::new(true);
+    // Client-item_proto nach dem MySQL-Import automatisch erzeugen und einspielen
+    let auto_proto = RwSignal::new(true);
     let out_dir = RwSignal::new(String::new());
     // "ask" | "overwrite" | "keep"
     let conflict_pref = RwSignal::new("ask".to_string());
@@ -195,6 +202,9 @@ pub fn M2PkgImporter(#[prop(into)] on_imported: Callback<()>) -> impl IntoView {
         }
         if let Some(v) = load_setting(KEY_FILES).await {
             write_files.set(v != "0");
+        }
+        if let Some(v) = load_setting(KEY_AUTO_PROTO).await {
+            auto_proto.set(v != "0");
         }
         if let Some(v) = load_setting(KEY_OUT).await {
             out_dir.set(v);
@@ -333,28 +343,6 @@ pub fn M2PkgImporter(#[prop(into)] on_imported: Callback<()>) -> impl IntoView {
         });
     };
 
-    // Schritt 2: wirklich einspielen
-    let run_import = move || {
-        let pref = conflict_pref.get_untracked();
-        let conflict = if pref == "ask" { dialog_conflict.get_untracked() } else { pref };
-        let args = options_json(&conflict);
-        preflight.set(None);
-        running.set(true);
-        error.set(None);
-        spawn_local(async move {
-            match invoke::<Report>("m2pkg_import", &args).await {
-                Ok(r) => {
-                    toast::success("Paket eingespielt");
-                    report.set(Some(r));
-                    on_imported.run(());
-                    refresh_history();
-                }
-                Err(e) => error.set(Some(e)),
-            }
-            running.set(false);
-        });
-    };
-
     // Nutzt die vorhandenen Befehle des Item-Editors: mysql2proto laufen lassen,
     // dann die erzeugte item_proto in die Client-Ordner legen (mit Backup).
     let proto_busy = RwSignal::new(false);
@@ -369,10 +357,36 @@ pub fn M2PkgImporter(#[prop(into)] on_imported: Callback<()>) -> impl IntoView {
             }
             .await;
             proto_msg.set(Some(match res {
-                Ok(paths) => format!("item_proto erzeugt und eingespielt: {}", paths.join(", ")),
-                Err(e) => format!("item_proto konnte nicht erzeugt werden: {e}"),
+                Ok(paths) => format!("item_proto erzeugt und eingespielt (Backup der alten Datei liegt daneben): {}", paths.join(", ")),
+                Err(e) => format!("⚠ Die Client-item_proto wurde NICHT erneuert: {e} (Einstellung „mysql2proto-Ordner“ unter Einstellungen › Client prüfen, dann den Knopf unten benutzen)"),
             }));
             proto_busy.set(false);
+        });
+    };
+
+    // Schritt 2: wirklich einspielen
+    let run_import = move || {
+        let pref = conflict_pref.get_untracked();
+        let conflict = if pref == "ask" { dialog_conflict.get_untracked() } else { pref };
+        let args = options_json(&conflict);
+        preflight.set(None);
+        running.set(true);
+        error.set(None);
+        spawn_local(async move {
+            match invoke::<Report>("m2pkg_import", &args).await {
+                Ok(r) => {
+                    toast::success("Paket eingespielt");
+                    let wrote_db = r.db_written.is_some();
+                    report.set(Some(r));
+                    if wrote_db && auto_proto.get_untracked() {
+                        rebuild_proto();
+                    }
+                    on_imported.run(());
+                    refresh_history();
+                }
+                Err(e) => error.set(Some(e)),
+            }
+            running.set(false);
         });
     };
 
@@ -609,6 +623,14 @@ pub fn M2PkgImporter(#[prop(into)] on_imported: Callback<()>) -> impl IntoView {
                                     }/>
                                     "Server: SQL-Dateien bereitstellen"
                                 </label>
+                                <label class="flex items-center gap-2">
+                                    <input type="checkbox" prop:checked=move || auto_proto.get() on:change=move |e| {
+                                        let c = event_target_checked(&e);
+                                        auto_proto.set(c);
+                                        save_setting(KEY_AUTO_PROTO, if c { "1".into() } else { "0".into() });
+                                    }/>
+                                    "Client-item_proto nach dem MySQL-Import automatisch erzeugen und einspielen (mysql2proto, mit Backup)"
+                                </label>
                             </div>
                             {move || write_files.get().then(|| view! {
                                 <div class="flex flex-wrap items-center gap-2 text-xs">
@@ -689,6 +711,10 @@ pub fn M2PkgImporter(#[prop(into)] on_imported: Callback<()>) -> impl IntoView {
                         <h2 class="text-base font-medium">"Bericht"</h2>
                         <ul class="list-disc space-y-0.5 pl-5">
                             <li>{r.items_selected} " Item(s) verarbeitet"</li>
+                            <li class="break-all">"Client-Ordner: " <code class="text-xs">{r.client_dir.clone()}</code></li>
+                            {(!r.text_files_checked.is_empty()).then(|| view! {
+                                <li class="break-all">"Geprüfte Textdateien: " {r.text_files_checked.join(", ")}</li>
+                            })}
                             <li>
                                 "Client-Dateien: " {r.files_created} " neu, " {r.files_replaced} " ersetzt, " {r.files_unchanged} " unverändert"
                                 {(!r.files_kept.is_empty()).then(|| format!(", {} behalten (vorhanden)", r.files_kept.len()))}
