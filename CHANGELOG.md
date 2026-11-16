@@ -6,7 +6,7 @@ nach [SemVer](https://semver.org/) (`MAJOR.MINOR.PATCH`, solange < 1.0 gilt
 `MINOR` für neue Features, `PATCH` für reine Fixes). Für die vollständige
 Feature-Historie mit allen Details siehe `STATUS.md`.
 
-## [Unveröffentlicht]
+## [1.0.2] - 2026-11-16
 
 ### Hinzugefügt
 
