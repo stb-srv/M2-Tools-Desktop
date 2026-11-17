@@ -217,9 +217,6 @@ pub struct ApplyOptions {
     /// Eigener Pfad zur `item_list.txt` des Clients (sonst automatische Suche).
     #[serde(default)]
     pub item_list_path: Option<String>,
-    /// Eigener Pfad zur `item_names.txt` des Clients (sonst automatische Suche).
-    #[serde(default)]
-    pub item_names_path: Option<String>,
     /// SQL direkt in MySQL schreiben.
     pub write_db: bool,
     /// SQL-/Server-Dateien in einen Ordner schreiben.
@@ -308,7 +305,7 @@ pub struct Preflight {
     pub differing_files: Vec<String>,
     pub identical_files: usize,
     pub item_list_files: Vec<String>,
-    pub item_names_files: Vec<String>,
+    pub itemdesc_files: Vec<String>,
     pub notes: Vec<String>,
 }
 
@@ -335,7 +332,7 @@ pub async fn preflight(
     }
 
     let list_files = text_targets(client_dir, "item_list.txt", opts.item_list_path.as_deref())?;
-    let names_files = text_targets(client_dir, "item_names.txt", opts.item_names_path.as_deref())?;
+    let itemdesc_files: Vec<PathBuf> = crate::itemdesc::find_file(&client_dir.to_string_lossy()).into_iter().collect();
     let mut in_list = BTreeSet::new();
     for f in &list_files {
         for l in std::fs::read(f).map_err(|e| e.to_string())?.split(|b| *b == b'\n') {
@@ -349,8 +346,8 @@ pub async fn preflight(
     if list_files.is_empty() {
         notes.push("Keine item_list.txt gefunden. Ohne sie bekommen die Items im Client kein Icon und kein Modell. Bitte unten den Pfad angeben, sonst wird die Datei übersprungen.".into());
     }
-    if names_files.is_empty() {
-        notes.push("Keine item_names.txt gefunden. Das ist in Ordnung: die Datei ist optional, die Namen kommen im Client über die item_proto (aus der Datenbank per mysql2proto erzeugt).".into());
+    if itemdesc_files.is_empty() {
+        notes.push("Keine itemdesc.txt im Client gefunden (locale/<Sprache>/itemdesc.txt). Die Namen der neuen Items werden dann nicht eingetragen.".into());
     }
     let existing_in_db = match pool {
         Some(pool) => Some(existing_db_vnums(&pool, &vnums.iter().copied().collect::<Vec<_>>()).await?.into_iter().collect()),
@@ -362,7 +359,7 @@ pub async fn preflight(
         differing_files: differing,
         identical_files: identical,
         item_list_files: list_files.iter().map(|p| p.display().to_string()).collect(),
-        item_names_files: names_files.iter().map(|p| p.display().to_string()).collect(),
+        itemdesc_files: itemdesc_files.iter().map(|p| p.display().to_string()).collect(),
         notes,
     })
 }
@@ -439,7 +436,7 @@ pub struct ApplyReport {
     pub notes: Vec<String>,
     /// Client-Ordner, in den geschrieben wurde (Einstellung „Client-Pfad“).
     pub client_dir: String,
-    /// Textdateien (item_list.txt/item_names.txt), die geprüft wurden.
+    /// Textdateien (item_list.txt/itemdesc.txt), die geprüft wurden.
     pub text_files_checked: Vec<String>,
     /// Wie viele Dateien das Paket für die Auswahl zum Kopieren vorsieht.
     pub files_planned: usize,
@@ -510,7 +507,6 @@ impl Run {
         }
         // eigene Pfade vor dem ersten Schreiben prüfen
         text_targets(&client_dir, "item_list.txt", opts.item_list_path.as_deref())?;
-        text_targets(&client_dir, "item_names.txt", opts.item_names_path.as_deref())?;
         if opts.write_db && !has_pool {
             return Err("Keine aktive MySQL-Verbindung. Bitte zuerst verbinden oder „nur SQL-Dateien“ wählen.".into());
         }
@@ -785,29 +781,21 @@ fn apply_client(
         }
     }
 
-    // item_list.txt (Pflicht) und item_names.txt (wenn vorhanden)
+    // item_list.txt (Pflicht)
     let list_bytes = pkg.read_optional("client/item_list.txt")?;
-    let names_bytes = pkg.read_optional("client/item_names.txt")?;
     let wanted = |v: u32| vnums.contains(&v);
-    for (bytes, file_name, is_list) in [(list_bytes, "item_list.txt", true), (names_bytes, "item_names.txt", false)] {
+    for (bytes, file_name, is_list) in [(list_bytes, "item_list.txt", true)] {
         let Some(bytes) = bytes else {
-            if is_list {
-                report.notes.push("Das Paket enthält keine client/item_list.txt: es wurde nichts in die item_list.txt des Clients eingetragen. Bitte das Paket im DB-Tool neu erzeugen.".to_string());
-            }
+            report.notes.push("Das Paket enthält keine client/item_list.txt: es wurde nichts in die item_list.txt des Clients eingetragen. Bitte das Paket im DB-Tool neu erzeugen.".to_string());
             continue;
         };
         let lines = textmerge::package_lines(&bytes, &wanted);
-        if lines.is_empty() && is_list {
+        if lines.is_empty() {
             report.notes.push("Die item_list.txt des Pakets enthält keine Zeile für die gewählten Items: nichts einzutragen.".to_string());
         }
-        let custom = if is_list { opts.item_list_path.as_deref() } else { opts.item_names_path.as_deref() };
-        let targets = text_targets(client_dir, file_name, custom)?;
+        let targets = text_targets(client_dir, file_name, opts.item_list_path.as_deref())?;
         if targets.is_empty() {
-            report.notes.push(if is_list {
-                "ÜBERSPRUNGEN: item_list.txt wurde im Client nicht gefunden. Ohne sie bekommen die Items kein Icon und kein Modell. Pfad im Reiter angeben und erneut einspielen.".to_string()
-            } else {
-                "item_names.txt übersprungen: die Datei ist optional und gibt es bei diesem Client nicht. Die Namen kommen über die item_proto (aus der Datenbank per mysql2proto erzeugt).".to_string()
-            });
+            report.notes.push("ÜBERSPRUNGEN: item_list.txt wurde im Client nicht gefunden. Ohne sie bekommen die Items kein Icon und kein Modell. Pfad im Reiter angeben und erneut einspielen.".to_string());
             continue;
         }
         for target in targets {
@@ -832,6 +820,87 @@ fn apply_client(
             }
         }
     }
+    apply_itemdesc(pkg, client_dir, backup_dir, overwrite, vnums, journal, report)?;
+    Ok(())
+}
+
+/// Namen der gewählten Items in die itemdesc.txt des Clients eintragen. Spalte 2 ist der Name (so steht es in
+/// der Datei des Clients, z. B. „21900<TAB>Durendals Rächer<TAB>…“), Spalte 3 die Beschreibung.
+/// Vorhandene Zeilen behalten Beschreibung und weitere Spalten. Nur der Name wird ersetzt, und das nur, wenn
+/// überschrieben werden soll. Das Journal sichert die Datei, damit „Rückgängig“ sie wiederherstellt.
+fn apply_itemdesc(
+    pkg: &Package,
+    client_dir: &Path,
+    backup_dir: &Path,
+    overwrite: bool,
+    vnums: &HashSet<u32>,
+    journal: &mut Journal,
+    report: &mut ApplyReport,
+) -> Result<(), String> {
+    let names: Vec<(u32, String)> = pkg
+        .manifest
+        .items
+        .iter()
+        .filter(|i| vnums.contains(&i.vnum))
+        .filter_map(|i| i.name.clone().filter(|n| !n.trim().is_empty()).map(|n| (i.vnum, n)))
+        .collect();
+    if names.is_empty() {
+        return Ok(());
+    }
+    let path = match crate::itemdesc::find_file(&client_dir.to_string_lossy()) {
+        Ok(p) => p,
+        Err(_) => {
+            report.notes.push("ÜBERSPRUNGEN: keine itemdesc.txt im Client (locale/<Sprache>/itemdesc.txt). Die Namen der Items werden dann nicht eingetragen.".to_string());
+            return Ok(());
+        }
+    };
+    let existing = std::fs::read(&path).map_err(|e| format!("{}: {e}", path.display()))?;
+    let mut old_line: HashMap<u32, Vec<u8>> = HashMap::new();
+    for l in existing.split(|b| *b == b'\n') {
+        let l = l.strip_suffix(b"
+").unwrap_or(l);
+        if let Some(v) = textmerge::line_vnum(l) {
+            old_line.entry(v).or_insert_with(|| l.to_vec());
+        }
+    }
+    let mut new_lines: Vec<(u32, Vec<u8>)> = Vec::new();
+    for (vnum, name) in &names {
+        let name_cp = encoding_rs::WINDOWS_1252.encode(name).0.into_owned();
+        let line = match old_line.get(vnum) {
+            Some(old) => {
+                let mut parts: Vec<Vec<u8>> = old.split(|b| *b == b'\t').map(|p| p.to_vec()).collect();
+                while parts.len() < 3 {
+                    parts.push(Vec::new());
+                }
+                parts[1] = name_cp;
+                parts.join(&b'\t')
+            }
+            None => {
+                let mut l = vnum.to_string().into_bytes();
+                l.push(b'\t');
+                l.extend_from_slice(&name_cp);
+                l.push(b'\t');
+                l
+            }
+        };
+        new_lines.push((*vnum, line));
+    }
+    let merged = textmerge::merge_lines(&existing, &new_lines, overwrite);
+    report.notes.push(format!(
+        "itemdesc.txt: {} Name(n) eingetragen, {} ersetzt, {} unverändert.",
+        merged.added.len(),
+        merged.replaced.len(),
+        merged.kept.len()
+    ));
+    if merged.bytes == existing {
+        return Ok(());
+    }
+    let rel = backup_copy(client_dir, backup_dir, &path)?;
+    let abs = (!path.starts_with(client_dir)).then(|| path.display().to_string());
+    journal.text_edits.push(TextEdit { rel, abs, added: merged.added.clone(), replaced: merged.replaced.clone() });
+    save_journal(backup_dir, journal)?;
+    std::fs::write(&path, &merged.bytes).map_err(|e| format!("{}: {e}", path.display()))?;
+    report.text_files_checked.push(path.display().to_string());
     Ok(())
 }
 
@@ -996,21 +1065,6 @@ fn write_server_files(
         std::fs::write(&f, out).map_err(|e| e.to_string())?;
         written.push(f.display().to_string());
     }
-    // item_names.txt (Server): Kopfzeile + gewählte Zeilen, CRLF wie im Paket
-    if let Some(bytes) = pkg.read_optional("server/item_names.txt")? {
-        let mut out = Vec::new();
-        for (i, line) in bytes.split(|b| *b == b'\n').enumerate() {
-            let line = line.strip_suffix(b"\r").unwrap_or(line);
-            let keep = i == 0 || textmerge::line_vnum(line).map(|v| vnums.contains(&v)).unwrap_or(false);
-            if keep && !line.is_empty() {
-                out.extend_from_slice(line);
-                out.extend_from_slice(b"\r\n");
-            }
-        }
-        let f = dir.join("item_names.txt");
-        std::fs::write(&f, out).map_err(|e| e.to_string())?;
-        written.push(f.display().to_string());
-    }
     Ok(written)
 }
 
@@ -1168,7 +1222,7 @@ mod tests {
         let c = temp_dir(tag).join("client");
         std::fs::create_dir_all(c.join("locale").join("de")).unwrap();
         std::fs::write(c.join("locale/de/item_list.txt"), b"100\tETC\ticon/item/00100.tga\r\n").unwrap();
-        std::fs::write(c.join("locale/de/item_names.txt"), b"VNUM\tLOCALE_NAME\r\n100\tAlt\r\n").unwrap();
+        std::fs::write(c.join("locale/de/itemdesc.txt"), b"100\tAlt\tBeschreibung\n").unwrap();
         c
     }
 
@@ -1179,7 +1233,6 @@ mod tests {
             guessed_paths: vec![],
             confirm_assumptions: true,
             item_list_path: None,
-            item_names_path: None,
             write_db: false,
             write_files: true,
             out_dir: None,
@@ -1227,7 +1280,7 @@ mod tests {
         let pkg = Package::open(&zip).unwrap();
         let c = client("imp");
         let list_before = std::fs::read(c.join("locale/de/item_list.txt")).unwrap();
-        let names_before = std::fs::read(c.join("locale/de/item_names.txt")).unwrap();
+        let names_before = std::fs::read(c.join("locale/de/itemdesc.txt")).unwrap();
 
         let mut o = opts(&zip, vec![300, 301], ConflictMode::Overwrite);
         o.out_dir = Some(dir.display().to_string());
@@ -1241,9 +1294,10 @@ mod tests {
         let list = std::fs::read(c.join("locale/de/item_list.txt")).unwrap();
         assert!(list.starts_with(&list_before));
         assert!(String::from_utf8_lossy(&list).contains("301\tWEAPON"));
-        let names = std::fs::read(c.join("locale/de/item_names.txt")).unwrap();
-        assert!(names.windows(7).any(|w| w == b"D\xfcrenda"), "cp1252-Umlaut muss als ein Byte erhalten bleiben");
-        assert_eq!(rep.server_files.len(), 3);
+        let names = std::fs::read(c.join("locale/de/itemdesc.txt")).unwrap();
+        assert!(String::from_utf8_lossy(&names).contains("300\tItem 300\t"), "Name aus dem Paket in itemdesc.txt");
+        assert!(names.starts_with(&names_before), "vorhandene Zeile bleibt");
+        assert_eq!(rep.server_files.len(), 2);
         let sql = std::fs::read_to_string(&rep.server_files[0]).unwrap();
         assert!(sql.contains("REPLACE INTO") && sql.contains("(300,") && sql.contains("(301,"));
 
@@ -1251,7 +1305,7 @@ mod tests {
         assert_eq!(recs.len(), 1);
         run(undo(c.clone(), rep.backup_id.clone(), None)).unwrap();
         assert_eq!(std::fs::read(c.join("locale/de/item_list.txt")).unwrap(), list_before);
-        assert_eq!(std::fs::read(c.join("locale/de/item_names.txt")).unwrap(), names_before);
+        assert_eq!(std::fs::read(c.join("locale/de/itemdesc.txt")).unwrap(), names_before);
         assert!(!c.join("icon").exists(), "leere, vom Import angelegte Ordner werden entfernt");
         assert!(!c.join("d_").exists());
         assert!(list_imports(&c)[0].undone);
@@ -1328,7 +1382,7 @@ mod tests {
         let rep = run(import(pkg, c.clone(), o, None)).unwrap();
         assert_eq!(rep.files_created, 2);
         assert_eq!(rep.notes.iter().filter(|n| n.contains("ÜBERSPRUNGEN: item_list.txt")).count(), 1, "{:?}", rep.notes);
-        assert!(rep.notes.iter().any(|n| n.contains("item_names.txt übersprungen") && n.contains("optional")));
+        assert!(rep.notes.iter().any(|n| n.contains("keine itemdesc.txt")), "{:?}", rep.notes);
         assert!(rep.notes.iter().any(|n| n.contains("Nächster Schritt")));
     }
 
@@ -1354,19 +1408,14 @@ mod tests {
         let c = temp_dir("custom2");
         let extern_dir = temp_dir("custom3");
         let list = extern_dir.join("meine_liste.txt");
-        let names = extern_dir.join("namen.txt");
         std::fs::write(&list, b"100\tETC\ta.tga\r\n").unwrap();
-        std::fs::write(&names, b"VNUM\tLOCALE_NAME\r\n").unwrap();
         let mut o = opts(&zip, vec![300], ConflictMode::Overwrite);
         o.item_list_path = Some(list.display().to_string());
-        o.item_names_path = Some(names.display().to_string());
         o.out_dir = Some(dir.display().to_string());
         let rep = run(import(pkg, c.clone(), o, None)).unwrap();
         assert_eq!(rep.list_added, 1);
-        assert!(std::fs::read(&names).unwrap().len() > 20);
         run(undo(c.clone(), rep.backup_id.clone(), None)).unwrap();
         assert_eq!(std::fs::read(&list).unwrap(), b"100\tETC\ta.tga\r\n");
-        assert_eq!(std::fs::read(&names).unwrap(), b"VNUM\tLOCALE_NAME\r\n");
     }
 
     #[test]

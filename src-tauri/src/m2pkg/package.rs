@@ -90,7 +90,6 @@ impl Manifest {
 /// Geöffnetes, vollständig geprüftes Paket. Das ZIP-Archiv bleibt offen, damit
 /// Einzelzugriffe (Icons, Dateien) nicht bei jedem Mal das Zentralverzeichnis neu lesen.
 pub struct Package {
-    pub path: PathBuf,
     pub manifest: Manifest,
     /// Pfad im ZIP → Größe
     pub entries: BTreeMap<String, u64>,
@@ -197,7 +196,6 @@ impl Package {
             serde_json::from_value(raw).map_err(|e| format!("manifest.json ist unvollständig oder fehlerhaft: {e}"))?;
 
         let mut pkg = Package {
-            path: path.to_path_buf(),
             manifest,
             entries,
             hashes: BTreeMap::new(),
@@ -338,7 +336,6 @@ pub(crate) mod test_pkg {
         std::time::SystemTime::now().duration_since(std::time::UNIX_EPOCH).unwrap().as_nanos()
     }
 
-    pub const NAMES_CLIENT: &[u8] = b"VNUM\tLOCALE_NAME\r\n300\tD\xfcrendal\r\n301\tZahnstocher\r\n";
     pub const LIST_CLIENT: &[u8] = b"300\tWEAPON\ticon/item/00300.tga\td:/ymir work/item/weapon/00300.gr2\r\n301\tWEAPON\ticon/item/00300.tga\td:/ymir work/item/weapon/00300.gr2";
 
     /// Zwei Items teilen sich Icon und Modell; kleines, aber vollständiges Paket.
@@ -393,11 +390,9 @@ pub(crate) mod test_pkg {
             ("client/d_/ymir work/item/weapon/00300.gr2".into(), model),
             ("client/d_/ymir work/item/weapon/00300.dds".into(), b"TEX".to_vec()),
             ("client/item_list.txt".into(), LIST_CLIENT.to_vec()),
-            ("client/item_names.txt".into(), NAMES_CLIENT.to_vec()),
             ("server/item_proto_replace.sql".into(), sql_replace.as_bytes().to_vec()),
             ("server/item_proto_insert_ignore.sql".into(), sql_ignore.as_bytes().to_vec()),
             ("server/item_proto.txt".into(), proto_txt.as_bytes().to_vec()),
-            ("server/item_names.txt".into(), NAMES_CLIENT.to_vec()),
         ];
         let mut sums = String::new();
         for (n, d) in &files {

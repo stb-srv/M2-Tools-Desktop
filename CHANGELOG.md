@@ -12,6 +12,7 @@ Feature-Historie mit allen Details siehe `STATUS.md`.
 
 - **Paket-Import: Vorschau bei vielen Items deutlich schneller**: Die Icons werden nicht mehr alle auf einmal geladen, sondern nach und nach als kleine Vorschaubilder. Die Liste erscheint sofort. Bei über 12.000 Items dauerte die Vorschau vorher rund 4 Minuten.
 - **Paket-Import: Client wird nach dem Einspielen neu gepackt**: Die betroffenen Ordner (z. B. `icon` und `item`) werden automatisch in die `.epk`-Archive gepackt, damit der Client die neuen Dateien sieht. Der Bericht zeigt, was gepackt wurde. Schlägt das Packen fehl, steht ein klarer Hinweis im Bericht. Die Dateien selbst bleiben unverändert erhalten.
+- **Paket-Import: Namen in die itemdesc.txt des Clients**: Die Namen der Items werden in `locale/<Sprache>/itemdesc.txt` eingetragen (Spalte Name). Vorhandene Beschreibungen bleiben, ersetzte Zeilen lassen sich über „Rückgängig“ zurücknehmen. Die frühere `item_names.txt` gibt es im Client nicht und wird nicht mehr benutzt.
 - **Paket-Import: schnelleres Einspielen**: Das Paket bleibt während des Einspielens geöffnet, und das Journal (Grundlage für „Rückgängig“) wird nicht mehr nach jeder einzelnen Datei neu geschrieben.
 
 ### Behoben
