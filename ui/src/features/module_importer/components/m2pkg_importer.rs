@@ -10,7 +10,19 @@ use leptos::prelude::*;
 use leptos::task::spawn_local;
 use serde::Deserialize;
 use serde_json::json;
-use std::collections::{BTreeMap, HashSet};
+use std::collections::{BTreeMap, HashMap, HashSet};
+
+/// Vorschaubilder der Icons nach und nach holen (je 300 Pfade pro Anfrage), damit die Liste sofort erscheint.
+fn load_icons(zip: String, paths: Vec<String>, icons: RwSignal<HashMap<String, String>>) {
+    spawn_local(async move {
+        for chunk in paths.chunks(300) {
+            let req = json!({ "zipPath": zip, "paths": chunk });
+            if let Ok(m) = invoke::<HashMap<String, String>>("m2pkg_icons", &req).await {
+                icons.update(|h| h.extend(m));
+            }
+        }
+    });
+}
 
 #[derive(Clone, Debug, PartialEq, Deserialize)]
 struct Warning {
@@ -41,7 +53,7 @@ struct PkgItem {
     vnum: u32,
     name: Option<String>,
     item_type: String,
-    icon_data_url: Option<String>,
+    icon_file: Option<String>,
     files: Vec<PkgFile>,
     assumed_antiflags: Vec<String>,
     warnings: Vec<Warning>,
@@ -71,7 +83,7 @@ struct Preflight {
     differing_files: Vec<String>,
     identical_files: usize,
     item_list_files: Vec<String>,
-    item_names_files: Vec<String>,
+    itemdesc_files: Vec<String>,
     notes: Vec<String>,
 }
 
@@ -127,7 +139,6 @@ const KEY_FILES: &str = "m2pkg_write_files";
 const KEY_OUT: &str = "m2pkg_out_dir";
 const KEY_CONFLICT: &str = "m2pkg_conflict";
 const KEY_LIST: &str = "m2pkg_item_list_path";
-const KEY_NAMES: &str = "m2pkg_item_names_path";
 const KEY_AUTO_PROTO: &str = "m2pkg_auto_proto";
 
 async fn load_setting(key: &str) -> Option<String> {
@@ -161,6 +172,7 @@ fn role_label(role: &str) -> &'static str {
 #[component]
 pub fn M2PkgImporter(#[prop(into)] on_imported: Callback<()>) -> impl IntoView {
     let inspect = RwSignal::new(None::<Inspect>);
+    let icons = RwSignal::new(HashMap::<String, String>::new());
     let loading = RwSignal::new(false);
     let error = RwSignal::new(None::<String>);
     let selected = RwSignal::new(HashSet::<u32>::new());
@@ -176,7 +188,6 @@ pub fn M2PkgImporter(#[prop(into)] on_imported: Callback<()>) -> impl IntoView {
     let conflict_pref = RwSignal::new("ask".to_string());
     // eigene Zielpfade im Client (leer = automatisch suchen)
     let item_list_path = RwSignal::new(String::new());
-    let item_names_path = RwSignal::new(String::new());
 
     let preflight = RwSignal::new(None::<Preflight>);
     let dialog_conflict = RwSignal::new("keep".to_string());
@@ -212,9 +223,6 @@ pub fn M2PkgImporter(#[prop(into)] on_imported: Callback<()>) -> impl IntoView {
         if let Some(v) = load_setting(KEY_LIST).await {
             item_list_path.set(v);
         }
-        if let Some(v) = load_setting(KEY_NAMES).await {
-            item_names_path.set(v);
-        }
         if let Some(v) = load_setting(KEY_CONFLICT).await {
             if ["ask", "overwrite", "keep"].contains(&v.as_str()) {
                 conflict_pref.set(v);
@@ -242,6 +250,11 @@ pub fn M2PkgImporter(#[prop(into)] on_imported: Callback<()>) -> impl IntoView {
                     selected.set(i.items.iter().map(|x| x.vnum).collect());
                     guessed_ok.set(HashSet::new());
                     confirm_flags.set(false);
+                    let mut icon_paths: Vec<String> = i.items.iter().filter_map(|x| x.icon_file.clone()).collect();
+                    icon_paths.sort();
+                    icon_paths.dedup();
+                    icons.set(HashMap::new());
+                    load_icons(path.clone(), icon_paths, icons);
                     inspect.set(Some(i));
                 }
                 Err(e) => error.set(Some(e)),
@@ -318,7 +331,6 @@ pub fn M2PkgImporter(#[prop(into)] on_imported: Callback<()>) -> impl IntoView {
             "guessed_paths": g,
             "confirm_assumptions": confirm_flags.get_untracked(),
             "item_list_path": item_list_path.get_untracked(),
-            "item_names_path": item_names_path.get_untracked(),
             "write_db": write_db.get_untracked(),
             "write_files": write_files.get_untracked(),
             "out_dir": out_dir.get_untracked(),
@@ -494,7 +506,8 @@ pub fn M2PkgImporter(#[prop(into)] on_imported: Callback<()>) -> impl IntoView {
                                             }
                                         />
                                         <div class="flex size-10 shrink-0 items-center justify-center rounded border border-border bg-muted/40">
-                                            {match it.icon_data_url.clone() {
+                                            {let icon_key = it.icon_file.clone().unwrap_or_default();
+                                            move || match icons.with(|m| m.get(&icon_key).cloned()) {
                                                 Some(u) => view! { <img src=u class="max-h-10 max-w-10 [image-rendering:pixelated]"/> }.into_any(),
                                                 None => view! { <Icon name="Package" class="size-4 text-muted-foreground"/> }.into_any(),
                                             }}
@@ -604,7 +617,7 @@ pub fn M2PkgImporter(#[prop(into)] on_imported: Callback<()>) -> impl IntoView {
                         <div class="space-y-2 rounded-md border border-border p-3 text-sm">
                             <p class="font-medium">"Einspielen"</p>
                             <p class="text-xs text-muted-foreground">
-                                "Client: Dateien kommen in den eingestellten Client-Ordner (Pfade wie im Paket), item_list.txt und item_names.txt werden um die Zeilen ergänzt."
+                                "Client: Dateien kommen in den eingestellten Client-Ordner (Pfade wie im Paket), item_list.txt wird um die Zeilen ergänzt, die Namen kommen in die itemdesc.txt."
                             </p>
                             <div class="flex flex-wrap gap-x-6 gap-y-1">
                                 <label class="flex items-center gap-2">
@@ -647,13 +660,12 @@ pub fn M2PkgImporter(#[prop(into)] on_imported: Callback<()>) -> impl IntoView {
                             })}
                             <div class="space-y-1 text-xs">
                                 <p class="text-muted-foreground">
-                                    "Zieldateien im Client, leer lassen = automatisch suchen (locale/<Sprache>/, locale/, Client-Ordner). "
+                                    "Zieldatei im Client, leer lassen = automatisch suchen (locale/<Sprache>/, locale/, Client-Ordner). "
                                     "item_list.txt ist wichtig (Icon und Modell der Items); wird sie nicht gefunden, hier den Pfad angeben, sonst wird sie übersprungen. "
-                                    "item_names.txt ist optional und gibt es bei vielen Clients nicht: die Namen kommen dann über die item_proto (per mysql2proto aus der Datenbank erzeugt)."
+                                    "Die Namen werden in die itemdesc.txt des Clients eingetragen (locale/<Sprache>/itemdesc.txt, Spalte Name); vorhandene Beschreibungen bleiben."
                                 </p>
                                 {[
                                     ("item_list.txt", item_list_path, KEY_LIST),
-                                    ("item_names.txt", item_names_path, KEY_NAMES),
                                 ].into_iter().map(|(label, sig, key)| view! {
                                     <div class="flex flex-wrap items-center gap-2">
                                         <span class="w-24 text-muted-foreground">{label}</span>
@@ -813,8 +825,8 @@ pub fn M2PkgImporter(#[prop(into)] on_imported: Callback<()>) -> impl IntoView {
                                     {if p.item_list_files.is_empty() { "nicht gefunden (wird übersprungen)".to_string() } else { p.item_list_files.join(", ") }}
                                 </li>
                                 <li>
-                                    "item_names.txt: "
-                                    {if p.item_names_files.is_empty() { "nicht gefunden (wird übersprungen)".to_string() } else { p.item_names_files.join(", ") }}
+                                    "itemdesc.txt: "
+                                    {if p.itemdesc_files.is_empty() { "nicht gefunden (Namen werden nicht eingetragen)".to_string() } else { p.itemdesc_files.join(", ") }}
                                 </li>
                                 {write_db.get().then(|| view! { <li>"Server: direkt in MySQL (player.item_proto)"</li> })}
                                 {write_files.get().then(|| view! { <li>"Server: SQL-Dateien werden bereitgestellt"</li> })}
@@ -878,7 +890,7 @@ pub fn M2PkgImporter(#[prop(into)] on_imported: Callback<()>) -> impl IntoView {
                             <p class="text-sm font-medium">"Diesen Import rückgängig machen?"</p>
                             <ul class="list-disc space-y-1 pl-5 text-sm text-muted-foreground">
                                 <li>"Neu angelegte Client-Dateien werden gelöscht, ersetzte aus dem Backup zurückgeholt"</li>
-                                <li>"Die ergänzten Zeilen in item_list.txt/item_names.txt werden entfernt, ersetzte wiederhergestellt"</li>
+                                <li>"Die ergänzten Zeilen in item_list.txt und itemdesc.txt werden entfernt, ersetzte wiederhergestellt"</li>
                                 <li>"Falls in MySQL geschrieben wurde: neue Zeilen werden gelöscht, überschriebene wiederhergestellt (MySQL-Verbindung nötig)"</li>
                                 <li>"Bereitgestellte SQL-Dateien bleiben liegen"</li>
                             </ul>

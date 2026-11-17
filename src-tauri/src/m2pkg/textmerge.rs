@@ -1,4 +1,4 @@
-//! Zeilenweises Einfügen in `item_list.txt` / `item_names.txt` (cp1252) und
+//! Zeilenweises Einfügen in `item_list.txt` und `itemdesc.txt` (cp1252) und
 //! das exakte Gegenstück zum Rückgängigmachen. Gearbeitet wird auf Bytes,
 //! damit nichts in der Datei außer den betroffenen Zeilen verändert wird.
 
@@ -73,7 +73,7 @@ fn cp1252_encode(text: &str) -> Vec<u8> {
     encoding_rs::WINDOWS_1252.encode(text).0.into_owned()
 }
 
-/// Zeilen eines Pakets (`client/item_list.txt`, `client/item_names.txt`):
+/// Zeilen eines Pakets (`client/item_list.txt`):
 /// ohne Kopfzeile und leere Zeilen, nur die gewählten Vnum.
 pub fn package_lines(data: &[u8], wanted: &dyn Fn(u32) -> bool) -> Vec<(u32, Vec<u8>)> {
     split_lines(data)

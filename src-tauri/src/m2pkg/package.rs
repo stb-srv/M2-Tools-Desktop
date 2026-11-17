@@ -7,6 +7,7 @@ use std::collections::BTreeMap;
 use std::fs::File;
 use std::io::{Read, Write};
 use std::path::{Path, PathBuf};
+use std::sync::Mutex;
 
 pub const SUPPORTED_FORMAT_VERSION: u64 = 1;
 
@@ -86,14 +87,15 @@ impl Manifest {
     }
 }
 
-/// Geöffnetes, vollständig geprüftes Paket.
+/// Geöffnetes, vollständig geprüftes Paket. Das ZIP-Archiv bleibt offen, damit
+/// Einzelzugriffe (Icons, Dateien) nicht bei jedem Mal das Zentralverzeichnis neu lesen.
 pub struct Package {
-    pub path: PathBuf,
     pub manifest: Manifest,
     /// Pfad im ZIP → Größe
     pub entries: BTreeMap<String, u64>,
     /// Pfad im ZIP → geprüfte SHA-256
     pub hashes: BTreeMap<String, String>,
+    archive: Mutex<Archive>,
 }
 
 /// `..`, absolute Pfade, `\`, `:` und leere Teile sind in einem Paket nie erlaubt.
@@ -193,17 +195,22 @@ impl Package {
         let manifest: Manifest =
             serde_json::from_value(raw).map_err(|e| format!("manifest.json ist unvollständig oder fehlerhaft: {e}"))?;
 
-        let mut pkg = Package { path: path.to_path_buf(), manifest, entries, hashes: BTreeMap::new() };
-        pkg.verify_checksums(&mut ar)?;
+        let mut pkg = Package {
+            manifest,
+            entries,
+            hashes: BTreeMap::new(),
+            archive: Mutex::new(ar),
+        };
+        pkg.verify_checksums()?;
         pkg.verify_manifest_files()?;
         Ok(pkg)
     }
 
-    fn verify_checksums(&mut self, ar: &mut Archive) -> Result<(), String> {
+    fn verify_checksums(&mut self) -> Result<(), String> {
         if !self.entries.contains_key("checksums.sha256") {
             return Err("checksums.sha256 fehlt im Paket. Ohne Prüfsummen wird nicht importiert.".into());
         }
-        let text = String::from_utf8(read_entry(ar, "checksums.sha256")?)
+        let text = String::from_utf8(self.read("checksums.sha256")?)
             .map_err(|_| "checksums.sha256 ist kein gültiger UTF-8-Text".to_string())?;
         let listed = parse_checksums(&text)?;
         let mut problems: Vec<String> = Vec::new();
@@ -215,8 +222,11 @@ impl Package {
                 problems.push(format!("{name}: fehlt im ZIP"));
                 continue;
             }
-            let mut f = ar.by_name(name).map_err(|e| format!("{name}: {e}"))?;
-            let actual = sha256_reader(&mut f)?;
+            let actual = {
+                let mut ar = self.lock_archive()?;
+                let mut f = ar.by_name(name).map_err(|e| format!("{name}: {e}"))?;
+                sha256_reader(&mut f)?
+            };
             if &actual != hash {
                 problems.push(format!("{name}: Prüfsumme stimmt nicht"));
             }
@@ -263,8 +273,12 @@ impl Package {
 
     /// Liest einen ZIP-Eintrag komplett.
     pub fn read(&self, name: &str) -> Result<Vec<u8>, String> {
-        let mut ar = open_archive(&self.path)?;
+        let mut ar = self.lock_archive()?;
         read_entry(&mut ar, name)
+    }
+
+    fn lock_archive(&self) -> Result<std::sync::MutexGuard<'_, Archive>, String> {
+        self.archive.lock().map_err(|_| "ZIP-Archiv ist nicht mehr verfügbar.".to_string())
     }
 
     pub fn read_optional(&self, name: &str) -> Result<Option<Vec<u8>>, String> {
@@ -277,7 +291,7 @@ impl Package {
 
     /// Schreibt einen ZIP-Eintrag und gibt dessen Prüfsumme zurück.
     pub fn extract_to(&self, name: &str, dest: &Path) -> Result<String, String> {
-        let mut ar = open_archive(&self.path)?;
+        let mut ar = self.lock_archive()?;
         let mut f = ar.by_name(name).map_err(|e| format!("{name}: {e}"))?;
         let mut out = File::create(dest).map_err(|e| format!("{}: {e}", dest.display()))?;
         let mut hasher = Sha256::new();
@@ -322,7 +336,6 @@ pub(crate) mod test_pkg {
         std::time::SystemTime::now().duration_since(std::time::UNIX_EPOCH).unwrap().as_nanos()
     }
 
-    pub const NAMES_CLIENT: &[u8] = b"VNUM\tLOCALE_NAME\r\n300\tD\xfcrendal\r\n301\tZahnstocher\r\n";
     pub const LIST_CLIENT: &[u8] = b"300\tWEAPON\ticon/item/00300.tga\td:/ymir work/item/weapon/00300.gr2\r\n301\tWEAPON\ticon/item/00300.tga\td:/ymir work/item/weapon/00300.gr2";
 
     /// Zwei Items teilen sich Icon und Modell; kleines, aber vollständiges Paket.
@@ -377,11 +390,9 @@ pub(crate) mod test_pkg {
             ("client/d_/ymir work/item/weapon/00300.gr2".into(), model),
             ("client/d_/ymir work/item/weapon/00300.dds".into(), b"TEX".to_vec()),
             ("client/item_list.txt".into(), LIST_CLIENT.to_vec()),
-            ("client/item_names.txt".into(), NAMES_CLIENT.to_vec()),
             ("server/item_proto_replace.sql".into(), sql_replace.as_bytes().to_vec()),
             ("server/item_proto_insert_ignore.sql".into(), sql_ignore.as_bytes().to_vec()),
             ("server/item_proto.txt".into(), proto_txt.as_bytes().to_vec()),
-            ("server/item_names.txt".into(), NAMES_CLIENT.to_vec()),
         ];
         let mut sums = String::new();
         for (n, d) in &files {

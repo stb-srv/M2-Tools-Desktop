@@ -6,6 +6,20 @@ nach [SemVer](https://semver.org/) (`MAJOR.MINOR.PATCH`, solange < 1.0 gilt
 `MINOR` für neue Features, `PATCH` für reine Fixes). Für die vollständige
 Feature-Historie mit allen Details siehe `STATUS.md`.
 
+## [Unveröffentlicht]
+
+### Geändert
+
+- **Paket-Import: Vorschau bei vielen Items deutlich schneller**: Die Icons werden nicht mehr alle auf einmal geladen, sondern nach und nach als kleine Vorschaubilder. Die Liste erscheint sofort. Bei über 12.000 Items dauerte die Vorschau vorher rund 4 Minuten.
+- **Paket-Import: Client wird nach dem Einspielen neu gepackt**: Die betroffenen Ordner (z. B. `icon` und `item`) werden automatisch in die `.epk`-Archive gepackt, damit der Client die neuen Dateien sieht. Der Bericht zeigt, was gepackt wurde. Schlägt das Packen fehl, steht ein klarer Hinweis im Bericht. Die Dateien selbst bleiben unverändert erhalten.
+- **Paket-Import: Namen in die itemdesc.txt des Clients**: Die Namen der Items werden in `locale/<Sprache>/itemdesc.txt` eingetragen (Spalte Name). Vorhandene Beschreibungen bleiben, ersetzte Zeilen lassen sich über „Rückgängig“ zurücknehmen. Die frühere `item_names.txt` gibt es im Client nicht und wird nicht mehr benutzt.
+- **Paket-Import: schnelleres Einspielen**: Das Paket bleibt während des Einspielens geöffnet, und das Journal (Grundlage für „Rückgängig“) wird nicht mehr nach jeder einzelnen Datei neu geschrieben.
+
+### Behoben
+
+- **Paket-Import: Modelle von Items landen im richtigen Archiv**: Hat die Datenbank für ein Item-Modell keinen Archiv-Eintrag, wird das Archiv `item` angenommen (wie im Client `pack/item/ymir work/item/...`). Im Bericht steht dazu ein Hinweis.
+- **Paket-Import: Pakete mit Pfaden in unterschiedlicher Schreibweise lassen sich öffnen**: Das DB-Tool hat dafür im Manifest eine andere Schreibweise angegeben als im ZIP. Das führte zu „fehlt im ZIP“ und brach den ganzen Import ab. Gilt für Pakete, die nach dem Update des DB-Tools neu erzeugt werden.
+
 ## [1.0.2] - 2026-11-16
 
 ### Hinzugefügt
