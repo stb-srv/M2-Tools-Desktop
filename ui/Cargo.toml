@@ -1,6 +1,6 @@
 [package]
 name = "m2manager-ui"
-version = "1.0.2"
+version = "1.0.3"
 edition = "2021"
 description = "M2Manager frontend (Leptos, compiled to WebAssembly and shown inside the Tauri window)"
 
