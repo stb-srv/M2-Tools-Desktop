@@ -65,16 +65,19 @@ pub fn Modal(
 ) -> impl IntoView {
     let width = width_class.unwrap_or_else(|| "w-96".into());
     view! {
-        <div class="fixed inset-0 flex items-center justify-center bg-black/50">
-            <div class=format!("{width} rounded-lg border border-border bg-card p-4")>
-                <div class="mb-2 flex justify-end">
-                    <button on:click=move |_| on_close.run(()) class="text-muted-foreground hover:text-foreground">
-                        <Icon name="X" class="size-4"/>
-                    </button>
-                </div>
-                {children()}
+        <crate::components::Modal class=format!("{width} rounded-lg border border-border bg-card p-4") on_close=on_close>
+            <div class="mb-2 flex justify-end">
+                <button
+                    on:click=move |_| on_close.run(())
+                    class="text-muted-foreground hover:text-foreground"
+                    title="Schließen"
+                    aria-label="Schließen"
+                >
+                    <Icon name="X" class="size-4"/>
+                </button>
             </div>
-        </div>
+            {children()}
+        </crate::components::Modal>
     }
 }
 

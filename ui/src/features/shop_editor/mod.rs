@@ -832,36 +832,34 @@ pub fn ShopEditor() -> impl IntoView {
     let sync_dialog = move || {
         sync_confirm.get().then(|| {
             view! {
-                <div class="fixed inset-0 flex items-center justify-center bg-black/50">
-                    <div class="w-96 space-y-3 rounded-lg border border-border bg-card p-4">
-                        <p class="text-sm">
-                            "Alle vorhandenen Gegenstände "
-                            {move || if mode.get() == Mode::ProShop {
-                                view! {
-                                    "in "
-                                    <strong>{move || selected_shop.with(|s| s.as_ref().map(|s| s.name.clone()))}</strong>
-                                }
-                                .into_any()
-                            } else {
-                                "in allen Shops".into_any()
-                            }}
-                            " auf Stapelgröße " <strong>{move || max_value.get()}</strong>
-                            " setzen? Das überschreibt die aktuellen Mengen und kann nicht rückgängig gemacht werden."
-                        </p>
-                        <div class="flex justify-end gap-2">
-                            <Button
-                                variant=ButtonVariant::Outline
-                                on_click=move |_| sync_confirm.set(false)
-                                disabled=syncing
-                            >
-                                {move || t("common.cancel")}
-                            </Button>
-                            <Button on_click=move |_| confirm_sync() disabled=syncing>
-                                {move || if syncing.get() { "Synchronisiere…" } else { "Synchronisieren" }}
-                            </Button>
-                        </div>
+                <crate::components::Modal class="w-96 space-y-3 rounded-lg border border-border bg-card p-4">
+                    <p class="text-sm">
+                        "Alle vorhandenen Gegenstände "
+                        {move || if mode.get() == Mode::ProShop {
+                            view! {
+                                "in "
+                                <strong>{move || selected_shop.with(|s| s.as_ref().map(|s| s.name.clone()))}</strong>
+                            }
+                            .into_any()
+                        } else {
+                            "in allen Shops".into_any()
+                        }}
+                        " auf Stapelgröße " <strong>{move || max_value.get()}</strong>
+                        " setzen? Das überschreibt die aktuellen Mengen und kann nicht rückgängig gemacht werden."
+                    </p>
+                    <div class="flex justify-end gap-2">
+                        <Button
+                            variant=ButtonVariant::Outline
+                            on_click=move |_| sync_confirm.set(false)
+                            disabled=syncing
+                        >
+                            {move || t("common.cancel")}
+                        </Button>
+                        <Button on_click=move |_| confirm_sync() disabled=syncing>
+                            {move || if syncing.get() { "Synchronisiere…" } else { "Synchronisieren" }}
+                        </Button>
                     </div>
-                </div>
+                </crate::components::Modal>
             }
         })
     };
@@ -869,22 +867,20 @@ pub fn ShopEditor() -> impl IntoView {
     let delete_dialog = move || {
         delete_confirm.get().map(|d| {
             view! {
-                <div class="fixed inset-0 flex items-center justify-center bg-black/50">
-                    <div class="w-80 space-y-3 rounded-lg border border-border bg-card p-4">
-                        <p class="text-sm">
-                            "Shop " <strong>{d.name.clone()}</strong>
-                            " wirklich löschen? Das kann nicht rückgängig gemacht werden."
-                        </p>
-                        <div class="flex justify-end gap-2">
-                            <Button variant=ButtonVariant::Outline on_click=move |_| delete_confirm.set(None)>
-                                {move || t("common.cancel")}
-                            </Button>
-                            <Button variant=ButtonVariant::Destructive on_click=move |_| confirm_delete()>
-                                {move || t("common.delete")}
-                            </Button>
-                        </div>
+                <crate::components::Modal class="w-80 space-y-3 rounded-lg border border-border bg-card p-4">
+                    <p class="text-sm">
+                        "Shop " <strong>{d.name.clone()}</strong>
+                        " wirklich löschen? Das kann nicht rückgängig gemacht werden."
+                    </p>
+                    <div class="flex justify-end gap-2">
+                        <Button variant=ButtonVariant::Outline on_click=move |_| delete_confirm.set(None)>
+                            {move || t("common.cancel")}
+                        </Button>
+                        <Button variant=ButtonVariant::Destructive on_click=move |_| confirm_delete()>
+                            {move || t("common.delete")}
+                        </Button>
                     </div>
-                </div>
+                </crate::components::Modal>
             }
         })
     };
@@ -988,15 +984,13 @@ fn Stepper(
 #[component]
 fn Modal(on_close: Callback<()>, children: Children) -> impl IntoView {
     view! {
-        <div class="fixed inset-0 flex items-center justify-center bg-black/50">
-            <div class="w-96 rounded-lg border border-border bg-card p-4">
-                <div class="mb-2 flex justify-end">
-                    <button on:click=move |_| on_close.run(()) class="text-muted-foreground hover:text-foreground">
-                        <Icon name="X" class="size-4"/>
-                    </button>
-                </div>
-                {children()}
+        <crate::components::Modal class="w-96 rounded-lg border border-border bg-card p-4">
+            <div class="mb-2 flex justify-end">
+                <button on:click=move |_| on_close.run(()) class="text-muted-foreground hover:text-foreground">
+                    <Icon name="X" class="size-4"/>
+                </button>
             </div>
-        </div>
+            {children()}
+        </crate::components::Modal>
     }
 }

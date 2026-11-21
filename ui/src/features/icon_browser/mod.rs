@@ -197,25 +197,20 @@ pub fn IconBrowser() -> impl IntoView {
 #[component]
 pub fn IconBrowserModal(#[prop(into)] on_pick: Callback<String>, #[prop(into)] on_close: Callback<()>) -> impl IntoView {
     view! {
-        <div class="fixed inset-0 z-40 flex items-center justify-center bg-black/50" on:click=move |_| on_close.run(())>
-            <div
-                class="flex h-[70vh] w-[48rem] flex-col gap-2 rounded-lg border border-border bg-card p-4"
-                on:click=|e| e.stop_propagation()
-            >
-                <div class="flex items-center justify-between">
-                    <p class="text-sm font-medium">"Icon auswählen"</p>
-                    <Button variant=ButtonVariant::Ghost size=ButtonSize::Sm on_click=move |_| on_close.run(())>
-                        "Schließen"
-                    </Button>
-                </div>
-                <div class="min-h-0 flex-1">
-                    <IconGrid on_pick=Callback::new(move |path: String| {
-                        on_pick.run(path);
-                        on_close.run(());
-                    })/>
-                </div>
+        <crate::components::Modal class="flex h-[70vh] w-[48rem] flex-col gap-2 rounded-lg border border-border bg-card p-4" overlay_class="z-40" on_close=on_close close_on_backdrop=true>
+            <div class="flex items-center justify-between">
+                <p class="text-sm font-medium">"Icon auswählen"</p>
+                <Button variant=ButtonVariant::Ghost size=ButtonSize::Sm on_click=move |_| on_close.run(())>
+                    "Schließen"
+                </Button>
             </div>
-        </div>
+            <div class="min-h-0 flex-1">
+                <IconGrid on_pick=Callback::new(move |path: String| {
+                    on_pick.run(path);
+                    on_close.run(());
+                })/>
+            </div>
+        </crate::components::Modal>
     }
 }
 

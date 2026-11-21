@@ -299,67 +299,61 @@ pub fn DbBackups() -> impl IntoView {
             </div>
 
             <Show when=move || create_confirm.get()>
-                <div class="fixed inset-0 flex items-center justify-center bg-black/50">
-                    <div class="w-96 space-y-3 rounded-lg border border-border bg-card p-4">
-                        <p class="flex items-start gap-2 text-sm">
-                            <Icon name="AlertTriangle" class="mt-0.5 size-4 shrink-0 text-destructive"/>
-                            <span>
-                                "Erstellt einen vollständigen "<code>"mysqldump"</code>" aller konfigurierten Datenbanken auf dem Server. Kann je nach Datenmenge etwas dauern."
-                            </span>
-                        </p>
-                        <div class="flex justify-end gap-2">
-                            <Button variant=ButtonVariant::Outline on_click=move |_| create_confirm.set(false)>
-                                "Abbrechen"
-                            </Button>
-                            <Button on_click=move |_| run_create()>"Erstellen"</Button>
-                        </div>
+                <crate::components::Modal class="w-96 space-y-3 rounded-lg border border-border bg-card p-4">
+                    <p class="flex items-start gap-2 text-sm">
+                        <Icon name="AlertTriangle" class="mt-0.5 size-4 shrink-0 text-destructive"/>
+                        <span>
+                            "Erstellt einen vollständigen "<code>"mysqldump"</code>" aller konfigurierten Datenbanken auf dem Server. Kann je nach Datenmenge etwas dauern."
+                        </span>
+                    </p>
+                    <div class="flex justify-end gap-2">
+                        <Button variant=ButtonVariant::Outline on_click=move |_| create_confirm.set(false)>
+                            "Abbrechen"
+                        </Button>
+                        <Button on_click=move |_| run_create()>"Erstellen"</Button>
                     </div>
-                </div>
+                </crate::components::Modal>
             </Show>
 
             {move || restore_target.get().map(|target| view! {
-                <div class="fixed inset-0 flex items-center justify-center bg-black/50">
-                    <div class="w-[28rem] space-y-3 rounded-lg border border-border bg-card p-4">
-                        <p class="flex items-start gap-2 text-sm">
-                            <Icon name="AlertTriangle" class="mt-0.5 size-4 shrink-0 text-destructive"/>
-                            <span>
-                                <strong>"Alle Daten in den gesicherten Datenbanken werden durch den Stand dieses Backups ersetzt."</strong>
-                                " Das betrifft die komplette Live-Datenbank, nicht nur einzelne Zeilen, und kann nicht rückgängig gemacht werden außer durch ein neueres Backup. Datei: "
-                                <code>{target}</code>
-                            </span>
-                        </p>
-                        <div class="flex justify-end gap-2">
-                            <Button variant=ButtonVariant::Outline on_click=move |_| restore_target.set(None)>
-                                "Abbrechen"
-                            </Button>
-                            <Button variant=ButtonVariant::Destructive on_click=move |_| run_restore() disabled=restoring>
-                                {move || if restoring.get() { "Stelle wieder her…" } else { "Wirklich wiederherstellen" }}
-                            </Button>
-                        </div>
+                <crate::components::Modal class="w-[28rem] space-y-3 rounded-lg border border-border bg-card p-4">
+                    <p class="flex items-start gap-2 text-sm">
+                        <Icon name="AlertTriangle" class="mt-0.5 size-4 shrink-0 text-destructive"/>
+                        <span>
+                            <strong>"Alle Daten in den gesicherten Datenbanken werden durch den Stand dieses Backups ersetzt."</strong>
+                            " Das betrifft die komplette Live-Datenbank, nicht nur einzelne Zeilen, und kann nicht rückgängig gemacht werden außer durch ein neueres Backup. Datei: "
+                            <code>{target}</code>
+                        </span>
+                    </p>
+                    <div class="flex justify-end gap-2">
+                        <Button variant=ButtonVariant::Outline on_click=move |_| restore_target.set(None)>
+                            "Abbrechen"
+                        </Button>
+                        <Button variant=ButtonVariant::Destructive on_click=move |_| run_restore() disabled=restoring>
+                            {move || if restoring.get() { "Stelle wieder her…" } else { "Wirklich wiederherstellen" }}
+                        </Button>
                     </div>
-                </div>
+                </crate::components::Modal>
             })}
 
             {move || delete_target.get().map(|target| view! {
-                <div class="fixed inset-0 flex items-center justify-center bg-black/50">
-                    <div class="w-96 space-y-3 rounded-lg border border-border bg-card p-4">
-                        <p class="flex items-start gap-2 text-sm">
-                            <Icon name="AlertTriangle" class="mt-0.5 size-4 shrink-0 text-destructive"/>
-                            <span>
-                                <code>{target}</code>
-                                " wird endgültig gelöscht (kein weiteres Backup davon)."
-                            </span>
-                        </p>
-                        <div class="flex justify-end gap-2">
-                            <Button variant=ButtonVariant::Outline on_click=move |_| delete_target.set(None)>
-                                "Abbrechen"
-                            </Button>
-                            <Button variant=ButtonVariant::Destructive on_click=move |_| run_delete() disabled=deleting>
-                                "Löschen"
-                            </Button>
-                        </div>
+                <crate::components::Modal class="w-96 space-y-3 rounded-lg border border-border bg-card p-4">
+                    <p class="flex items-start gap-2 text-sm">
+                        <Icon name="AlertTriangle" class="mt-0.5 size-4 shrink-0 text-destructive"/>
+                        <span>
+                            <code>{target}</code>
+                            " wird endgültig gelöscht (kein weiteres Backup davon)."
+                        </span>
+                    </p>
+                    <div class="flex justify-end gap-2">
+                        <Button variant=ButtonVariant::Outline on_click=move |_| delete_target.set(None)>
+                            "Abbrechen"
+                        </Button>
+                        <Button variant=ButtonVariant::Destructive on_click=move |_| run_delete() disabled=deleting>
+                            "Löschen"
+                        </Button>
                     </div>
-                </div>
+                </crate::components::Modal>
             })}
         </div>
     }

@@ -670,49 +670,45 @@ pub fn MobDropEditor() -> impl IntoView {
                     </Show>
 
                     {move || delete_confirm.get().map(|dc| view! {
-                        <div class="fixed inset-0 flex items-center justify-center bg-black/50">
-                            <div class="w-80 space-y-3 rounded-lg border border-border bg-card p-4">
-                                <p class="text-sm">
-                                    "Mob "
-                                    <strong>{move || with_group(groups, dc, |g| g.name.clone()).unwrap_or_default()}</strong>
-                                    " wirklich aus der Liste entfernen? Wird erst beim Speichern in die Datei übernommen."
-                                </p>
-                                <div class="flex justify-end gap-2">
-                                    <Button variant=ButtonVariant::Outline on_click=move |_| delete_confirm.set(None)>
-                                        "Abbrechen"
-                                    </Button>
-                                    <Button variant=ButtonVariant::Destructive on_click=move |_| confirm_delete_group()>
-                                        "Entfernen"
-                                    </Button>
-                                </div>
+                        <crate::components::Modal class="w-80 space-y-3 rounded-lg border border-border bg-card p-4">
+                            <p class="text-sm">
+                                "Mob "
+                                <strong>{move || with_group(groups, dc, |g| g.name.clone()).unwrap_or_default()}</strong>
+                                " wirklich aus der Liste entfernen? Wird erst beim Speichern in die Datei übernommen."
+                            </p>
+                            <div class="flex justify-end gap-2">
+                                <Button variant=ButtonVariant::Outline on_click=move |_| delete_confirm.set(None)>
+                                    "Abbrechen"
+                                </Button>
+                                <Button variant=ButtonVariant::Destructive on_click=move |_| confirm_delete_group()>
+                                    "Entfernen"
+                                </Button>
                             </div>
-                        </div>
+                        </crate::components::Modal>
                     })}
 
                     <Show when=move || save_confirm.get()>
-                        <div class="fixed inset-0 flex items-center justify-center bg-black/50">
-                            <div class="max-h-[85vh] w-[40rem] space-y-3 overflow-y-auto rounded-lg border border-border bg-card p-4">
-                                <p class="flex items-start gap-2 text-sm">
-                                    <Icon name="AlertTriangle" class="mt-0.5 size-4 shrink-0 text-destructive"/>
-                                    <span>
-                                        {move || if source.get() == Source::Server {
-                                            "Die Datei auf dem Server wird gesichert und dann komplett mit dem aktuellen Stand überschrieben."
-                                        } else {
-                                            "Die lokale Datei wird gesichert und dann komplett mit dem aktuellen Stand überschrieben."
-                                        }}
-                                    </span>
-                                </p>
-                                {(source.get_untracked() == Source::Server).then(|| groups.get_untracked()).flatten().map(|d| view! {
-                                    <ChangePreview kind="mob_drop" data=serde_json::to_value(&d).unwrap_or_default()/>
-                                })}
-                                <div class="flex justify-end gap-2">
-                                    <Button variant=ButtonVariant::Outline on_click=move |_| save_confirm.set(false)>
-                                        "Abbrechen"
-                                    </Button>
-                                    <Button on_click=move |_| save_file()>"Speichern"</Button>
-                                </div>
+                        <crate::components::Modal class="max-h-[85vh] w-[40rem] space-y-3 overflow-y-auto rounded-lg border border-border bg-card p-4">
+                            <p class="flex items-start gap-2 text-sm">
+                                <Icon name="AlertTriangle" class="mt-0.5 size-4 shrink-0 text-destructive"/>
+                                <span>
+                                    {move || if source.get() == Source::Server {
+                                        "Die Datei auf dem Server wird gesichert und dann komplett mit dem aktuellen Stand überschrieben."
+                                    } else {
+                                        "Die lokale Datei wird gesichert und dann komplett mit dem aktuellen Stand überschrieben."
+                                    }}
+                                </span>
+                            </p>
+                            {(source.get_untracked() == Source::Server).then(|| groups.get_untracked()).flatten().map(|d| view! {
+                                <ChangePreview kind="mob_drop" data=serde_json::to_value(&d).unwrap_or_default()/>
+                            })}
+                            <div class="flex justify-end gap-2">
+                                <Button variant=ButtonVariant::Outline on_click=move |_| save_confirm.set(false)>
+                                    "Abbrechen"
+                                </Button>
+                                <Button on_click=move |_| save_file()>"Speichern"</Button>
                             </div>
-                        </div>
+                        </crate::components::Modal>
                     </Show>
                 </Show>
             </div>

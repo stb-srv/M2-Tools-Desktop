@@ -215,60 +215,58 @@ fn NewGmDialog(columns: Vec<ColumnInfo>, #[prop(into)] on_close: Callback<()>, #
     let submit = StoredValue::new(submit);
 
     view! {
-        <div class="fixed inset-0 z-50 flex items-center justify-center bg-black/50">
-            <div class="w-96 space-y-3 rounded-lg border border-border bg-card p-4">
-                <p class="text-sm font-medium">"Neuer GM"</p>
-                <Field label="Account (login)">
-                    <input
-                        node_ref=account_ref
-                        prop:value=move || account.get()
-                        on:input=move |e| account.set(event_target_value(&e))
-                        class="rounded-md border border-border bg-background px-2 py-1 text-sm"
-                    />
-                </Field>
-                <AccountPicker on_pick=move |login: String| account.set(login)/>
-                <Field label="Charaktername (exakt wie im Spiel, Groß-/Kleinschreibung zählt)">
-                    <input
-                        prop:value=move || name.get()
-                        on:input=move |e| name.set(event_target_value(&e))
-                        class="rounded-md border border-border bg-background px-2 py-1 text-sm"
-                    />
-                </Field>
-                <Field label="Rang">
-                    <select
-                        prop:value=move || authority.get()
-                        on:change=move |e| authority.set(event_target_value(&e))
-                        class="rounded-md border border-border bg-background px-2 py-1 text-sm"
-                    >
-                        {AUTHORITY_LEVELS.iter().map(|(value, label)| {
-                            let v = *value;
-                            view! { <option value=v selected=move || authority.with(|a| a == v)>{*label}</option> }
-                        }).collect_view()}
-                    </select>
-                </Field>
-                <Field label="Server-IP (ALL = auf allen Channels gültig)">
-                    <input
-                        prop:value=move || server_ip.get()
-                        on:input=move |e| server_ip.set(event_target_value(&e))
-                        class="rounded-md border border-border bg-background px-2 py-1 text-sm"
-                    />
-                </Field>
-                <Field label="Kontakt-IP (optional)">
-                    <input
-                        prop:value=move || contact_ip.get()
-                        on:input=move |e| contact_ip.set(event_target_value(&e))
-                        class="rounded-md border border-border bg-background px-2 py-1 text-sm"
-                    />
-                </Field>
-                {move || error.get().map(|e| view! { <p class="text-sm text-destructive">{e}</p> })}
-                <div class="flex justify-end gap-2">
-                    <Button variant=ButtonVariant::Outline on_click=move |_| on_close.run(())>"Abbrechen"</Button>
-                    <Button disabled=Signal::derive(move || !can_create() || busy.get()) on_click=move |_| submit.with_value(|f| f())>
-                        {move || if busy.get() { "Lege an…" } else { "Anlegen" }}
-                    </Button>
-                </div>
+        <crate::components::Modal class="w-96 space-y-3 rounded-lg border border-border bg-card p-4" overlay_class="z-50">
+            <p class="text-sm font-medium">"Neuer GM"</p>
+            <Field label="Account (login)">
+                <input
+                    node_ref=account_ref
+                    prop:value=move || account.get()
+                    on:input=move |e| account.set(event_target_value(&e))
+                    class="rounded-md border border-border bg-background px-2 py-1 text-sm"
+                />
+            </Field>
+            <AccountPicker on_pick=move |login: String| account.set(login)/>
+            <Field label="Charaktername (exakt wie im Spiel, Groß-/Kleinschreibung zählt)">
+                <input
+                    prop:value=move || name.get()
+                    on:input=move |e| name.set(event_target_value(&e))
+                    class="rounded-md border border-border bg-background px-2 py-1 text-sm"
+                />
+            </Field>
+            <Field label="Rang">
+                <select
+                    prop:value=move || authority.get()
+                    on:change=move |e| authority.set(event_target_value(&e))
+                    class="rounded-md border border-border bg-background px-2 py-1 text-sm"
+                >
+                    {AUTHORITY_LEVELS.iter().map(|(value, label)| {
+                        let v = *value;
+                        view! { <option value=v selected=move || authority.with(|a| a == v)>{*label}</option> }
+                    }).collect_view()}
+                </select>
+            </Field>
+            <Field label="Server-IP (ALL = auf allen Channels gültig)">
+                <input
+                    prop:value=move || server_ip.get()
+                    on:input=move |e| server_ip.set(event_target_value(&e))
+                    class="rounded-md border border-border bg-background px-2 py-1 text-sm"
+                />
+            </Field>
+            <Field label="Kontakt-IP (optional)">
+                <input
+                    prop:value=move || contact_ip.get()
+                    on:input=move |e| contact_ip.set(event_target_value(&e))
+                    class="rounded-md border border-border bg-background px-2 py-1 text-sm"
+                />
+            </Field>
+            {move || error.get().map(|e| view! { <p class="text-sm text-destructive">{e}</p> })}
+            <div class="flex justify-end gap-2">
+                <Button variant=ButtonVariant::Outline on_click=move |_| on_close.run(())>"Abbrechen"</Button>
+                <Button disabled=Signal::derive(move || !can_create() || busy.get()) on_click=move |_| submit.with_value(|f| f())>
+                    {move || if busy.get() { "Lege an…" } else { "Anlegen" }}
+                </Button>
             </div>
-        </div>
+        </crate::components::Modal>
     }
 }
 
@@ -483,19 +481,17 @@ pub fn GmManager() -> impl IntoView {
             })}
 
             {move || delete_target.get().map(|(_, label)| view! {
-                <div class="fixed inset-0 z-50 flex items-center justify-center bg-black/50">
-                    <div class="w-96 space-y-3 rounded-lg border border-border bg-card p-4">
-                        <p class="flex items-center gap-2 text-sm font-medium">
-                            <Icon name="AlertTriangle" class="size-4 text-destructive"/>
-                            {format!(" GM-Rechte für \"{label}\" wirklich entziehen?")}
-                        </p>
-                        {move || delete_error.get().map(|e| view! { <p class="text-sm text-destructive">{e}</p> })}
-                        <div class="flex justify-end gap-2">
-                            <Button variant=ButtonVariant::Outline on_click=move |_| delete_target.set(None)>"Abbrechen"</Button>
-                            <Button variant=ButtonVariant::Destructive on_click=move |_| confirm_delete()>"Entziehen"</Button>
-                        </div>
+                <crate::components::Modal class="w-96 space-y-3 rounded-lg border border-border bg-card p-4" overlay_class="z-50">
+                    <p class="flex items-center gap-2 text-sm font-medium">
+                        <Icon name="AlertTriangle" class="size-4 text-destructive"/>
+                        {format!(" GM-Rechte für \"{label}\" wirklich entziehen?")}
+                    </p>
+                    {move || delete_error.get().map(|e| view! { <p class="text-sm text-destructive">{e}</p> })}
+                    <div class="flex justify-end gap-2">
+                        <Button variant=ButtonVariant::Outline on_click=move |_| delete_target.set(None)>"Abbrechen"</Button>
+                        <Button variant=ButtonVariant::Destructive on_click=move |_| confirm_delete()>"Entziehen"</Button>
                     </div>
-                </div>
+                </crate::components::Modal>
             })}
         </div>
     }

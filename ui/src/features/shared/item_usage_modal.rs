@@ -355,26 +355,24 @@ pub fn ItemUsageModal(vnum: i64, #[prop(into)] on_close: Callback<()>) -> impl I
     });
 
     view! {
-        <div class="fixed inset-0 z-50 flex items-center justify-center bg-black/50">
-            <div class="flex max-h-[80vh] w-[36rem] flex-col gap-3 rounded-lg border border-border bg-card p-4">
-                <div class="flex items-center justify-between">
-                    <p class="text-sm font-medium">"Wo wird Item #" {vnum} " benutzt?"</p>
-                    <button on:click=move |_| on_close.run(()) class="text-muted-foreground hover:text-foreground">
-                        <Icon name="X" class="size-4"/>
-                    </button>
-                </div>
-
-                <Show when=move || loading.get()>
-                    <p class="text-sm text-muted-foreground">"Prüfe…"</p>
-                </Show>
-                {move || error.get().map(|e| view! { <p class="text-sm text-destructive">{e}</p> })}
-
-                {move || report.get().map(report_view)}
-
-                <div class="flex justify-end">
-                    <Button variant=ButtonVariant::Outline on_click=move |_| on_close.run(())>"Schließen"</Button>
-                </div>
+        <crate::components::Modal class="flex max-h-[80vh] w-[36rem] flex-col gap-3 rounded-lg border border-border bg-card p-4" overlay_class="z-50">
+            <div class="flex items-center justify-between">
+                <p class="text-sm font-medium">"Wo wird Item #" {vnum} " benutzt?"</p>
+                <button on:click=move |_| on_close.run(()) class="text-muted-foreground hover:text-foreground">
+                    <Icon name="X" class="size-4"/>
+                </button>
             </div>
-        </div>
+
+            <Show when=move || loading.get()>
+                <p class="text-sm text-muted-foreground">"Prüfe…"</p>
+            </Show>
+            {move || error.get().map(|e| view! { <p class="text-sm text-destructive">{e}</p> })}
+
+            {move || report.get().map(report_view)}
+
+            <div class="flex justify-end">
+                <Button variant=ButtonVariant::Outline on_click=move |_| on_close.run(())>"Schließen"</Button>
+            </div>
+        </crate::components::Modal>
     }
 }

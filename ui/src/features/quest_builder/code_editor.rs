@@ -910,10 +910,10 @@ pub fn CodeEditor(
                     }
                     on:keydown=find_keydown
                 />
-                <button type="button" title="Nächster Treffer (Enter, F3)" class="h-7 rounded px-1 hover:bg-muted" on:click=move |_| find_next(false)>
+                <button type="button" title="Nächster Treffer (Enter, F3)" aria-label="Nächster Treffer" class="h-7 rounded px-1 hover:bg-muted" on:click=move |_| find_next(false)>
                     <Icon name="ArrowDown" class="size-3.5"/>
                 </button>
-                <button type="button" title="Vorheriger Treffer (Umschalt+Enter)" class="h-7 rounded px-1 hover:bg-muted" on:click=move |_| find_next(true)>
+                <button type="button" title="Vorheriger Treffer (Umschalt+Enter)" aria-label="Vorheriger Treffer" class="h-7 rounded px-1 hover:bg-muted" on:click=move |_| find_next(true)>
                     <Icon name="ArrowUp" class="size-3.5"/>
                 </button>
                 {toggle_btn("Aa", "Groß-/Kleinschreibung beachten", |o| o.case, |o| o.case = !o.case)}
@@ -940,7 +940,7 @@ pub fn CodeEditor(
                 <button type="button" class="h-7 whitespace-nowrap rounded border border-border px-2 hover:bg-muted" on:click=move |_| replace_all()>
                     "Alle ersetzen"
                 </button>
-                <button type="button" title="Schließen (Esc)" class="ml-auto h-7 rounded px-1 hover:bg-muted" on:click=move |_| close_search()>
+                <button type="button" title="Schließen (Esc)" aria-label="Schließen" class="ml-auto h-7 rounded px-1 hover:bg-muted" on:click=move |_| close_search()>
                     <Icon name="X" class="size-3.5"/>
                 </button>
             </div>

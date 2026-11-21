@@ -59,46 +59,44 @@ pub fn BanDialog(
     let submit = StoredValue::new(submit);
 
     view! {
-        <div class="fixed inset-0 z-50 flex items-center justify-center bg-black/50">
-            <div class="w-96 space-y-3 rounded-lg border border-border bg-card p-4">
-                <p class="text-sm font-medium">"Account sperren: " {account.login.clone()}</p>
-                <label class="flex flex-col gap-1 text-xs text-muted-foreground">
-                    "Nachricht (wird wörtlich am Login-Bildschirm angezeigt)"
-                    <textarea
-                        node_ref=textarea_ref
-                        prop:value=move || message.get()
-                        on:input=move |e| message.set(event_target_value(&e))
-                        rows=3
-                        class="rounded-md border border-border bg-background px-2 py-1 text-sm"
-                    ></textarea>
-                </label>
-                <label class="flex flex-col gap-1 text-xs text-muted-foreground">
-                    "Dauer in Tagen (leer = dauerhaft, keine automatische Entsperrung)"
-                    <input
-                        type="number"
-                        min=1
-                        prop:value=move || days.get()
-                        on:input=move |e| days.set(event_target_value(&e))
-                        placeholder="dauerhaft"
-                        class="w-32 rounded-md border border-border bg-background px-2 py-1 text-sm"
-                    />
-                </label>
-                <p class="flex items-start gap-2 text-xs text-muted-foreground">
-                    <Icon name="AlertTriangle" class="mt-0.5 size-3.5 shrink-0"/>
-                    "Automatische Entsperrung greift nur, solange/wann immer M2Manager läuft - es gibt keinen Server-seitigen Cron dafür."
-                </p>
-                {move || error.get().map(|e| view! { <p class="text-sm text-destructive">{e}</p> })}
-                <div class="flex justify-end gap-2">
-                    <Button variant=ButtonVariant::Outline on_click=move |_| on_close.run(())>"Abbrechen"</Button>
-                    <Button
-                        variant=ButtonVariant::Destructive
-                        disabled=Signal::derive(move || message.with(|m| m.trim().is_empty()) || busy.get())
-                        on_click=move |_| submit.with_value(|f| f())
-                    >
-                        {move || if busy.get() { "Sperre…" } else { "Sperren" }}
-                    </Button>
-                </div>
+        <crate::components::Modal class="w-96 space-y-3 rounded-lg border border-border bg-card p-4" overlay_class="z-50">
+            <p class="text-sm font-medium">"Account sperren: " {account.login.clone()}</p>
+            <label class="flex flex-col gap-1 text-xs text-muted-foreground">
+                "Nachricht (wird wörtlich am Login-Bildschirm angezeigt)"
+                <textarea
+                    node_ref=textarea_ref
+                    prop:value=move || message.get()
+                    on:input=move |e| message.set(event_target_value(&e))
+                    rows=3
+                    class="rounded-md border border-border bg-background px-2 py-1 text-sm"
+                ></textarea>
+            </label>
+            <label class="flex flex-col gap-1 text-xs text-muted-foreground">
+                "Dauer in Tagen (leer = dauerhaft, keine automatische Entsperrung)"
+                <input
+                    type="number"
+                    min=1
+                    prop:value=move || days.get()
+                    on:input=move |e| days.set(event_target_value(&e))
+                    placeholder="dauerhaft"
+                    class="w-32 rounded-md border border-border bg-background px-2 py-1 text-sm"
+                />
+            </label>
+            <p class="flex items-start gap-2 text-xs text-muted-foreground">
+                <Icon name="AlertTriangle" class="mt-0.5 size-3.5 shrink-0"/>
+                "Automatische Entsperrung greift nur, solange/wann immer M2Manager läuft - es gibt keinen Server-seitigen Cron dafür."
+            </p>
+            {move || error.get().map(|e| view! { <p class="text-sm text-destructive">{e}</p> })}
+            <div class="flex justify-end gap-2">
+                <Button variant=ButtonVariant::Outline on_click=move |_| on_close.run(())>"Abbrechen"</Button>
+                <Button
+                    variant=ButtonVariant::Destructive
+                    disabled=Signal::derive(move || message.with(|m| m.trim().is_empty()) || busy.get())
+                    on_click=move |_| submit.with_value(|f| f())
+                >
+                    {move || if busy.get() { "Sperre…" } else { "Sperren" }}
+                </Button>
             </div>
-        </div>
+        </crate::components::Modal>
     }
 }

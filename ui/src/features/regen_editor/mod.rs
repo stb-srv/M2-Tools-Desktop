@@ -537,87 +537,83 @@ pub fn RegenEditor() -> impl IntoView {
             </div>
 
             <Show when=move || s.show_map_picker.get()>
-                <div class="fixed inset-0 flex items-center justify-center bg-black/50">
-                    <div class="max-h-[70vh] w-[32rem] space-y-3 overflow-y-auto rounded-lg border border-border bg-card p-4">
-                        <h2 class="text-sm font-medium">"Kartenordner zuordnen"</h2>
-                        <p class="text-xs text-muted-foreground">
-                            "Wähle den Client-Kartenordner, der zu "
-                            <code>{move || s.selected_path.get().unwrap_or_default()}</code>
-                            " gehört. Die Zuordnung wird für diese Datei gemerkt."
+                <crate::components::Modal class="max-h-[70vh] w-[32rem] space-y-3 overflow-y-auto rounded-lg border border-border bg-card p-4">
+                    <h2 class="text-sm font-medium">"Kartenordner zuordnen"</h2>
+                    <p class="text-xs text-muted-foreground">
+                        "Wähle den Client-Kartenordner, der zu "
+                        <code>{move || s.selected_path.get().unwrap_or_default()}</code>
+                        " gehört. Die Zuordnung wird für diese Datei gemerkt."
+                    </p>
+                    {move || s.map_folders_error.get().map(|e| view! { <p class="text-sm text-destructive">{e}</p> })}
+                    <Show when=move || s.map_folders.with(|f| f.is_none()) && s.map_folders_error.with(|e| e.is_none())>
+                        <p class="text-sm text-muted-foreground">"Lade Kartenordner…"</p>
+                    </Show>
+                    <Show when=move || s.map_folders.with(|f| f.as_ref().is_some_and(|f| f.is_empty()))>
+                        <p class="text-sm text-muted-foreground">
+                            "Keine entpackten Kartenordner unter dem konfigurierten Client-Pfad gefunden."
                         </p>
-                        {move || s.map_folders_error.get().map(|e| view! { <p class="text-sm text-destructive">{e}</p> })}
-                        <Show when=move || s.map_folders.with(|f| f.is_none()) && s.map_folders_error.with(|e| e.is_none())>
-                            <p class="text-sm text-muted-foreground">"Lade Kartenordner…"</p>
-                        </Show>
-                        <Show when=move || s.map_folders.with(|f| f.as_ref().is_some_and(|f| f.is_empty()))>
-                            <p class="text-sm text-muted-foreground">
-                                "Keine entpackten Kartenordner unter dem konfigurierten Client-Pfad gefunden."
-                            </p>
-                        </Show>
-                        <div class="space-y-2">
-                            {move || {
-                                let folders = s.map_folders.get().unwrap_or_default();
-                                let mut groups: Vec<(String, Vec<MapFolderInfo>)> = Vec::new();
-                                for f in folders {
-                                    match groups.iter_mut().find(|(c, _)| *c == f.category) {
-                                        Some((_, v)) => v.push(f),
-                                        None => groups.push((f.category.clone(), vec![f])),
-                                    }
+                    </Show>
+                    <div class="space-y-2">
+                        {move || {
+                            let folders = s.map_folders.get().unwrap_or_default();
+                            let mut groups: Vec<(String, Vec<MapFolderInfo>)> = Vec::new();
+                            for f in folders {
+                                match groups.iter_mut().find(|(c, _)| *c == f.category) {
+                                    Some((_, v)) => v.push(f),
+                                    None => groups.push((f.category.clone(), vec![f])),
                                 }
-                                groups
-                                    .into_iter()
-                                    .map(|(category, folders)| {
-                                        view! {
-                                            <div>
-                                                <p class="text-xs font-medium text-muted-foreground">{category}</p>
-                                                <div class="flex flex-wrap gap-1 pt-1">
-                                                    {folders
-                                                        .into_iter()
-                                                        .map(|f| {
-                                                            let label = f.folder_name.clone();
-                                                            view! {
-                                                                <button
-                                                                    on:click=move |_| {
-                                                                        spawn_local(s.choose_map_folder(f.category.clone(), f.folder_name.clone()))
-                                                                    }
-                                                                    class="rounded-md border border-border px-2 py-1 text-xs hover:bg-muted"
-                                                                >
-                                                                    {label}
-                                                                </button>
-                                                            }
-                                                        })
-                                                        .collect_view()}
-                                                </div>
+                            }
+                            groups
+                                .into_iter()
+                                .map(|(category, folders)| {
+                                    view! {
+                                        <div>
+                                            <p class="text-xs font-medium text-muted-foreground">{category}</p>
+                                            <div class="flex flex-wrap gap-1 pt-1">
+                                                {folders
+                                                    .into_iter()
+                                                    .map(|f| {
+                                                        let label = f.folder_name.clone();
+                                                        view! {
+                                                            <button
+                                                                on:click=move |_| {
+                                                                    spawn_local(s.choose_map_folder(f.category.clone(), f.folder_name.clone()))
+                                                                }
+                                                                class="rounded-md border border-border px-2 py-1 text-xs hover:bg-muted"
+                                                            >
+                                                                {label}
+                                                            </button>
+                                                        }
+                                                    })
+                                                    .collect_view()}
                                             </div>
-                                        }
-                                    })
-                                    .collect_view()
-                            }}
-                        </div>
-                        <div class="flex justify-end">
-                            <Button variant=ButtonVariant::Outline size=ButtonSize::Sm on_click=move |_| s.show_map_picker.set(false)>
-                                "Abbrechen"
-                            </Button>
-                        </div>
+                                        </div>
+                                    }
+                                })
+                                .collect_view()
+                        }}
                     </div>
-                </div>
+                    <div class="flex justify-end">
+                        <Button variant=ButtonVariant::Outline size=ButtonSize::Sm on_click=move |_| s.show_map_picker.set(false)>
+                            "Abbrechen"
+                        </Button>
+                    </div>
+                </crate::components::Modal>
             </Show>
 
             <Show when=move || s.save_confirm.get()>
-                <div class="fixed inset-0 flex items-center justify-center bg-black/50">
-                    <div class="w-96 space-y-3 rounded-lg border border-border bg-card p-4">
-                        <p class="flex items-start gap-2 text-sm">
-                            <Icon name="AlertTriangle" class="mt-0.5 size-4 shrink-0 text-destructive"/>
-                            <span>"Die Datei auf dem Server wird gesichert und dann überschrieben."</span>
-                        </p>
-                        <div class="flex justify-end gap-2">
-                            <Button variant=ButtonVariant::Outline on_click=move |_| s.save_confirm.set(false)>
-                                "Abbrechen"
-                            </Button>
-                            <Button on_click=move |_| spawn_local(s.save_file())>"Speichern"</Button>
-                        </div>
+                <crate::components::Modal class="w-96 space-y-3 rounded-lg border border-border bg-card p-4">
+                    <p class="flex items-start gap-2 text-sm">
+                        <Icon name="AlertTriangle" class="mt-0.5 size-4 shrink-0 text-destructive"/>
+                        <span>"Die Datei auf dem Server wird gesichert und dann überschrieben."</span>
+                    </p>
+                    <div class="flex justify-end gap-2">
+                        <Button variant=ButtonVariant::Outline on_click=move |_| s.save_confirm.set(false)>
+                            "Abbrechen"
+                        </Button>
+                        <Button on_click=move |_| spawn_local(s.save_file())>"Speichern"</Button>
                     </div>
-                </div>
+                </crate::components::Modal>
             </Show>
         </div>
     }

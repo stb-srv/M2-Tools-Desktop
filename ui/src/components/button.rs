@@ -76,6 +76,11 @@ pub fn Button(
     #[prop(optional, into)] on_click: Option<Callback<leptos::ev::MouseEvent>>,
     children: Children,
 ) -> impl IntoView {
+    // Icon-Buttons haben keinen sichtbaren Text: der Tooltip dient als Name.
+    let icon_only = matches!(
+        size,
+        ButtonSize::Icon | ButtonSize::IconXs | ButtonSize::IconSm | ButtonSize::IconLg
+    );
     view! {
         <button
             type=r#type.unwrap_or("button")
@@ -83,6 +88,7 @@ pub fn Button(
             class=move || button_class(variant, size, &class.get().unwrap_or_default())
             disabled=move || disabled.get()
             title=move || title.get()
+            aria-label=move || if icon_only { title.get() } else { None }
             on:click=move |e| {
                 if let Some(cb) = on_click {
                     cb.run(e)

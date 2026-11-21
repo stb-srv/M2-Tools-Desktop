@@ -249,22 +249,20 @@ pub fn ActivityLog() -> impl IntoView {
             </Show>
 
             {move || confirm_undo.get().map(|entry| view! {
-                <div class="fixed inset-0 flex items-center justify-center bg-black/50">
-                    <div class="w-96 space-y-3 rounded-lg border border-border bg-card p-4">
-                        <p class="flex items-start gap-2 text-sm">
-                            <Icon name="AlertTriangle" class="mt-0.5 size-4 shrink-0 text-destructive"/>
-                            <span>{format!("{} - endgültig rückgängig machen?", entry.summary)}</span>
-                        </p>
-                        <div class="flex justify-end gap-2">
-                            <Button variant=ButtonVariant::Outline on_click=move |_| confirm_undo.set(None)>
-                                "Abbrechen"
-                            </Button>
-                            <Button variant=ButtonVariant::Destructive on_click=move |_| confirm_import_undo()>
-                                "Endgültig entfernen"
-                            </Button>
-                        </div>
+                <crate::components::Modal class="w-96 space-y-3 rounded-lg border border-border bg-card p-4">
+                    <p class="flex items-start gap-2 text-sm">
+                        <Icon name="AlertTriangle" class="mt-0.5 size-4 shrink-0 text-destructive"/>
+                        <span>{format!("{} - endgültig rückgängig machen?", entry.summary)}</span>
+                    </p>
+                    <div class="flex justify-end gap-2">
+                        <Button variant=ButtonVariant::Outline on_click=move |_| confirm_undo.set(None)>
+                            "Abbrechen"
+                        </Button>
+                        <Button variant=ButtonVariant::Destructive on_click=move |_| confirm_import_undo()>
+                            "Endgültig entfernen"
+                        </Button>
                     </div>
-                </div>
+                </crate::components::Modal>
             })}
         </div>
     }

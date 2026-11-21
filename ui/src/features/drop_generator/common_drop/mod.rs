@@ -917,77 +917,69 @@ pub fn CommonDropEditor() -> impl IntoView {
             </Show>
 
             <Show when=move || picker.get().is_some()>
-                <div class="fixed inset-0 z-50 flex items-center justify-center bg-black/50">
-                    <div class="max-h-[85vh] w-[32rem] space-y-2 overflow-y-auto rounded-lg border border-border bg-card p-4">
-                        <div class="flex items-center justify-between">
-                            <p class="text-sm font-medium">
-                                {move || match picker.get() {
-                                    Some(PickTarget::NewRule) => "Item für die neue Regel wählen".to_string(),
-                                    Some(PickTarget::Rank(_, r)) => format!("Item für {} wählen", RANKS[r].key),
-                                    _ => "Item wählen".to_string(),
-                                }}
-                            </p>
-                            <Button variant=ButtonVariant::Ghost size=ButtonSize::Sm on_click=move |_| picker.set(None)>
-                                "Schließen"
-                            </Button>
-                        </div>
-                        <EntityBrowser kind=EntityKind::Item auto_focus=true on_pick=on_pick/>
+                <crate::components::Modal class="max-h-[85vh] w-[32rem] space-y-2 overflow-y-auto rounded-lg border border-border bg-card p-4" overlay_class="z-50">
+                    <div class="flex items-center justify-between">
+                        <p class="text-sm font-medium">
+                            {move || match picker.get() {
+                                Some(PickTarget::NewRule) => "Item für die neue Regel wählen".to_string(),
+                                Some(PickTarget::Rank(_, r)) => format!("Item für {} wählen", RANKS[r].key),
+                                _ => "Item wählen".to_string(),
+                            }}
+                        </p>
+                        <Button variant=ButtonVariant::Ghost size=ButtonSize::Sm on_click=move |_| picker.set(None)>
+                            "Schließen"
+                        </Button>
                     </div>
-                </div>
+                    <EntityBrowser kind=EntityKind::Item auto_focus=true on_pick=on_pick/>
+                </crate::components::Modal>
             </Show>
 
             {move || delete_confirm.get().map(|li| view! {
-                <div class="fixed inset-0 z-50 flex items-center justify-center bg-black/50">
-                    <div class="w-80 space-y-3 rounded-lg border border-border bg-card p-4">
-                        <p class="text-sm">"Diese Zeile wirklich entfernen? Wird erst beim Speichern in die Datei übernommen."</p>
-                        <div class="flex justify-end gap-2">
-                            <Button variant=ButtonVariant::Outline on_click=move |_| delete_confirm.set(None)>"Abbrechen"</Button>
-                            <Button variant=ButtonVariant::Destructive on_click=move |_| delete_line(li)>"Entfernen"</Button>
-                        </div>
+                <crate::components::Modal class="w-80 space-y-3 rounded-lg border border-border bg-card p-4" overlay_class="z-50">
+                    <p class="text-sm">"Diese Zeile wirklich entfernen? Wird erst beim Speichern in die Datei übernommen."</p>
+                    <div class="flex justify-end gap-2">
+                        <Button variant=ButtonVariant::Outline on_click=move |_| delete_confirm.set(None)>"Abbrechen"</Button>
+                        <Button variant=ButtonVariant::Destructive on_click=move |_| delete_line(li)>"Entfernen"</Button>
                     </div>
-                </div>
+                </crate::components::Modal>
             })}
 
             <Show when=move || confirm_reload.get()>
-                <div class="fixed inset-0 z-50 flex items-center justify-center bg-black/50">
-                    <div class="w-96 space-y-3 rounded-lg border border-border bg-card p-4">
-                        <p class="text-sm">"Ungespeicherte Änderungen verwerfen und die Datei neu vom Server laden?"</p>
-                        <div class="flex justify-end gap-2">
-                            <Button variant=ButtonVariant::Outline on_click=move |_| confirm_reload.set(false)>"Abbrechen"</Button>
-                            <Button variant=ButtonVariant::Destructive on_click=move |_| load()>"Verwerfen und laden"</Button>
-                        </div>
+                <crate::components::Modal class="w-96 space-y-3 rounded-lg border border-border bg-card p-4" overlay_class="z-50">
+                    <p class="text-sm">"Ungespeicherte Änderungen verwerfen und die Datei neu vom Server laden?"</p>
+                    <div class="flex justify-end gap-2">
+                        <Button variant=ButtonVariant::Outline on_click=move |_| confirm_reload.set(false)>"Abbrechen"</Button>
+                        <Button variant=ButtonVariant::Destructive on_click=move |_| load()>"Verwerfen und laden"</Button>
                     </div>
-                </div>
+                </crate::components::Modal>
             </Show>
 
             <Show when=move || confirm_save.get()>
-                <div class="fixed inset-0 z-50 flex items-center justify-center bg-black/50">
-                    <div class="max-h-[85vh] w-[40rem] space-y-3 overflow-y-auto rounded-lg border border-border bg-card p-4">
-                        <p class="flex items-start gap-2 text-sm">
-                            <Icon name="AlertTriangle" class="mt-0.5 size-4 shrink-0 text-amber-500"/>
-                            <span>
-                                "common_drop_item.txt wird auf dem Server überschrieben (vorher wird ein Backup angelegt). Die Änderungen wirken erst nach einem Server-Neustart."
-                            </span>
+                <crate::components::Modal class="max-h-[85vh] w-[40rem] space-y-3 overflow-y-auto rounded-lg border border-border bg-card p-4" overlay_class="z-50">
+                    <p class="flex items-start gap-2 text-sm">
+                        <Icon name="AlertTriangle" class="mt-0.5 size-4 shrink-0 text-amber-500"/>
+                        <span>
+                            "common_drop_item.txt wird auf dem Server überschrieben (vorher wird ein Backup angelegt). Die Änderungen wirken erst nach einem Server-Neustart."
+                        </span>
+                    </p>
+                    {file.get_untracked().map(|f| view! {
+                        <ChangePreview kind="common_drop" data=serde_json::to_value(&f).unwrap_or_default()/>
+                    })}
+                    <Show when=move || warning_count.get() != 0>
+                        <p class="text-xs text-amber-600 dark:text-amber-400">
+                            {move || format!("Es gibt noch {} Hinweis(e) - sie blockieren das Speichern nicht.", warning_count.get())}
                         </p>
-                        {file.get_untracked().map(|f| view! {
-                            <ChangePreview kind="common_drop" data=serde_json::to_value(&f).unwrap_or_default()/>
-                        })}
-                        <Show when=move || warning_count.get() != 0>
-                            <p class="text-xs text-amber-600 dark:text-amber-400">
-                                {move || format!("Es gibt noch {} Hinweis(e) - sie blockieren das Speichern nicht.", warning_count.get())}
-                            </p>
-                        </Show>
-                        <Show when=move || db_error.get().is_some()>
-                            <p class="text-xs text-amber-600 dark:text-amber-400">
-                                "Achtung: die Items wurden nicht gegen item_proto geprüft (keine Datenbank-Verbindung)."
-                            </p>
-                        </Show>
-                        <div class="flex justify-end gap-2">
-                            <Button variant=ButtonVariant::Outline on_click=move |_| confirm_save.set(false)>"Abbrechen"</Button>
-                            <Button on_click=move |_| save()>"Speichern"</Button>
-                        </div>
+                    </Show>
+                    <Show when=move || db_error.get().is_some()>
+                        <p class="text-xs text-amber-600 dark:text-amber-400">
+                            "Achtung: die Items wurden nicht gegen item_proto geprüft (keine Datenbank-Verbindung)."
+                        </p>
+                    </Show>
+                    <div class="flex justify-end gap-2">
+                        <Button variant=ButtonVariant::Outline on_click=move |_| confirm_save.set(false)>"Abbrechen"</Button>
+                        <Button on_click=move |_| save()>"Speichern"</Button>
                     </div>
-                </div>
+                </crate::components::Modal>
             </Show>
         </div>
     }
