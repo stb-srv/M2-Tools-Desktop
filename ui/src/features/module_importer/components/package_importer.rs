@@ -414,6 +414,8 @@ pub fn PackageImporter(#[prop(into)] on_imported: Callback<()>) -> impl IntoView
                 set_other("proto", StepStatus::Done);
 
                 batch_done.set(Some(created.clone()));
+                // Neue Icons: zwischengespeicherte Icons anderer Module verwerfen.
+                crate::store::icons::clear();
                 // Verlauf ist Best-Effort - der Import selbst war erfolgreich.
                 let recorded = invoke_unit(
                     "record_import_batch",

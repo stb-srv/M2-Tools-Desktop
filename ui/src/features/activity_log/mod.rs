@@ -112,7 +112,10 @@ pub fn ActivityLog() -> impl IntoView {
         undo_error.set(None);
         spawn_local(async move {
             match invoke_unit("undo_import_batch", &json!({ "id": undo.id })).await {
-                Ok(()) => refresh_key.update(|k| *k += 1),
+                Ok(()) => {
+                    crate::store::icons::clear();
+                    refresh_key.update(|k| *k += 1)
+                }
                 Err(e) => undo_error.set(Some(e)),
             }
             undoing_id.set(None);

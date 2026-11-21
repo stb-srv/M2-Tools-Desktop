@@ -211,6 +211,8 @@ pub fn IconItemImporter(#[prop(into)] on_imported: Callback<()>) -> impl IntoVie
                 set_other("proto", StepStatus::Done);
 
                 batch_done.set(Some(created.clone()));
+                // Neue Icons: zwischengespeicherte Icons anderer Module verwerfen.
+                crate::store::icons::clear();
                 let recorded = invoke_unit(
                     "record_import_batch",
                     &json!({

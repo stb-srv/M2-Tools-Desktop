@@ -392,6 +392,7 @@ pub fn M2PkgImporter(#[prop(into)] on_imported: Callback<()>) -> impl IntoView {
             match invoke::<Report>("m2pkg_import", &args).await {
                 Ok(r) => {
                     toast::success("Paket eingespielt");
+                    crate::store::icons::clear();
                     let wrote_db = r.db_written.is_some();
                     report.set(Some(r));
                     if wrote_db && auto_proto.get_untracked() {
@@ -413,6 +414,7 @@ pub fn M2PkgImporter(#[prop(into)] on_imported: Callback<()>) -> impl IntoView {
         spawn_local(async move {
             match invoke::<UndoReport>("m2pkg_undo", &json!({ "id": id })).await {
                 Ok(u) => {
+                    crate::store::icons::clear();
                     toast::success(&format!(
                         "Rückgängig gemacht: {} Datei(en) entfernt, {} wiederhergestellt, {} Datenbankzeile(n) gelöscht, {} wiederhergestellt",
                         u.files_removed, u.files_restored, u.db_deleted, u.db_restored

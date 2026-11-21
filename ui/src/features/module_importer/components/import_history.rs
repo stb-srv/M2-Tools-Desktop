@@ -43,7 +43,10 @@ pub fn ImportHistory(#[prop(into)] refresh_key: Signal<u32>) -> impl IntoView {
         error.set(None);
         spawn_local(async move {
             match invoke_unit("undo_import_batch", &json!({ "id": id })).await {
-                Ok(()) => refresh(batches).await,
+                Ok(()) => {
+                    crate::store::icons::clear();
+                    refresh(batches).await
+                }
                 Err(e) => error.set(Some(e)),
             }
             undoing_id.set(None);

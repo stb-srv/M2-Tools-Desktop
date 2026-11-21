@@ -39,6 +39,7 @@ pub fn QuickRemoveItem() -> impl IntoView {
         spawn_local(async move {
             match invoke_unit("remove_single_item", &json!({ "vnum": vnum })).await {
                 Ok(()) => {
+                    crate::store::icons::clear();
                     results.update(|r| r.retain(|x| x.vnum != vnum));
                     last_removed.set(Some(vnum));
                     log_activity(
