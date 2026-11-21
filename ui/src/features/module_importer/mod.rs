@@ -3,10 +3,13 @@
 //! `src/features/module-importer`).
 
 mod components;
+pub mod icon_logic;
+pub mod package_logic;
 pub mod shared;
 
 use crate::components::PageHeader;
-use crate::store::navigation::Section;
+use crate::store::navigation::{nav, Section};
+use crate::util::confirm::confirm_discard_if;
 use components::icon_item_importer::IconItemImporter;
 use components::import_history::ImportHistory;
 use components::m2pkg_importer::M2PkgImporter;
@@ -28,6 +31,19 @@ pub fn ModuleImporter() -> impl IntoView {
     let mode = RwSignal::new(ImporterMode::Package);
     let bump = Callback::new(move |_| history_version.update(|v| *v += 1));
 
+    // Der Wechsel unmountet den aktuellen Importer samt Scan und Auswahl,
+    // daher vorher nachfragen, wenn dort noch ungespeicherte Arbeit liegt.
+    let switch_mode = move |target: ImporterMode| {
+        if mode.get_untracked() == target {
+            return;
+        }
+        confirm_discard_if(
+            nav().is_dirty_untracked(Section::ModuleImporter),
+            "Der gescannte, noch nicht importierte Ordner geht beim Wechsel verloren. Modus wechseln und die Änderungen verwerfen?",
+            move || mode.set(target),
+        );
+    };
+
     let tab_class = move |m: ImporterMode| {
         if mode.get() == m {
             "px-3 py-1 bg-primary text-primary-foreground"
@@ -41,13 +57,13 @@ pub fn ModuleImporter() -> impl IntoView {
             <PageHeader module=Section::ModuleImporter title="Item-Importer"/>
 
             <div class="flex overflow-hidden rounded-md border border-border text-sm w-fit">
-                <button on:click=move |_| mode.set(ImporterMode::Package) class=move || tab_class(ImporterMode::Package)>
+                <button on:click=move |_| switch_mode(ImporterMode::Package) class=move || tab_class(ImporterMode::Package)>
                     "Waffen / Rüstung (mit 3D-Modell)"
                 </button>
-                <button on:click=move |_| mode.set(ImporterMode::IconOnly) class=move || tab_class(ImporterMode::IconOnly)>
+                <button on:click=move |_| switch_mode(ImporterMode::IconOnly) class=move || tab_class(ImporterMode::IconOnly)>
                     "Zubehör (nur Icon, z. B. Schuhe/Ketten/Schilder)"
                 </button>
-                <button on:click=move |_| mode.set(ImporterMode::M2Pkg) class=move || tab_class(ImporterMode::M2Pkg)>
+                <button on:click=move |_| switch_mode(ImporterMode::M2Pkg) class=move || tab_class(ImporterMode::M2Pkg)>
                     "Paket-Import (DB-Tool)"
                 </button>
             </div>

@@ -231,7 +231,7 @@ fn ConnectionEditor(
             test.run(async move {
                 test_ssh(&v).await?;
                 save_ssh(&v).await?;
-                connection_profiles().sync_active().await
+                connection_profiles().sync_active().await.map(|_| ())
             });
         }
         EditorKind::Mysql(m) => {
@@ -240,7 +240,7 @@ fn ConnectionEditor(
                 test_mysql(&v).await?;
                 connect_mysql(&v).await?;
                 save_mysql(&v).await?;
-                connection_profiles().sync_active().await
+                connection_profiles().sync_active().await.map(|_| ())
             });
         }
     };
