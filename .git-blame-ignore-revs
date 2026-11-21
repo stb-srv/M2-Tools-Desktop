@@ -1,0 +1,4 @@
+# Reine Formatierungs-Commits, in git blame ignorieren:
+#   git config blame.ignoreRevsFile .git-blame-ignore-revs
+# cargo fmt (rustfmt.toml)
+bd9cb4e9df89f99f5aa54319565095ec572d71fe
