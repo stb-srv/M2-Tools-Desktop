@@ -106,7 +106,7 @@ pub fn run() {
             commands::list_deploy_history,
             commands::test_mysql_connection,
             commands::store_credential,
-            commands::get_credential,
+            commands::has_credential,
             commands::delete_credential,
             commands::save_connection_profile,
             commands::list_connection_profiles,

@@ -122,7 +122,7 @@ pub fn WeatherControl() -> impl IntoView {
                     .ok()
                     .flatten()
                     .filter(|s| !s.is_empty())
-                    .unwrap_or_else(|| format!("cd {workdir} && echo 4 | sh index.sh"));
+                    .unwrap_or_else(|| crate::util::shell::index_sh_command(&workdir, 4));
 
                 let result = invoke::<ServerCommandResult>("run_server_command", &json!({ "command": command })).await?;
                 match result.exit_status {

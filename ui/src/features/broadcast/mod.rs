@@ -271,7 +271,7 @@ pub fn BroadcastSystem() -> impl IntoView {
                     invoke::<Option<String>>("get_setting", &json!({ "key": key })).await.ok().flatten().filter(|s| !s.is_empty())
                 };
                 let workdir = setting("server_workdir").await.unwrap_or_else(|| "/usr/home/game".into());
-                let command = setting("server_cmd_reload_quests").await.unwrap_or_else(|| format!("cd {workdir} && echo 4 | sh index.sh"));
+                let command = setting("server_cmd_reload_quests").await.unwrap_or_else(|| crate::util::shell::index_sh_command(&workdir, 4));
 
                 let result = invoke::<ServerCommandResult>("run_server_command", &json!({ "command": command })).await?;
                 match result.exit_status {

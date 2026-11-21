@@ -37,6 +37,10 @@ pub struct SshValues {
     pub password: String,
     pub key_path: String,
     pub key_passphrase: String,
+    /// Im Schlüsselbund liegt schon ein Passwort / eine Passphrase. Der
+    /// Klartext kommt nie ins Webview; ein leeres Feld heißt „beibehalten“.
+    pub password_saved: bool,
+    pub passphrase_saved: bool,
 }
 
 impl Default for SshValues {
@@ -49,6 +53,8 @@ impl Default for SshValues {
             password: String::new(),
             key_path: String::new(),
             key_passphrase: String::new(),
+            password_saved: false,
+            passphrase_saved: false,
         }
     }
 }
@@ -59,11 +65,12 @@ pub struct MysqlValues {
     pub port: String,
     pub username: String,
     pub password: String,
+    pub password_saved: bool,
 }
 
 impl Default for MysqlValues {
     fn default() -> Self {
-        Self { host: String::new(), port: "3306".into(), username: String::new(), password: String::new() }
+        Self { host: String::new(), port: "3306".into(), username: String::new(), password: String::new(), password_saved: false }
     }
 }
 
@@ -107,8 +114,8 @@ pub async fn set_setting(key: &str, value: &str) -> Result<(), String> {
     invoke_unit("set_setting", &json!({ "key": key, "value": value })).await
 }
 
-async fn secret(account: &str) -> Option<String> {
-    invoke::<String>("get_credential", &json!({ "account": account })).await.ok()
+async fn has_secret(account: &str) -> bool {
+    invoke::<bool>("has_credential", &json!({ "account": account })).await.unwrap_or(false)
 }
 
 /// Liest die aktuell aktive Verbindung (inkl. gespeicherter Passwörter).
@@ -118,15 +125,18 @@ pub async fn load_stored_connection() -> (SshValues, MysqlValues) {
         port: get_setting("ssh_port").await.unwrap_or_else(|| "22".into()),
         username: get_setting("ssh_username").await.unwrap_or_default(),
         auth_mode: get_setting("ssh_auth_mode").await.map(|s| SshAuthMode::parse(&s)).unwrap_or_default(),
-        password: secret("ssh_password").await.unwrap_or_default(),
+        password: String::new(),
+        password_saved: has_secret("ssh_password").await,
         key_path: get_setting("ssh_key_path").await.unwrap_or_default(),
-        key_passphrase: secret("ssh_key_passphrase").await.unwrap_or_default(),
+        key_passphrase: String::new(),
+        passphrase_saved: has_secret("ssh_key_passphrase").await,
     };
     let mysql = MysqlValues {
         host: get_setting("mysql_host").await.unwrap_or_default(),
         port: get_setting("mysql_port").await.unwrap_or_else(|| "3306".into()),
         username: get_setting("mysql_username").await.unwrap_or_default(),
-        password: secret("mysql_password").await.unwrap_or_default(),
+        password: String::new(),
+        password_saved: has_secret("mysql_password").await,
     };
     (ssh, mysql)
 }
@@ -154,13 +164,15 @@ pub async fn save_ssh(v: &SshValues) -> Result<(), String> {
     set_setting("ssh_auth_mode", v.auth_mode.as_str()).await?;
     match v.auth_mode {
         SshAuthMode::Password => {
-            invoke_unit("store_credential", &json!({ "account": "ssh_password", "secret": v.password })).await?;
+            if !v.password.is_empty() || !v.password_saved {
+                invoke_unit("store_credential", &json!({ "account": "ssh_password", "secret": v.password })).await?;
+            }
         }
         SshAuthMode::Key => {
             set_setting("ssh_key_path", &v.key_path).await?;
             if !v.key_passphrase.is_empty() {
                 invoke_unit("store_credential", &json!({ "account": "ssh_key_passphrase", "secret": v.key_passphrase })).await?;
-            } else {
+            } else if !v.passphrase_saved {
                 // Sonst bliebe die Passphrase eines vorher aktiven Servers hängen.
                 let _ = invoke_unit("delete_credential", &json!({ "account": "ssh_key_passphrase" })).await;
             }
@@ -174,7 +186,10 @@ pub async fn save_mysql(v: &MysqlValues) -> Result<(), String> {
     set_setting("mysql_host", v.host.trim()).await?;
     set_setting("mysql_port", if v.port.trim().is_empty() { "3306" } else { v.port.trim() }).await?;
     set_setting("mysql_username", v.username.trim()).await?;
-    invoke_unit("store_credential", &json!({ "account": "mysql_password", "secret": v.password })).await
+    if !v.password.is_empty() || !v.password_saved {
+        invoke_unit("store_credential", &json!({ "account": "mysql_password", "secret": v.password })).await?;
+    }
+    Ok(())
 }
 
 /// Baut den MySQL-Pool im Backend neu auf.
@@ -193,9 +208,9 @@ pub async fn auto_connect_mysql() -> bool {
         return false;
     };
     let port = get_setting("mysql_port").await.unwrap_or_else(|| "3306".into());
-    let Some(password) = secret("mysql_password").await else { return false };
-    if host.is_empty() || username.is_empty() || password.is_empty() {
+    if host.is_empty() || username.is_empty() || !has_secret("mysql_password").await {
         return false;
     }
-    connect_mysql(&MysqlValues { host, port, username, password }).await.is_ok()
+    // Leeres Passwort: das Backend nimmt das gespeicherte.
+    connect_mysql(&MysqlValues { host, port, username, password: String::new(), password_saved: true }).await.is_ok()
 }

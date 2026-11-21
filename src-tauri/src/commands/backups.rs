@@ -56,6 +56,34 @@ fn db_backup_settings(state: &State<'_, AppState>) -> Result<(String, Vec<String
     Ok((dir, databases))
 }
 
+/// Pfad (Unix-Stil, Server) muss unterhalb von `dir` liegen und darf keine
+/// `..`-Segmente enthalten - sonst könnte ein manipulierter Aufruf beliebige
+/// Dateien löschen/lesen.
+fn ensure_under_dir(path: &str, dir: &str) -> Result<(), String> {
+    if path.split('/').any(|seg| seg == "..") || dir.split('/').any(|seg| seg == "..") {
+        return Err("Ungültiger Pfad: '..' ist nicht erlaubt.".to_string());
+    }
+    let base = dir.trim_end_matches('/');
+    if base.is_empty() || !path.starts_with(&format!("{base}/")) || path.len() == base.len() + 1 {
+        return Err(format!("Der Pfad liegt nicht im Backup-Ordner '{dir}'."));
+    }
+    Ok(())
+}
+
+/// Backup-Dateien des Datei-Editors liegen immer in einem Ordner namens
+/// `m2manager_backups`.
+fn ensure_in_backup_folder(path: &str) -> Result<(), String> {
+    if path.split('/').any(|seg| seg == "..") {
+        return Err("Ungültiger Pfad: '..' ist nicht erlaubt.".to_string());
+    }
+    let mut parts = path.rsplit('/');
+    let _file = parts.next();
+    if parts.next() != Some("m2manager_backups") {
+        return Err("Der Pfad liegt nicht in einem 'm2manager_backups'-Ordner.".to_string());
+    }
+    Ok(())
+}
+
 fn mysql_connection_settings(state: &State<'_, AppState>) -> Result<(String, u16, String), String> {
     let conn = state.settings_db.lock().map_err(|e| e.to_string())?;
     let host = settings::get_path(&conn, "mysql_host")?
@@ -139,6 +167,8 @@ pub async fn restore_database_backup(
     state: State<'_, AppState>,
     backup_path: String,
 ) -> Result<(), String> {
+    let (dir, _) = db_backup_settings(&state)?;
+    ensure_under_dir(&backup_path, &dir)?;
     let (config, auth) = stored_ssh_auth(&state)?;
     let (host, port, username) = mysql_connection_settings(&state)?;
     let password = credentials::get_secret("mysql_password")
@@ -161,6 +191,8 @@ pub async fn delete_database_backup(
     state: State<'_, AppState>,
     backup_path: String,
 ) -> Result<(), String> {
+    let (dir, _) = db_backup_settings(&state)?;
+    ensure_under_dir(&backup_path, &dir)?;
     let (config, auth) = stored_ssh_auth(&state)?;
     ssh::delete_remote_file(&config, &auth, &backup_path).await
 }
@@ -200,6 +232,7 @@ pub async fn restore_remote_backup(
     state: State<'_, AppState>,
     backup_path: String,
 ) -> Result<String, String> {
+    ensure_in_backup_folder(&backup_path)?;
     let (config, auth) = stored_ssh_auth(&state)?;
     let target_path = backups::target_path_for_backup(&backup_path)?;
 
@@ -220,6 +253,7 @@ pub async fn diff_remote_backup(
     state: State<'_, AppState>,
     backup_path: String,
 ) -> Result<backups::BackupDiff, String> {
+    ensure_in_backup_folder(&backup_path)?;
     let (config, auth) = stored_ssh_auth(&state)?;
     let target_path = backups::target_path_for_backup(&backup_path)?;
 
@@ -235,4 +269,31 @@ pub async fn diff_remote_backup(
         current_content: current_bytes.map(ssh::decode_bytes),
         is_binary,
     })
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn accepts_files_below_the_backup_dir() {
+        assert!(ensure_under_dir("/b/dir/x.sql", "/b/dir").is_ok());
+        assert!(ensure_under_dir("/b/dir/x.sql", "/b/dir/").is_ok());
+    }
+
+    #[test]
+    fn rejects_paths_outside_or_with_traversal() {
+        assert!(ensure_under_dir("/etc/passwd", "/b/dir").is_err());
+        assert!(ensure_under_dir("/b/dir/../etc/passwd", "/b/dir").is_err());
+        assert!(ensure_under_dir("/b/dir2/x.sql", "/b/dir").is_err());
+        assert!(ensure_under_dir("/b/dir/", "/b/dir").is_err());
+        assert!(ensure_under_dir("/x", "/").is_err());
+    }
+
+    #[test]
+    fn backup_folder_check() {
+        assert!(ensure_in_backup_folder("/a/m2manager_backups/f.1.bak").is_ok());
+        assert!(ensure_in_backup_folder("/a/other/f.1.bak").is_err());
+        assert!(ensure_in_backup_folder("/a/m2manager_backups/../../etc/x.bak").is_err());
+    }
 }

@@ -65,7 +65,7 @@ impl ConnectionProfiles {
         // SSH liest seine Einstellungen bei jedem Befehl frisch, der MySQL-Pool
         // bleibt dagegen bis zum Neuverbinden am alten Server.
         let (_, mysql) = load_stored_connection().await;
-        if !mysql.host.is_empty() && !mysql.username.is_empty() && !mysql.password.is_empty() {
+        if !mysql.host.is_empty() && !mysql.username.is_empty() && mysql.password_saved {
             let _ = connect_mysql(&mysql).await;
         }
         self.reload().await?;

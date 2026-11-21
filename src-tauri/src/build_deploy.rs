@@ -1,3 +1,4 @@
+use crate::db_backup::shell_single_quote;
 use serde::{Deserialize, Serialize};
 
 // Server-Quellcode Bauen & Einspielen - baut den echten Metin2-Server-Quellcode
@@ -56,16 +57,24 @@ pub struct BuildOptions {
 /// Anfang stoppt das gesamte Skript (und damit das Live-Log) sofort, sobald
 /// irgendein `gmake` einen Fehlercode liefert, statt mit einem
 /// halb-gebauten, verwirrenden Ergebnis weiterzumachen.
-pub fn build_script(opts: &BuildOptions) -> String {
+pub fn build_script(opts: &BuildOptions) -> Result<String, String> {
+    if opts.source_root.trim().is_empty() || opts.source_root.split('/').any(|s| s == "..") {
+        return Err("Ungültiger Arbeitskopie-Pfad.".to_string());
+    }
     let mut lines = vec!["set -e".to_string()];
     for target in &opts.targets {
+        // Nur bekannte Ziele - der Name landet in einem Shell-Skript.
+        if !BUILD_LIBS.contains(&target.as_str()) && !BUILD_BINS.contains(&target.as_str()) {
+            return Err(format!("Unbekanntes Build-Ziel '{target}'."));
+        }
         let clean = if opts.clean { "gmake clean && " } else { "" };
+        let dir = format!("{}/{target}/src", opts.source_root);
         lines.push(format!(
-            "echo '=== gmake {target} ==='; (cd '{root}/{target}/src' && {clean}gmake)",
-            root = opts.source_root,
+            "echo '=== gmake {target} ==='; (cd {} && {clean}gmake)",
+            shell_single_quote(&dir),
         ));
     }
-    lines.join("\n")
+    Ok(lines.join("\n"))
 }
 
 fn parent_dir(path: &str) -> &str {
@@ -96,13 +105,52 @@ fn parent_dir(path: &str) -> &str {
 /// Symlink reicht und spart Platz/Zeit). `ln -sfn` ist idempotent - ein
 /// wiederholter Aufruf ersetzt einen vorherigen Symlink, statt sich
 /// darunter zu verschachteln.
-pub fn sync_script(live_root: &str, scratch_root: &str) -> String {
+pub fn sync_script(live_root: &str, scratch_root: &str) -> Result<String, String> {
+    validate_scratch_root(live_root, scratch_root)?;
     let live_parent = parent_dir(live_root);
     let scratch_parent = parent_dir(scratch_root);
-    format!(
-        "mkdir -p '{scratch_root}' && rsync -a --delete '{live_root}/' '{scratch_root}/' && \
-         mkdir -p '{scratch_parent}' && ln -sfn '{live_parent}/extern' '{scratch_parent}/extern'",
-    )
+    let q = shell_single_quote;
+    Ok(format!(
+        "mkdir -p {scratch} && rsync -a --delete {live_src} {scratch_dst} && \
+         mkdir -p {scratch_parent} && ln -sfn {extern_live} {extern_scratch}",
+        scratch = q(scratch_root),
+        live_src = q(&format!("{}/", live_root.trim_end_matches('/'))),
+        scratch_dst = q(&format!("{}/", scratch_root.trim_end_matches('/'))),
+        scratch_parent = q(scratch_parent),
+        extern_live = q(&format!("{live_parent}/extern")),
+        extern_scratch = q(&format!("{scratch_parent}/extern")),
+    ))
+}
+
+/// `rsync --delete` löscht im Ziel - der Zielpfad muss deshalb eindeutig eine
+/// eigene Arbeitskopie sein: absolut, nicht Wurzel, ohne `..`, und weder
+/// gleich noch ober-/unterhalb des Live-Quellbaums.
+pub fn validate_scratch_root(live_root: &str, scratch_root: &str) -> Result<(), String> {
+    let scratch = scratch_root.trim();
+    if scratch.is_empty() {
+        return Err("Der Pfad der Arbeitskopie ist leer.".to_string());
+    }
+    if !scratch.starts_with('/') {
+        return Err(format!("Der Pfad der Arbeitskopie '{scratch}' muss absolut sein."));
+    }
+    if scratch.split('/').any(|s| s == "..") || live_root.split('/').any(|s| s == "..") {
+        return Err("Pfade mit '..' sind nicht erlaubt.".to_string());
+    }
+    let s = scratch.trim_end_matches('/');
+    let l = live_root.trim().trim_end_matches('/');
+    if s.is_empty() {
+        return Err("Die Arbeitskopie darf nicht '/' sein.".to_string());
+    }
+    if !l.starts_with('/') {
+        return Err(format!("Der Live-Quellpfad '{live_root}' muss absolut sein."));
+    }
+    let inside = |a: &str, b: &str| a == b || a.starts_with(&format!("{b}/"));
+    if inside(s, l) || inside(l, s) {
+        return Err(format!(
+            "Die Arbeitskopie '{scratch}' darf nicht gleich, über- oder unterhalb des Live-Quellbaums '{live_root}' liegen."
+        ));
+    }
+    Ok(())
 }
 
 #[cfg(test)]
@@ -116,7 +164,7 @@ mod tests {
             targets: vec!["libthecore".into(), "libgame".into(), "game".into()],
             clean: false,
         };
-        let script = build_script(&opts);
+        let script = build_script(&opts).unwrap();
         assert!(script.starts_with("set -e\n"), "must abort the whole script on first error");
         assert!(script.contains("(cd '/usr/home/m2manager_build/server/libthecore/src' && gmake)"));
         assert!(script.contains("(cd '/usr/home/m2manager_build/server/libgame/src' && gmake)"));
@@ -135,13 +183,13 @@ mod tests {
             targets: vec!["db".into()],
             clean: true,
         };
-        let script = build_script(&opts);
+        let script = build_script(&opts).unwrap();
         assert!(script.contains("gmake clean && gmake"));
     }
 
     #[test]
     fn sync_script_never_deletes_from_the_live_tree() {
-        let script = sync_script("/usr/home/source/server", "/usr/home/m2manager_build/server");
+        let script = sync_script("/usr/home/source/server", "/usr/home/m2manager_build/server").unwrap();
         // rsync's --delete only ever removes files from the *destination*
         // that aren't in the source - the live tree is always the source
         // here, so it can only ever be read from, never written/pruned.
@@ -156,7 +204,26 @@ mod tests {
         // (`/usr/home/source/{server,extern}`) - without this symlink,
         // `gmake libsql` fails with "'mysql/mysql.h' file not found" the
         // moment the scratch copy's `server/` has no `extern/` sibling.
-        let script = sync_script("/usr/home/source/server", "/usr/home/m2manager_build/server");
+        let script = sync_script("/usr/home/source/server", "/usr/home/m2manager_build/server").unwrap();
         assert!(script.contains("ln -sfn '/usr/home/source/extern' '/usr/home/m2manager_build/extern'"));
+    }
+
+    #[test]
+    fn build_script_rejects_unknown_targets_and_quotes_paths() {
+        let bad = BuildOptions { source_root: "/r".into(), targets: vec!["x; rm -rf /".into()], clean: false };
+        assert!(build_script(&bad).is_err());
+        let quoted = BuildOptions { source_root: "/r'; echo hi; '".into(), targets: vec!["db".into()], clean: false };
+        let script = build_script(&quoted).unwrap();
+        assert!(script.contains("(cd '/r'\\''; echo hi; '\\''/db/src' && gmake)"));
+    }
+
+    #[test]
+    fn scratch_root_validation() {
+        let live = "/usr/home/source/server";
+        assert!(validate_scratch_root(live, "/usr/home/m2manager_build/server").is_ok());
+        for bad in ["", "/", "relativ/pfad", "/a/../b", live, "/usr/home/source/server/", "/usr/home/source", "/usr/home/source/server/sub"] {
+            assert!(validate_scratch_root(live, bad).is_err(), "{bad}");
+        }
+        assert!(sync_script(live, "/").is_err());
     }
 }
