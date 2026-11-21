@@ -7,7 +7,7 @@ use crate::components::{Button, ButtonSize, ButtonVariant, Icon, PageHeader, Pas
 use crate::features::model_viewer::{Gr2Canvas, Gr2ModelInfo};
 use crate::features::shared::{EntityBrowser, EntityKind, EntityRow, RowRenderer};
 use crate::i18n::t;
-use crate::util::connection::auto_connect_mysql;
+use crate::util::connection::{auto_connect_mysql, connect_mysql, get_setting, save_mysql, MysqlValues};
 use crate::util::{log_activity, open_manual};
 use crate::store::navigation::{ModuleId, Section};
 use crate::tauri::{invoke, invoke0, invoke_unit};
@@ -15,7 +15,7 @@ use leptos::prelude::*;
 use leptos::task::spawn_local;
 use logic::{js_number, js_number_json, place_items, update_columns, update_rows, ShopItem, MAX_SLOTS};
 use serde::Deserialize;
-use serde_json::{json, Value};
+use serde_json::json;
 use std::collections::{HashMap, HashSet};
 use std::sync::Arc;
 
@@ -99,16 +99,27 @@ pub fn ShopEditor() -> impl IntoView {
         }
     };
 
+    let select_seq = StoredValue::new(0u64);
     let select_shop = move |shop: ShopSummary| async move {
         let vnum = shop.vnum;
+        let seq = select_seq.get_value() + 1;
+        select_seq.set_value(seq);
         selected_shop.set(Some(shop));
+        // Items des vorherigen Shops nicht stehen lassen, solange geladen wird.
+        shop_items.set(vec![]);
+        cell.set(None);
         renaming.set(false);
         error.set(None);
-        match invoke::<Vec<ShopItem>>("get_shop_items", &json!({ "shopVnum": vnum })).await {
+        let res = invoke::<Vec<ShopItem>>("get_shop_items", &json!({ "shopVnum": vnum })).await;
+        if select_seq.get_value() != seq {
+            return;
+        }
+        match res {
             Ok(items) => shop_items.set(items),
             Err(e) => error.set(Some(e)),
         }
     };
+    let is_current = move |vnum: i64| selected_shop.with_untracked(|s| s.as_ref().map(|s| s.vnum)) == Some(vnum);
 
     // Beim Mounten: meist ist die Verbindung schon da (App-Start verbindet
     // automatisch) - sonst das manuelle Formular vorbelegen.
@@ -119,19 +130,14 @@ pub fn ShopEditor() -> impl IntoView {
             checking_connection.set(false);
             return;
         }
-        let get = |key: &'static str| async move {
-            invoke::<Option<String>>("get_setting", &json!({ "key": key })).await
-        };
-        if let (Ok(h), Ok(p), Ok(u)) = (get("mysql_host").await, get("mysql_port").await, get("mysql_username").await) {
-            if let Some(h) = h.filter(|s| !s.is_empty()) {
-                host.set(h);
-            }
-            if let Some(p) = p.filter(|s| !s.is_empty()) {
-                port.set(p);
-            }
-            if let Some(u) = u.filter(|s| !s.is_empty()) {
-                username.set(u);
-            }
+        if let Some(h) = get_setting("mysql_host").await.filter(|s| !s.is_empty()) {
+            host.set(h);
+        }
+        if let Some(p) = get_setting("mysql_port").await.filter(|s| !s.is_empty()) {
+            port.set(p);
+        }
+        if let Some(u) = get_setting("mysql_username").await.filter(|s| !s.is_empty()) {
+            username.set(u);
         }
         checking_connection.set(false);
     });
@@ -239,12 +245,9 @@ pub fn ShopEditor() -> impl IntoView {
         let (h, p, u, pw) = (host.get_untracked(), port.get_untracked(), username.get_untracked(), password.get_untracked());
         spawn_local(async move {
             let res: Result<(), String> = async {
-                let config = json!({ "host": h, "port": js_number_json(js_number(&p)), "username": u, "database": Value::Null });
-                invoke_unit("connect_mysql", &json!({ "config": config, "password": pw })).await?;
-                invoke_unit("set_setting", &json!({ "key": "mysql_host", "value": h })).await?;
-                invoke_unit("set_setting", &json!({ "key": "mysql_port", "value": p })).await?;
-                invoke_unit("set_setting", &json!({ "key": "mysql_username", "value": u })).await?;
-                invoke_unit("store_credential", &json!({ "account": "mysql_password", "secret": pw })).await?;
+                let values = MysqlValues { host: h, port: p, username: u, password: pw };
+                connect_mysql(&values).await?;
+                save_mysql(&values).await?;
                 connected.set(true);
                 refresh_shops().await;
                 Ok(())
@@ -283,6 +286,9 @@ pub fn ShopEditor() -> impl IntoView {
                 ),
                 Err(e) => {
                     error.set(Some(e));
+                    if !is_current(shop.vnum) {
+                        return;
+                    }
                     // Optimistische Änderung zurücknehmen - sonst zeigt das
                     // Raster eine nie gespeicherte Stückzahl an.
                     shop_items.update(|items| {
@@ -308,8 +314,10 @@ pub fn ShopEditor() -> impl IntoView {
                         Some("shop"),
                         Some(&shop.vnum.to_string()),
                     );
-                    shop_items.update(|items| items.retain(|i| i.item_vnum != vnum));
-                    cell.set(None);
+                    if is_current(shop.vnum) {
+                        shop_items.update(|items| items.retain(|i| i.item_vnum != vnum));
+                        cell.set(None);
+                    }
                 }
                 Err(e) => error.set(Some(e)),
             }
@@ -525,16 +533,16 @@ pub fn ShopEditor() -> impl IntoView {
             .filter(|s| s.name.to_lowercase().contains(&q))
             .map(|shop| {
                 let class = format!(
-                    "cursor-pointer rounded-md border border-border p-2 text-sm hover:bg-muted {}",
+                    "block w-full cursor-pointer rounded-md border border-border p-2 text-left text-sm hover:bg-muted {}",
                     if sel == Some(shop.vnum) { "bg-muted" } else { "" }
                 );
                 let info = format!("ID: {} · NPC: {} · {} Gegenstände", shop.vnum, shop.npc_vnum, shop.item_count);
                 let name = shop.name.clone();
                 view! {
-                    <div on:click=move |_| spawn_local(select_shop(shop.clone())) class=class>
+                    <button type="button" on:click=move |_| spawn_local(select_shop(shop.clone())) class=class>
                         <div class="font-medium">{name}</div>
                         <div class="text-xs text-muted-foreground">{info}</div>
-                    </div>
+                    </button>
                 }
             })
             .collect_view()

@@ -300,9 +300,9 @@ pub fn DbExplorer() -> impl IntoView {
                                         </tr>
                                     </thead>
                                     <tbody>
-                                        {move || data.get().map(|d| d.rows.into_iter().map(|row| view! {
+                                        {move || data.with(|d| d.as_ref().map(|d| d.rows.iter().map(|row| view! {
                                             <tr class="hover:bg-muted/50">
-                                                {row.into_iter().map(|cell| {
+                                                {row.iter().cloned().map(|cell| {
                                                     let title = cell.clone();
                                                     view! {
                                                         <td
@@ -317,7 +317,7 @@ pub fn DbExplorer() -> impl IntoView {
                                                     }
                                                 }).collect_view()}
                                             </tr>
-                                        }).collect_view())}
+                                        }).collect_view()))}
                                     </tbody>
                                 </table>
                                 <Show when=move || loading.get()>

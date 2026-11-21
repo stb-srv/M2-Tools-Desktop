@@ -123,7 +123,9 @@ pub fn AccountSection() -> impl IntoView {
     // Guthaben-Aktion pro Account unsichtbar statt eine geratene Spalte zu
     // zeigen.
     spawn_local(async move {
-        let _ = invoke0::<Value>("process_due_bans").await;
+        if let Err(e) = invoke0::<Value>("process_due_bans").await {
+            crate::components::toast::error(&format!("Fällige Sperren konnten nicht aufgehoben werden: {e}"));
+        }
         load_bans().await;
         if let Ok(cols) = invoke::<Vec<ColumnInfo>>("get_table_columns", &json!({ "database": "account", "table": "account" })).await {
             currency_cols.try_set(currency_columns(cols));

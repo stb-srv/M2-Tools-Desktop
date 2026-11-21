@@ -110,17 +110,21 @@ pub fn CommonDropEditor() -> impl IntoView {
 
     // ---- Prüfungen ----
     Effect::new(move |_| {
-        let Some(f) = file.get() else {
+        // Ohne Klon der ganzen Datei: gleich als Argument serialisieren.
+        let Some(args) = file.with(|f| f.as_ref().map(|f| json!({ "file": f }))) else {
             issues.set(vec![]);
             return;
         };
         let seq = validate_seq.get_value() + 1;
         validate_seq.set_value(seq);
         spawn_local(async move {
-            if let Ok(list) = invoke::<Vec<Issue>>("validate_common_drop", &json!({ "file": f })).await {
-                if validate_seq.get_value() == seq {
-                    issues.set(list);
-                }
+            let res = invoke::<Vec<Issue>>("validate_common_drop", &args).await;
+            if validate_seq.get_value() != seq {
+                return;
+            }
+            match res {
+                Ok(list) => issues.set(list),
+                Err(e) => crate::components::toast::error(&format!("Prüfung fehlgeschlagen: {e}")),
             }
         });
     });
