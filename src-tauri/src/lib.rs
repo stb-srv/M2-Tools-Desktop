@@ -23,6 +23,7 @@ mod icons;
 mod imageconv;
 mod import_history;
 mod item_presets;
+mod known_hosts;
 mod itemdesc;
 mod locale;
 mod m2pkg;
@@ -67,6 +68,7 @@ pub fn run() {
                 .expect("app data dir should be resolvable");
             let settings_db =
                 settings::init_db(&app_data_dir).expect("failed to initialize settings database");
+            known_hosts::init(&app_data_dir, app.handle().clone());
             app.manage(AppState {
                 mysql_pool: Default::default(),
                 settings_db: std::sync::Mutex::new(settings_db),
@@ -105,6 +107,8 @@ pub fn run() {
             commands::delete_credential,
             commands::save_connection_profile,
             commands::list_connection_profiles,
+            commands::list_known_hosts,
+            commands::forget_known_host,
             commands::get_active_connection_profile_id,
             commands::activate_connection_profile,
             commands::delete_connection_profile,

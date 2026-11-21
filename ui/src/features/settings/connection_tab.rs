@@ -192,6 +192,8 @@ pub fn ConnectionTab() -> impl IntoView {
                 />
             </div>
 
+            <super::known_hosts_card::KnownHostsCard/>
+
             <Show when=move || dialog_open.get()>
                 <NewProfileDialog on_close=move |_| dialog_open.set(false)/>
             </Show>
