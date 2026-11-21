@@ -3,9 +3,7 @@
 //! Marker verschieben/skalieren, Spawn per Klick hinzufügen.
 
 use super::line_row::RegenLineRow;
-use super::model::{
-    color_for_spawn_type, first_char, js_round, new_spawn, zoom, Affine, LineKind, RegenLine, ViewBox, FILTER_KINDS,
-};
+use super::model::{color_for_spawn_type, first_char, js_round, new_spawn, zoom, Affine, LineKind, RegenLine, ViewBox, FILTER_KINDS};
 use crate::components::button::button_class;
 use crate::components::{Button, ButtonSize, ButtonVariant, Icon};
 use leptos::prelude::*;
@@ -42,7 +40,8 @@ pub fn RegenMapView(
     #[prop(into)] on_add_line: Callback<RegenLine>,
     #[prop(into)] on_remove_line: Callback<usize>,
     /// Nur sichtbar, solange `has_reload_map` wahr ist.
-    #[prop(into)] on_reload_map: Callback<()>,
+    #[prop(into)]
+    on_reload_map: Callback<()>,
     #[prop(into)] has_reload_map: Signal<bool>,
     #[prop(into)] on_change_map_folder: Callback<()>,
 ) -> impl IntoView {
@@ -67,8 +66,7 @@ pub fn RegenMapView(
         let el = svg_ref.get_untracked()?;
         let g: &web_sys::SvgGraphicsElement = el.unchecked_ref();
         let m = g.get_screen_ctm()?;
-        Affine { a: m.a() as f64, b: m.b() as f64, c: m.c() as f64, d: m.d() as f64, e: m.e() as f64, f: m.f() as f64 }
-            .inverse()
+        Affine { a: m.a() as f64, b: m.b() as f64, c: m.c() as f64, d: m.d() as f64, e: m.e() as f64, f: m.f() as f64 }.inverse()
     };
     let capture = move |pointer_id: i32| {
         if let Some(el) = svg_ref.get_untracked() {

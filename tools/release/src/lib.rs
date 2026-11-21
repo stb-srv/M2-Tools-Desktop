@@ -130,10 +130,7 @@ pub fn set_app_version(repo_root: &Path, version: &str) -> Result<(), String> {
     }
     writes.push((conf_path, new_conf));
 
-    for (cargo_path, lock_path) in [
-        ("src-tauri/Cargo.toml", "src-tauri/Cargo.lock"),
-        ("ui/Cargo.toml", "ui/Cargo.lock"),
-    ] {
+    for (cargo_path, lock_path) in [("src-tauri/Cargo.toml", "src-tauri/Cargo.lock"), ("ui/Cargo.toml", "ui/Cargo.lock")] {
         let cargo = read_repo_file(repo_root, cargo_path)?;
         let name_span = cargo_package_str_span(&cargo, "name").map_err(|e| format!("{cargo_path}: {e}"))?;
         let name = unquote(&cargo[name_span]).to_string();
@@ -274,9 +271,7 @@ fn cargo_package_str_span(text: &str, key: &str) -> Result<Span, String> {
         let Some(value) = rest.strip_prefix('=') else { continue };
         let value = value.trim_start();
         if value.starts_with('{') {
-            return Err(format!(
-                "\"{key}\" in [package] ist eine Tabelle (z. B. {{ workspace = true }}), keine feste Angabe."
-            ));
+            return Err(format!("\"{key}\" in [package] ist eine Tabelle (z. B. {{ workspace = true }}), keine feste Angabe."));
         }
         if !value.starts_with('"') {
             return Err(format!("\"{key}\" in [package] ist kein Text."));
@@ -383,10 +378,7 @@ mod tests {
     fn keeps_crlf_line_endings() {
         let md = "# Changelog\r\n\r\n## [Unveröffentlicht]\r\n\r\n- **X**: y\r\n\r\n## [0.30.1] - 2026-11-13\r\n\r\n- alt";
         let out = finalize_changelog(md, "0.30.2", "2026-11-14").unwrap();
-        assert_eq!(
-            out,
-            "# Changelog\r\n\r\n## [0.30.2] - 2026-11-14\r\n\r\n- **X**: y\r\n\r\n## [0.30.1] - 2026-11-13\r\n\r\n- alt"
-        );
+        assert_eq!(out, "# Changelog\r\n\r\n## [0.30.2] - 2026-11-14\r\n\r\n- **X**: y\r\n\r\n## [0.30.1] - 2026-11-13\r\n\r\n- alt");
     }
 
     #[test]
@@ -396,7 +388,10 @@ mod tests {
         let span = json_top_level_str_span(json, "version").unwrap();
         assert_eq!(&json[span.clone()], "\"0.30.1\"");
         let new = splice(json, span, "\"0.31.0\"");
-        assert_eq!(new, "{\r\n  \"bundle\": { \"version\": \"9.9.9\" },\r\n  \"productName\": \"M2\",\r\n  \"version\": \"0.31.0\"\r\n}\r\n");
+        assert_eq!(
+            new,
+            "{\r\n  \"bundle\": { \"version\": \"9.9.9\" },\r\n  \"productName\": \"M2\",\r\n  \"version\": \"0.31.0\"\r\n}\r\n"
+        );
         let v: serde_json::Value = serde_json::from_str(&new).unwrap();
         assert_eq!(v["version"], "0.31.0");
         assert_eq!(v["bundle"]["version"], "9.9.9");
@@ -423,7 +418,10 @@ mod tests {
         let toml = "[package]\r\nname = \"m2manager-ui\" # Kommentar\r\nversion = \"0.30.1\"\r\n\r\n[dependencies]\r\nversion = \"3\"\r\n";
         let span = cargo_package_str_span(toml, "version").unwrap();
         let new = splice(toml, span, "\"0.31.0\"");
-        assert_eq!(new, "[package]\r\nname = \"m2manager-ui\" # Kommentar\r\nversion = \"0.31.0\"\r\n\r\n[dependencies]\r\nversion = \"3\"\r\n");
+        assert_eq!(
+            new,
+            "[package]\r\nname = \"m2manager-ui\" # Kommentar\r\nversion = \"0.31.0\"\r\n\r\n[dependencies]\r\nversion = \"3\"\r\n"
+        );
     }
 
     #[test]
@@ -497,10 +495,7 @@ mod tests {
         assert_eq!(std::fs::read_to_string(dir.join("src-tauri/tauri.conf.json")).unwrap(), conf);
         w("ui/Cargo.toml", "[package]\r\nname = \"m2manager-ui\"\r\nversion = \"0.30.1\"\r\n");
         set_app_version(&dir, "0.31.0").unwrap();
-        assert_eq!(
-            std::fs::read_to_string(dir.join("src-tauri/tauri.conf.json")).unwrap(),
-            "{\r\n  \"version\": \"0.31.0\"\r\n}\r\n"
-        );
+        assert_eq!(std::fs::read_to_string(dir.join("src-tauri/tauri.conf.json")).unwrap(), "{\r\n  \"version\": \"0.31.0\"\r\n}\r\n");
         assert_eq!(
             std::fs::read_to_string(dir.join("ui/Cargo.toml")).unwrap(),
             "[package]\r\nname = \"m2manager-ui\"\r\nversion = \"0.31.0\"\r\n"

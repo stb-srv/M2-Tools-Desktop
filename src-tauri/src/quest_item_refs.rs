@@ -83,12 +83,8 @@ fn scan_content(path: &str, content: &str, vnum: u32, scan: &mut QuestItemScan) 
         if !standalone {
             continue;
         }
-        let entry = QuestItemRef {
-            relative_path: path.to_string(),
-            line_number: i + 1,
-            text: raw_line.trim().to_string(),
-            kind: kinds.join(", "),
-        };
+        let entry =
+            QuestItemRef { relative_path: path.to_string(), line_number: i + 1, text: raw_line.trim().to_string(), kind: kinds.join(", ") };
         if kinds.is_empty() {
             scan.unconfirmed.push(entry);
         } else {
@@ -241,14 +237,7 @@ fn classify(line: &str, start: usize, end: usize) -> Option<&'static str> {
     // pc.give_item2(10, …) - nur als erstes Argument
     if let Some(call) = before.strip_suffix('(') {
         let call = call.trim_end();
-        let name: String = call
-            .chars()
-            .rev()
-            .take_while(|c| is_ident_char(*c))
-            .collect::<Vec<_>>()
-            .into_iter()
-            .rev()
-            .collect();
+        let name: String = call.chars().rev().take_while(|c| is_ident_char(*c)).collect::<Vec<_>>().into_iter().rev().collect();
         if ITEM_FUNCTIONS.contains(&name.to_ascii_lowercase().as_str()) {
             return Some("Item-Funktion");
         }

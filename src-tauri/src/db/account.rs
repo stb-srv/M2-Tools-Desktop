@@ -65,16 +65,8 @@ pub async fn count_accounts(pool: &MySqlPool, search: &str) -> Result<i64, Strin
 /// to ever send it to the frontend at all.
 pub async fn list_accounts(pool: &MySqlPool, search: &str, limit: i64, offset: i64) -> Result<Vec<AccountSummary>, String> {
     let pattern = format!("%{search}%");
-    let sql = format!(
-        "SELECT {SELECT_COLUMNS} FROM account.account WHERE login LIKE ? ORDER BY id DESC LIMIT ? OFFSET ?"
-    );
-    let rows = sqlx::query(&sql)
-        .bind(pattern)
-        .bind(limit)
-        .bind(offset)
-        .fetch_all(pool)
-        .await
-        .map_err(|e| e.to_string())?;
+    let sql = format!("SELECT {SELECT_COLUMNS} FROM account.account WHERE login LIKE ? ORDER BY id DESC LIMIT ? OFFSET ?");
+    let rows = sqlx::query(&sql).bind(pattern).bind(limit).bind(offset).fetch_all(pool).await.map_err(|e| e.to_string())?;
     rows.iter().map(row_to_summary).collect::<Result<Vec<_>, _>>().map_err(|e| e.to_string())
 }
 
@@ -183,21 +175,12 @@ pub async fn adjust_player_gold(pool: &MySqlPool, player_id: i32, delta: i64) ->
 /// Interpolieren wäre SQL-Injection.
 pub async fn adjust_account_numeric_column(pool: &MySqlPool, account_id: i32, column: &str, delta: i64) -> Result<i64, String> {
     let sql = format!("UPDATE account.account SET `{column}` = `{column}` + ? WHERE id = ?");
-    let result = sqlx::query(&sql)
-        .bind(delta)
-        .bind(account_id)
-        .execute(pool)
-        .await
-        .map_err(|e| e.to_string())?;
+    let result = sqlx::query(&sql).bind(delta).bind(account_id).execute(pool).await.map_err(|e| e.to_string())?;
     if result.rows_affected() == 0 {
         return Err(format!("Account #{account_id} nicht gefunden."));
     }
     let select = format!("SELECT `{column}` FROM account.account WHERE id = ?");
-    let new_value: i64 = sqlx::query_scalar(&select)
-        .bind(account_id)
-        .fetch_one(pool)
-        .await
-        .map_err(|e| e.to_string())?;
+    let new_value: i64 = sqlx::query_scalar(&select).bind(account_id).fetch_one(pool).await.map_err(|e| e.to_string())?;
     Ok(new_value)
 }
 
@@ -239,10 +222,6 @@ mod tests {
         assert!(dup.is_err());
         assert!(dup.unwrap_err().contains("bereits vergeben"));
 
-        sqlx::query("DELETE FROM account.account WHERE login = ?")
-            .bind(&login)
-            .execute(&pool)
-            .await
-            .expect("cleanup failed");
+        sqlx::query("DELETE FROM account.account WHERE login = ?").bind(&login).execute(&pool).await.expect("cleanup failed");
     }
 }

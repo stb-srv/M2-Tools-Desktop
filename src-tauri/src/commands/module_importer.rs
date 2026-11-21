@@ -35,13 +35,7 @@ pub async fn import_weapon_model(
 ) -> Result<(String, String, Vec<String>), String> {
     let client_path = item_editor_setting(&state, "client_path")?;
     let (dest, virtual_path, warnings) = tokio::task::spawn_blocking(move || {
-        packtools::import_custom_weapon_model(
-            &client_path,
-            &module_name,
-            vnum,
-            std::path::Path::new(&source_abs),
-            &texture_sources,
-        )
+        packtools::import_custom_weapon_model(&client_path, &module_name, vnum, std::path::Path::new(&source_abs), &texture_sources)
     })
     .await
     .map_err(|e| e.to_string())??;
@@ -82,13 +76,8 @@ pub async fn import_armor_model(
 ) -> Result<(), String> {
     let client_path = item_editor_setting(&state, "client_path")?;
     tokio::task::spawn_blocking(move || {
-        let (_, model_rel, skin_rel) = packtools::import_custom_armor_model(
-            &client_path,
-            &module_name,
-            &race,
-            std::path::Path::new(&source_abs),
-            &texture_sources,
-        )?;
+        let (_, model_rel, skin_rel) =
+            packtools::import_custom_armor_model(&client_path, &module_name, &race, std::path::Path::new(&source_abs), &texture_sources)?;
         msm::add_shape_data(&client_path, &race, shape_index, &model_rel, &skin_rel)
     })
     .await
@@ -105,17 +94,12 @@ pub async fn pack_folder(app: AppHandle, state: State<'_, AppState>, folder_name
 }
 
 #[tauri::command]
-pub async fn import_effect_bundle(
-    state: State<'_, AppState>,
-    module_name: String,
-    source_dir: String,
-) -> Result<Vec<String>, String> {
+pub async fn import_effect_bundle(state: State<'_, AppState>, module_name: String, source_dir: String) -> Result<Vec<String>, String> {
     let client_path = item_editor_setting(&state, "client_path")?;
-    let copied = tokio::task::spawn_blocking(move || {
-        packtools::import_effect_bundle(&client_path, &module_name, std::path::Path::new(&source_dir))
-    })
-    .await
-    .map_err(|e| e.to_string())??;
+    let copied =
+        tokio::task::spawn_blocking(move || packtools::import_effect_bundle(&client_path, &module_name, std::path::Path::new(&source_dir)))
+            .await
+            .map_err(|e| e.to_string())??;
     Ok(copied.into_iter().map(|p| p.display().to_string()).collect())
 }
 
@@ -237,8 +221,7 @@ pub async fn remove_single_item(app: AppHandle, state: State<'_, AppState>, vnum
 pub async fn undo_import_batch(app: AppHandle, state: State<'_, AppState>, id: i64) -> Result<(), String> {
     let batch = {
         let conn = state.settings_db.lock().map_err(|e| e.to_string())?;
-        import_history::get_batch(&conn, id)?
-            .ok_or_else(|| format!("Import-Batch {id} nicht gefunden (bereits entfernt?)"))?
+        import_history::get_batch(&conn, id)?.ok_or_else(|| format!("Import-Batch {id} nicht gefunden (bereits entfernt?)"))?
     };
 
     let pool = require_pool(&state).await?;
@@ -343,26 +326,14 @@ mod tests {
 
         teardown_item(&pool, client_path, owner_vnum).await.expect("teardown owner");
 
-        assert!(
-            !item::vnum_exists(&pool, owner_vnum).await.unwrap(),
-            "owner item must be gone"
-        );
-        assert!(
-            item::vnum_exists(&pool, sharer_vnum).await.unwrap(),
-            "sharer item must be untouched"
-        );
+        assert!(!item::vnum_exists(&pool, owner_vnum).await.unwrap(), "owner item must be gone");
+        assert!(item::vnum_exists(&pool, sharer_vnum).await.unwrap(), "sharer item must be untouched");
         let recipe_after = refine::get_recipe(&pool, recipe_id).await.unwrap();
-        assert!(
-            recipe_after.is_some(),
-            "recipe must survive - still used by the sharer item"
-        );
+        assert!(recipe_after.is_some(), "recipe must survive - still used by the sharer item");
 
         teardown_item(&pool, client_path, sharer_vnum).await.expect("teardown sharer");
         assert!(!item::vnum_exists(&pool, sharer_vnum).await.unwrap());
         let recipe_gone = refine::get_recipe(&pool, recipe_id).await.unwrap();
-        assert!(
-            recipe_gone.is_none(),
-            "recipe must be dropped once the last item using it is gone"
-        );
+        assert!(recipe_gone.is_none(), "recipe must be dropped once the last item using it is gone");
     }
 }

@@ -57,7 +57,11 @@ fn nav() -> Vec<NavEntry> {
         NavEntry::Page(p("intro", "Einführung")),
         NavEntry::Group {
             label: "Übersicht",
-            children: vec![p("dashboard", "Dashboard"), p("server-control", "Server-Steuerung"), p("build-deploy", "Quellcode Bauen & Einspielen")],
+            children: vec![
+                p("dashboard", "Dashboard"),
+                p("server-control", "Server-Steuerung"),
+                p("build-deploy", "Quellcode Bauen & Einspielen"),
+            ],
         },
         NavEntry::Group {
             label: "Items & Ausrüstung",
@@ -81,7 +85,11 @@ fn nav() -> Vec<NavEntry> {
         },
         NavEntry::Group {
             label: "Quests & Welt",
-            children: vec![p("quest-builder", "Quest Builder"), p("regen-editor", "Regen-Datei-Editor"), p("locale-editor", "Locale-Verwaltung")],
+            children: vec![
+                p("quest-builder", "Quest Builder"),
+                p("regen-editor", "Regen-Datei-Editor"),
+                p("locale-editor", "Locale-Verwaltung"),
+            ],
         },
         NavEntry::Group {
             label: "Server & Accounts",
@@ -98,7 +106,11 @@ fn nav() -> Vec<NavEntry> {
         },
         NavEntry::Group {
             label: "Backups",
-            children: vec![p("backup-browser", "Backups (Dateien)"), p("db-backups", "↳ Datenbank-Backups"), p("activity-log", "Änderungsprotokoll")],
+            children: vec![
+                p("backup-browser", "Backups (Dateien)"),
+                p("db-backups", "↳ Datenbank-Backups"),
+                p("activity-log", "Änderungsprotokoll"),
+            ],
         },
         NavEntry::Group {
             label: "Client-Assets",

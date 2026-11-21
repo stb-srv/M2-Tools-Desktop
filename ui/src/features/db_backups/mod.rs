@@ -5,10 +5,10 @@ pub mod schedule;
 
 use crate::components::{toast, Button, ButtonSize, ButtonVariant, Icon, PageHeader, Skeleton};
 use crate::features::server_control::util::{js_number, js_number_string};
-use crate::util::log_activity;
 use crate::store::connection_profiles::connection_profiles;
 use crate::store::navigation::EmbeddedModule;
 use crate::tauri::{invoke, invoke0, invoke_unit};
+use crate::util::log_activity;
 use leptos::prelude::*;
 use leptos::task::spawn_local;
 use schedule::{next_due_at, parse_date_ms, SCHEDULE_HOURS_OPTIONS};
@@ -30,15 +30,7 @@ pub fn parse_timestamp(filename: &str) -> Option<String> {
     if date.len() != 8 || time.len() != 6 || !date.bytes().chain(time.bytes()).all(|b| b.is_ascii_digit()) {
         return None;
     }
-    Some(format!(
-        "{}-{}-{} {}:{}:{}",
-        &date[0..4],
-        &date[4..6],
-        &date[6..8],
-        &time[0..2],
-        &time[2..4],
-        &time[4..6]
-    ))
+    Some(format!("{}-{}-{} {}:{}:{}", &date[0..4], &date[4..6], &date[6..8], &time[0..2], &time[2..4], &time[4..6]))
 }
 
 /// Wie `new Date(ms).toLocaleString("de-DE")`: "5.8.2026, 09:03:04".
@@ -194,7 +186,8 @@ pub fn DbBackups() -> impl IntoView {
         });
     };
 
-    let files = move || entries.with(|e| e.as_ref().map(|e| e.iter().filter(|x| !x.is_dir).cloned().collect::<Vec<_>>()).unwrap_or_default());
+    let files =
+        move || entries.with(|e| e.as_ref().map(|e| e.iter().filter(|x| !x.is_dir).cloned().collect::<Vec<_>>()).unwrap_or_default());
 
     let schedule_note = move || {
         let hours = schedule_hours.get();

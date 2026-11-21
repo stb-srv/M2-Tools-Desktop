@@ -3,9 +3,9 @@
 use crate::components::{Button, ButtonSize, ButtonVariant, Icon, PageHeader, Skeleton};
 use crate::features::shared::generic_row_editor::TableRows;
 use crate::features::shared::GenericRowEditor;
-use crate::util::log_activity;
 use crate::store::navigation::{ModuleId, Section};
 use crate::tauri::{invoke, invoke_unit};
+use crate::util::log_activity;
 use leptos::prelude::*;
 use leptos::task::spawn_local;
 use serde_json::{json, Value};
@@ -108,7 +108,9 @@ pub fn GuildManager() -> impl IntoView {
         searching.set(true);
         search_error.set(None);
         spawn_local(async move {
-            match invoke::<TableRows>("search_table_rows", &json!({ "database": db, "table": GUILD_TABLE, "column": "name", "query": q })).await {
+            match invoke::<TableRows>("search_table_rows", &json!({ "database": db, "table": GUILD_TABLE, "column": "name", "query": q }))
+                .await
+            {
                 Ok(r) => result.set(Some(r)),
                 Err(e) => search_error.set(Some(e)),
             }
@@ -123,8 +125,16 @@ pub fn GuildManager() -> impl IntoView {
         let db = database.get_untracked();
         spawn_local(async move {
             let res: Result<TableRows, String> = async {
-                let g1 = invoke::<TableRows>("search_table_rows", &json!({ "database": db, "table": WAR_TABLE, "column": "guild1", "query": id })).await?;
-                let g2 = invoke::<TableRows>("search_table_rows", &json!({ "database": db, "table": WAR_TABLE, "column": "guild2", "query": id })).await?;
+                let g1 = invoke::<TableRows>(
+                    "search_table_rows",
+                    &json!({ "database": db, "table": WAR_TABLE, "column": "guild1", "query": id }),
+                )
+                .await?;
+                let g2 = invoke::<TableRows>(
+                    "search_table_rows",
+                    &json!({ "database": db, "table": WAR_TABLE, "column": "guild2", "query": id }),
+                )
+                .await?;
                 Ok(merge_wars(g1, g2))
             }
             .await;

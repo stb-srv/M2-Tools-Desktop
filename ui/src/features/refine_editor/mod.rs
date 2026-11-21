@@ -7,10 +7,10 @@ pub mod logic;
 use crate::components::{Button, ButtonSize, ButtonVariant, Icon, PageHeader};
 use crate::features::regen_editor::num_input::{js_number_string, NumInput};
 use crate::features::shared::{EntityBrowser, EntityKind, EntityRow};
-use crate::util::format::de_int;
-use crate::util::{log_activity, use_save_shortcut};
 use crate::store::navigation::{nav, report_section_dirty, Section};
 use crate::tauri::{invoke, invoke0, invoke_unit};
+use crate::util::format::de_int;
+use crate::util::{log_activity, use_save_shortcut};
 use leptos::prelude::*;
 use leptos::task::spawn_local;
 use logic::{active_materials, initial_material_rows, parse_reuse_id, MaterialRow};
@@ -145,9 +145,7 @@ fn MaterialSourceHint(material: RefineMaterial, mob_drops: MobDrops) -> impl Int
             d.as_deref()
                 .unwrap_or(&[])
                 .iter()
-                .filter_map(|g| {
-                    g.items.iter().find(|it| it.item_vnum == vnum).map(|drop| (g.name.clone(), g.mob_vnum, drop.percent))
-                })
+                .filter_map(|g| g.items.iter().find(|it| it.item_vnum == vnum).map(|drop| (g.name.clone(), g.mob_vnum, drop.percent)))
                 .collect::<Vec<_>>()
         })
     });
@@ -326,12 +324,7 @@ fn RecipeEditor(node: RefineChainNode, #[prop(into)] on_cancel: Callback<()>, #[
         error.set(None);
         let target = target_vnum.get_untracked();
         spawn_local(async move {
-            match invoke_unit(
-                "set_item_refine_link",
-                &json!({ "vnum": node_vnum, "refineSet": preview.id, "refinedVnum": target }),
-            )
-            .await
-            {
+            match invoke_unit("set_item_refine_link", &json!({ "vnum": node_vnum, "refineSet": preview.id, "refinedVnum": target })).await {
                 Ok(()) => {
                     log_activity(
                         Section::RefineEditor.into(),
@@ -348,11 +341,7 @@ fn RecipeEditor(node: RefineChainNode, #[prop(into)] on_cancel: Callback<()>, #[
         });
     };
 
-    use_save_shortcut(
-        Section::RefineEditor,
-        move || dirty.get_untracked() && !saving.get_untracked(),
-        move || save_new_or_update(false),
-    );
+    use_save_shortcut(Section::RefineEditor, move || dirty.get_untracked() && !saving.get_untracked(), move || save_new_or_update(false));
 
     // "Letzte Änderung rückgängig machen" - refine_proto hat kein
     // Datei-Backup, undo_last_refine_change stellt serverseitig den

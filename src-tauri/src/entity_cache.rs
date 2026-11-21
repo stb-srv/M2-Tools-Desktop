@@ -32,12 +32,9 @@ fn table_for(kind: &str) -> Result<&'static str, String> {
 pub fn replace_all(conn: &Connection, kind: &str, rows: &[(u32, String)]) -> Result<(), String> {
     let table = table_for(kind)?;
     let tx = conn.unchecked_transaction().map_err(|e| e.to_string())?;
-    tx.execute(&format!("DELETE FROM {table}"), [])
-        .map_err(|e| e.to_string())?;
+    tx.execute(&format!("DELETE FROM {table}"), []).map_err(|e| e.to_string())?;
     {
-        let mut stmt = tx
-            .prepare(&format!("INSERT INTO {table} (vnum, name) VALUES (?1, ?2)"))
-            .map_err(|e| e.to_string())?;
+        let mut stmt = tx.prepare(&format!("INSERT INTO {table} (vnum, name) VALUES (?1, ?2)")).map_err(|e| e.to_string())?;
         for (vnum, name) in rows {
             stmt.execute(rusqlite::params![vnum, name]).map_err(|e| e.to_string())?;
         }
@@ -54,17 +51,9 @@ pub fn replace_all(conn: &Connection, kind: &str, rows: &[(u32, String)]) -> Res
 
 pub fn get_meta(conn: &Connection, kind: &str) -> Result<Option<CacheMeta>, String> {
     table_for(kind)?;
-    conn.query_row(
-        "SELECT kind, synced_at, row_count FROM entity_cache_meta WHERE kind = ?1",
-        [kind],
-        |row| {
-            Ok(CacheMeta {
-                kind: row.get(0)?,
-                synced_at: row.get(1)?,
-                row_count: row.get(2)?,
-            })
-        },
-    )
+    conn.query_row("SELECT kind, synced_at, row_count FROM entity_cache_meta WHERE kind = ?1", [kind], |row| {
+        Ok(CacheMeta { kind: row.get(0)?, synced_at: row.get(1)?, row_count: row.get(2)? })
+    })
     .optional()
     .map_err(|e| e.to_string())
 }
@@ -79,10 +68,7 @@ pub fn browse(conn: &Connection, kind: &str, query: Option<&str>, offset: i64, l
     let (where_clause, like_value): (&str, Option<String>) = match trimmed {
         None => ("", None),
         Some(q) if q.chars().all(|c| c.is_ascii_digit()) => ("WHERE CAST(vnum AS TEXT) LIKE ?1", Some(format!("%{q}%"))),
-        Some(q) => (
-            "WHERE LOWER(name) LIKE LOWER(?1)",
-            Some(format!("%{}%", q.replace('%', "\\%").replace('_', "\\_"))),
-        ),
+        Some(q) => ("WHERE LOWER(name) LIKE LOWER(?1)", Some(format!("%{}%", q.replace('%', "\\%").replace('_', "\\_")))),
     };
 
     let count_sql = format!("SELECT COUNT(*) FROM {table} {where_clause}");
@@ -93,16 +79,14 @@ pub fn browse(conn: &Connection, kind: &str, query: Option<&str>, offset: i64, l
     }
     .map_err(|e| e.to_string())?;
 
-    let rows_sql = format!("SELECT vnum, name FROM {table} {where_clause} ORDER BY vnum LIMIT ?{n} OFFSET ?{n2}",
+    let rows_sql = format!(
+        "SELECT vnum, name FROM {table} {where_clause} ORDER BY vnum LIMIT ?{n} OFFSET ?{n2}",
         n = if like_value.is_some() { 2 } else { 1 },
-        n2 = if like_value.is_some() { 3 } else { 2 });
+        n2 = if like_value.is_some() { 3 } else { 2 }
+    );
     let mut stmt = conn.prepare(&rows_sql).map_err(|e| e.to_string())?;
-    let row_iter = |row: &rusqlite::Row| -> rusqlite::Result<ItemSearchResult> {
-        Ok(ItemSearchResult {
-            vnum: row.get(0)?,
-            name: row.get(1)?,
-        })
-    };
+    let row_iter =
+        |row: &rusqlite::Row| -> rusqlite::Result<ItemSearchResult> { Ok(ItemSearchResult { vnum: row.get(0)?, name: row.get(1)? }) };
     let rows: Vec<ItemSearchResult> = if let Some(v) = &like_value {
         stmt.query_map(rusqlite::params![v, limit, offset], row_iter)
     } else {

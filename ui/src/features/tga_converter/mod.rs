@@ -82,11 +82,7 @@ pub fn TgaConverter() -> impl IntoView {
 
     let set_dest_folder = move |_| {
         spawn_local(async move {
-            let opts = OpenDialogOptions {
-                title: Some("Zielordner für alle Dateien".into()),
-                directory: true,
-                ..Default::default()
-            };
+            let opts = OpenDialogOptions { title: Some("Zielordner für alle Dateien".into()), directory: true, ..Default::default() };
             let Ok(Some(folder)) = dialog_open_one(&opts).await else { return };
             rows.update(|rs| {
                 for r in rs.iter_mut() {
@@ -102,11 +98,7 @@ pub fn TgaConverter() -> impl IntoView {
         let Some(row) = rows.with_untracked(|rs| rs.get(index).cloned()) else { return };
         set_row(index, &|r| r.status = RowStatus::Converting);
         spawn_local(async move {
-            let res = invoke_unit(
-                "convert_image_to_tga",
-                &json!({ "sourcePath": row.source_path, "destPath": row.dest_path }),
-            )
-            .await;
+            let res = invoke_unit("convert_image_to_tga", &json!({ "sourcePath": row.source_path, "destPath": row.dest_path })).await;
             match res {
                 Ok(()) => set_row(index, &|r| r.status = RowStatus::Done),
                 Err(e) => set_row(index, &move |r| {
@@ -127,11 +119,7 @@ pub fn TgaConverter() -> impl IntoView {
                     continue;
                 }
                 set_row(i, &|r| r.status = RowStatus::Converting);
-                let res = invoke_unit(
-                    "convert_image_to_tga",
-                    &json!({ "sourcePath": row.source_path, "destPath": row.dest_path }),
-                )
-                .await;
+                let res = invoke_unit("convert_image_to_tga", &json!({ "sourcePath": row.source_path, "destPath": row.dest_path })).await;
                 match res {
                     Ok(()) => set_row(i, &|r| r.status = RowStatus::Done),
                     Err(e) => set_row(i, &move |r| {

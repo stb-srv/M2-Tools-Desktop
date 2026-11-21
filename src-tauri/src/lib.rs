@@ -10,11 +10,13 @@ mod build_deploy;
 mod client_unpack;
 mod clientfs;
 mod commands;
+mod common_drop;
 mod connection_profiles;
 mod credentials;
-mod common_drop;
 mod cube;
 mod db;
+mod db_backup;
+mod deploy_history;
 mod drop_check;
 mod drop_item_group;
 mod entity_cache;
@@ -24,8 +26,8 @@ mod icons;
 mod imageconv;
 mod import_history;
 mod item_presets;
-mod known_hosts;
 mod itemdesc;
+mod known_hosts;
 mod locale;
 mod m2pkg;
 mod mapdata;
@@ -39,18 +41,16 @@ mod refine;
 mod refine_undo;
 mod regen;
 mod resource_history;
-mod db_backup;
-mod deploy_history;
 mod resources;
-mod webhook;
 mod settings;
 mod special_item_group;
 mod ssh;
 mod state;
-mod textures;
-mod weather;
 #[cfg(test)]
 mod test_support;
+mod textures;
+mod weather;
+mod webhook;
 
 use state::AppState;
 use std::sync::atomic::{AtomicBool, AtomicU64, Ordering};
@@ -87,17 +87,10 @@ pub fn run() {
         .plugin(tauri_plugin_updater::Builder::new().build())
         .plugin(tauri_plugin_process::init())
         .setup(|app| {
-            let app_data_dir = app
-                .path()
-                .app_data_dir()
-                .expect("app data dir should be resolvable");
-            let settings_db =
-                settings::init_db(&app_data_dir).expect("failed to initialize settings database");
+            let app_data_dir = app.path().app_data_dir().expect("app data dir should be resolvable");
+            let settings_db = settings::init_db(&app_data_dir).expect("failed to initialize settings database");
             known_hosts::init(&app_data_dir, app.handle().clone());
-            app.manage(AppState {
-                mysql_pool: Default::default(),
-                settings_db: std::sync::Mutex::new(settings_db),
-            });
+            app.manage(AppState { mysql_pool: Default::default(), settings_db: std::sync::Mutex::new(settings_db) });
             Ok(())
         })
         .on_window_event(|window, event| {

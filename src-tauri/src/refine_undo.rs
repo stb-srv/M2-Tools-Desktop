@@ -26,10 +26,7 @@ pub struct RefineUndoState {
 /// replaces whatever was recorded before it, since only the last change is
 /// undoable by design.
 pub fn record(conn: &Connection, action: &str, recipe_id: i32, prior: Option<&RefineRecipe>) -> Result<(), String> {
-    let prior_json = prior
-        .map(serde_json::to_string)
-        .transpose()
-        .map_err(|e| e.to_string())?;
+    let prior_json = prior.map(serde_json::to_string).transpose().map_err(|e| e.to_string())?;
     conn.execute(
         "INSERT INTO refine_undo (id, recipe_id, action, prior_json, created_at) VALUES (1, ?1, ?2, ?3, ?4) \
          ON CONFLICT(id) DO UPDATE SET recipe_id = excluded.recipe_id, action = excluded.action, \
@@ -45,22 +42,14 @@ pub fn record(conn: &Connection, action: &str, recipe_id: i32, prior: Option<&Re
 /// "nothing to undo" instead of re-applying the same restore.
 pub fn take(conn: &Connection) -> Result<Option<RefineUndoState>, String> {
     let row: Option<(i32, String, Option<String>)> = conn
-        .query_row(
-            "SELECT recipe_id, action, prior_json FROM refine_undo WHERE id = 1",
-            [],
-            |r| Ok((r.get(0)?, r.get(1)?, r.get(2)?)),
-        )
+        .query_row("SELECT recipe_id, action, prior_json FROM refine_undo WHERE id = 1", [], |r| Ok((r.get(0)?, r.get(1)?, r.get(2)?)))
         .optional()
         .map_err(|e| e.to_string())?;
     let Some((recipe_id, action, prior_json)) = row else {
         return Ok(None);
     };
-    let prior = prior_json
-        .map(|j| serde_json::from_str(&j))
-        .transpose()
-        .map_err(|e| e.to_string())?;
-    conn.execute("DELETE FROM refine_undo WHERE id = 1", [])
-        .map_err(|e| e.to_string())?;
+    let prior = prior_json.map(|j| serde_json::from_str(&j)).transpose().map_err(|e| e.to_string())?;
+    conn.execute("DELETE FROM refine_undo WHERE id = 1", []).map_err(|e| e.to_string())?;
     Ok(Some(RefineUndoState { action, recipe_id, prior }))
 }
 

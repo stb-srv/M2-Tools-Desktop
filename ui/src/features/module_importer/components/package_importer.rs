@@ -9,15 +9,14 @@ use crate::features::item_editor::item_flags::{subtypes_by_type, WEAR_FLAGS};
 use crate::features::item_editor::types::{js_number, num};
 use crate::features::module_importer::package_logic::*;
 use crate::features::module_importer::shared::*;
-use crate::util::{log_activity, use_save_shortcut};
 use crate::store::navigation::{use_section_dirty_as, Section};
 use crate::tauri::{dialog_open_one, invoke, invoke_unit, listen, OpenDialogOptions, Unlisten};
+use crate::util::{log_activity, use_save_shortcut};
 use leptos::html;
 use leptos::prelude::*;
 use leptos::task::spawn_local;
 use serde_json::json;
 use std::collections::{BTreeSet, HashMap};
-
 
 async fn wire_refine_chain(level_vnums: &[i64]) -> Result<(), String> {
     for level in 0..level_vnums.len().saturating_sub(1) {
@@ -118,12 +117,9 @@ pub fn PackageImporter(#[prop(into)] on_imported: Callback<()>) -> impl IntoView
 
     let pick_folder = move || {
         spawn_local(async move {
-            let res = dialog_open_one(&OpenDialogOptions {
-                directory: true,
-                title: Some("Paket-Ordner wählen".into()),
-                ..Default::default()
-            })
-            .await;
+            let res =
+                dialog_open_one(&OpenDialogOptions { directory: true, title: Some("Paket-Ordner wählen".into()), ..Default::default() })
+                    .await;
             if let Ok(Some(p)) = res {
                 folder_path.set(p);
                 scan_result.set(None);
@@ -194,12 +190,9 @@ pub fn PackageImporter(#[prop(into)] on_imported: Callback<()>) -> impl IntoView
         });
     };
 
-    let selected_weapons = move || -> Vec<WeaponVariant> {
-        scan_result.with(|s| weapon_rows.with(|r| selected_weapons(s.as_ref(), r)))
-    };
-    let selected_armor_races = move || -> Vec<ArmorPiece> {
-        scan_result.with(|s| armor_rows.with(|r| selected_armor_races(s.as_ref(), r)))
-    };
+    let selected_weapons = move || -> Vec<WeaponVariant> { scan_result.with(|s| weapon_rows.with(|r| selected_weapons(s.as_ref(), r))) };
+    let selected_armor_races =
+        move || -> Vec<ArmorPiece> { scan_result.with(|s| armor_rows.with(|r| selected_armor_races(s.as_ref(), r))) };
     let armor_female_races = move || female_races(&selected_armor_races());
     let armor_male_only_races = move || male_only_races(&selected_armor_races());
 
@@ -216,14 +209,8 @@ pub fn PackageImporter(#[prop(into)] on_imported: Callback<()>) -> impl IntoView
         move || confirm.set(true),
     );
 
-    let item_count = move || {
-        item_count(
-            selected_weapons().len(),
-            !selected_armor_races().is_empty(),
-            chain_enabled.get(),
-            chain_max_level.get(),
-        )
-    };
+    let item_count =
+        move || item_count(selected_weapons().len(), !selected_armor_races().is_empty(), chain_enabled.get(), chain_max_level.get());
 
     let run_import = move || {
         confirm.set(false);
@@ -258,11 +245,7 @@ pub fn PackageImporter(#[prop(into)] on_imported: Callback<()>) -> impl IntoView
 
         weapon_status.set(sel_weapons.iter().map(|v| (v.key.clone(), StepStatus::Pending)).collect());
         armor_status.set((!sel_armors.is_empty()).then_some(StepStatus::Pending));
-        other_steps.set(HashMap::from([
-            ("setup", StepStatus::Pending),
-            ("pack", StepStatus::Pending),
-            ("proto", StepStatus::Pending),
-        ]));
+        other_steps.set(HashMap::from([("setup", StepStatus::Pending), ("pack", StepStatus::Pending), ("proto", StepStatus::Pending)]));
         let set_other = move |k: &'static str, s: StepStatus| {
             other_steps.update(|m| {
                 m.insert(k, s);
@@ -316,8 +299,7 @@ pub fn PackageImporter(#[prop(into)] on_imported: Callback<()>) -> impl IntoView
                         invoke_unit("create_item_proto", &json!({ "item": item })).await?;
                         created.push(vnum);
                         if has_desc {
-                            invoke_unit("write_item_desc", &json!({ "vnum": vnum, "description": desc, "summary": summ }))
-                                .await?;
+                            invoke_unit("write_item_desc", &json!({ "vnum": vnum, "description": desc, "summary": summ })).await?;
                         }
                         invoke_unit(
                             "write_item_list_entry",
@@ -359,8 +341,7 @@ pub fn PackageImporter(#[prop(into)] on_imported: Callback<()>) -> impl IntoView
                         invoke_unit("create_item_proto", &json!({ "item": item })).await?;
                         created.push(vnum);
                         if has_desc {
-                            invoke_unit("write_item_desc", &json!({ "vnum": vnum, "description": desc, "summary": summ }))
-                                .await?;
+                            invoke_unit("write_item_desc", &json!({ "vnum": vnum, "description": desc, "summary": summ })).await?;
                         }
                         invoke_unit(
                             "write_item_list_entry",
@@ -401,8 +382,7 @@ pub fn PackageImporter(#[prop(into)] on_imported: Callback<()>) -> impl IntoView
                 }
                 if effects && !scan.effect_dirs.is_empty() {
                     for dir in &scan.effect_dirs {
-                        invoke_unit("import_effect_bundle", &json!({ "moduleName": scan.module_name, "sourceDir": dir }))
-                            .await?;
+                        invoke_unit("import_effect_bundle", &json!({ "moduleName": scan.module_name, "sourceDir": dir })).await?;
                     }
                     invoke_unit("pack_item_effects", &json!({})).await?;
                 }
@@ -443,9 +423,7 @@ pub fn PackageImporter(#[prop(into)] on_imported: Callback<()>) -> impl IntoView
                             Ok(()) => log_activity(
                                 Section::ModuleImporter.into(),
                                 "rollback-item",
-                                &format!(
-                                    "Neu angelegtes Item zurückgenommen (vnum {vnum}, Rollback nach fehlgeschlagenem Import)"
-                                ),
+                                &format!("Neu angelegtes Item zurückgenommen (vnum {vnum}, Rollback nach fehlgeschlagenem Import)"),
                                 Some("item"),
                                 Some(&vnum.to_string()),
                             ),
@@ -896,8 +874,8 @@ pub fn PackageImporter(#[prop(into)] on_imported: Callback<()>) -> impl IntoView
         let female = armor_female_races();
         let has_desc = !description.with_untracked(|d| d.trim().is_empty()) || !summary.with_untracked(|s| s.trim().is_empty());
         let r = ref_item.get_untracked();
-        let effects = include_effects.get_untracked()
-            && scan_result.with_untracked(|s| s.as_ref().is_some_and(|s| !s.effect_dirs.is_empty()));
+        let effects =
+            include_effects.get_untracked() && scan_result.with_untracked(|s| s.as_ref().is_some_and(|s| !s.effect_dirs.is_empty()));
         view! {
             <div class="fixed inset-0 flex items-center justify-center bg-black/50">
                 <div class="w-[28rem] space-y-3 rounded-lg border border-border bg-card p-4">

@@ -31,10 +31,7 @@ pub async fn list_locale_namespaces(state: State<'_, AppState>) -> Result<Vec<St
 }
 
 #[tauri::command]
-pub async fn read_locale_namespace(
-    state: State<'_, AppState>,
-    namespace: String,
-) -> Result<Vec<locale::LocaleEntry>, String> {
+pub async fn read_locale_namespace(state: State<'_, AppState>, namespace: String) -> Result<Vec<locale::LocaleEntry>, String> {
     let (config, auth) = stored_ssh_auth(&state)?;
     let path = locale_file_path(&state)?;
     let content = ssh::read_remote_file(&config, &auth, &path).await?;
@@ -55,10 +52,7 @@ pub async fn write_locale_namespace(
 }
 
 #[tauri::command]
-pub async fn create_locale_namespace(
-    state: State<'_, AppState>,
-    namespace: String,
-) -> Result<Option<String>, String> {
+pub async fn create_locale_namespace(state: State<'_, AppState>, namespace: String) -> Result<Option<String>, String> {
     let (config, auth) = stored_ssh_auth(&state)?;
     let path = locale_file_path(&state)?;
     let content = ssh::read_remote_file(&config, &auth, &path).await?;
@@ -76,18 +70,14 @@ pub fn sanitize_locale_namespace(name: String) -> String {
 // small private path helpers (see `locale_file_path` above).
 fn quest_dir(state: &State<'_, AppState>) -> Result<String, String> {
     let conn = state.settings_db.lock().map_err(|e| e.to_string())?;
-    Ok(settings::get_path(&conn, "quest_dir")?
-        .filter(|v| !v.is_empty())
-        .unwrap_or_else(|| "/usr/home/game/share/quest".to_string()))
+    Ok(settings::get_path(&conn, "quest_dir")?.filter(|v| !v.is_empty()).unwrap_or_else(|| "/usr/home/game/share/quest".to_string()))
 }
 
 /// Cross-checks every `gameforge.<ns>.<key>` reference across all quest
 /// source files against what's actually defined in translate.lua - see
 /// `locale::check_completeness` for the pure diff logic.
 #[tauri::command]
-pub async fn check_locale_completeness(
-    state: State<'_, AppState>,
-) -> Result<locale::LocaleCompletenessReport, String> {
+pub async fn check_locale_completeness(state: State<'_, AppState>) -> Result<locale::LocaleCompletenessReport, String> {
     let (config, auth) = stored_ssh_auth(&state)?;
 
     let locale_path = locale_file_path(&state)?;
@@ -103,10 +93,7 @@ pub async fn check_locale_completeness(
     let quest_dir = quest_dir(&state)?;
     let list_content = ssh::read_remote_file(&config, &auth, &format!("{quest_dir}/quest_list")).await?;
     let files = quest::parse_quest_list(&list_content);
-    let paths: Vec<String> = files
-        .iter()
-        .map(|f| format!("{quest_dir}/{}", f.relative_path))
-        .collect();
+    let paths: Vec<String> = files.iter().map(|f| format!("{quest_dir}/{}", f.relative_path)).collect();
     let contents = ssh::read_remote_files(&config, &auth, &paths).await?;
     let quest_files: Vec<(String, String)> = files
         .iter()

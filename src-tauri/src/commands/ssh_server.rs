@@ -15,9 +15,9 @@ use tauri::{AppHandle, Emitter, State};
 pub async fn test_ssh_connection(config: SshConfig, auth: SshAuth) -> Result<(), String> {
     // Leere Felder aus dem Webview = gespeicherte Geheimnisse verwenden.
     let auth = match auth {
-        SshAuth::Password { password } if password.is_empty() => SshAuth::Password {
-            password: crate::credentials::get_secret("ssh_password").unwrap_or_default(),
-        },
+        SshAuth::Password { password } if password.is_empty() => {
+            SshAuth::Password { password: crate::credentials::get_secret("ssh_password").unwrap_or_default() }
+        }
         SshAuth::PrivateKey { path, passphrase } if passphrase.as_deref().is_none_or(str::is_empty) => {
             SshAuth::PrivateKey { path, passphrase: crate::credentials::get_secret("ssh_key_passphrase").ok().filter(|s| !s.is_empty()) }
         }
@@ -33,11 +33,7 @@ pub struct ServerCommandResult {
 }
 
 #[tauri::command]
-pub async fn run_server_command(
-    app: tauri::AppHandle,
-    state: State<'_, AppState>,
-    command: String,
-) -> Result<ServerCommandResult, String> {
+pub async fn run_server_command(app: tauri::AppHandle, state: State<'_, AppState>, command: String) -> Result<ServerCommandResult, String> {
     let (config, auth) = stored_ssh_auth(&state)?;
 
     let result = ssh::run_command_with_timeout(&config, &auth, &command, None, |chunk| {
@@ -45,10 +41,7 @@ pub async fn run_server_command(
     })
     .await?;
 
-    Ok(ServerCommandResult {
-        output: result.output,
-        exit_status: result.exit_status,
-    })
+    Ok(ServerCommandResult { output: result.output, exit_status: result.exit_status })
 }
 
 #[tauri::command]
@@ -102,12 +95,8 @@ async fn verify_liveness(
     auth: &ssh::SshAuth,
 ) -> Result<bool, String> {
     let names = server_process_names(state)?;
-    let wait: u64 = build_deploy_setting(state, "deploy_liveness_wait_seconds", "8")?
-        .parse()
-        .unwrap_or(8);
-    let recheck: u64 = build_deploy_setting(state, "deploy_liveness_recheck_seconds", "5")?
-        .parse()
-        .unwrap_or(5);
+    let wait: u64 = build_deploy_setting(state, "deploy_liveness_wait_seconds", "8")?.parse().unwrap_or(8);
+    let recheck: u64 = build_deploy_setting(state, "deploy_liveness_recheck_seconds", "5")?.parse().unwrap_or(5);
 
     tokio::time::sleep(std::time::Duration::from_secs(wait)).await;
     let first = ssh::run_command_streaming(config, auth, "ps -axo pid,pcpu,pmem,rss,comm", |_| {}).await?;
@@ -123,10 +112,7 @@ async fn verify_liveness(
     let message = if ok {
         format!("\n[OK] {} Prozess(e) stabil (PIDs: {:?})\n", first_pids.len(), first_pids)
     } else {
-        format!(
-            "\n[WARNUNG] Kein stabiler Prozess gefunden - erste Prüfung: {:?}, zweite: {:?}\n",
-            first_pids, second_pids
-        )
+        format!("\n[WARNUNG] Kein stabiler Prozess gefunden - erste Prüfung: {:?}, zweite: {:?}\n", first_pids, second_pids)
     };
     let _ = app.emit("build-deploy-output", message);
     Ok(ok)
@@ -156,10 +142,7 @@ pub async fn run_deploy(
     let stop_cmd = build_deploy_setting(&state, "server_cmd_stop", "")?;
     let start_cmd = build_deploy_setting(&state, "server_cmd_start", "")?;
     if stop_cmd.is_empty() || start_cmd.is_empty() {
-        return Err(
-            "server_cmd_stop/server_cmd_start sind nicht gesetzt - bitte erst in der Server-Steuerung einrichten."
-                .to_string(),
-        );
+        return Err("server_cmd_stop/server_cmd_start sind nicht gesetzt - bitte erst in der Server-Steuerung einrichten.".to_string());
     }
 
     let emit_stage = |stage: &str| {
@@ -173,16 +156,8 @@ pub async fn run_deploy(
     ssh::run_command_streaming(&config, &auth, &stop_cmd, emit_output).await?;
 
     emit_stage("2/5 Aktuelle Live-Programmdateien sichern");
-    let game_backup = if targets.iter().any(|t| t == "game") {
-        ssh::backup_remote_binary(&config, &auth, &live_game).await?
-    } else {
-        None
-    };
-    let db_backup = if targets.iter().any(|t| t == "db") {
-        ssh::backup_remote_binary(&config, &auth, &live_db).await?
-    } else {
-        None
-    };
+    let game_backup = if targets.iter().any(|t| t == "game") { ssh::backup_remote_binary(&config, &auth, &live_game).await? } else { None };
+    let db_backup = if targets.iter().any(|t| t == "db") { ssh::backup_remote_binary(&config, &auth, &live_db).await? } else { None };
 
     emit_stage("3/5 Neu gebaute Programmdateien einspielen");
     let mut copy_cmds = Vec::new();
@@ -199,15 +174,7 @@ pub async fn run_deploy(
 
     let deploy_id = {
         let conn = state.settings_db.lock().map_err(|e| e.to_string())?;
-        deploy_history::record_deploy(
-            &conn,
-            "deploy",
-            &targets,
-            game_backup.as_deref(),
-            db_backup.as_deref(),
-            &note,
-            None,
-        )?
+        deploy_history::record_deploy(&conn, "deploy", &targets, game_backup.as_deref(), db_backup.as_deref(), &note, None)?
     };
 
     emit_stage("4/5 Server starten (alle Channels + Login-Server)");
@@ -242,10 +209,7 @@ pub async fn run_rollback(
     let stop_cmd = build_deploy_setting(&state, "server_cmd_stop", "")?;
     let start_cmd = build_deploy_setting(&state, "server_cmd_start", "")?;
     if stop_cmd.is_empty() || start_cmd.is_empty() {
-        return Err(
-            "server_cmd_stop/server_cmd_start sind nicht gesetzt - bitte erst in der Server-Steuerung einrichten."
-                .to_string(),
-        );
+        return Err("server_cmd_stop/server_cmd_start sind nicht gesetzt - bitte erst in der Server-Steuerung einrichten.".to_string());
     }
 
     let target_record = {
@@ -318,14 +282,8 @@ pub fn list_deploy_history(state: State<'_, AppState>) -> Result<Vec<deploy_hist
 
 fn server_process_names(state: &State<'_, AppState>) -> Result<Vec<String>, String> {
     let conn = state.settings_db.lock().map_err(|e| e.to_string())?;
-    let raw = settings::get_path(&conn, "server_process_names")?
-        .filter(|v| !v.is_empty())
-        .unwrap_or_else(|| "game,db".to_string());
-    Ok(raw
-        .split(',')
-        .map(|s| s.trim().to_string())
-        .filter(|s| !s.is_empty())
-        .collect())
+    let raw = settings::get_path(&conn, "server_process_names")?.filter(|v| !v.is_empty()).unwrap_or_else(|| "game,db".to_string());
+    Ok(raw.split(',').map(|s| s.trim().to_string()).filter(|s| !s.is_empty()).collect())
 }
 
 /// Reads CPU/RAM usage of the game server's processes via `ps` over the
@@ -333,14 +291,10 @@ fn server_process_names(state: &State<'_, AppState>) -> Result<Vec<String>, Stri
 /// Linux /proc filesystem, and why the process names are a setting rather
 /// than hardcoded.
 #[tauri::command]
-pub async fn get_server_resource_usage(
-    state: State<'_, AppState>,
-) -> Result<Vec<resources::ProcessUsage>, String> {
+pub async fn get_server_resource_usage(state: State<'_, AppState>) -> Result<Vec<resources::ProcessUsage>, String> {
     let (config, auth) = stored_ssh_auth(&state)?;
     let names = server_process_names(&state)?;
-    let result =
-        ssh::run_command_streaming(&config, &auth, "ps -axo pid,pcpu,pmem,rss,comm", |_| {})
-            .await?;
+    let result = ssh::run_command_streaming(&config, &auth, "ps -axo pid,pcpu,pmem,rss,comm", |_| {}).await?;
     Ok(resources::parse_and_filter(&result.output, &names))
 }
 
@@ -361,9 +315,7 @@ pub async fn get_server_overview(state: State<'_, AppState>) -> Result<ServerOve
     let (config, auth) = stored_ssh_auth(&state)?;
     let disk_path = {
         let conn = state.settings_db.lock().map_err(|e| e.to_string())?;
-        settings::get_path(&conn, "server_disk_path")?
-            .filter(|v| !v.is_empty())
-            .unwrap_or_else(|| "/usr/home/game".to_string())
+        settings::get_path(&conn, "server_disk_path")?.filter(|v| !v.is_empty()).unwrap_or_else(|| "/usr/home/game".to_string())
     };
     let ip_address = {
         let conn = state.settings_db.lock().map_err(|e| e.to_string())?;
@@ -374,11 +326,7 @@ pub async fn get_server_overview(state: State<'_, AppState>) -> Result<ServerOve
     let result = ssh::run_command_streaming(&config, &auth, &command, |_| {}).await?;
     let system_info = resources::parse_system_info_output(&result.output);
 
-    Ok(ServerOverview {
-        ip_address,
-        memory: system_info.memory,
-        disk: system_info.disk,
-    })
+    Ok(ServerOverview { ip_address, memory: system_info.memory, disk: system_info.disk })
 }
 
 /// Called from the existing 60s poll in CrashWatch.tsx (not a new timer) to
@@ -433,9 +381,7 @@ pub struct LogSearchHit {
 
 fn server_workdir(state: &State<'_, AppState>) -> Result<String, String> {
     let conn = state.settings_db.lock().map_err(|e| e.to_string())?;
-    Ok(settings::get_path(&conn, "server_workdir")?
-        .filter(|v| !v.is_empty())
-        .unwrap_or_else(|| "/usr/home/game".to_string()))
+    Ok(settings::get_path(&conn, "server_workdir")?.filter(|v| !v.is_empty()).unwrap_or_else(|| "/usr/home/game".to_string()))
 }
 
 /// `-F` (fixed string) matches what a plain search box implies - a user
@@ -466,20 +412,13 @@ pub fn parse_log_search_output(output: &str) -> Vec<LogSearchHit> {
             let file = parts.next()?;
             let line_no = parts.next()?.parse::<u32>().ok()?;
             let text = parts.next()?;
-            Some(LogSearchHit {
-                file: file.trim_start_matches("./").to_string(),
-                line: line_no,
-                text: text.to_string(),
-            })
+            Some(LogSearchHit { file: file.trim_start_matches("./").to_string(), line: line_no, text: text.to_string() })
         })
         .collect()
 }
 
 #[tauri::command]
-pub async fn search_server_logs(
-    state: State<'_, AppState>,
-    pattern: String,
-) -> Result<Vec<LogSearchHit>, String> {
+pub async fn search_server_logs(state: State<'_, AppState>, pattern: String) -> Result<Vec<LogSearchHit>, String> {
     if pattern.trim().is_empty() {
         return Err("Bitte einen Suchbegriff eingeben.".to_string());
     }
@@ -491,10 +430,7 @@ pub async fn search_server_logs(
     // result, not a failure.
     match result.exit_status {
         Some(0) | Some(1) => Ok(parse_log_search_output(&result.output)),
-        other => Err(format!(
-            "Log-Suche fehlgeschlagen (Exit-Code {other:?}):\n{}",
-            result.output
-        )),
+        other => Err(format!("Log-Suche fehlgeschlagen (Exit-Code {other:?}):\n{}", result.output)),
     }
 }
 
@@ -522,7 +458,8 @@ mod log_search_tests {
 
     #[test]
     fn parse_log_search_output_extracts_file_line_and_text() {
-        let output = "./Channel1/syserr:42:HACK_DETECT: SPEEDHACK by Foo\n./Channel2/log/20260101/syserr.03:7:HACK_DETECT: SPEEDHACK by Bar\n";
+        let output =
+            "./Channel1/syserr:42:HACK_DETECT: SPEEDHACK by Foo\n./Channel2/log/20260101/syserr.03:7:HACK_DETECT: SPEEDHACK by Bar\n";
         let hits = parse_log_search_output(output);
         assert_eq!(hits.len(), 2);
         assert_eq!(hits[0].file, "Channel1/syserr");

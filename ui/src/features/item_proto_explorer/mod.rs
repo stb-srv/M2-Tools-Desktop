@@ -6,11 +6,11 @@
 use crate::components::{Button, ButtonSize, ButtonVariant, Icon, PageHeader};
 use crate::features::item_editor::item_flags::{item_type_label, ITEM_TYPES};
 use crate::features::shared::ItemUsageModal;
+use crate::store::navigation::{nav, Section};
+use crate::tauri::invoke;
 use crate::util::csv::export_rows_as_csv;
 use crate::util::format::de_int;
 use crate::util::storage;
-use crate::store::navigation::{nav, Section};
-use crate::tauri::invoke;
 use leptos::prelude::*;
 use leptos::task::spawn_local;
 use serde::Deserialize;
@@ -148,12 +148,8 @@ pub fn ItemProtoExplorer() -> impl IntoView {
                     .iter()
                     .map(|r| vec![r.vnum.to_string(), r.name.clone(), type_label(r.item_type), r.subtype.to_string()])
                     .collect();
-                export_rows_as_csv(
-                    "item_proto_export.csv",
-                    vec!["VNUM".into(), "Name".into(), "Typ".into(), "Subtyp".into()],
-                    rows,
-                )
-                .await?;
+                export_rows_as_csv("item_proto_export.csv", vec!["VNUM".into(), "Name".into(), "Typ".into(), "Subtyp".into()], rows)
+                    .await?;
                 Ok(())
             }
             .await;
@@ -164,9 +160,7 @@ pub fn ItemProtoExplorer() -> impl IntoView {
         });
     };
 
-    let total_pages = move || {
-        data.with(|d| d.as_ref().map(|d| ((d.total + page_size.get() - 1) / page_size.get()).max(1)).unwrap_or(1))
-    };
+    let total_pages = move || data.with(|d| d.as_ref().map(|d| ((d.total + page_size.get() - 1) / page_size.get()).max(1)).unwrap_or(1));
     let rows = move || data.with(|d| d.as_ref().map(|d| d.rows.clone()).unwrap_or_default());
     let icon_of = move |vnum: i64| icons.with(|i| i.get(&vnum).cloned().flatten());
     let open_editor = move || nav().set_section(Section::ItemEditor);

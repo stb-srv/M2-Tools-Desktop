@@ -31,10 +31,7 @@ pub struct BuildTargets {
 /// Single source of truth for the frontend's target checkboxes, so the 6
 /// names never drift out of sync between Rust and TypeScript.
 pub fn build_targets() -> BuildTargets {
-    BuildTargets {
-        libs: BUILD_LIBS.iter().map(|s| s.to_string()).collect(),
-        bins: BUILD_BINS.iter().map(|s| s.to_string()).collect(),
-    }
+    BuildTargets { libs: BUILD_LIBS.iter().map(|s| s.to_string()).collect(), bins: BUILD_BINS.iter().map(|s| s.to_string()).collect() }
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -69,10 +66,7 @@ pub fn build_script(opts: &BuildOptions) -> Result<String, String> {
         }
         let clean = if opts.clean { "gmake clean && " } else { "" };
         let dir = format!("{}/{target}/src", opts.source_root);
-        lines.push(format!(
-            "echo '=== gmake {target} ==='; (cd {} && {clean}gmake)",
-            shell_single_quote(&dir),
-        ));
+        lines.push(format!("echo '=== gmake {target} ==='; (cd {} && {clean}gmake)", shell_single_quote(&dir),));
     }
     Ok(lines.join("\n"))
 }
@@ -178,11 +172,7 @@ mod tests {
 
     #[test]
     fn build_script_adds_clean_before_gmake_when_requested() {
-        let opts = BuildOptions {
-            source_root: "/root".into(),
-            targets: vec!["db".into()],
-            clean: true,
-        };
+        let opts = BuildOptions { source_root: "/root".into(), targets: vec!["db".into()], clean: true };
         let script = build_script(&opts).unwrap();
         assert!(script.contains("gmake clean && gmake"));
     }
@@ -221,7 +211,8 @@ mod tests {
     fn scratch_root_validation() {
         let live = "/usr/home/source/server";
         assert!(validate_scratch_root(live, "/usr/home/m2manager_build/server").is_ok());
-        for bad in ["", "/", "relativ/pfad", "/a/../b", live, "/usr/home/source/server/", "/usr/home/source", "/usr/home/source/server/sub"] {
+        for bad in ["", "/", "relativ/pfad", "/a/../b", live, "/usr/home/source/server/", "/usr/home/source", "/usr/home/source/server/sub"]
+        {
             assert!(validate_scratch_root(live, bad).is_err(), "{bad}");
         }
         assert!(sync_script(live, "/").is_err());

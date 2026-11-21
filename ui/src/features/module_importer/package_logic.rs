@@ -49,11 +49,7 @@ pub fn build_weapon_item(inp: &BuildInput, vnum: i64, variant: &WeaponVariant, r
     ItemProtoInput {
         vnum,
         vnum_range: 0,
-        name: fit_to_byte_limit_with_suffix(
-            &format!("{}_{}", or_else(&inp.base_name, "item"), variant.key),
-            &suffix,
-            ITEM_NAME_MAX_BYTES,
-        ),
+        name: fit_to_byte_limit_with_suffix(&format!("{}_{}", or_else(&inp.base_name, "item"), variant.key), &suffix, ITEM_NAME_MAX_BYTES),
         locale_name: fit_to_byte_limit_with_suffix(
             &format!("{} ({})", or_else(&inp.base_locale_name, &inp.base_name), label_for_variant(variant)),
             &if suffix.is_empty() { String::new() } else { format!(" {suffix}") },
@@ -80,10 +76,7 @@ pub fn build_armor_item(inp: &BuildInput, vnum: i64, shape_index: i64, selected_
     let blocked_mask = if selected_race_keys.is_empty() {
         0
     } else {
-        RACE_ANTIFLAG
-            .iter()
-            .filter(|(race, _)| !selected_race_keys.iter().any(|k| k == race))
-            .fold(0, |acc, (_, bit)| acc | bit)
+        RACE_ANTIFLAG.iter().filter(|(race, _)| !selected_race_keys.iter().any(|k| k == race)).fold(0, |acc, (_, bit)| acc | bit)
     };
     let antiflag = (template.antiflag & !CLASS_ANTIFLAG_MASK) | blocked_mask;
     let suffix = if level > 0 { format!(" +{level}") } else { String::new() };
@@ -96,11 +89,7 @@ pub fn build_armor_item(inp: &BuildInput, vnum: i64, shape_index: i64, selected_
             &if level > 0 { format!("+{level}") } else { String::new() },
             ITEM_NAME_MAX_BYTES,
         ),
-        locale_name: fit_to_byte_limit_with_suffix(
-            or_else(&inp.base_locale_name, &inp.base_name),
-            &suffix,
-            ITEM_NAME_MAX_BYTES,
-        ),
+        locale_name: fit_to_byte_limit_with_suffix(or_else(&inp.base_locale_name, &inp.base_name), &suffix, ITEM_NAME_MAX_BYTES),
         r#type: 2,
         subtype: inp.armor_subtype,
         antiflag,
@@ -124,14 +113,12 @@ pub fn race_list(armors: &[ArmorPiece]) -> String {
 
 /// Ausgewählte Waffen-Varianten in Scan-Reihenfolge.
 pub fn selected_weapons(scan: Option<&ScannedModule>, rows: &HashMap<String, WeaponRowState>) -> Vec<WeaponVariant> {
-    scan.map(|s| s.weapons.iter().filter(|v| rows.get(&v.key).is_some_and(|x| x.selected)).cloned().collect())
-        .unwrap_or_default()
+    scan.map(|s| s.weapons.iter().filter(|v| rows.get(&v.key).is_some_and(|x| x.selected)).cloned().collect()).unwrap_or_default()
 }
 
 /// Ausgewählte Rüstungs-Rassen in Scan-Reihenfolge.
 pub fn selected_armor_races(scan: Option<&ScannedModule>, rows: &HashMap<String, ArmorRowState>) -> Vec<ArmorPiece> {
-    scan.map(|s| s.armors.iter().filter(|a| rows.get(&a.race).is_some_and(|x| x.selected)).cloned().collect())
-        .unwrap_or_default()
+    scan.map(|s| s.armors.iter().filter(|a| rows.get(&a.race).is_some_and(|x| x.selected)).cloned().collect()).unwrap_or_default()
 }
 
 /// Rassen mit weiblichem Modell (nur diese bekommen ein 3D-Modell verknüpft).
@@ -217,10 +204,7 @@ pub fn rollback_note(created: usize, failed: &[i64], scope: &str) -> String {
     if failed.is_empty() {
         format!("\n\nAlle {created} bereits angelegten Einträge{scope} wurden automatisch zurückgenommen.")
     } else {
-        format!(
-            "\n\nRollback teilweise fehlgeschlagen - bitte vnums {} manuell im DB Explorer prüfen.",
-            join_vnums(failed)
-        )
+        format!("\n\nRollback teilweise fehlgeschlagen - bitte vnums {} manuell im DB Explorer prüfen.", join_vnums(failed))
     }
 }
 
@@ -251,14 +235,7 @@ mod tests {
         }
     }
     fn scan(weapons: Vec<WeaponVariant>, armors: Vec<ArmorPiece>) -> ScannedModule {
-        ScannedModule {
-            module_name: "m".into(),
-            weapons,
-            armors,
-            icon_pool: vec![],
-            effect_dirs: vec![],
-            notices: vec![],
-        }
+        ScannedModule { module_name: "m".into(), weapons, armors, icon_pool: vec![], effect_dirs: vec![], notices: vec![] }
     }
     fn wrow(selected: bool, subtype: i64) -> WeaponRowState {
         WeaponRowState { selected, subtype, is_sura: false, icon: None }

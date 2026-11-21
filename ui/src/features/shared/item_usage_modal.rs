@@ -161,20 +161,13 @@ fn quest_ref_list(refs: &[QuestItemRef]) -> AnyView {
 }
 
 fn item_list_text(items: &[(i64, String)]) -> String {
-    items
-        .iter()
-        .map(|(v, n)| if n.is_empty() { format!("#{v}") } else { format!("{n} (#{v})") })
-        .collect::<Vec<_>>()
-        .join(", ")
+    items.iter().map(|(v, n)| if n.is_empty() { format!("#{v}") } else { format!("{n} (#{v})") }).collect::<Vec<_>>().join(", ")
 }
 
 fn report_view(report: ItemUsageReport) -> AnyView {
     let mut parts: Vec<AnyView> = vec![];
     if report.nothing_found() {
-        parts.push(
-            view! { <p class="text-sm text-muted-foreground">"Keine Verwendung in den geprüften Quellen gefunden."</p> }
-                .into_any(),
-        );
+        parts.push(view! { <p class="text-sm text-muted-foreground">"Keine Verwendung in den geprüften Quellen gefunden."</p> }.into_any());
     }
     if !report.shops.is_empty() {
         parts.push(usage_section(
@@ -263,22 +256,13 @@ fn report_view(report: ItemUsageReport) -> AnyView {
         ));
     }
     if !report.cube_ingredient_in.is_empty() {
-        parts.push(usage_section(
-            format!("Cube - als Zutat ({})", report.cube_ingredient_in.len()),
-            cube_list(&report.cube_ingredient_in),
-        ));
+        parts.push(usage_section(format!("Cube - als Zutat ({})", report.cube_ingredient_in.len()), cube_list(&report.cube_ingredient_in)));
     }
     if !report.cube_reward_in.is_empty() {
-        parts.push(usage_section(
-            format!("Cube - als Belohnung ({})", report.cube_reward_in.len()),
-            cube_list(&report.cube_reward_in),
-        ));
+        parts.push(usage_section(format!("Cube - als Belohnung ({})", report.cube_reward_in.len()), cube_list(&report.cube_reward_in)));
     }
     if !report.refine_from.is_empty() {
-        parts.push(usage_section(
-            "Aufwertung - entsteht aus".into(),
-            view! { <p>{item_list_text(&report.refine_from)}</p> }.into_any(),
-        ));
+        parts.push(usage_section("Aufwertung - entsteht aus".into(), view! { <p>{item_list_text(&report.refine_from)}</p> }.into_any()));
     }
     if !report.refine_materials.is_empty() {
         parts.push(usage_section(
@@ -302,10 +286,7 @@ fn report_view(report: ItemUsageReport) -> AnyView {
         ));
     }
     if !report.quest_refs.is_empty() {
-        parts.push(usage_section(
-            format!("Quests ({})", report.quest_refs.len()),
-            quest_ref_list(&report.quest_refs),
-        ));
+        parts.push(usage_section(format!("Quests ({})", report.quest_refs.len()), quest_ref_list(&report.quest_refs)));
     }
     if !report.quest_unconfirmed.is_empty() {
         let n = report.quest_unconfirmed.len();

@@ -12,9 +12,9 @@ use crate::features::item_editor::types::{js_number, num};
 use crate::features::module_importer::icon_logic::{self, *};
 use crate::features::module_importer::package_logic::rollback_note;
 use crate::features::module_importer::shared::*;
-use crate::util::{log_activity, use_save_shortcut};
 use crate::store::navigation::{use_section_dirty_as, Section};
 use crate::tauri::{dialog_open_one, invoke, invoke_unit, OpenDialogOptions};
+use crate::util::{log_activity, use_save_shortcut};
 use leptos::prelude::*;
 use leptos::task::spawn_local;
 use serde_json::json;
@@ -52,12 +52,9 @@ pub fn IconItemImporter(#[prop(into)] on_imported: Callback<()>) -> impl IntoVie
 
     let pick_folder = move || {
         spawn_local(async move {
-            let res = dialog_open_one(&OpenDialogOptions {
-                directory: true,
-                title: Some("Icon-Ordner wählen".into()),
-                ..Default::default()
-            })
-            .await;
+            let res =
+                dialog_open_one(&OpenDialogOptions { directory: true, title: Some("Icon-Ordner wählen".into()), ..Default::default() })
+                    .await;
             if let Ok(Some(p)) = res {
                 folder_path.set(p);
                 icon_paths.set(None);
@@ -100,9 +97,7 @@ pub fn IconItemImporter(#[prop(into)] on_imported: Callback<()>) -> impl IntoVie
         });
     };
 
-    let selected_paths = move || -> Vec<String> {
-        icon_paths.with(|p| selected.with(|s| icon_logic::selected_paths(p.as_deref(), s)))
-    };
+    let selected_paths = move || -> Vec<String> { icon_paths.with(|p| selected.with(|s| icon_logic::selected_paths(p.as_deref(), s))) };
     let can_import = Memo::new(move |_| {
         let sel = selected_paths();
         rows.with(|r| icon_logic::can_import(&sel, r))
@@ -124,11 +119,7 @@ pub fn IconItemImporter(#[prop(into)] on_imported: Callback<()>) -> impl IntoVie
         let range_start0 = vnum_range_start.get_untracked();
         let folder = folder_path.get_untracked();
         item_status.set(sel.iter().map(|p| (p.clone(), StepStatus::Pending)).collect());
-        other_steps.set(HashMap::from([
-            ("setup", StepStatus::Pending),
-            ("pack", StepStatus::Pending),
-            ("proto", StepStatus::Pending),
-        ]));
+        other_steps.set(HashMap::from([("setup", StepStatus::Pending), ("pack", StepStatus::Pending), ("proto", StepStatus::Pending)]));
         let set_other = move |k: &'static str, s: StepStatus| {
             other_steps.update(|m| {
                 m.insert(k, s);
@@ -239,9 +230,7 @@ pub fn IconItemImporter(#[prop(into)] on_imported: Callback<()>) -> impl IntoVie
                             Ok(()) => log_activity(
                                 Section::ModuleImporter.into(),
                                 "rollback-item",
-                                &format!(
-                                    "Neu angelegtes Item zurückgenommen (vnum {vnum}, Rollback nach fehlgeschlagenem Import)"
-                                ),
+                                &format!("Neu angelegtes Item zurückgenommen (vnum {vnum}, Rollback nach fehlgeschlagenem Import)"),
                                 Some("item"),
                                 Some(&vnum.to_string()),
                             ),
@@ -297,9 +286,24 @@ pub fn IconItemImporter(#[prop(into)] on_imported: Callback<()>) -> impl IntoVie
             }
         };
 
-        let name_input = text_input(|r| r.name.clone(), |x, v| x.name = v, "w-48 rounded-md border border-border bg-background px-2 py-1 text-sm", false);
-        let desc_input = text_input(|r| r.description.clone(), |x, v| x.description = v, "h-16 w-64 rounded-md border border-border bg-background px-2 py-1 text-sm", true);
-        let summary_input = text_input(|r| r.summary.clone(), |x, v| x.summary = v, "h-16 w-48 rounded-md border border-border bg-background px-2 py-1 text-sm", true);
+        let name_input = text_input(
+            |r| r.name.clone(),
+            |x, v| x.name = v,
+            "w-48 rounded-md border border-border bg-background px-2 py-1 text-sm",
+            false,
+        );
+        let desc_input = text_input(
+            |r| r.description.clone(),
+            |x, v| x.description = v,
+            "h-16 w-64 rounded-md border border-border bg-background px-2 py-1 text-sm",
+            true,
+        );
+        let summary_input = text_input(
+            |r| r.summary.clone(),
+            |x, v| x.summary = v,
+            "h-16 w-48 rounded-md border border-border bg-background px-2 py-1 text-sm",
+            true,
+        );
         let row_c = row.clone();
         let row_hint = row.clone();
         let row_ref = row.clone();

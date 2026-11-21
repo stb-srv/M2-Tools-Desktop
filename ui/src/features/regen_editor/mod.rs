@@ -9,9 +9,9 @@ pub mod num_input;
 
 use crate::components::button::button_class;
 use crate::components::{Button, ButtonSize, ButtonVariant, Icon, PageHeader};
-use crate::util::log_activity;
 use crate::store::navigation::{report_section_dirty, Section};
 use crate::tauri::invoke;
+use crate::util::log_activity;
 use leptos::prelude::*;
 use leptos::task::spawn_local;
 use line_row::RegenLineRow;
@@ -240,10 +240,8 @@ pub fn RegenEditor() -> impl IntoView {
             return;
         }
         spawn_local(async move {
-            let mapping = invoke::<Option<String>>("get_setting", &json!({ "key": format!("regen_map_mapping:{path}") }))
-                .await
-                .ok()
-                .flatten();
+            let mapping =
+                invoke::<Option<String>>("get_setting", &json!({ "key": format!("regen_map_mapping:{path}") })).await.ok().flatten();
             if let Some(mapping) = mapping.filter(|m| !m.is_empty()) {
                 let mut parts = mapping.split('/');
                 let category = parts.next().unwrap_or("").to_string();

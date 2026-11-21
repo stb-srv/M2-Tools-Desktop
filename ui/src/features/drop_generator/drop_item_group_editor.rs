@@ -6,9 +6,9 @@ use crate::components::{Button, ButtonSize, ButtonVariant, Icon};
 use crate::features::mob_drop_editor::components::shared::{fmt_num, js_number, num_sig, NumInput};
 use crate::features::shared::drop_chance::format_real_drop_chance;
 use crate::features::shared::{ChangePreview, EntityBrowser, EntityKind, EntityRow, RestartServerButton};
-use crate::util::{log_activity, use_save_shortcut};
 use crate::store::navigation::{use_section_dirty, Section};
 use crate::tauri::invoke;
+use crate::util::{log_activity, use_save_shortcut};
 use leptos::prelude::*;
 use leptos::task::spawn_local;
 use serde::{Deserialize, Serialize};
@@ -70,22 +70,14 @@ async fn resolve_mob_label(vnum: f64) -> String {
 /// Mob-VNUMs (> 0), die mehr als einmal vorkommen.
 pub fn duplicate_mob_vnums(groups: &[DropItemGroup]) -> HashSet<i64> {
     let vnums: Vec<f64> = groups.iter().map(|g| g.mob_vnum).collect();
-    vnums
-        .iter()
-        .enumerate()
-        .filter(|(i, v)| **v > 0.0 && vnums.iter().position(|x| x == *v) != Some(*i))
-        .map(|(_, v)| *v as i64)
-        .collect()
+    vnums.iter().enumerate().filter(|(i, v)| **v > 0.0 && vnums.iter().position(|x| x == *v) != Some(*i)).map(|(_, v)| *v as i64).collect()
 }
 
 pub fn can_save(groups: Option<&[DropItemGroup]>) -> bool {
     let Some(groups) = groups else { return false };
     !groups.is_empty()
         && groups.iter().all(|g| {
-            !g.name.trim().is_empty()
-                && g.mob_vnum > 0.0
-                && !g.items.is_empty()
-                && g.items.iter().all(|it| !it.item_ref.trim().is_empty())
+            !g.name.trim().is_empty() && g.mob_vnum > 0.0 && !g.items.is_empty() && g.items.iter().all(|it| !it.item_ref.trim().is_empty())
         })
         && duplicate_mob_vnums(groups).is_empty()
 }
@@ -118,11 +110,8 @@ pub fn DropItemGroupEditor() -> impl IntoView {
         let mob_entries = join_all(seen.into_iter().map(|v| async move { (v as i64, resolve_mob_label(v).await) })).await;
         mob_labels.set(mob_entries.into_iter().collect());
 
-        let item_vnums: BTreeSet<String> = list
-            .iter()
-            .flat_map(|g| g.items.iter().map(|it| it.item_ref.trim().to_string()))
-            .filter(|s| !s.is_empty())
-            .collect();
+        let item_vnums: BTreeSet<String> =
+            list.iter().flat_map(|g| g.items.iter().map(|it| it.item_ref.trim().to_string())).filter(|s| !s.is_empty()).collect();
         let item_entries = join_all(item_vnums.into_iter().map(|v| async move {
             let label = match invoke::<Option<ItemProtoName>>("get_item_proto", &json!({ "vnum": js_number(&v) })).await {
                 Ok(Some(proto)) => format!("{} ({v})", proto.locale_name),
@@ -245,9 +234,7 @@ pub fn DropItemGroupEditor() -> impl IntoView {
     let has_groups = Memo::new(move |_| groups.with(|g| g.is_some()));
     let group_count = move || groups.with(|g| g.as_ref().map(|g| g.len()).unwrap_or(0));
     let gfield = move |gi: usize| groups.with(|g| g.as_ref().and_then(|g| g.get(gi)).map(|g| (g.name.clone(), g.mob_vnum, g.items.len())));
-    let ifield = move |gi: usize, ii: usize| {
-        groups.with(|g| g.as_ref().and_then(|g| g.get(gi)).and_then(|g| g.items.get(ii)).cloned())
-    };
+    let ifield = move |gi: usize, ii: usize| groups.with(|g| g.as_ref().and_then(|g| g.get(gi)).and_then(|g| g.items.get(ii)).cloned());
 
     let on_mob_pick = move |row: EntityRow| {
         let Some(idx) = mob_picker_for.get_untracked() else { return };

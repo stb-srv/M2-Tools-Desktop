@@ -3,8 +3,8 @@
 
 use super::fields::{MysqlFields, MysqlTestButton, SshFields, SshTestButton, TextField};
 use crate::components::{toast, Button, ButtonSize, ButtonVariant, Icon};
-use crate::util::connection::{mysql_complete, ssh_complete, MysqlValues, SshValues};
 use crate::store::connection_profiles::connection_profiles;
+use crate::util::connection::{mysql_complete, ssh_complete, MysqlValues, SshValues};
 use leptos::prelude::*;
 use leptos::task::spawn_local;
 

@@ -4,9 +4,9 @@
 use crate::components::{Button, ButtonSize, ButtonVariant, Icon, PageHeader};
 use crate::features::shared::generic_row_editor::{ColumnInfo, TableRows};
 use crate::features::shared::GenericRowEditor;
-use crate::util::log_activity;
 use crate::store::navigation::{EmbeddedModule, ModuleId};
 use crate::tauri::{invoke, invoke_unit};
+use crate::util::log_activity;
 use leptos::prelude::*;
 use leptos::task::spawn_local;
 use serde::Deserialize;
@@ -283,15 +283,12 @@ pub fn GmManager() -> impl IntoView {
     let delete_target = RwSignal::new(None::<(String, String)>);
     let delete_error = RwSignal::new(None::<String>);
 
-    let pk_column = Memo::new(move |_| {
-        columns.with(|c| c.as_ref().and_then(|c| c.iter().find(|c| c.is_primary_key).map(|c| c.name.clone())))
-    });
+    let pk_column =
+        Memo::new(move |_| columns.with(|c| c.as_ref().and_then(|c| c.iter().find(|c| c.is_primary_key).map(|c| c.name.clone()))));
     let has_column = move |name: &str| columns.with(|c| c.as_ref().is_some_and(|c| c.iter().any(|c| c.name == name)));
     let col_index = Memo::new(move |_| {
         rows.with(|r| {
-            r.as_ref()
-                .map(|r| r.columns.iter().enumerate().map(|(i, c)| (c.clone(), i)).collect::<HashMap<_, _>>())
-                .unwrap_or_default()
+            r.as_ref().map(|r| r.columns.iter().enumerate().map(|(i, c)| (c.clone(), i)).collect::<HashMap<_, _>>()).unwrap_or_default()
         })
     });
 

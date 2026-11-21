@@ -1,9 +1,9 @@
 use super::flags::{gm_command, is_curated, FlagDef, RATE_FLAGS, RATE_FLAGS_PREMIUM, SEASONAL_FLAGS, SPECIAL_EVENT_FLAGS};
 use crate::components::{Button, ButtonSize, ButtonVariant, Icon, PageHeader};
 use crate::features::server_control::util::{copy_to_clipboard, js_number, js_number_json, js_number_string};
-use crate::util::log_activity;
 use crate::store::navigation::{nav, Section};
 use crate::tauri::{invoke0, invoke_unit};
+use crate::util::log_activity;
 use leptos::prelude::*;
 use leptos::task::spawn_local;
 use serde::Deserialize;
@@ -202,7 +202,9 @@ pub fn ServerEvents() -> impl IntoView {
         });
     };
 
-    let custom_flags = move || flags.with(|f| f.as_ref().map(|f| f.iter().filter(|r| !is_curated(&r.name)).cloned().collect::<Vec<_>>()).unwrap_or_default());
+    let custom_flags = move || {
+        flags.with(|f| f.as_ref().map(|f| f.iter().filter(|r| !is_curated(&r.name)).cloned().collect::<Vec<_>>()).unwrap_or_default())
+    };
 
     let busy_for = move |name: &'static str| Signal::derive(move || busy_name.with(|b| b.as_deref() == Some(name)));
 

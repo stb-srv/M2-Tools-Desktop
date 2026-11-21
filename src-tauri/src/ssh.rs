@@ -36,17 +36,11 @@ async fn exists(sftp: &SftpSession, path: &str) -> Result<bool, String> {
 }
 
 /// Sichert eine einzelne SFTP-Operation gegen Hänger ab.
-async fn sftp_op<T, E: std::fmt::Display>(
-    what: &str,
-    fut: impl std::future::Future<Output = Result<T, E>>,
-) -> Result<T, String> {
+async fn sftp_op<T, E: std::fmt::Display>(what: &str, fut: impl std::future::Future<Output = Result<T, E>>) -> Result<T, String> {
     match tokio::time::timeout(SFTP_OP_TIMEOUT, fut).await {
         Ok(Ok(v)) => Ok(v),
         Ok(Err(e)) => Err(format!("{what}: {e}")),
-        Err(_) => Err(format!(
-            "{what}: keine Antwort des Servers nach {}s (Zeitüberschreitung).",
-            SFTP_OP_TIMEOUT.as_secs()
-        )),
+        Err(_) => Err(format!("{what}: keine Antwort des Servers nach {}s (Zeitüberschreitung).", SFTP_OP_TIMEOUT.as_secs())),
     }
 }
 
@@ -63,10 +57,7 @@ pub enum SshAuth {
     #[serde(rename = "password")]
     Password { password: String },
     #[serde(rename = "private_key")]
-    PrivateKey {
-        path: String,
-        passphrase: Option<String>,
-    },
+    PrivateKey { path: String, passphrase: Option<String> },
 }
 
 /// Host-Key-Prüfung per TOFU (siehe `known_hosts.rs`): unbekannte Schlüssel
@@ -108,24 +99,16 @@ fn host_key_mismatch_message(host: &str, port: u16, stored: &str, presented: &st
 async fn open_session(config: &SshConfig) -> Result<Handle<AcceptAllHandler>, String> {
     let ssh_config = Arc::new(Config::default());
     let mismatch = Arc::new(Mutex::new(None));
-    let handler = AcceptAllHandler {
-        host: config.host.clone(),
-        port: config.port,
-        mismatch: mismatch.clone(),
-    };
-    let result = tokio::time::timeout(
-        SSH_TIMEOUT,
-        connect(ssh_config, (config.host.as_str(), config.port), handler),
-    )
-    .await
-    .map_err(|_| {
-        format!(
-            "Verbindung zu {}:{} nach {}s ohne Antwort abgebrochen (Server nicht erreichbar, Firewall, oder Netzwerkproblem).",
-            config.host,
-            config.port,
-            SSH_TIMEOUT.as_secs()
-        )
-    })?;
+    let handler = AcceptAllHandler { host: config.host.clone(), port: config.port, mismatch: mismatch.clone() };
+    let result =
+        tokio::time::timeout(SSH_TIMEOUT, connect(ssh_config, (config.host.as_str(), config.port), handler)).await.map_err(|_| {
+            format!(
+                "Verbindung zu {}:{} nach {}s ohne Antwort abgebrochen (Server nicht erreichbar, Firewall, oder Netzwerkproblem).",
+                config.host,
+                config.port,
+                SSH_TIMEOUT.as_secs()
+            )
+        })?;
     if let Some((stored, presented)) = mismatch.lock().ok().and_then(|m| m.clone()) {
         return Err(host_key_mismatch_message(&config.host, config.port, &stored, &presented));
     }
@@ -154,24 +137,13 @@ fn auth_cache_key(config: &SshConfig) -> AuthCacheKey {
 // method outright, even though the login is conceptually just a password.
 // Fall back to keyboard-interactive, answering every text prompt with the
 // given password (matches how ssh/plink behave against the same server).
-async fn authenticate_with_password(
-    session: &mut Handle<AcceptAllHandler>,
-    config: &SshConfig,
-    password: &str,
-) -> Result<bool, String> {
+async fn authenticate_with_password(session: &mut Handle<AcceptAllHandler>, config: &SshConfig, password: &str) -> Result<bool, String> {
     let cache = NEEDS_KEYBOARD_INTERACTIVE.get_or_init(|| Mutex::new(HashMap::new()));
     let key = auth_cache_key(config);
-    let skip_password = cache
-        .lock()
-        .ok()
-        .and_then(|m| m.get(&key).copied())
-        .unwrap_or(false);
+    let skip_password = cache.lock().ok().and_then(|m| m.get(&key).copied()).unwrap_or(false);
 
     if !skip_password {
-        let direct = session
-            .authenticate_password(&config.username, password)
-            .await
-            .map_err(|e| e.to_string())?;
+        let direct = session.authenticate_password(&config.username, password).await.map_err(|e| e.to_string())?;
         if direct.success() {
             if let Ok(mut m) = cache.lock() {
                 m.insert(key, false);
@@ -180,10 +152,7 @@ async fn authenticate_with_password(
         }
     }
 
-    let mut response = session
-        .authenticate_keyboard_interactive_start(&config.username, None)
-        .await
-        .map_err(|e| e.to_string())?;
+    let mut response = session.authenticate_keyboard_interactive_start(&config.username, None).await.map_err(|e| e.to_string())?;
 
     loop {
         match response {
@@ -196,42 +165,24 @@ async fn authenticate_with_password(
             KeyboardInteractiveAuthResponse::Failure { .. } => return Ok(false),
             KeyboardInteractiveAuthResponse::InfoRequest { prompts, .. } => {
                 let answers = vec![password.to_string(); prompts.len()];
-                response = session
-                    .authenticate_keyboard_interactive_respond(answers)
-                    .await
-                    .map_err(|e| e.to_string())?;
+                response = session.authenticate_keyboard_interactive_respond(answers).await.map_err(|e| e.to_string())?;
             }
         }
     }
 }
 
-async fn authenticate(
-    session: &mut Handle<AcceptAllHandler>,
-    config: &SshConfig,
-    auth: &SshAuth,
-) -> Result<bool, String> {
+async fn authenticate(session: &mut Handle<AcceptAllHandler>, config: &SshConfig, auth: &SshAuth) -> Result<bool, String> {
     tokio::time::timeout(SSH_TIMEOUT, authenticate_inner(session, config, auth))
         .await
-        .map_err(|_| {
-            format!(
-                "Anmeldung bei {}:{} nach {}s ohne Antwort abgebrochen.",
-                config.host,
-                config.port,
-                SSH_TIMEOUT.as_secs()
-            )
-        })?
+        .map_err(|_| format!("Anmeldung bei {}:{} nach {}s ohne Antwort abgebrochen.", config.host, config.port, SSH_TIMEOUT.as_secs()))?
 }
 
-async fn authenticate_inner(
-    session: &mut Handle<AcceptAllHandler>,
-    config: &SshConfig,
-    auth: &SshAuth,
-) -> Result<bool, String> {
+async fn authenticate_inner(session: &mut Handle<AcceptAllHandler>, config: &SshConfig, auth: &SshAuth) -> Result<bool, String> {
     match auth {
         SshAuth::Password { password } => authenticate_with_password(session, config, password).await,
         SshAuth::PrivateKey { path, passphrase } => {
-            let key = load_secret_key(path, passphrase.as_deref())
-                .map_err(|e| format!("Privater Schlüssel konnte nicht geladen werden: {e}"))?;
+            let key =
+                load_secret_key(path, passphrase.as_deref()).map_err(|e| format!("Privater Schlüssel konnte nicht geladen werden: {e}"))?;
             let result = session
                 .authenticate_publickey(&config.username, PrivateKeyWithHashAlg::new(Arc::new(key), None))
                 .await
@@ -258,12 +209,7 @@ pub struct CommandResult {
 /// Runs a command and reports output as it arrives. Server scripts print
 /// progress over several seconds (the start action sleeps between channels),
 /// so collecting everything first would leave the UI blank until it finished.
-pub async fn run_command_streaming<F>(
-    config: &SshConfig,
-    auth: &SshAuth,
-    command: &str,
-    on_output: F,
-) -> Result<CommandResult, String>
+pub async fn run_command_streaming<F>(config: &SshConfig, auth: &SshAuth, command: &str, on_output: F) -> Result<CommandResult, String>
 where
     F: FnMut(&str),
 {
@@ -304,8 +250,7 @@ where
     let run = async {
         while let Some(msg) = channel.wait().await {
             match msg {
-                russh::ChannelMsg::Data { ref data }
-                | russh::ChannelMsg::ExtendedData { ref data, .. } => {
+                russh::ChannelMsg::Data { ref data } | russh::ChannelMsg::ExtendedData { ref data, .. } => {
                     let chunk = String::from_utf8_lossy(data);
                     on_output(&chunk);
                     output.push_str(&chunk);
@@ -320,19 +265,13 @@ where
     match limit {
         Some(d) => {
             if tokio::time::timeout(d, run).await.is_err() {
-                return Err(format!(
-                    "Befehl nach {} Minuten ohne Abschluss abgebrochen (Zeitüberschreitung).",
-                    (d.as_secs() / 60).max(1)
-                ));
+                return Err(format!("Befehl nach {} Minuten ohne Abschluss abgebrochen (Zeitüberschreitung).", (d.as_secs() / 60).max(1)));
             }
         }
         None => run.await,
     }
 
-    Ok(CommandResult {
-        output,
-        exit_status,
-    })
+    Ok(CommandResult { output, exit_status })
 }
 
 /// `pub(crate)` (not just module-private) so callers that need to batch
@@ -359,23 +298,12 @@ pub struct RemoteEntry {
 /// Lists one directory level (not recursive) - used by the Regen-Datei-Editor
 /// and Backup-Browser to let the user browse into `share/data/dungeon/...`
 /// and `*/m2manager_backups` without hardcoding every possible layout.
-pub async fn list_remote_dir(
-    config: &SshConfig,
-    auth: &SshAuth,
-    path: &str,
-) -> Result<Vec<RemoteEntry>, String> {
+pub async fn list_remote_dir(config: &SshConfig, auth: &SshAuth, path: &str) -> Result<Vec<RemoteEntry>, String> {
     let sftp = open_sftp(config, auth).await?;
-    let entries = sftp
-        .read_dir(path)
-        .await
-        .map_err(|e| format!("Ordner konnte nicht gelesen werden ({path}): {e}"))?;
+    let entries = sftp.read_dir(path).await.map_err(|e| format!("Ordner konnte nicht gelesen werden ({path}): {e}"))?;
 
-    let mut result: Vec<RemoteEntry> = entries
-        .map(|entry| RemoteEntry {
-            name: entry.file_name(),
-            is_dir: entry.file_type().is_dir(),
-        })
-        .collect();
+    let mut result: Vec<RemoteEntry> =
+        entries.map(|entry| RemoteEntry { name: entry.file_name(), is_dir: entry.file_type().is_dir() }).collect();
     result.sort_by(|a, b| b.is_dir.cmp(&a.is_dir).then(a.name.cmp(&b.name)));
     Ok(result)
 }
@@ -390,26 +318,16 @@ pub async fn list_remote_dir(
 /// protocol's own `NoSuchFile` status rather than string-sniffing the error
 /// message, so it can't accidentally swallow an unrelated failure (wrong
 /// permissions, connection drop, etc.) that happens to also mention "file".
-pub async fn list_remote_dir_or_empty(
-    config: &SshConfig,
-    auth: &SshAuth,
-    path: &str,
-) -> Result<Vec<RemoteEntry>, String> {
+pub async fn list_remote_dir_or_empty(config: &SshConfig, auth: &SshAuth, path: &str) -> Result<Vec<RemoteEntry>, String> {
     let sftp = open_sftp(config, auth).await?;
     match sftp.read_dir(path).await {
         Ok(entries) => {
-            let mut result: Vec<RemoteEntry> = entries
-                .map(|entry| RemoteEntry {
-                    name: entry.file_name(),
-                    is_dir: entry.file_type().is_dir(),
-                })
-                .collect();
+            let mut result: Vec<RemoteEntry> =
+                entries.map(|entry| RemoteEntry { name: entry.file_name(), is_dir: entry.file_type().is_dir() }).collect();
             result.sort_by(|a, b| b.is_dir.cmp(&a.is_dir).then(a.name.cmp(&b.name)));
             Ok(result)
         }
-        Err(russh_sftp::client::error::Error::Status(status))
-            if status.status_code == russh_sftp::protocol::StatusCode::NoSuchFile =>
-        {
+        Err(russh_sftp::client::error::Error::Status(status)) if status.status_code == russh_sftp::protocol::StatusCode::NoSuchFile => {
             Ok(Vec::new())
         }
         Err(e) => Err(format!("Ordner konnte nicht gelesen werden ({path}): {e}")),
@@ -422,11 +340,7 @@ pub async fn list_remote_dir_or_empty(
 /// the shared lookup behind a "letzte Änderung rückgängig machen" button.
 /// Reuses `list_remote_dir_or_empty` so a file that was never edited before
 /// (no backups folder yet) just means "nothing to undo", not an error.
-pub async fn latest_own_backup(
-    config: &SshConfig,
-    auth: &SshAuth,
-    path: &str,
-) -> Result<Option<String>, String> {
+pub async fn latest_own_backup(config: &SshConfig, auth: &SshAuth, path: &str) -> Result<Option<String>, String> {
     let (dir, filename) = match path.rfind('/') {
         Some(idx) => (&path[..idx], &path[idx + 1..]),
         None => (".", path),
@@ -440,11 +354,8 @@ pub async fn latest_own_backup(
 /// testable without a live SFTP connection.
 fn pick_latest_backup(filename: &str, entries: &[RemoteEntry]) -> Option<String> {
     let prefix = format!("{filename}.");
-    let mut candidates: Vec<&str> = entries
-        .iter()
-        .filter(|e| !e.is_dir && e.name.starts_with(&prefix) && e.name.ends_with(".bak"))
-        .map(|e| e.name.as_str())
-        .collect();
+    let mut candidates: Vec<&str> =
+        entries.iter().filter(|e| !e.is_dir && e.name.starts_with(&prefix) && e.name.ends_with(".bak")).map(|e| e.name.as_str()).collect();
     // The `<timestamp>.bak` suffix is `YYYYMMDD_HHMMSS.bak` (fixed width),
     // so lexicographic order is chronological order.
     candidates.sort();
@@ -484,11 +395,7 @@ async fn backup_destination(sftp: &SftpSession, path: &str, suffix: &str) -> Str
 /// vollständig und prüft danach die Größe auf dem Server.
 async fn write_and_verify(sftp: &SftpSession, path: &str, bytes: &[u8]) -> Result<(), String> {
     let what = format!("Datei konnte nicht geschrieben werden ({path})");
-    let mut file = sftp_op(
-        &what,
-        sftp.open_with_flags(path, OpenFlags::CREATE | OpenFlags::TRUNCATE | OpenFlags::WRITE),
-    )
-    .await?;
+    let mut file = sftp_op(&what, sftp.open_with_flags(path, OpenFlags::CREATE | OpenFlags::TRUNCATE | OpenFlags::WRITE)).await?;
     sftp_op(&what, file.write_all(bytes)).await?;
     sftp_op(&what, file.shutdown()).await?;
     drop(file);
@@ -509,12 +416,7 @@ async fn write_and_verify(sftp: &SftpSession, path: &str, bytes: &[u8]) -> Resul
 /// sichern und zuletzt die Temp-Datei auf den Zielpfad umbenennen. Fehler in
 /// irgendeiner Phase entfernen die Temp-Datei; das Original bleibt bis zum
 /// letzten Schritt unangetastet. Liefert den Backup-Pfad.
-async fn write_atomic(
-    sftp: &SftpSession,
-    path: &str,
-    bytes: &[u8],
-    original: Option<&[u8]>,
-) -> Result<Option<String>, String> {
+async fn write_atomic(sftp: &SftpSession, path: &str, bytes: &[u8], original: Option<&[u8]>) -> Result<Option<String>, String> {
     let tmp = format!("{path}.m2tmp");
     let result = write_atomic_inner(sftp, path, &tmp, bytes, original).await;
     if result.is_err() {
@@ -535,9 +437,7 @@ async fn write_atomic_inner(
     let backup_path = match original {
         Some(orig) => {
             let dest = backup_destination(sftp, path, "bak").await;
-            write_and_verify(sftp, &dest, orig)
-                .await
-                .map_err(|e| format!("Backup fehlgeschlagen: {e}"))?;
+            write_and_verify(sftp, &dest, orig).await.map_err(|e| format!("Backup fehlgeschlagen: {e}"))?;
             Some(dest)
         }
         None => None,
@@ -551,9 +451,7 @@ async fn write_atomic_inner(
             if let Some(orig) = original {
                 let _ = write_and_verify(sftp, path, orig).await;
             }
-            return Err(format!(
-                "Datei konnte nicht ersetzt werden ({path}): {e}. Der ursprüngliche Inhalt wurde wiederhergestellt."
-            ));
+            return Err(format!("Datei konnte nicht ersetzt werden ({path}): {e}. Der ursprüngliche Inhalt wurde wiederhergestellt."));
         }
     }
     Ok(backup_path)
@@ -563,11 +461,7 @@ async fn write_atomic_inner(
 /// `write_remote_file_with_backup`, without writing a replacement - used for
 /// "delete" actions where we never want to actually destroy server data.
 /// Returns the backup path, or `None` if the file didn't exist.
-pub async fn delete_remote_file_with_backup(
-    config: &SshConfig,
-    auth: &SshAuth,
-    path: &str,
-) -> Result<Option<String>, String> {
+pub async fn delete_remote_file_with_backup(config: &SshConfig, auth: &SshAuth, path: &str) -> Result<Option<String>, String> {
     let sftp = open_sftp(config, auth).await?;
     backup_existing(&sftp, path, "deleted").await
 }
@@ -617,9 +511,7 @@ fn legacy_server_encoding() -> &'static encoding_rs::Encoding {
 pub(crate) fn decode_bytes(bytes: Vec<u8>) -> String {
     match String::from_utf8(bytes) {
         Ok(text) => text,
-        Err(e) => {
-            crate::clientfs::decode(e.as_bytes(), legacy_server_encoding())
-        }
+        Err(e) => crate::clientfs::decode(e.as_bytes(), legacy_server_encoding()),
     }
 }
 
@@ -684,11 +576,7 @@ pub(crate) fn looks_binary(bytes: &[u8]) -> bool {
 /// file doesn't exist - used where a missing file is an expected, harmless
 /// case (e.g. diffing a backup against a target that may have been deleted
 /// since) rather than something to report as a failure.
-pub async fn read_remote_file_if_exists(
-    config: &SshConfig,
-    auth: &SshAuth,
-    path: &str,
-) -> Result<Option<String>, String> {
+pub async fn read_remote_file_if_exists(config: &SshConfig, auth: &SshAuth, path: &str) -> Result<Option<String>, String> {
     let sftp = open_sftp(config, auth).await?;
     read_file_if_exists_via(&sftp, path).await
 }
@@ -704,11 +592,7 @@ pub(crate) async fn read_file_if_exists_via(sftp: &SftpSession, path: &str) -> R
 
 /// Byte-level counterpart to `read_remote_file_if_exists` - see
 /// `read_remote_file_bytes`'s own doc for why a caller would want raw bytes.
-pub async fn read_remote_file_bytes_if_exists(
-    config: &SshConfig,
-    auth: &SshAuth,
-    path: &str,
-) -> Result<Option<Vec<u8>>, String> {
+pub async fn read_remote_file_bytes_if_exists(config: &SshConfig, auth: &SshAuth, path: &str) -> Result<Option<Vec<u8>>, String> {
     let sftp = open_sftp(config, auth).await?;
     if !exists(&sftp, path).await? {
         return Ok(None);
@@ -721,11 +605,7 @@ pub async fn read_remote_file_bytes_if_exists(
 /// handshake per file (each of the other `read_remote_file*` helpers opens
 /// its own session, fine for single-file reads but far too slow across a
 /// whole quest catalogue).
-pub async fn read_remote_files(
-    config: &SshConfig,
-    auth: &SshAuth,
-    paths: &[String],
-) -> Result<Vec<Result<String, String>>, String> {
+pub async fn read_remote_files(config: &SshConfig, auth: &SshAuth, paths: &[String]) -> Result<Vec<Result<String, String>>, String> {
     let sftp = open_sftp(config, auth).await?;
     let mut results = Vec::with_capacity(paths.len());
     for path in paths {
@@ -780,22 +660,14 @@ pub async fn write_remote_file_with_backup(
 
 /// Session-reusing counterpart to `write_remote_file_with_backup` - see
 /// `open_sftp`'s own doc for why a caller would want this instead.
-pub(crate) async fn write_file_with_backup_via(
-    sftp: &SftpSession,
-    path: &str,
-    content: &str,
-) -> Result<Option<String>, String> {
+pub(crate) async fn write_file_with_backup_via(sftp: &SftpSession, path: &str, content: &str) -> Result<Option<String>, String> {
     if let Some(idx) = path.rfind('/') {
         ensure_remote_dir(sftp, &path[..idx]).await;
     }
 
     // Einmal lesen: die Bytes dienen sowohl der Kodierungserkennung (siehe
     // encode_matching) als auch als Inhalt der Backup-Kopie.
-    let original_bytes = if exists(sftp, path).await? {
-        Some(read_bytes(sftp, path).await?)
-    } else {
-        None
-    };
+    let original_bytes = if exists(sftp, path).await? { Some(read_bytes(sftp, path).await?) } else { None };
 
     let encoded = encode_matching(content, original_bytes.as_deref())?;
     write_atomic(sftp, path, &encoded, original_bytes.as_deref()).await
@@ -817,11 +689,7 @@ pub async fn write_remote_file_bytes_with_backup(
         ensure_remote_dir(&sftp, &path[..idx]).await;
     }
 
-    let original_bytes = if exists(&sftp, path).await? {
-        Some(read_bytes(&sftp, path).await?)
-    } else {
-        None
-    };
+    let original_bytes = if exists(&sftp, path).await? { Some(read_bytes(&sftp, path).await?) } else { None };
     write_atomic(&sftp, path, content, original_bytes.as_deref()).await
 }
 
@@ -840,10 +708,7 @@ mod tests {
             entry("special_item_group.txt.20260825_120000.bak", false),
             entry("special_item_group.txt.20260810_150000.bak", false),
         ];
-        assert_eq!(
-            pick_latest_backup("special_item_group.txt", &entries),
-            Some("special_item_group.txt.20260825_120000.bak".to_string())
-        );
+        assert_eq!(pick_latest_backup("special_item_group.txt", &entries), Some("special_item_group.txt.20260825_120000.bak".to_string()));
     }
 
     #[test]
@@ -940,8 +805,7 @@ mod tests {
         let host = get("ssh_host").expect("ssh_host not configured on this machine");
         let port: u16 = get("ssh_port").unwrap_or_else(|| "22".into()).parse().unwrap();
         let username = get("ssh_username").expect("ssh_username not configured");
-        let password =
-            crate::credentials::get_secret("ssh_password").expect("ssh_password credential not stored");
+        let password = crate::credentials::get_secret("ssh_password").expect("ssh_password credential not stored");
 
         let config = SshConfig { host, port, username };
         let auth = SshAuth::Password { password };

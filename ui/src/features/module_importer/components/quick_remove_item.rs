@@ -1,8 +1,8 @@
 use crate::components::{Button, ButtonSize, ButtonVariant, Icon};
 use crate::features::module_importer::shared::ItemSearchResult;
-use crate::util::log_activity;
 use crate::store::navigation::Section;
 use crate::tauri::{invoke, invoke_unit};
+use crate::util::log_activity;
 use leptos::prelude::*;
 use leptos::task::spawn_local;
 use serde_json::json;

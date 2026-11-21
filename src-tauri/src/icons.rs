@@ -62,10 +62,7 @@ fn with_caches<T>(client_path: &str, f: impl FnOnce(&mut IconCaches) -> T) -> Op
     let cache = CACHES.get_or_init(|| Mutex::new(IconCaches::default()));
     let mut guard = cache.lock().ok()?;
     if guard.client_path != client_path {
-        *guard = IconCaches {
-            client_path: client_path.to_string(),
-            ..Default::default()
-        };
+        *guard = IconCaches { client_path: client_path.to_string(), ..Default::default() };
     }
     Some(f(&mut guard))
 }
@@ -85,11 +82,7 @@ pub fn invalidate_caches() {
 fn icon_path_for_vnum(client_path: &str, vnum: u32) -> Option<String> {
     with_caches(client_path, |c| {
         c.item_list
-            .get_or_insert_with(|| {
-                find_item_list(client_path)
-                    .map(|p| parse_item_icon_map(&p))
-                    .unwrap_or_default()
-            })
+            .get_or_insert_with(|| find_item_list(client_path).map(|p| parse_item_icon_map(&p)).unwrap_or_default())
             .get(&vnum)
             .cloned()
     })
@@ -152,12 +145,7 @@ fn find_icon_file(client_path: &str, vnum: u32) -> Option<PathBuf> {
 
 fn try_icon_path(client_path: &str, vnum: u32) -> Option<PathBuf> {
     let filename = format!("{vnum:05}.tga");
-    let direct = Path::new(client_path)
-        .join("pack")
-        .join("icon")
-        .join("icon")
-        .join("item")
-        .join(&filename);
+    let direct = Path::new(client_path).join("pack").join("icon").join("icon").join("item").join(&filename);
     if direct.exists() {
         return Some(direct);
     }
@@ -187,10 +175,7 @@ fn encode_icon_data_url(path: &Path) -> Result<String, String> {
 
     let mut png_bytes = Vec::new();
     image
-        .write_to(
-            &mut std::io::Cursor::new(&mut png_bytes),
-            image::ImageFormat::Png,
-        )
+        .write_to(&mut std::io::Cursor::new(&mut png_bytes), image::ImageFormat::Png)
         .map_err(|e| format!("Icon konnte nicht konvertiert werden: {e}"))?;
 
     let encoded = base64::engine::general_purpose::STANDARD.encode(png_bytes);
@@ -228,18 +213,11 @@ fn collect_tga_files(dir: &Path, out: &mut Vec<IconFile>) {
         let path = entry.path();
         if path.is_dir() {
             collect_tga_files(&path, out);
-        } else if path
-            .extension()
-            .and_then(|e| e.to_str())
-            .is_some_and(|e| e.eq_ignore_ascii_case("tga"))
-        {
+        } else if path.extension().and_then(|e| e.to_str()).is_some_and(|e| e.eq_ignore_ascii_case("tga")) {
             let Some(file_name) = path.file_name().and_then(|n| n.to_str()) else {
                 continue;
             };
-            out.push(IconFile {
-                absolute_path: path.to_string_lossy().into_owned(),
-                file_name: file_name.to_string(),
-            });
+            out.push(IconFile { absolute_path: path.to_string_lossy().into_owned(), file_name: file_name.to_string() });
         }
     }
 }
@@ -249,11 +227,7 @@ fn collect_tga_files(dir: &Path, out: &mut Vec<IconFile>) {
 ///   when creating a brand-new item, which has no vnum→icon mapping yet for
 ///   `item_list.txt`/vnum-guessing to resolve.
 pub fn list_item_icon_files(client_path: &str) -> Vec<IconFile> {
-    let base = Path::new(client_path)
-        .join("pack")
-        .join("icon")
-        .join("icon")
-        .join("item");
+    let base = Path::new(client_path).join("pack").join("icon").join("icon").join("item");
     let mut out = Vec::new();
     collect_tga_files(&base, &mut out);
     out.sort_by(|a, b| a.file_name.cmp(&b.file_name));
@@ -319,9 +293,6 @@ mod tests {
 
         // vnum 50070 ("boss_box") - same story, named icon not derivable from vnum.
         let boss_box = load_item_icon_data_url(client, 50070).expect("vnum 50070 lookup failed");
-        assert!(
-            boss_box.is_some(),
-            "expected boss_box.tga icon for vnum 50070 via item_list.txt"
-        );
+        assert!(boss_box.is_some(), "expected boss_box.tga icon for vnum 50070 via item_list.txt");
     }
 }

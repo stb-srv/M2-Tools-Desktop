@@ -13,9 +13,7 @@ pub async fn save_connection_profile(state: State<'_, AppState>, name: String) -
 }
 
 #[tauri::command]
-pub async fn list_connection_profiles(
-    state: State<'_, AppState>,
-) -> Result<Vec<connection_profiles::ConnectionProfile>, String> {
+pub async fn list_connection_profiles(state: State<'_, AppState>) -> Result<Vec<connection_profiles::ConnectionProfile>, String> {
     let conn = state.settings_db.lock().map_err(|e| e.to_string())?;
     connection_profiles::list(&conn)
 }

@@ -61,16 +61,7 @@ impl Viewer {
 
         let raf_id = web_sys::window().and_then(|w| w.request_animation_frame(raf_cb.as_ref().unchecked_ref()).ok());
 
-        Ok(Self {
-            renderer,
-            container,
-            canvas,
-            raf_id,
-            raf_cb: Some(raf_cb),
-            observer,
-            _resize_cb: Some(resize_cb),
-            drag: None,
-        })
+        Ok(Self { renderer, container, canvas, raf_id, raf_cb: Some(raf_cb), observer, _resize_cb: Some(resize_cb), drag: None })
     }
 
     fn tick(&mut self) {

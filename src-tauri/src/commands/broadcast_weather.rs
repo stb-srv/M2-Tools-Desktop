@@ -17,22 +17,13 @@ pub fn list_broadcast_messages(state: State<'_, AppState>) -> Result<Vec<broadca
 }
 
 #[tauri::command(async)]
-pub fn create_broadcast_message(
-    state: State<'_, AppState>,
-    text: String,
-    interval_minutes: i64,
-) -> Result<i64, String> {
+pub fn create_broadcast_message(state: State<'_, AppState>, text: String, interval_minutes: i64) -> Result<i64, String> {
     let conn = state.settings_db.lock().map_err(|e| e.to_string())?;
     broadcast::create_message(&conn, &text, interval_minutes)
 }
 
 #[tauri::command(async)]
-pub fn update_broadcast_message(
-    state: State<'_, AppState>,
-    id: i64,
-    text: String,
-    interval_minutes: i64,
-) -> Result<(), String> {
+pub fn update_broadcast_message(state: State<'_, AppState>, id: i64, text: String, interval_minutes: i64) -> Result<(), String> {
     let conn = state.settings_db.lock().map_err(|e| e.to_string())?;
     broadcast::update_message(&conn, id, &text, interval_minutes)
 }
@@ -58,11 +49,7 @@ pub fn get_weather_state(state: State<'_, AppState>) -> Result<weather::WeatherS
 }
 
 #[tauri::command(async)]
-pub fn set_weather_state(
-    state: State<'_, AppState>,
-    night_enabled: bool,
-    snow_enabled: bool,
-) -> Result<weather::WeatherState, String> {
+pub fn set_weather_state(state: State<'_, AppState>, night_enabled: bool, snow_enabled: bool) -> Result<weather::WeatherState, String> {
     let conn = state.settings_db.lock().map_err(|e| e.to_string())?;
     weather::set_state(&conn, night_enabled, snow_enabled)
 }

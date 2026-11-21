@@ -2,9 +2,9 @@
 
 use crate::components::{Button, ButtonSize, ButtonVariant, Icon, PageHeader};
 use crate::i18n::t;
-use crate::util::format::{de_datetime, de_int};
 use crate::store::navigation::{nav, EmbeddedModule, Section};
 use crate::tauri::{invoke, invoke_unit};
+use crate::util::format::{de_datetime, de_int};
 use leptos::prelude::*;
 use leptos::task::spawn_local;
 use serde::Deserialize;
@@ -43,11 +43,7 @@ const NON_ACTIVITY_SECTIONS: [Section; 3] = [Section::Dashboard, Section::Settin
 
 /// (Kennung, Übersetzungsschlüssel) aller Module: Sidebar-Bereiche, dann eingebettete Module.
 fn all_modules() -> Vec<(&'static str, &'static str)> {
-    Section::ALL
-        .iter()
-        .map(|s| (s.id(), s.label_key()))
-        .chain(EmbeddedModule::ALL.iter().map(|e| (e.id(), e.label_key())))
-        .collect()
+    Section::ALL.iter().map(|s| (s.id(), s.label_key())).chain(EmbeddedModule::ALL.iter().map(|e| (e.id(), e.label_key()))).collect()
 }
 
 fn module_label(module: &str) -> String {

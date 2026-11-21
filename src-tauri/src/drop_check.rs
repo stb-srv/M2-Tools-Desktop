@@ -125,11 +125,7 @@ pub fn refs_common_drop(file: &CommonDropFile) -> Vec<DropRef> {
 }
 
 pub fn refs_etc_drop(entries: &[EtcDropEntry]) -> Vec<DropRef> {
-    entries
-        .iter()
-        .enumerate()
-        .map(|(i, e)| DropRef::ItemName { location: format!("Zeile {}", i + 1), name: e.item_name.clone() })
-        .collect()
+    entries.iter().enumerate().map(|(i, e)| DropRef::ItemName { location: format!("Zeile {}", i + 1), name: e.item_name.clone() }).collect()
 }
 
 pub fn refs_special_item_group(groups: &[SpecialItemGroup]) -> Vec<DropRef> {
@@ -276,8 +272,7 @@ pub fn evaluate(kind: DropFileKind, refs: &[DropRef], facts: &DbFacts) -> Vec<Dr
 
 /// Kurzform für die Speichern-Sperre: nur die Fehler, als Text.
 pub fn blocking_message(issues: &[DropCheckIssue]) -> Option<String> {
-    let errors: Vec<String> =
-        issues.iter().filter(|i| i.is_error()).map(|i| format!("{}: {}", i.location, i.message)).collect();
+    let errors: Vec<String> = issues.iter().filter(|i| i.is_error()).map(|i| format!("{}: {}", i.location, i.message)).collect();
     if errors.is_empty() {
         None
     } else {
@@ -341,9 +336,7 @@ mod tests {
 
     #[test]
     fn common_drop_dedupes_shared_vnum() {
-        let file = common_drop::parse(
-            "#x\nS\t1\t15\t4\t99999\t1\tS\t1\t15\t0\t99999\t1\tS\t1\t15\t0\t99999\t1\tS\t1\t15\t0\t11\t1\n",
-        );
+        let file = common_drop::parse("#x\nS\t1\t15\t4\t99999\t1\tS\t1\t15\t0\t99999\t1\tS\t1\t15\t0\t99999\t1\tS\t1\t15\t0\t11\t1\n");
         let refs = refs_common_drop(&file);
         assert_eq!(refs.len(), 2);
         let issues = evaluate(DropFileKind::CommonDrop, &refs, &facts());
@@ -353,10 +346,8 @@ mod tests {
 
     #[test]
     fn etc_drop_names() {
-        let entries = vec![
-            EtcDropEntry { item_name: "Small_Ring".into(), percent: 0.5 },
-            EtcDropEntry { item_name: "Broken".into(), percent: 0.5 },
-        ];
+        let entries =
+            vec![EtcDropEntry { item_name: "Small_Ring".into(), percent: 0.5 }, EtcDropEntry { item_name: "Broken".into(), percent: 0.5 }];
         let issues = evaluate(DropFileKind::EtcDrop, &refs_etc_drop(&entries), &facts());
         assert_eq!(issues.len(), 1);
         assert_eq!(issues[0].location, "Zeile 2");

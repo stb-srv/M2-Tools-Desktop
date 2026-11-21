@@ -17,7 +17,6 @@ use components::package_importer::PackageImporter;
 use components::quick_remove_item::QuickRemoveItem;
 use leptos::prelude::*;
 
-
 #[derive(Clone, Copy, PartialEq, Eq)]
 enum ImporterMode {
     Package,

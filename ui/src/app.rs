@@ -6,10 +6,10 @@
 use crate::components::{command_palette::CommandPalette, crash_watch::CrashWatch, global_search::GlobalSearch, whats_new::WhatsNewDialog};
 use crate::features as f;
 use crate::layout::Sidebar;
-use crate::util::connection::{auto_connect_mysql, get_setting};
 use crate::store::connection_profiles::connection_profiles;
 use crate::store::navigation::{nav, Section};
 use crate::store::update::update_store;
+use crate::util::connection::{auto_connect_mysql, get_setting};
 use leptos::prelude::*;
 use leptos::task::spawn_local;
 

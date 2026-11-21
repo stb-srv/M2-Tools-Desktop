@@ -28,14 +28,8 @@ pub struct TableRows {
 }
 
 pub async fn list_databases(pool: &MySqlPool) -> Result<Vec<String>, String> {
-    let names: Vec<String> = sqlx::query_scalar("SHOW DATABASES")
-        .fetch_all(pool)
-        .await
-        .map_err(|e| e.to_string())?;
-    Ok(names
-        .into_iter()
-        .filter(|n| !SYSTEM_DATABASES.contains(&n.as_str()))
-        .collect())
+    let names: Vec<String> = sqlx::query_scalar("SHOW DATABASES").fetch_all(pool).await.map_err(|e| e.to_string())?;
+    Ok(names.into_iter().filter(|n| !SYSTEM_DATABASES.contains(&n.as_str())).collect())
 }
 
 pub async fn list_tables(pool: &MySqlPool, database: &str) -> Result<Vec<TableInfo>, String> {
@@ -50,18 +44,11 @@ pub async fn list_tables(pool: &MySqlPool, database: &str) -> Result<Vec<TableIn
 
     Ok(rows
         .into_iter()
-        .map(|row| TableInfo {
-            name: row.try_get("TABLE_NAME").unwrap_or_default(),
-            approx_rows: row.try_get("TABLE_ROWS").unwrap_or(0),
-        })
+        .map(|row| TableInfo { name: row.try_get("TABLE_NAME").unwrap_or_default(), approx_rows: row.try_get("TABLE_ROWS").unwrap_or(0) })
         .collect())
 }
 
-pub async fn get_columns(
-    pool: &MySqlPool,
-    database: &str,
-    table: &str,
-) -> Result<Vec<ColumnInfo>, String> {
+pub async fn get_columns(pool: &MySqlPool, database: &str, table: &str) -> Result<Vec<ColumnInfo>, String> {
     let rows = sqlx::query(
         "SELECT COLUMN_NAME, COLUMN_TYPE, IS_NULLABLE, COLUMN_KEY \
          FROM information_schema.COLUMNS \
@@ -129,52 +116,23 @@ fn stringify(row: &sqlx::mysql::MySqlRow, index: usize) -> Option<String> {
     None
 }
 
-pub async fn get_rows(
-    pool: &MySqlPool,
-    database: &str,
-    table: &str,
-    limit: i64,
-    offset: i64,
-) -> Result<TableRows, String> {
+pub async fn get_rows(pool: &MySqlPool, database: &str, table: &str, limit: i64, offset: i64) -> Result<TableRows, String> {
     // Table/database names can't be bound as query parameters in MySQL;
     // both come from information_schema listings we generated ourselves
     // (never raw user text), so backtick-quoting them is safe here.
-    let query = format!(
-        "SELECT * FROM `{}`.`{}` LIMIT ? OFFSET ?",
-        database.replace('`', ""),
-        table.replace('`', "")
-    );
-    let rows = sqlx::query(&query)
-        .bind(limit)
-        .bind(offset)
-        .fetch_all(pool)
+    let query = format!("SELECT * FROM `{}`.`{}` LIMIT ? OFFSET ?", database.replace('`', ""), table.replace('`', ""));
+    let rows = sqlx::query(&query).bind(limit).bind(offset).fetch_all(pool).await.map_err(|e| e.to_string())?;
+
+    let total_rows: i64 = sqlx::query_scalar(&format!("SELECT COUNT(*) FROM `{}`.`{}`", database.replace('`', ""), table.replace('`', "")))
+        .fetch_one(pool)
         .await
         .map_err(|e| e.to_string())?;
 
-    let total_rows: i64 = sqlx::query_scalar(&format!(
-        "SELECT COUNT(*) FROM `{}`.`{}`",
-        database.replace('`', ""),
-        table.replace('`', "")
-    ))
-    .fetch_one(pool)
-    .await
-    .map_err(|e| e.to_string())?;
+    let columns: Vec<String> = rows.first().map(|r| r.columns().iter().map(|c| c.name().to_string()).collect()).unwrap_or_default();
 
-    let columns: Vec<String> = rows
-        .first()
-        .map(|r| r.columns().iter().map(|c| c.name().to_string()).collect())
-        .unwrap_or_default();
+    let data = rows.iter().map(|row| (0..columns.len()).map(|i| stringify(row, i)).collect()).collect();
 
-    let data = rows
-        .iter()
-        .map(|row| (0..columns.len()).map(|i| stringify(row, i)).collect())
-        .collect();
-
-    Ok(TableRows {
-        columns,
-        rows: data,
-        total_rows,
-    })
+    Ok(TableRows { columns, rows: data, total_rows })
 }
 
 fn quote_ident(name: &str) -> String {
@@ -184,36 +142,18 @@ fn quote_ident(name: &str) -> String {
 /// Pure SQL-text builders, split out from the DB-touching functions below so
 /// the exact statement shape is unit-testable without a live connection.
 fn build_update_sql(database: &str, table: &str, pk_column: &str, columns: &[String]) -> String {
-    let set_clause = columns
-        .iter()
-        .map(|c| format!("{} = ?", quote_ident(c)))
-        .collect::<Vec<_>>()
-        .join(", ");
-    format!(
-        "UPDATE {}.{} SET {set_clause} WHERE {} = ?",
-        quote_ident(database),
-        quote_ident(table),
-        quote_ident(pk_column)
-    )
+    let set_clause = columns.iter().map(|c| format!("{} = ?", quote_ident(c))).collect::<Vec<_>>().join(", ");
+    format!("UPDATE {}.{} SET {set_clause} WHERE {} = ?", quote_ident(database), quote_ident(table), quote_ident(pk_column))
 }
 
 fn build_insert_sql(database: &str, table: &str, columns: &[String]) -> String {
     let columns_clause = columns.iter().map(|c| quote_ident(c)).collect::<Vec<_>>().join(", ");
     let placeholders = columns.iter().map(|_| "?").collect::<Vec<_>>().join(", ");
-    format!(
-        "INSERT INTO {}.{} ({columns_clause}) VALUES ({placeholders})",
-        quote_ident(database),
-        quote_ident(table)
-    )
+    format!("INSERT INTO {}.{} ({columns_clause}) VALUES ({placeholders})", quote_ident(database), quote_ident(table))
 }
 
 fn build_delete_sql(database: &str, table: &str, pk_column: &str) -> String {
-    format!(
-        "DELETE FROM {}.{} WHERE {} = ? LIMIT 1",
-        quote_ident(database),
-        quote_ident(table),
-        quote_ident(pk_column)
-    )
+    format!("DELETE FROM {}.{} WHERE {} = ? LIMIT 1", quote_ident(database), quote_ident(table), quote_ident(pk_column))
 }
 
 /// Binds a single generic value, encoding `binary`/`varbinary` columns as
@@ -250,26 +190,13 @@ pub async fn get_row_by_pk(
     if !known_columns.iter().any(|c| c.name == pk_column) {
         return Err(format!("Unbekannte Primärschlüssel-Spalte: {pk_column}"));
     }
-    let sql = format!(
-        "SELECT * FROM {}.{} WHERE {} = ? LIMIT 1",
-        quote_ident(database),
-        quote_ident(table),
-        quote_ident(pk_column)
-    );
-    let row = sqlx::query(&sql)
-        .bind(pk_value)
-        .fetch_optional(pool)
-        .await
-        .map_err(|e| e.to_string())?;
+    let sql = format!("SELECT * FROM {}.{} WHERE {} = ? LIMIT 1", quote_ident(database), quote_ident(table), quote_ident(pk_column));
+    let row = sqlx::query(&sql).bind(pk_value).fetch_optional(pool).await.map_err(|e| e.to_string())?;
 
     Ok(row.map(|r| {
         let columns: Vec<String> = r.columns().iter().map(|c| c.name().to_string()).collect();
         let data = (0..columns.len()).map(|i| stringify(&r, i)).collect();
-        TableRows {
-            columns,
-            rows: vec![data],
-            total_rows: 1,
-        }
+        TableRows { columns, rows: vec![data], total_rows: 1 }
     }))
 }
 
@@ -314,12 +241,7 @@ pub async fn update_row(
 /// Generic parameterized INSERT - used for "add row" flows (e.g. giving a
 /// player an item) where the exact column semantics are core-specific and
 /// not something this app can verify; the caller fills in every value.
-pub async fn insert_row(
-    pool: &MySqlPool,
-    database: &str,
-    table: &str,
-    values: &[(String, Option<String>)],
-) -> Result<(), String> {
+pub async fn insert_row(pool: &MySqlPool, database: &str, table: &str, values: &[(String, Option<String>)]) -> Result<(), String> {
     if values.is_empty() {
         return Err("Keine Werte übergeben.".to_string());
     }
@@ -345,23 +267,13 @@ pub async fn insert_row(
 /// Generic DELETE by primary key (`LIMIT 1` so a caller-supplied value can
 /// never wipe more than the single intended row, even without a unique
 /// constraint on the column).
-pub async fn delete_row(
-    pool: &MySqlPool,
-    database: &str,
-    table: &str,
-    pk_column: &str,
-    pk_value: &str,
-) -> Result<(), String> {
+pub async fn delete_row(pool: &MySqlPool, database: &str, table: &str, pk_column: &str, pk_value: &str) -> Result<(), String> {
     let known_columns = get_columns(pool, database, table).await?;
     if !known_columns.iter().any(|c| c.name == pk_column) {
         return Err(format!("Unbekannte Primärschlüssel-Spalte: {pk_column}"));
     }
     let sql = build_delete_sql(database, table, pk_column);
-    sqlx::query(&sql)
-        .bind(pk_value)
-        .execute(pool)
-        .await
-        .map_err(|e| e.to_string())?;
+    sqlx::query(&sql).bind(pk_value).execute(pool).await.map_err(|e| e.to_string())?;
     Ok(())
 }
 
@@ -381,10 +293,7 @@ pub async fn search_rows(
     // (get_columns), so by the time this runs it's a known-good name - still
     // worth the defensive check since it's interpolated, not bound.
     let known_columns = get_columns(pool, database, table).await?;
-    let column_info = known_columns
-        .iter()
-        .find(|c| c.name == col)
-        .ok_or_else(|| format!("Unbekannte Spalte: {search_column}"))?;
+    let column_info = known_columns.iter().find(|c| c.name == col).ok_or_else(|| format!("Unbekannte Spalte: {search_column}"))?;
 
     let like = format!("%{}%", query.replace('%', "\\%").replace('_', "\\_"));
     // `varbinary`/`binary` columns (item_proto.locale_name etc.) have no
@@ -404,12 +313,7 @@ pub async fn search_rows(
     } else {
         format!("SELECT * FROM `{db}`.`{tbl}` WHERE `{col}` LIKE ? LIMIT ?")
     };
-    let rows = sqlx::query(&sql)
-        .bind(like)
-        .bind(limit)
-        .fetch_all(pool)
-        .await
-        .map_err(|e| e.to_string())?;
+    let rows = sqlx::query(&sql).bind(like).bind(limit).fetch_all(pool).await.map_err(|e| e.to_string())?;
 
     let columns: Vec<String> = rows
         .first()
@@ -417,16 +321,9 @@ pub async fn search_rows(
         .unwrap_or_else(|| known_columns.iter().map(|c| c.name.clone()).collect());
 
     let total = rows.len() as i64;
-    let data = rows
-        .iter()
-        .map(|row| (0..columns.len()).map(|i| stringify(row, i)).collect())
-        .collect();
+    let data = rows.iter().map(|row| (0..columns.len()).map(|i| stringify(row, i)).collect()).collect();
 
-    Ok(TableRows {
-        columns,
-        rows: data,
-        total_rows: total,
-    })
+    Ok(TableRows { columns, rows: data, total_rows: total })
 }
 
 #[cfg(test)]
@@ -435,29 +332,14 @@ mod tests {
 
     #[test]
     fn builds_update_sql_with_backtick_quoted_identifiers() {
-        let sql = build_update_sql(
-            "player",
-            "mob_proto",
-            "vnum",
-            &["hp".to_string(), "exp".to_string()],
-        );
-        assert_eq!(
-            sql,
-            "UPDATE `player`.`mob_proto` SET `hp` = ?, `exp` = ? WHERE `vnum` = ?"
-        );
+        let sql = build_update_sql("player", "mob_proto", "vnum", &["hp".to_string(), "exp".to_string()]);
+        assert_eq!(sql, "UPDATE `player`.`mob_proto` SET `hp` = ?, `exp` = ? WHERE `vnum` = ?");
     }
 
     #[test]
     fn builds_insert_sql() {
-        let sql = build_insert_sql(
-            "player",
-            "item",
-            &["owner_id".to_string(), "vnum".to_string()],
-        );
-        assert_eq!(
-            sql,
-            "INSERT INTO `player`.`item` (`owner_id`, `vnum`) VALUES (?, ?)"
-        );
+        let sql = build_insert_sql("player", "item", &["owner_id".to_string(), "vnum".to_string()]);
+        assert_eq!(sql, "INSERT INTO `player`.`item` (`owner_id`, `vnum`) VALUES (?, ?)");
     }
 
     #[test]

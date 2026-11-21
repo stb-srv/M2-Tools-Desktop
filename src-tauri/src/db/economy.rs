@@ -36,12 +36,10 @@ pub struct TopGoldHolder {
 }
 
 pub async fn get_economy_stats(pool: &MySqlPool) -> Result<EconomyStats, String> {
-    let totals = sqlx::query(
-        "SELECT COUNT(*) AS player_count, COALESCE(SUM(gold), 0) AS total_gold FROM player.player",
-    )
-    .fetch_one(pool)
-    .await
-    .map_err(|e| e.to_string())?;
+    let totals = sqlx::query("SELECT COUNT(*) AS player_count, COALESCE(SUM(gold), 0) AS total_gold FROM player.player")
+        .fetch_one(pool)
+        .await
+        .map_err(|e| e.to_string())?;
 
     let prices = sqlx::query(
         "SELECT COUNT(*) AS n, AVG(ip.gold) AS avg_price, MIN(ip.gold) AS min_price, MAX(ip.gold) AS max_price \
@@ -70,11 +68,7 @@ pub async fn get_top_gold_holders(pool: &MySqlPool, limit: i64) -> Result<Vec<To
     } else {
         "SELECT id, gold FROM player.player ORDER BY gold DESC LIMIT ?"
     };
-    let rows = sqlx::query(sql)
-        .bind(limit)
-        .fetch_all(pool)
-        .await
-        .map_err(|e| e.to_string())?;
+    let rows = sqlx::query(sql).bind(limit).fetch_all(pool).await.map_err(|e| e.to_string())?;
 
     let name_is_binary = name_column.is_some_and(|c| c.data_type.contains("binary"));
 
@@ -88,11 +82,7 @@ pub async fn get_top_gold_holders(pool: &MySqlPool, limit: i64) -> Result<Vec<To
             } else {
                 row.try_get::<String, _>("name").ok()
             };
-            TopGoldHolder {
-                player_id: row.try_get("id").unwrap_or_default(),
-                name,
-                gold: row.try_get("gold").unwrap_or_default(),
-            }
+            TopGoldHolder { player_id: row.try_get("id").unwrap_or_default(), name, gold: row.try_get("gold").unwrap_or_default() }
         })
         .collect())
 }

@@ -3,9 +3,9 @@
 //! ist die Auswahl-Variante für den Icon-Schritt im Item Editor.
 
 use crate::components::{Button, ButtonSize, ButtonVariant, Icon, PageHeader};
-use crate::util::format::de_int;
 use crate::store::navigation::Section;
 use crate::tauri::{invoke, invoke0};
+use crate::util::format::de_int;
 use leptos::prelude::*;
 use leptos::task::spawn_local;
 use serde::Deserialize;

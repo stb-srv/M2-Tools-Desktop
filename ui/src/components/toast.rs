@@ -46,9 +46,7 @@ pub fn show(variant: ToastVariant, description: &str, title: Option<&str>, timeo
     let s = store();
     let id = s.next.get_untracked();
     s.next.set(id + 1);
-    s.items.update(|v| {
-        v.push(ToastItem { id, variant, title: title.map(str::to_string), description: description.to_string() })
-    });
+    s.items.update(|v| v.push(ToastItem { id, variant, title: title.map(str::to_string), description: description.to_string() }));
     let ms = timeout_ms.unwrap_or(DEFAULT_TIMEOUT_MS);
     if ms > 0 {
         set_timeout(move || dismiss(id), std::time::Duration::from_millis(ms));

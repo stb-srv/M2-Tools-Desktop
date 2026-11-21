@@ -3,11 +3,11 @@
 use crate::components::{Button, ButtonSize, ButtonVariant, Icon, PageHeader};
 use crate::features::shared::mob_drops_modal::rank_label;
 use crate::features::shared::{EntityBrowser, EntityKind, EntityRow, GenericRowEditor, MobBrief, MobDropsModal};
+use crate::store::navigation::{use_pending_selection, ModuleId, Section};
 use crate::tauri::invoke;
+use leptos::prelude::*;
 use leptos::task::spawn_local;
 use serde_json::json;
-use crate::store::navigation::{use_pending_selection, ModuleId, Section};
-use leptos::prelude::*;
 
 /// `String(Number(s))` - so wurde die übergebene vnum im alten Frontend
 /// normalisiert (z.B. " 0101 " -> "101", ungültig -> "NaN").

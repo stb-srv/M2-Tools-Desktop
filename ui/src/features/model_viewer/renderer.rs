@@ -11,8 +11,8 @@ use glam::{Mat3, Mat4, Vec3};
 use wasm_bindgen::prelude::*;
 use wasm_bindgen::JsCast;
 use web_sys::{
-    HtmlCanvasElement, HtmlImageElement, WebGl2RenderingContext as GL, WebGlBuffer, WebGlProgram, WebGlShader,
-    WebGlTexture, WebGlUniformLocation, WebGlVertexArrayObject,
+    HtmlCanvasElement, HtmlImageElement, WebGl2RenderingContext as GL, WebGlBuffer, WebGlProgram, WebGlShader, WebGlTexture,
+    WebGlUniformLocation, WebGlVertexArrayObject,
 };
 
 const MESH_VS: &str = r#"#version 300 es

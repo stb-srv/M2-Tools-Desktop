@@ -41,18 +41,10 @@ pub fn parse_and_filter(output: &str, process_names: &[String]) -> Vec<ProcessUs
             let mem_percent: f64 = tokens[2].parse().ok()?;
             let rss_kb: u64 = tokens[3].parse().ok()?;
             let command = tokens[4..].join(" ");
-            if !names_lower.is_empty()
-                && !names_lower.iter().any(|n| command.to_lowercase().contains(n))
-            {
+            if !names_lower.is_empty() && !names_lower.iter().any(|n| command.to_lowercase().contains(n)) {
                 return None;
             }
-            Some(ProcessUsage {
-                pid,
-                cpu_percent,
-                mem_percent,
-                rss_kb,
-                command,
-            })
+            Some(ProcessUsage { pid, cpu_percent, mem_percent, rss_kb, command })
         })
         .collect()
 }
@@ -103,10 +95,7 @@ fn parse_memory_sysctl(output: &str) -> Option<MemoryInfo> {
         return None;
     }
     let (physmem, pagesize, free_count) = (nums[0], nums[1], nums[2]);
-    Some(MemoryInfo {
-        total_bytes: physmem,
-        free_bytes: free_count * pagesize,
-    })
+    Some(MemoryInfo { total_bytes: physmem, free_bytes: free_count * pagesize })
 }
 
 fn parse_disk_usage(output: &str) -> Option<DiskInfo> {
@@ -118,22 +107,13 @@ fn parse_disk_usage(output: &str) -> Option<DiskInfo> {
         if tokens.len() < 6 {
             continue;
         }
-        let (Ok(total_kb), Ok(used_kb), Ok(avail_kb)) = (
-            tokens[1].parse::<u64>(),
-            tokens[2].parse::<u64>(),
-            tokens[3].parse::<u64>(),
-        ) else {
+        let (Ok(total_kb), Ok(used_kb), Ok(avail_kb)) = (tokens[1].parse::<u64>(), tokens[2].parse::<u64>(), tokens[3].parse::<u64>())
+        else {
             continue;
         };
         let capacity_percent = tokens[4].trim_end_matches('%').parse::<u8>().unwrap_or(0);
         let mount_point = tokens[5..].join(" ");
-        return Some(DiskInfo {
-            total_kb,
-            used_kb,
-            avail_kb,
-            capacity_percent,
-            mount_point,
-        });
+        return Some(DiskInfo { total_kb, used_kb, avail_kb, capacity_percent, mount_point });
     }
     None
 }
@@ -142,10 +122,7 @@ pub fn parse_system_info_output(output: &str) -> ServerSystemInfo {
     let mut parts = output.splitn(2, DISK_MARKER);
     let mem_part = parts.next().unwrap_or("");
     let disk_part = parts.next().unwrap_or("");
-    ServerSystemInfo {
-        memory: parse_memory_sysctl(mem_part),
-        disk: parse_disk_usage(disk_part),
-    }
+    ServerSystemInfo { memory: parse_memory_sysctl(mem_part), disk: parse_disk_usage(disk_part) }
 }
 
 #[cfg(test)]
@@ -191,10 +168,7 @@ mod tests {
     #[test]
     fn builds_system_info_command_with_escaped_path() {
         let cmd = build_system_info_command("/usr/home/game");
-        assert_eq!(
-            cmd,
-            "sysctl -n hw.physmem hw.pagesize vm.stats.vm.v_free_count; echo '---M2MANAGER-DISK---'; df -Pk '/usr/home/game'"
-        );
+        assert_eq!(cmd, "sysctl -n hw.physmem hw.pagesize vm.stats.vm.v_free_count; echo '---M2MANAGER-DISK---'; df -Pk '/usr/home/game'");
     }
 
     const SYSTEM_INFO_SAMPLE: &str = "34359738368\n4096\n1048576\n\

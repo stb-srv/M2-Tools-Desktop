@@ -88,11 +88,7 @@ pub async fn set_event_flag(pool: &MySqlPool, name: &str, value: i32) -> Result<
 /// seasonal-drop family it means "fully off". Both are the real server's
 /// own definition of "unset", not something this app invents.
 pub async fn delete_event_flag(pool: &MySqlPool, name: &str) -> Result<(), String> {
-    sqlx::query("DELETE FROM player.quest WHERE dwPID = 0 AND szName = ?")
-        .bind(name)
-        .execute(pool)
-        .await
-        .map_err(|e| e.to_string())?;
+    sqlx::query("DELETE FROM player.quest WHERE dwPID = 0 AND szName = ?").bind(name).execute(pool).await.map_err(|e| e.to_string())?;
     Ok(())
 }
 

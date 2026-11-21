@@ -1,9 +1,9 @@
 //! Wirtschafts-Dashboard (Port von `src/features/economy-dashboard/EconomyDashboard.tsx`).
 
 use crate::components::{Button, ButtonVariant, Icon, PageHeader, Skeleton};
-use crate::util::format::de_int;
 use crate::store::navigation::Section;
 use crate::tauri::{invoke, invoke0};
+use crate::util::format::de_int;
 use leptos::prelude::*;
 use leptos::task::spawn_local;
 use serde::Deserialize;

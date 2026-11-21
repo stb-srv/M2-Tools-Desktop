@@ -27,14 +27,49 @@ const COLLECT_VERBS: &[&str] = &["sammle", "sammel", "sammelt", "gib", "abgeben"
 const USE_VERBS: &[&str] = &["benutze", "benutzt", "benutz", "verwende", "verwendet", "nutze", "nutzt"];
 const DIALOG_VERBS: &[&str] = &["rede", "redet", "sprich", "sprechen", "unterhalte", "unterhalt", "besuche", "besuch"];
 const REWARD_MARKERS: &[&str] = &[
-    "belohnung", "bekomme", "bekommst", "bekommt", "bekommen", "erhalte", "erhältst", "erhaelst", "erhält", "erhaelt",
-    "erhaltet", "erhalten", "kriege", "kriegst", "kriegt", "kriegen",
+    "belohnung",
+    "bekomme",
+    "bekommst",
+    "bekommt",
+    "bekommen",
+    "erhalte",
+    "erhältst",
+    "erhaelst",
+    "erhält",
+    "erhaelt",
+    "erhaltet",
+    "erhalten",
+    "kriege",
+    "kriegst",
+    "kriegt",
+    "kriegen",
 ];
 const CONNECTORS: &[&str] = &["dann", "danach", "anschließend"];
 
 const FILLER_WORDS: &[&str] = &[
-    "mit", "den", "die", "das", "dem", "der", "einen", "eine", "ein", "x", "stück", "stücke", "mal", "ab", "für", "dafür",
-    "und", "dann", "danach", "anschließend", "man", "es", "gibt",
+    "mit",
+    "den",
+    "die",
+    "das",
+    "dem",
+    "der",
+    "einen",
+    "eine",
+    "ein",
+    "x",
+    "stück",
+    "stücke",
+    "mal",
+    "ab",
+    "für",
+    "dafür",
+    "und",
+    "dann",
+    "danach",
+    "anschließend",
+    "man",
+    "es",
+    "gibt",
 ];
 
 /// JS-`\w` ohne `u`-Flag: nur ASCII.
@@ -251,10 +286,8 @@ fn strip_trailing_punct(s: &str) -> &str {
 }
 
 fn strip_fillers(text: &str) -> String {
-    let words: Vec<&str> = text
-        .split(is_js_space)
-        .filter(|w| !w.is_empty() && !FILLER_WORDS.contains(&strip_trailing_punct(&w.to_lowercase())))
-        .collect();
+    let words: Vec<&str> =
+        text.split(is_js_space).filter(|w| !w.is_empty() && !FILLER_WORDS.contains(&strip_trailing_punct(&w.to_lowercase()))).collect();
     js_trim(&words.join(" ")).to_string()
 }
 
@@ -343,14 +376,10 @@ pub struct ClauseParse {
 
 pub fn classify_clause(clause: &str) -> ClauseParse {
     let reward = extract_reward(clause);
-    let found = [
-        (KILL_VERBS, StepKind::Kill),
-        (COLLECT_VERBS, StepKind::Collect),
-        (USE_VERBS, StepKind::Use),
-        (DIALOG_VERBS, StepKind::Dialog),
-    ]
-    .into_iter()
-    .find_map(|(verbs, kind)| find_word(clause, verbs).map(|m| (m, kind)));
+    let found =
+        [(KILL_VERBS, StepKind::Kill), (COLLECT_VERBS, StepKind::Collect), (USE_VERBS, StepKind::Use), (DIALOG_VERBS, StepKind::Dialog)]
+            .into_iter()
+            .find_map(|(verbs, kind)| find_word(clause, verbs).map(|m| (m, kind)));
 
     let Some(((va, vb), kind)) = found else {
         // Kein Aktions-Verb: reine Belohnungs-Klausel (wird in den vorherigen
@@ -435,10 +464,7 @@ pub fn build_draft_steps(text: &str) -> DraftStepsResult {
         }
 
         if !parsed.recognized {
-            notes.push(format!(
-                "Schritt {}: keine bekannte Aktion erkannt - als Dialogtext übernommen, bitte prüfen.",
-                drafts.len() + 1
-            ));
+            notes.push(format!("Schritt {}: keine bekannte Aktion erkannt - als Dialogtext übernommen, bitte prüfen.", drafts.len() + 1));
         }
 
         // "use"-Schritte brauchen keinen NPC; alle anderen übernehmen den

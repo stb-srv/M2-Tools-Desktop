@@ -57,14 +57,7 @@ pub fn log_activity(
     summary: String,
 ) -> Result<(), String> {
     let conn = state.settings_db.lock().map_err(|e| e.to_string())?;
-    activity_log::record(
-        &conn,
-        &module,
-        &action,
-        target_kind.as_deref(),
-        target_ref.as_deref(),
-        &summary,
-    )?;
+    activity_log::record(&conn, &module, &action, target_kind.as_deref(), target_ref.as_deref(), &summary)?;
     Ok(())
 }
 
@@ -115,11 +108,7 @@ pub fn list_activity_feed(
                     continue;
                 }
             }
-            let undo = if d.kind == "deploy" {
-                Some(UndoRef { kind: "rollback".to_string(), id: d.id })
-            } else {
-                None
-            };
+            let undo = if d.kind == "deploy" { Some(UndoRef { kind: "rollback".to_string(), id: d.id }) } else { None };
             entries.push(ActivityEntry {
                 id: format!("deploy:{}", d.id),
                 created_at: d.created_at,

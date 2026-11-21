@@ -411,7 +411,13 @@ pub fn CommonDropEditor() -> impl IntoView {
             let Some(blocks) = rule_blocks(li) else { return String::new() };
             let b = &blocks[0];
             if is_shared(&blocks) {
-                label(b.vnum).filter(|l| !l.is_empty()).unwrap_or_else(|| if b.name.is_empty() { format!("Item {}", b.vnum) } else { b.name.clone() })
+                label(b.vnum).filter(|l| !l.is_empty()).unwrap_or_else(|| {
+                    if b.name.is_empty() {
+                        format!("Item {}", b.vnum)
+                    } else {
+                        b.name.clone()
+                    }
+                })
             } else {
                 format!("{} (+ weitere Items)", label(b.vnum).unwrap_or_else(|| format!("Item {}", b.vnum)))
             }
@@ -497,7 +503,8 @@ pub fn CommonDropEditor() -> impl IntoView {
         let b = move || block(li, r);
         let active = move || b().is_some_and(|b| b.is_active());
         let vnum = Signal::derive(move || b().map(|b| b.vnum).unwrap_or(0));
-        let rank_issues = move || all_issues.with(|l| l.iter().filter(|i| i.line_index == li && i.rank == Some(r)).cloned().collect::<Vec<_>>());
+        let rank_issues =
+            move || all_issues.with(|l| l.iter().filter(|i| i.line_index == li && i.rank == Some(r)).cloned().collect::<Vec<_>>());
         view! {
             <div class=move || format!(
                 "space-y-3 rounded-lg border p-3 transition-opacity {}",
@@ -624,7 +631,8 @@ pub fn CommonDropEditor() -> impl IntoView {
     // ---- Detail: ganze Regel ----
     let rule_detail = move |li: usize| {
         let first_vnum = Signal::derive(move || block(li, 0).map(|b| b.vnum).unwrap_or(0));
-        let rule_issues = move || all_issues.with(|l| l.iter().filter(|i| i.line_index == li && i.rank.is_none()).cloned().collect::<Vec<_>>());
+        let rule_issues =
+            move || all_issues.with(|l| l.iter().filter(|i| i.line_index == li && i.rank.is_none()).cloned().collect::<Vec<_>>());
         let copy_from = RwSignal::new(0usize);
         view! {
             <div class="space-y-3">
@@ -743,10 +751,12 @@ pub fn CommonDropEditor() -> impl IntoView {
 
     // ---- Detail: fehlerhafte Zeile ----
     let invalid_detail = move |li: usize| {
-        let error = move || file.with(|f| match f.as_ref().and_then(|f| f.lines.get(li)) {
-            Some(Line::Invalid { error, .. }) => error.clone(),
-            _ => String::new(),
-        });
+        let error = move || {
+            file.with(|f| match f.as_ref().and_then(|f| f.lines.get(li)) {
+                Some(Line::Invalid { error, .. }) => error.clone(),
+                _ => String::new(),
+            })
+        };
         view! {
             <div class="space-y-3 rounded-lg border border-destructive/60 p-3">
                 <p class="flex items-start gap-2 text-sm text-destructive">

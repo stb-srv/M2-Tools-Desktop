@@ -12,12 +12,7 @@ pub fn quest_functions() -> &'static [String] {
 /// höchstens 200 Treffer.
 pub fn filter_functions(query: &str) -> Vec<&'static str> {
     let q = query.trim().to_lowercase();
-    quest_functions()
-        .iter()
-        .filter(|f| q.is_empty() || f.to_lowercase().contains(&q))
-        .take(200)
-        .map(|s| s.as_str())
-        .collect()
+    quest_functions().iter().filter(|f| q.is_empty() || f.to_lowercase().contains(&q)).take(200).map(|s| s.as_str()).collect()
 }
 
 #[cfg(test)]

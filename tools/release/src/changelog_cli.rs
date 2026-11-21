@@ -28,9 +28,7 @@ fn main() {
         Some("check") => {
             let [conf, cargo, ui] = app_versions(root).unwrap_or_else(|e| fail(&e));
             if conf != cargo || conf != ui {
-                fail(&format!(
-                    "Versionen passen nicht zusammen: tauri.conf.json={conf}, src-tauri/Cargo.toml={cargo}, ui/Cargo.toml={ui}"
-                ));
+                fail(&format!("Versionen passen nicht zusammen: tauri.conf.json={conf}, src-tauri/Cargo.toml={cargo}, ui/Cargo.toml={ui}"));
             }
             let notes = release_notes(root, &conf).unwrap_or_else(|e| fail(&e));
             println!("OK: Version {conf} hat Release-Notes ({} Zeilen).", notes.lines().count());
@@ -45,9 +43,7 @@ fn main() {
             };
             let [conf, cargo, ui] = app_versions(root).unwrap_or_else(|e| fail(&e));
             if conf != cargo || conf != ui {
-                fail(&format!(
-                    "Versionen passen nicht zusammen: tauri.conf.json={conf}, src-tauri/Cargo.toml={cargo}, ui/Cargo.toml={ui}"
-                ));
+                fail(&format!("Versionen passen nicht zusammen: tauri.conf.json={conf}, src-tauri/Cargo.toml={cargo}, ui/Cargo.toml={ui}"));
             }
             let next = next_version(&conf, bump).unwrap_or_else(|e| fail(&e));
             if next != conf {

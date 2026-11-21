@@ -157,7 +157,9 @@ mod tests {
 
     #[test]
     fn unsafe_link_schemes_are_not_rendered_as_links() {
-        for url in ["javascript:alert(1)", "JaVaScRiPt:alert(1)", "data:text/html;base64,AAAA", "vbscript:x", " javascript:x", "java	script:x"] {
+        for url in
+            ["javascript:alert(1)", "JaVaScRiPt:alert(1)", "data:text/html;base64,AAAA", "vbscript:x", " javascript:x", "java	script:x"]
+        {
             let h = render_html(&format!("[klick]({url}) danach"), &DOC_STYLE);
             assert!(!h.contains("href"), "{url}: {h}");
             assert!(h.contains("klick"), "{url}: Text bleibt erhalten");

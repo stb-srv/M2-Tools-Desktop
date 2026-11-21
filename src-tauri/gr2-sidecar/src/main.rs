@@ -68,9 +68,7 @@ unsafe fn load_granny(dll_path: &str) -> Result<GrannyApi, String> {
     let wide_path = to_wide(dll_path);
     let module = LoadLibraryW(wide_path.as_ptr());
     if module.is_null() {
-        return Err(format!(
-            "granny2.dll konnte nicht geladen werden (32-Bit-Prozess?): {dll_path}"
-        ));
+        return Err(format!("granny2.dll konnte nicht geladen werden (32-Bit-Prozess?): {dll_path}"));
     }
 
     Ok(GrannyApi {
@@ -124,8 +122,7 @@ unsafe fn texture_name_for(mesh_ptr: *mut granny_mesh) -> Option<String> {
     if mesh.MaterialBindingCount <= 0 || mesh.MaterialBindings.is_null() {
         return None;
     }
-    let bindings =
-        std::slice::from_raw_parts(mesh.MaterialBindings, mesh.MaterialBindingCount as usize);
+    let bindings = std::slice::from_raw_parts(mesh.MaterialBindings, mesh.MaterialBindingCount as usize);
 
     for binding in bindings {
         if binding.Material.is_null() {
@@ -173,11 +170,7 @@ unsafe fn extract_mesh(api: &GrannyApi, mesh_ptr: *mut granny_mesh) -> Option<Me
     let vertex_count = (api.get_mesh_vertex_count)(mesh_ptr) as usize;
     let vertex_type = rigid_vertex_type();
     let mut raw_vertices = vec![0f32; vertex_count * 8];
-    (api.copy_mesh_vertices)(
-        mesh_ptr,
-        vertex_type.as_ptr(),
-        raw_vertices.as_mut_ptr() as *mut c_void,
-    );
+    (api.copy_mesh_vertices)(mesh_ptr, vertex_type.as_ptr(), raw_vertices.as_mut_ptr() as *mut c_void);
 
     let mut vertices = Vec::with_capacity(vertex_count * 3);
     let mut normals = Vec::with_capacity(vertex_count * 3);
@@ -193,15 +186,7 @@ unsafe fn extract_mesh(api: &GrannyApi, mesh_ptr: *mut granny_mesh) -> Option<Me
     (api.copy_mesh_indices)(mesh_ptr, 2, raw_indices.as_mut_ptr() as *mut c_void);
     let indices: Vec<u32> = raw_indices.into_iter().map(|i| i as u32).collect();
 
-    Some(Mesh {
-        name,
-        is_rigid,
-        texture_name: texture_name_for(mesh_ptr),
-        vertices,
-        normals,
-        uvs,
-        indices,
-    })
+    Some(Mesh { name, is_rigid, texture_name: texture_name_for(mesh_ptr), vertices, normals, uvs, indices })
 }
 
 unsafe fn parse_model(api: &GrannyApi, path: &str) -> Result<ModelInfo, String> {
@@ -226,17 +211,12 @@ unsafe fn parse_model(api: &GrannyApi, path: &str) -> Result<ModelInfo, String> 
     let model_ptr = *info.Models;
     let model = &*model_ptr;
     let name = cstr_to_string(model.Name);
-    let bone_count = if model.Skeleton.is_null() {
-        0
-    } else {
-        (*model.Skeleton).BoneCount
-    };
+    let bone_count = if model.Skeleton.is_null() { 0 } else { (*model.Skeleton).BoneCount };
 
     let mut meshes = Vec::new();
     let mut skipped = 0usize;
     if !model.MeshBindings.is_null() {
-        let bindings =
-            std::slice::from_raw_parts(model.MeshBindings, model.MeshBindingCount.max(0) as usize);
+        let bindings = std::slice::from_raw_parts(model.MeshBindings, model.MeshBindingCount.max(0) as usize);
         for binding in bindings {
             match extract_mesh(api, binding.Mesh) {
                 Some(mesh) => meshes.push(mesh),
@@ -247,37 +227,20 @@ unsafe fn parse_model(api: &GrannyApi, path: &str) -> Result<ModelInfo, String> 
 
     (api.free_file)(file);
 
-    Ok(ModelInfo {
-        name,
-        bone_count,
-        meshes,
-        skipped_meshes: skipped,
-    })
+    Ok(ModelInfo { name, bone_count, meshes, skipped_meshes: skipped })
 }
 
 fn main() {
     let args: Vec<String> = std::env::args().collect();
     let output = if args.len() != 3 {
-        Output {
-            ok: false,
-            data: None,
-            error: Some("Usage: gr2-sidecar <granny2.dll path> <.gr2 file path>".into()),
-        }
+        Output { ok: false, data: None, error: Some("Usage: gr2-sidecar <granny2.dll path> <.gr2 file path>".into()) }
     } else {
         let dll_path = &args[1];
         let gr2_path = &args[2];
         unsafe {
             match load_granny(dll_path).and_then(|api| parse_model(&api, gr2_path)) {
-                Ok(data) => Output {
-                    ok: true,
-                    data: Some(data),
-                    error: None,
-                },
-                Err(error) => Output {
-                    ok: false,
-                    data: None,
-                    error: Some(error),
-                },
+                Ok(data) => Output { ok: true, data: Some(data), error: None },
+                Err(error) => Output { ok: false, data: None, error: Some(error) },
             }
         }
     };

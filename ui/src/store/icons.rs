@@ -36,10 +36,7 @@ pub fn icons() -> RwSignal<IconMap> {
 /// Welche vnums müssen noch abgefragt werden (ohne Duplikate, Reihenfolge der Eingabe)?
 fn missing(cache: &IconMap, inflight: &HashSet<i64>, vnums: impl IntoIterator<Item = i64>) -> Vec<i64> {
     let mut seen = HashSet::new();
-    vnums
-        .into_iter()
-        .filter(|v| !cache.contains_key(v) && !inflight.contains(v) && seen.insert(*v))
-        .collect()
+    vnums.into_iter().filter(|v| !cache.contains_key(v) && !inflight.contains(v) && seen.insert(*v)).collect()
 }
 
 /// Lädt fehlende Item-Icons nach; bereits geladene oder laufende werden übersprungen.

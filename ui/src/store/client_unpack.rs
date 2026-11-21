@@ -89,11 +89,7 @@ impl ClientUnpackStore {
         store.last_line.set(String::new());
         store.results.set(None);
         spawn_local(async move {
-            let res = invoke::<Vec<UnpackResult>>(
-                "unpack_client_archives",
-                &json!({ "clientPath": client_path, "names": names }),
-            )
-            .await;
+            let res = invoke::<Vec<UnpackResult>>("unpack_client_archives", &json!({ "clientPath": client_path, "names": names })).await;
             store.running.set(false);
             store.progress.set(None);
             match res {

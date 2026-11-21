@@ -16,13 +16,7 @@ use std::path::Path;
 const RACES: &[&str] = &["warrior", "assassin", "sura", "shaman"];
 
 fn msm_path(client_path: &str, race: &str) -> std::path::PathBuf {
-    Path::new(client_path)
-        .join("pack")
-        .join(format!("pc_{race}"))
-        .join("ymir work")
-        .join("pc2")
-        .join(race)
-        .join(format!("{race}.msm"))
+    Path::new(client_path).join("pack").join(format!("pc_{race}")).join("ymir work").join("pc2").join(race).join(format!("{race}.msm"))
 }
 
 /// Byte offset range `[start, end)` of the outer `Group ShapeData { ... }`
@@ -35,10 +29,7 @@ fn find_shapedata_block(text: &str) -> Result<(usize, usize), String> {
         .find("Group ShapeData\n")
         .or_else(|| text.find("Group ShapeData\r\n"))
         .ok_or("Kein 'Group ShapeData'-Block in dieser .msm-Datei gefunden.")?;
-    let open = text[header..]
-        .find('{')
-        .map(|i| header + i)
-        .ok_or("'Group ShapeData' ohne öffnende Klammer - Datei beschädigt?")?;
+    let open = text[header..].find('{').map(|i| header + i).ok_or("'Group ShapeData' ohne öffnende Klammer - Datei beschädigt?")?;
     let bytes = text.as_bytes();
     let mut depth = 0i32;
     let mut i = open;
@@ -91,13 +82,7 @@ pub fn next_free_shape_index(client_path: &str, max_db_value3: u32) -> u32 {
 /// first. `model_rel`/`skin_rel` are paths relative to the block's own
 /// `PathName` (`d:/ymir work/pc2/<race>/`), matching where
 /// `packtools::import_custom_armor_model` physically copies the files.
-pub fn add_shape_data(
-    client_path: &str,
-    race: &str,
-    shape_index: u32,
-    model_rel: &str,
-    skin_rel: &str,
-) -> Result<(), String> {
+pub fn add_shape_data(client_path: &str, race: &str, shape_index: u32, model_rel: &str, skin_rel: &str) -> Result<(), String> {
     let path = msm_path(client_path, race);
     let text = std::fs::read_to_string(&path).map_err(|e| format!("{} nicht lesbar: {e}", path.display()))?;
 
@@ -108,22 +93,15 @@ pub fn add_shape_data(
     // `block_start`) so it can be spliced precisely, rather than
     // string-replacing a reconstructed "ShapeDataCount<n>" token that could
     // subtly mismatch on whitespace.
-    let count_label_rel = block
-        .find("ShapeDataCount")
-        .ok_or("ShapeDataCount nicht im ShapeData-Block gefunden.")?;
+    let count_label_rel = block.find("ShapeDataCount").ok_or("ShapeDataCount nicht im ShapeData-Block gefunden.")?;
     let after_label = &block[count_label_rel + "ShapeDataCount".len()..];
     let ws_len = after_label.len() - after_label.trim_start().len();
-    let digits = after_label
-        .split_whitespace()
-        .next()
-        .ok_or("ShapeDataCount-Wert nicht lesbar.")?;
+    let digits = after_label.split_whitespace().next().ok_or("ShapeDataCount-Wert nicht lesbar.")?;
     let existing_count: u32 = digits.parse().map_err(|_| "ShapeDataCount-Wert nicht lesbar.")?;
     let digits_start = block_start + count_label_rel + "ShapeDataCount".len() + ws_len;
     let digits_end = digits_start + digits.len();
 
-    let next_group_num = (0..)
-        .find(|n| !block.contains(&format!("ShapeData{n:02}")))
-        .unwrap_or(existing_count);
+    let next_group_num = (0..).find(|n| !block.contains(&format!("ShapeData{n:02}"))).unwrap_or(existing_count);
 
     let new_entry = format!(
         "\tGroup ShapeData{next_group_num:02}\n\t{{\n\t\tShapeIndex\t\t\t{shape_index}\n\n\t\tModel\t\t\t\t\"{model_rel}\"\n\t\tSourceSkin\t\t\t\"{skin_rel}\"\n\t\tTargetSkin\t\t\t\"{skin_rel}\"\n\t}}\n"
@@ -160,20 +138,9 @@ mod tests {
     fn appends_entry_and_bumps_count() {
         let dir = std::env::temp_dir().join(format!("m2manager_msm_test_{}", std::process::id()));
         std::fs::create_dir_all(dir.join("pack/pc_warrior/ymir work/pc2/warrior")).unwrap();
-        std::fs::write(
-            dir.join("pack/pc_warrior/ymir work/pc2/warrior/warrior.msm"),
-            SAMPLE,
-        )
-        .unwrap();
+        std::fs::write(dir.join("pack/pc_warrior/ymir work/pc2/warrior/warrior.msm"), SAMPLE).unwrap();
 
-        add_shape_data(
-            dir.to_str().unwrap(),
-            "warrior",
-            250,
-            "custom/TestMod/body.gr2",
-            "custom/TestMod/body.dds",
-        )
-        .unwrap();
+        add_shape_data(dir.to_str().unwrap(), "warrior", 250, "custom/TestMod/body.gr2", "custom/TestMod/body.dds").unwrap();
 
         let updated = std::fs::read_to_string(dir.join("pack/pc_warrior/ymir work/pc2/warrior/warrior.msm")).unwrap();
         assert!(updated.contains("ShapeDataCount\t\t\t3"));

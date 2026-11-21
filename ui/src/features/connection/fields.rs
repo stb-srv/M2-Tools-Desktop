@@ -2,8 +2,8 @@
 //! den Einstellungen (Verbindung) und dem Setup-Assistenten.
 
 use crate::components::{Button, ButtonSize, ButtonVariant, Icon};
-use crate::util::connection::{mysql_complete, ssh_complete, test_mysql, test_ssh, MysqlValues, SshAuthMode, SshValues};
 use crate::tauri::{dialog_open_one, OpenDialogOptions};
+use crate::util::connection::{mysql_complete, ssh_complete, test_mysql, test_ssh, MysqlValues, SshAuthMode, SshValues};
 use leptos::html;
 use leptos::prelude::*;
 use leptos::task::spawn_local;
@@ -47,7 +47,8 @@ pub fn PasswordField(
     #[prop(into)] on_change: Callback<String>,
     #[prop(into, optional)] placeholder: Option<String>,
     /// Es ist schon ein Geheimnis gespeichert (Klartext nie im Webview).
-    #[prop(into, optional)] saved: Signal<bool>,
+    #[prop(into, optional)]
+    saved: Signal<bool>,
 ) -> impl IntoView {
     let visible = RwSignal::new(false);
     view! {
@@ -75,11 +76,8 @@ pub fn PasswordField(
 pub fn SshFields(value: RwSignal<SshValues>) -> impl IntoView {
     let pick_key = move |_| {
         spawn_local(async move {
-            let opts = OpenDialogOptions {
-                title: Some("Privaten SSH-Schlüssel auswählen".into()),
-                multiple: false,
-                ..Default::default()
-            };
+            let opts =
+                OpenDialogOptions { title: Some("Privaten SSH-Schlüssel auswählen".into()), multiple: false, ..Default::default() };
             if let Ok(Some(selected)) = dialog_open_one(&opts).await {
                 value.update(|v| v.key_path = selected);
             }

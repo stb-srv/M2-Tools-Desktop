@@ -9,13 +9,13 @@ use crate::features::quest_builder::quest_description_parser::{
     pick_best_match, resolve_description, LookupKind, NameCandidate, UnresolvedLookup,
 };
 use crate::features::quest_builder::quest_templates::{
-    generate_dungeon_quest, generate_multi_step_quest, generate_quest_lua, DungeonFloor, DungeonFormState,
-    MultiStepFormState, QuestFormState, QuestStep, StepKind, TemplateType, DEFAULT_COOLDOWN_DAYS,
+    generate_dungeon_quest, generate_multi_step_quest, generate_quest_lua, DungeonFloor, DungeonFormState, MultiStepFormState,
+    QuestFormState, QuestStep, StepKind, TemplateType, DEFAULT_COOLDOWN_DAYS,
 };
 use crate::features::shared::{EntityBrowser, EntityKind};
-use crate::util::log_activity;
 use crate::store::navigation::Section;
 use crate::tauri::invoke;
+use crate::util::log_activity;
 use leptos::prelude::*;
 use leptos::task::spawn_local;
 use serde_json::json;
@@ -47,8 +47,7 @@ fn text_input(class: &'static str, get: Getter, set: Setter) -> AnyView {
 }
 
 fn text_input_ph(class: &'static str, placeholder: &'static str, get: Getter, set: Setter) -> AnyView {
-    view! { <input prop:value=move || get() on:input=move |e| set(event_target_value(&e)) placeholder=placeholder class=class/> }
-        .into_any()
+    view! { <input prop:value=move || get() on:input=move |e| set(event_target_value(&e)) placeholder=placeholder class=class/> }.into_any()
 }
 
 fn number_input(class: &'static str, min: Option<&'static str>, max: Option<&'static str>, get: Getter, set: Setter) -> AnyView {
@@ -444,7 +443,8 @@ pub fn CreateQuestModal(#[prop(into)] on_close: Callback<()>, #[prop(into)] on_c
     let step_count = Memo::new(move |_| multi_form.with(|m| m.steps.len()));
     let step_view = move |index: usize| {
         let kind = Memo::new(move |_| multi_form.with(|m| m.steps.get(index).map(|s| s.kind).unwrap_or(StepKind::Dialog)));
-        let kind_fields = move || match kind.get() {
+        let kind_fields = move || {
+            match kind.get() {
             StepKind::Dialog => field("Dialogtext", { let (g, s) = bind_at!(multi_form, steps, index, dialog_text); text_area("h-16 w-full rounded-md border border-border bg-background px-2 py-1 text-sm", g, s) }),
             StepKind::Collect => view! {
                 <div class="flex gap-2">
@@ -469,6 +469,7 @@ pub fn CreateQuestModal(#[prop(into)] on_close: Callback<()>, #[prop(into)] on_c
                 {field("Text beim Benutzen", { let (g, s) = bind_at!(multi_form, steps, index, use_text); text_area("h-14 w-full rounded-md border border-border bg-background px-2 py-1 text-sm", g, s) })}
             }
             .into_any(),
+        }
         };
         let npc_fields = move || {
             (kind.get() != StepKind::Use).then(|| {

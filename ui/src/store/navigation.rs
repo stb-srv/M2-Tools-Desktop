@@ -240,11 +240,7 @@ pub struct NavStore {
 static NAV: OnceLock<NavStore> = OnceLock::new();
 
 fn load_sections(key: &str) -> Vec<Section> {
-    storage::get_json::<Vec<String>>(key)
-        .unwrap_or_default()
-        .iter()
-        .filter_map(|s| Section::from_id(s))
-        .collect()
+    storage::get_json::<Vec<String>>(key).unwrap_or_default().iter().filter_map(|s| Section::from_id(s)).collect()
 }
 
 fn save_sections(key: &str, v: &[Section]) {
@@ -276,9 +272,8 @@ pub fn nav() -> NavStore {
 impl NavStore {
     fn push_recent(&self, next: Section) {
         let cur = self.section.get_untracked();
-        let mut recent: Vec<Section> = std::iter::once(cur)
-            .chain(self.recent.get_untracked().into_iter().filter(|s| *s != cur && *s != next))
-            .collect();
+        let mut recent: Vec<Section> =
+            std::iter::once(cur).chain(self.recent.get_untracked().into_iter().filter(|s| *s != cur && *s != next)).collect();
         recent.truncate(RECENT_LIMIT);
         save_sections(RECENT_KEY, &recent);
         self.recent.set(recent);
@@ -415,7 +410,10 @@ pub fn use_pending_selection(section: Section, handler: impl Fn(String) + Clone 
         let handler = handler.clone();
         nav().pending_selection.set(None);
         if nav().is_dirty_untracked(section) {
-            crate::util::confirm::confirm_discard("Die Auswahl aus der Suche öffnen? Ungespeicherte Änderungen in diesem Bereich gehen verloren.", move || handler(target.target_ref));
+            crate::util::confirm::confirm_discard(
+                "Die Auswahl aus der Suche öffnen? Ungespeicherte Änderungen in diesem Bereich gehen verloren.",
+                move || handler(target.target_ref),
+            );
         } else {
             handler(target.target_ref);
         }

@@ -1,7 +1,7 @@
 use super::super::shared::{focus_on_mount, num_arg, AccountSummary, MODULE};
 use crate::components::{Button, ButtonVariant, Icon};
-use crate::util::log_activity;
 use crate::tauri::invoke_unit;
+use crate::util::log_activity;
 use leptos::prelude::*;
 use leptos::task::spawn_local;
 use serde_json::{json, Value};
@@ -13,11 +13,7 @@ use serde_json::{json, Value};
 // M2Manager-Zeitsteuerung (siehe bans.rs) - kein Server-Cron, wirkt nur
 // wenn die App läuft.
 #[component]
-pub fn BanDialog(
-    account: AccountSummary,
-    #[prop(into)] on_close: Callback<()>,
-    #[prop(into)] on_banned: Callback<()>,
-) -> impl IntoView {
+pub fn BanDialog(account: AccountSummary, #[prop(into)] on_close: Callback<()>, #[prop(into)] on_banned: Callback<()>) -> impl IntoView {
     let message = RwSignal::new("Gesperrt - bitte kontaktiere den Support.".to_string());
     let days = RwSignal::new(String::new());
     let busy = RwSignal::new(false);
@@ -34,12 +30,7 @@ pub fn BanDialog(
         error.set(None);
         spawn_local(async move {
             let days_arg = if d.is_empty() { Value::Null } else { num_arg(&d) };
-            match invoke_unit(
-                "ban_account",
-                &json!({ "accountId": id, "login": login, "message": msg, "days": days_arg }),
-            )
-            .await
-            {
+            match invoke_unit("ban_account", &json!({ "accountId": id, "login": login, "message": msg, "days": days_arg })).await {
                 Ok(()) => {
                     let duration = if d.is_empty() { "dauerhaft".to_string() } else { format!("{d} Tag(e)") };
                     log_activity(

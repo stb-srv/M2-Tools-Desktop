@@ -18,9 +18,9 @@ pub mod wiki;
 pub use wiki::QuestWiki;
 
 use crate::components::{toast, Button, ButtonSize, ButtonVariant, Icon, PageHeader};
-use crate::util::log_activity;
 use crate::store::navigation::{report_section_dirty, use_pending_selection, Section};
 use crate::tauri::{invoke, invoke0, invoke_unit, listen, Unlisten};
+use crate::util::log_activity;
 use code_editor::{CodeEditor, CodeEditorHandle};
 use components::CreateQuestModal;
 use leptos::prelude::*;
@@ -231,7 +231,13 @@ pub fn QuestBuilder() -> impl IntoView {
                         _ => "Gespeichert.".to_string(),
                     }));
                     dirty.try_set(false);
-                    log_activity(Section::QuestBuilder.into(), "update", &format!("Quest '{path}' gespeichert"), Some("quest"), Some(&path));
+                    log_activity(
+                        Section::QuestBuilder.into(),
+                        "update",
+                        &format!("Quest '{path}' gespeichert"),
+                        Some("quest"),
+                        Some(&path),
+                    );
                 }
                 Err(e) => {
                     save_error.try_set(Some(e));
@@ -302,8 +308,7 @@ pub fn QuestBuilder() -> impl IntoView {
                 invoke::<Option<String>>("get_setting", &json!({ "key": key })).await.ok().flatten().filter(|s| !s.is_empty())
             };
             let workdir = setting("server_workdir").await.unwrap_or_else(|| "/usr/home/game".to_string());
-            let command =
-                setting("server_cmd_reload_quests").await.unwrap_or_else(|| crate::util::shell::index_sh_command(&workdir, 4));
+            let command = setting("server_cmd_reload_quests").await.unwrap_or_else(|| crate::util::shell::index_sh_command(&workdir, 4));
             match invoke::<CommandResult>("run_server_command", &json!({ "command": command })).await {
                 Ok(r) => {
                     if let Some(code) = r.exit_status.filter(|c| *c != 0) {

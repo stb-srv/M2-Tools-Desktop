@@ -58,11 +58,18 @@ impl CommonDropBlock {
 #[serde(tag = "kind", rename_all = "snake_case")]
 pub enum CommonDropLine {
     /// Kommentar, Leerzeile oder Überschrift - wird unverändert geschrieben.
-    Text { text: String },
-    Rule { blocks: Vec<CommonDropBlock> },
+    Text {
+        text: String,
+    },
+    Rule {
+        blocks: Vec<CommonDropBlock>,
+    },
     /// Datenzeile, die sich nicht lesen ließ. Speichern ist gesperrt,
     /// solange es solche Zeilen gibt.
-    Invalid { raw: String, error: String },
+    Invalid {
+        raw: String,
+        error: String,
+    },
 }
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
@@ -101,13 +108,7 @@ fn is_header_line(line: &str) -> bool {
 
 fn parse_int(field: &str, what: &str) -> Result<i64, String> {
     let t = field.trim();
-    t.parse::<i64>().map_err(|_| {
-        if t.is_empty() {
-            format!("{what} ist leer")
-        } else {
-            format!("{what} ist keine ganze Zahl ('{t}')")
-        }
-    })
+    t.parse::<i64>().map_err(|_| if t.is_empty() { format!("{what} ist leer") } else { format!("{what} ist keine ganze Zahl ('{t}')") })
 }
 
 fn parse_chance(field: &str) -> Result<f64, String> {
@@ -283,10 +284,7 @@ pub fn validate(file: &CommonDropFile) -> Vec<CommonDropIssue> {
                     if b.vnum == 0 {
                         err("VNUM 0 gibt es nicht - der Server startet dann nicht.".into());
                     } else if FORBIDDEN_VNUMS.contains(&b.vnum) {
-                        err(format!(
-                            "VNUM {} geht nicht - der Server verwechselt sie mit den Goldringen (50028-50030).",
-                            b.vnum
-                        ));
+                        err(format!("VNUM {} geht nicht - der Server verwechselt sie mit den Goldringen (50028-50030).", b.vnum));
                     }
                     if b.level_from < 0 || b.level_to < 0 {
                         err("Level darf nicht negativ sein.".into());
@@ -314,12 +312,9 @@ pub fn validate(file: &CommonDropFile) -> Vec<CommonDropIssue> {
 
                 // Unterschiedliche Level-Bereiche innerhalb einer Regel sind
                 // erlaubt, aber oft ein Tippfehler.
-                let with_levels: Vec<(usize, &CommonDropBlock)> =
-                    blocks.iter().enumerate().filter(|(_, b)| b.level_from != 0).collect();
+                let with_levels: Vec<(usize, &CommonDropBlock)> = blocks.iter().enumerate().filter(|(_, b)| b.level_from != 0).collect();
                 if let Some((_, first)) = with_levels.first() {
-                    let differs = with_levels
-                        .iter()
-                        .any(|(_, b)| b.level_from != first.level_from || b.level_to != first.level_to);
+                    let differs = with_levels.iter().any(|(_, b)| b.level_from != first.level_from || b.level_to != first.level_to);
                     if differs {
                         let ranges = with_levels
                             .iter()

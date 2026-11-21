@@ -4,9 +4,9 @@
 pub mod logic;
 
 use crate::components::{Button, ButtonSize, ButtonVariant, Icon, PageHeader};
-use crate::util::log_activity;
 use crate::store::navigation::{nav, report_section_dirty, Section};
 use crate::tauri::{invoke, invoke0, invoke_unit};
+use crate::util::log_activity;
 use leptos::prelude::*;
 use leptos::task::spawn_local;
 use logic::{filter_namespaces, namespace_of_orphan, to_display, to_stored};
@@ -126,9 +126,7 @@ impl State {
         self.save_confirm.set(false);
         self.saving.set(true);
         self.save_error.set(None);
-        match invoke::<Option<String>>("write_locale_namespace", &json!({ "namespace": selected, "entries": entries }))
-            .await
-        {
+        match invoke::<Option<String>>("write_locale_namespace", &json!({ "namespace": selected, "entries": entries })).await {
             Ok(backup) => {
                 self.save_ok.set(Some(match backup {
                     Some(b) if !b.is_empty() => format!("Gespeichert. Backup: {b}"),

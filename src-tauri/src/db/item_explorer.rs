@@ -46,11 +46,7 @@ pub async fn browse_item_proto(
     if type_filter.is_some() {
         conditions.push("type = ?");
     }
-    let where_clause = if conditions.is_empty() {
-        String::new()
-    } else {
-        format!("WHERE {}", conditions.join(" AND "))
-    };
+    let where_clause = if conditions.is_empty() { String::new() } else { format!("WHERE {}", conditions.join(" AND ")) };
 
     let count_sql = format!("SELECT COUNT(*) AS c FROM player.item_proto {where_clause}");
     let mut count_query = sqlx::query(&count_sql);
@@ -60,16 +56,9 @@ pub async fn browse_item_proto(
     if let Some(t) = type_filter {
         count_query = count_query.bind(t);
     }
-    let total: i64 = count_query
-        .fetch_one(pool)
-        .await
-        .map_err(|e| e.to_string())?
-        .try_get::<i64, _>("c")
-        .unwrap_or(0);
+    let total: i64 = count_query.fetch_one(pool).await.map_err(|e| e.to_string())?.try_get::<i64, _>("c").unwrap_or(0);
 
-    let rows_sql = format!(
-        "SELECT vnum, locale_name, type, subtype FROM player.item_proto {where_clause} ORDER BY vnum LIMIT ? OFFSET ?"
-    );
+    let rows_sql = format!("SELECT vnum, locale_name, type, subtype FROM player.item_proto {where_clause} ORDER BY vnum LIMIT ? OFFSET ?");
     let mut rows_query = sqlx::query(&rows_sql);
     if let Some(v) = &like_value {
         rows_query = rows_query.bind(v);
@@ -77,12 +66,7 @@ pub async fn browse_item_proto(
     if let Some(t) = type_filter {
         rows_query = rows_query.bind(t);
     }
-    let rows = rows_query
-        .bind(limit)
-        .bind(offset)
-        .fetch_all(pool)
-        .await
-        .map_err(|e| e.to_string())?;
+    let rows = rows_query.bind(limit).bind(offset).fetch_all(pool).await.map_err(|e| e.to_string())?;
 
     let rows = rows
         .into_iter()

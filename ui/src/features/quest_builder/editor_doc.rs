@@ -67,11 +67,8 @@ pub fn fold_ranges(text: &str) -> Vec<(usize, usize)> {
             }
         }
     }
-    let mut out: Vec<(usize, usize)> = pairs
-        .into_iter()
-        .map(|(o, c)| (line_of(text, o), line_of(text, c)))
-        .filter(|(s, e)| e >= &(s + 2))
-        .collect();
+    let mut out: Vec<(usize, usize)> =
+        pairs.into_iter().map(|(o, c)| (line_of(text, o), line_of(text, c))).filter(|(s, e)| e >= &(s + 2)).collect();
     // Pro Kopfzeile nur den größten Block.
     out.sort_by(|x, y| x.0.cmp(&y.0).then(y.1.cmp(&x.1)));
     out.dedup_by_key(|x| x.0);
@@ -152,9 +149,7 @@ impl Doc {
         let delta = ins.len() as isize - (end - start) as isize;
         self.text.replace_range(start..end, ins);
         let text = &self.text;
-        let ok = |a: usize, b: usize| {
-            a < b && text.as_bytes().get(a) == Some(&b'\n') && text.as_bytes().get(b) == Some(&b'\n')
-        };
+        let ok = |a: usize, b: usize| a < b && text.as_bytes().get(a) == Some(&b'\n') && text.as_bytes().get(b) == Some(&b'\n');
         // Reine Einfügung genau am Kopfzeilenende landet vor dem Bereich.
         let after = |a: usize| if start == end { a >= start } else { a >= end };
         self.folds = self

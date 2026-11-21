@@ -7,8 +7,8 @@
 
 use super::support::stored_ssh_auth;
 use crate::common_drop;
-use crate::drop_check::{self, DropFileKind};
 use crate::db::item::{self, ItemBrief};
+use crate::drop_check::{self, DropFileKind};
 use crate::drop_item_group;
 use crate::etc_drop;
 use crate::mobdrop;
@@ -48,10 +48,7 @@ pub async fn read_mob_drop_file(state: State<'_, AppState>) -> Result<MobDropLoa
 }
 
 #[tauri::command]
-pub async fn write_mob_drop_file(
-    state: State<'_, AppState>,
-    groups: Vec<mobdrop::MobDropGroup>,
-) -> Result<Option<String>, String> {
+pub async fn write_mob_drop_file(state: State<'_, AppState>, groups: Vec<mobdrop::MobDropGroup>) -> Result<Option<String>, String> {
     let (config, auth) = stored_ssh_auth(&state)?;
     let path = mob_drop_file_path(&state)?;
     let content = mobdrop::serialize(&groups);
@@ -92,10 +89,7 @@ pub async fn read_common_drop_file(state: State<'_, AppState>) -> Result<common_
 }
 
 #[tauri::command]
-pub async fn write_common_drop_file(
-    state: State<'_, AppState>,
-    file: common_drop::CommonDropFile,
-) -> Result<Option<String>, String> {
+pub async fn write_common_drop_file(state: State<'_, AppState>, file: common_drop::CommonDropFile) -> Result<Option<String>, String> {
     let blocking: Vec<String> = common_drop::validate(&file)
         .into_iter()
         .filter(|i| i.level == common_drop::IssueLevel::Error)
@@ -108,9 +102,7 @@ pub async fn write_common_drop_file(
     let content = common_drop::serialize(&file)?;
     // Rundreise-Prüfung: nur hochladen, was wir selbst identisch zurücklesen.
     let reparsed = common_drop::parse(&content);
-    if reparsed.lines.len() != file.lines.len()
-        || reparsed.lines.iter().any(|l| matches!(l, common_drop::CommonDropLine::Invalid { .. }))
-    {
+    if reparsed.lines.len() != file.lines.len() || reparsed.lines.iter().any(|l| matches!(l, common_drop::CommonDropLine::Invalid { .. })) {
         return Err("Interner Fehler: die erzeugte Datei ließ sich nicht wieder einlesen - nichts gespeichert.".into());
     }
     let (config, auth) = stored_ssh_auth(&state)?;
@@ -143,18 +135,13 @@ pub struct CommonDropItemCheck {
 }
 
 #[tauri::command]
-pub async fn check_common_drop_items(
-    state: State<'_, AppState>,
-    vnums: Vec<u32>,
-) -> Result<Vec<CommonDropItemCheck>, String> {
+pub async fn check_common_drop_items(state: State<'_, AppState>, vnums: Vec<u32>) -> Result<Vec<CommonDropItemCheck>, String> {
     let pool = require_pool(&state).await?;
     let mut out = Vec::with_capacity(vnums.len());
     for vnum in vnums {
         let brief = item::get_item_brief(&pool, vnum).await?;
         let exists = brief.is_some() || item::vnum_exists(&pool, vnum).await?;
-        let name_collision = item::find_item_by_internal_name(&pool, &vnum.to_string())
-            .await?
-            .filter(|other| other.vnum != vnum);
+        let name_collision = item::find_item_by_internal_name(&pool, &vnum.to_string()).await?.filter(|other| other.vnum != vnum);
         out.push(CommonDropItemCheck { vnum, exists, locale_name: brief.map(|b| b.locale_name), name_collision });
     }
     Ok(out)
@@ -176,10 +163,7 @@ pub async fn read_etc_drop_file(state: State<'_, AppState>) -> Result<Vec<etc_dr
 }
 
 #[tauri::command]
-pub async fn write_etc_drop_file(
-    state: State<'_, AppState>,
-    entries: Vec<etc_drop::EtcDropEntry>,
-) -> Result<Option<String>, String> {
+pub async fn write_etc_drop_file(state: State<'_, AppState>, entries: Vec<etc_drop::EtcDropEntry>) -> Result<Option<String>, String> {
     let (config, auth) = stored_ssh_auth(&state)?;
     let path = etc_drop_file_path(&state)?;
     let content = etc_drop::serialize(&entries);
@@ -196,9 +180,7 @@ fn drop_item_group_file_path(state: &State<'_, AppState>) -> Result<String, Stri
 }
 
 #[tauri::command]
-pub async fn read_drop_item_group_file(
-    state: State<'_, AppState>,
-) -> Result<Vec<drop_item_group::DropItemGroup>, String> {
+pub async fn read_drop_item_group_file(state: State<'_, AppState>) -> Result<Vec<drop_item_group::DropItemGroup>, String> {
     let (config, auth) = stored_ssh_auth(&state)?;
     let path = drop_item_group_file_path(&state)?;
     let content = ssh::read_remote_file(&config, &auth, &path).await?;
@@ -251,10 +233,7 @@ pub fn parse_mob_drop_text(content: String) -> Result<MobDropLoadResult, String>
 }
 
 #[tauri::command(async)]
-pub fn write_local_mob_drop_file(
-    path: String,
-    groups: Vec<mobdrop::MobDropGroup>,
-) -> Result<Option<String>, String> {
+pub fn write_local_mob_drop_file(path: String, groups: Vec<mobdrop::MobDropGroup>) -> Result<Option<String>, String> {
     let content = mobdrop::serialize(&groups);
     // Same sanity check as the server write path - never write something we
     // couldn't parse back ourselves.
