@@ -186,7 +186,7 @@ pub async fn unpack(app: &AppHandle, client_path: &str, tool_path: &str, names: 
         let _ = app.emit(PROGRESS_EVENT, Progress { current: i + 1, total: names.len(), name });
         let outcome = match validate_name(&dir, name) {
             Err(e) => Err(e),
-            Ok(()) => crate::packtools::extract_missing_from_archive(app, OUTPUT_EVENT, tool, &dir, name).await,
+            Ok(()) => crate::packtools::extract_missing_from_archive(app, OUTPUT_EVENT, tool, &dir, name, &[]).await,
         };
         results.push(match outcome {
             Ok(Some(files_copied)) => UnpackResult { name: name.clone(), files_copied, error: None },
