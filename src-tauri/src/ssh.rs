@@ -601,12 +601,23 @@ pub async fn delete_remote_file(config: &SshConfig, auth: &SshAuth, path: &str) 
 // for files that actually need it. `pub(crate)` so local (non-SSH) file
 // reads can reuse the exact same fallback instead of duplicating it - see
 // `commands::read_target_content`'s local branch.
+/// Codepage für Serverdateien, die kein gültiges UTF-8 sind: die
+/// eingestellte Serverseiten-Codepage; ist diese UTF-8 selbst, bleibt
+/// Windows-1252 als Rückfall (UTF-8 kann ungültige Bytes nicht verlustfrei halten).
+fn legacy_server_encoding() -> &'static encoding_rs::Encoding {
+    let enc = crate::clientfs::server_encoding();
+    if enc == encoding_rs::UTF_8 {
+        encoding_rs::WINDOWS_1252
+    } else {
+        enc
+    }
+}
+
 pub(crate) fn decode_bytes(bytes: Vec<u8>) -> String {
     match String::from_utf8(bytes) {
         Ok(text) => text,
         Err(e) => {
-            let (text, _, _) = encoding_rs::WINDOWS_1252.decode(e.as_bytes());
-            text.into_owned()
+            crate::clientfs::decode(e.as_bytes(), legacy_server_encoding())
         }
     }
 }
@@ -634,23 +645,14 @@ pub(crate) fn encode_matching(content: &str, original: Option<&[u8]>) -> Result<
     if keep_utf8 {
         return Ok(content.as_bytes().to_vec());
     }
-    let (encoded, _, had_unmappable) = encoding_rs::WINDOWS_1252.encode(content);
-    if had_unmappable {
-        let bad: Vec<String> = content
-            .chars()
-            .filter(|c| {
-                let mut buf = [0u8; 4];
-                encoding_rs::WINDOWS_1252.encode(c.encode_utf8(&mut buf)).2
-            })
-            .take(5)
-            .map(|c| format!("„{c}“"))
-            .collect();
-        return Err(format!(
-            "Der Text enthält Zeichen, die in der Windows-1252-Kodierung der Serverdatei nicht darstellbar sind ({}). Bitte entfernen oder ersetzen.",
-            bad.join(", ")
-        ));
-    }
-    Ok(encoded.into_owned())
+    // Eine Datei mit Nicht-UTF-8-Bytes wurde per Rückfall dekodiert und
+    // wird mit derselben Codepage zurückgeschrieben.
+    let enc = if matches!(original, Some(b) if std::str::from_utf8(b).is_err()) {
+        legacy_server_encoding()
+    } else {
+        crate::clientfs::server_encoding()
+    };
+    crate::clientfs::encode(content, enc)
 }
 
 pub async fn read_remote_file(config: &SshConfig, auth: &SshAuth, path: &str) -> Result<String, String> {

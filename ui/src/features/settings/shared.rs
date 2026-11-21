@@ -319,3 +319,75 @@ mod tests {
         assert_eq!(commit_decision(&def, "12", "1"), Commit::Save("12".into()));
     }
 }
+
+/// Auswahl der Zeichenkodierung für Textdateien: (Einstellungswert, Anzeigename).
+/// Muss zu `clientfs::CODEPAGES` im Backend passen; Windows-1252 ist der Standard.
+pub const CODEPAGE_OPTIONS: &[(&str, &str)] = &[
+    ("windows-1252", "Windows-1252 (Westeuropa, Standard)"),
+    ("windows-1250", "Windows-1250 (Mitteleuropa, PL/CZ)"),
+    ("windows-1254", "Windows-1254 (Türkisch)"),
+    ("windows-1251", "Windows-1251 (Kyrillisch)"),
+    ("euc-kr", "EUC-KR / CP949 (Koreanisch)"),
+    ("windows-1253", "Windows-1253 (Griechisch)"),
+    ("utf-8", "UTF-8"),
+];
+
+/// Wert aus der Einstellung auf einen bekannten Eintrag abbilden (unbekannt/leer = Standard).
+pub fn normalize_codepage(stored: Option<&str>) -> &'static str {
+    let v = stored.unwrap_or("").trim().to_ascii_lowercase();
+    CODEPAGE_OPTIONS.iter().find(|(k, _)| *k == v).map(|(k, _)| *k).unwrap_or(CODEPAGE_OPTIONS[0].0)
+}
+
+/// Dropdown für die Codepage einer Einstellung (`client_codepage`/`server_codepage`).
+/// Speichert sofort bei Auswahl; lädt nach Profilwechsel neu.
+#[component]
+pub fn CodepageSetting(key: &'static str, label: &'static str, hint: &'static str) -> impl IntoView {
+    let value = RwSignal::new(CODEPAGE_OPTIONS[0].0.to_string());
+    let revision = connection_profiles().revision;
+    Effect::new(move |_| {
+        revision.track();
+        spawn_local(async move {
+            if let Ok(v) = load_setting(key).await {
+                value.set(normalize_codepage(v.as_deref()).to_string());
+            }
+        });
+    });
+
+    view! {
+        <SettingRow label=label.to_string() hint=Some(hint)>
+            <select
+                on:change=move |e| {
+                    let chosen = event_target_value(&e);
+                    spawn_local(async move {
+                        if save_setting_with_feedback(key, &chosen, label).await {
+                            value.set(chosen);
+                        }
+                    });
+                }
+                class="w-full max-w-2xl rounded-md border border-border bg-background px-3 py-2 text-sm"
+            >
+                {CODEPAGE_OPTIONS
+                    .iter()
+                    .map(|(k, name)| {
+                        let k = *k;
+                        view! { <option value=k selected=move || value.get() == k>{*name}</option> }
+                    })
+                    .collect_view()}
+            </select>
+        </SettingRow>
+    }
+}
+
+#[cfg(test)]
+mod codepage_tests {
+    use super::*;
+
+    #[test]
+    fn unknown_or_empty_codepage_falls_back_to_default() {
+        assert_eq!(normalize_codepage(None), "windows-1252");
+        assert_eq!(normalize_codepage(Some("")), "windows-1252");
+        assert_eq!(normalize_codepage(Some("quatsch")), "windows-1252");
+        assert_eq!(normalize_codepage(Some("Windows-1250")), "windows-1250");
+        assert_eq!(normalize_codepage(Some("utf-8")), "utf-8");
+    }
+}

@@ -47,6 +47,7 @@ pub const PER_SERVER_KEYS: &[&str] = &[
     "quest_dir",
     "regen_base_dir",
     "locale_file_path",
+    "server_codepage",
     "server_process_names",
     "server_disk_path",
     "server_workdir",

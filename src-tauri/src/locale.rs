@@ -122,7 +122,9 @@ pub fn write_namespace(content: &str, namespace: &str, entries: &[LocaleEntry]) 
         ));
     }
     new_lines.extend(lines[end_idx..].iter().map(|s| s.to_string()));
-    Ok(new_lines.join("\n") + "\n")
+    // Zeilenende der Datei beibehalten (CRLF-Dateien bleiben CRLF).
+    let eol = crate::clientfs::detect_eol_or(content, "\n");
+    Ok(new_lines.join(eol) + eol)
 }
 
 /// Appends a brand-new, empty namespace at the end of the file.
@@ -130,9 +132,10 @@ pub fn create_namespace(content: &str, namespace: &str) -> Result<String, String
     if list_namespaces(content).iter().any(|n| n == namespace) {
         return Err(format!("Namespace 'gameforge.{namespace}' existiert bereits."));
     }
-    let mut out = content.trim_end_matches('\n').to_string();
-    out.push('\n');
-    out.push_str(&format!("gameforge.{namespace} = {{}}\n"));
+    let eol = crate::clientfs::detect_eol_or(content, "\n");
+    let mut out = content.trim_end_matches(['\r', '\n']).to_string();
+    out.push_str(eol);
+    out.push_str(&format!("gameforge.{namespace} = {{}}{eol}"));
     Ok(out)
 }
 
@@ -273,6 +276,19 @@ gameforge.dragon_lair_access._010_npcChat = \"Ich will den Drachen toeten! \"\n"
         assert!(!updated.contains("_100_say"));
         assert!(updated.contains("gameforge.dragon_lair_access._010_npcChat"));
         assert!(updated.starts_with("-- header comment, left untouched"));
+    }
+
+    #[test]
+    fn crlf_files_stay_crlf() {
+        let crlf = "-- kopf\r\ngameforge.a = {}\r\ngameforge.a.x = \"1\"\r\ngameforge.b = {}\r\n";
+        let updated = write_namespace(crlf, "a", &[LocaleEntry { key: "y".into(), value: "2".into() }]).unwrap();
+        assert_eq!(updated, "-- kopf\r\ngameforge.a = {}\r\ngameforge.a.y = \"2\"\r\ngameforge.b = {}\r\n");
+        let created = create_namespace(crlf, "c").unwrap();
+        assert!(created.ends_with("gameforge.c = {}\r\n"));
+        assert!(!created.replace("\r\n", "").contains('\n'));
+        // LF-Dateien bleiben LF
+        let lf = create_namespace("gameforge.a = {}\n", "c").unwrap();
+        assert_eq!(lf, "gameforge.a = {}\ngameforge.c = {}\n");
     }
 
     #[test]

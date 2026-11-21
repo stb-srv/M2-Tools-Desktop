@@ -8,6 +8,7 @@ mod bans;
 mod broadcast;
 mod build_deploy;
 mod client_unpack;
+mod clientfs;
 mod commands;
 mod connection_profiles;
 mod credentials;

@@ -2,7 +2,7 @@
 //! Server-Profil hat eigene Werte (siehe PER_SERVER_KEYS im Backend), ein
 //! Profilwechsel lädt die Felder neu.
 
-use super::shared::{SettingsCard, TextSetting, TextSettingDef};
+use super::shared::{CodepageSetting, SettingsCard, TextSetting, TextSettingDef};
 use leptos::prelude::*;
 
 struct Group {
@@ -131,6 +131,17 @@ pub fn ServerPathsTab() -> impl IntoView {
                     </SettingsCard>
                 })
                 .collect_view()}
+            <SettingsCard
+                title="Zeichenkodierung".to_string()
+                description="Gilt für Textdateien auf dem Server (Drop-Dateien, Quests, translate.lua) und lokale Mob-Drop-Dateien; je Server-Profil.".to_string()
+                icon="FileText"
+            >
+                <CodepageSetting
+                    key="server_codepage"
+                    label="Codepage Server-Dateien"
+                    hint="Dateien mit gültigem UTF-8 bleiben UTF-8; alle anderen werden in dieser Codepage gelesen und geschrieben. Standard ist Windows-1252."
+                />
+            </SettingsCard>
         </div>
     }
 }
