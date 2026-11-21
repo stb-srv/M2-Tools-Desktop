@@ -56,6 +56,9 @@ use tauri::Manager;
 
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
+    // reqwest nutzt rustls ohne eingebauten Provider (wie der Updater); ohne
+    // Default-Provider würde z. B. der Discord-Webhook beim ersten Aufruf abbrechen.
+    let _ = rustls::crypto::ring::default_provider().install_default();
     tauri::Builder::default()
         .plugin(tauri_plugin_opener::init())
         .plugin(tauri_plugin_dialog::init())
