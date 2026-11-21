@@ -14,6 +14,7 @@ pub mod toast;
 pub use button::{Button, ButtonSize, ButtonVariant};
 pub use icons::Icon;
 pub use modal::Modal;
+#[allow(unused_imports)]
 pub use modal::ConfirmDialog;
 pub use page_header::PageHeader;
 pub use password_input::PasswordInput;
