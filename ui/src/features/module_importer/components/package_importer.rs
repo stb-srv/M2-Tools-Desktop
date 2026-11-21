@@ -7,6 +7,7 @@ use crate::components::{Button, Icon};
 use crate::features::item_editor::components::shared::{Field, FlagSelect, StepRow};
 use crate::features::item_editor::item_flags::{subtypes_by_type, WEAR_FLAGS};
 use crate::features::item_editor::types::{js_number, num};
+use crate::features::module_importer::package_logic::*;
 use crate::features::module_importer::shared::*;
 use crate::util::{log_activity, use_save_shortcut};
 use crate::store::navigation::{use_section_dirty_as, Section};
@@ -17,122 +18,6 @@ use leptos::task::spawn_local;
 use serde_json::json;
 use std::collections::{BTreeSet, HashMap};
 
-#[derive(Clone, Debug, PartialEq)]
-struct WeaponRowState {
-    selected: bool,
-    /// -1 = noch nicht gewählt
-    subtype: i64,
-    is_sura: bool,
-    icon: Option<String>,
-}
-
-#[derive(Clone, Debug, PartialEq)]
-struct ArmorRowState {
-    selected: bool,
-    icon: Option<String>,
-}
-
-/// Eingaben, aus denen die Items gebaut werden (Schnappschuss beim Start).
-#[derive(Clone)]
-struct BuildInput {
-    ref_item: Option<ItemProtoInput>,
-    base_name: String,
-    base_locale_name: String,
-    chain_growth_percent: i64,
-    armor_subtype: i64,
-    armor_wearflag: i64,
-}
-
-fn or_else<'a>(a: &'a str, b: &'a str) -> &'a str {
-    if a.is_empty() {
-        b
-    } else {
-        a
-    }
-}
-
-fn build_weapon_item(inp: &BuildInput, vnum: i64, variant: &WeaponVariant, row: &WeaponRowState, level: i64) -> ItemProtoInput {
-    let template = inp.ref_item.clone().unwrap_or_else(|| empty_item(vnum, 1));
-    // Klassensperre kommt immer aus Subtyp/Modell der Variante, nie vom
-    // Referenz-Item; übrige antiflag-Bits des Referenz-Items bleiben.
-    let antiflag = (template.antiflag & !CLASS_ANTIFLAG_MASK) | class_antiflag_for_weapon(row.subtype, row.is_sura);
-    let suffix = if level > 0 { format!("+{level}") } else { String::new() };
-    let grow = |base: i64| scaled_value(base, level, inp.chain_growth_percent);
-    ItemProtoInput {
-        vnum,
-        vnum_range: 0,
-        name: fit_to_byte_limit_with_suffix(
-            &format!("{}_{}", or_else(&inp.base_name, "item"), variant.key),
-            &suffix,
-            ITEM_NAME_MAX_BYTES,
-        ),
-        locale_name: fit_to_byte_limit_with_suffix(
-            &format!("{} ({})", or_else(&inp.base_locale_name, &inp.base_name), label_for_variant(variant)),
-            &if suffix.is_empty() { String::new() } else { format!(" {suffix}") },
-            ITEM_NAME_MAX_BYTES,
-        ),
-        r#type: 1,
-        subtype: row.subtype,
-        antiflag,
-        size: size_for_subtype(row.subtype),
-        wearflag: if template.wearflag != 0 { template.wearflag } else { WEAPON_WEARFLAG },
-        // Schaden min/max + Zusatz-Angriffskraft wachsen gemeinsam.
-        value3: grow(template.value3),
-        value4: grow(template.value4),
-        value5: grow(template.value5),
-        // Kette wird danach explizit über set_item_refine_link verdrahtet.
-        refine_set: 0,
-        refined_vnum: 0,
-        ..template
-    }
-}
-
-fn build_armor_item(inp: &BuildInput, vnum: i64, shape_index: i64, selected_race_keys: &[String], level: i64) -> ItemProtoInput {
-    let template = inp.ref_item.clone().unwrap_or_else(|| empty_item(vnum, 2));
-    let blocked_mask = if selected_race_keys.is_empty() {
-        0
-    } else {
-        RACE_ANTIFLAG
-            .iter()
-            .filter(|(race, _)| !selected_race_keys.iter().any(|k| k == race))
-            .fold(0, |acc, (_, bit)| acc | bit)
-    };
-    let antiflag = (template.antiflag & !CLASS_ANTIFLAG_MASK) | blocked_mask;
-    let suffix = if level > 0 { format!(" +{level}") } else { String::new() };
-    let grow = |base: i64| scaled_value(base, level, inp.chain_growth_percent);
-    ItemProtoInput {
-        vnum,
-        vnum_range: 0,
-        name: fit_to_byte_limit_with_suffix(
-            &format!("{}_armor", or_else(&inp.base_name, "item")),
-            &if level > 0 { format!("+{level}") } else { String::new() },
-            ITEM_NAME_MAX_BYTES,
-        ),
-        locale_name: fit_to_byte_limit_with_suffix(
-            or_else(&inp.base_locale_name, &inp.base_name),
-            &suffix,
-            ITEM_NAME_MAX_BYTES,
-        ),
-        r#type: 2,
-        subtype: inp.armor_subtype,
-        antiflag,
-        // Rüstung ist im Inventar immer 1 Slot groß - nie vom Referenz-Item erben.
-        size: 1,
-        wearflag: if inp.armor_wearflag != 0 { inp.armor_wearflag } else { template.wearflag },
-        // value3 ist bei Rüstung der 3D-Modell-Shape-Index und bleibt konstant.
-        value0: grow(template.value0),
-        value1: grow(template.value1),
-        value5: grow(template.value5),
-        value3: shape_index,
-        refine_set: 0,
-        refined_vnum: 0,
-        ..template
-    }
-}
-
-fn race_list(armors: &[ArmorPiece]) -> String {
-    armors.iter().map(|a| race_label(&a.race)).collect::<Vec<_>>().join(", ")
-}
 
 async fn wire_refine_chain(level_vnums: &[i64]) -> Result<(), String> {
     for level in 0..level_vnums.len().saturating_sub(1) {
@@ -310,47 +195,19 @@ pub fn PackageImporter(#[prop(into)] on_imported: Callback<()>) -> impl IntoView
     };
 
     let selected_weapons = move || -> Vec<WeaponVariant> {
-        scan_result.with(|s| {
-            s.as_ref()
-                .map(|s| {
-                    s.weapons
-                        .iter()
-                        .filter(|v| weapon_rows.with(|r| r.get(&v.key).is_some_and(|x| x.selected)))
-                        .cloned()
-                        .collect()
-                })
-                .unwrap_or_default()
-        })
+        scan_result.with(|s| weapon_rows.with(|r| selected_weapons(s.as_ref(), r)))
     };
     let selected_armor_races = move || -> Vec<ArmorPiece> {
-        scan_result.with(|s| {
-            s.as_ref()
-                .map(|s| {
-                    s.armors
-                        .iter()
-                        .filter(|a| armor_rows.with(|r| r.get(&a.race).is_some_and(|x| x.selected)))
-                        .cloned()
-                        .collect()
-                })
-                .unwrap_or_default()
-        })
+        scan_result.with(|s| armor_rows.with(|r| selected_armor_races(s.as_ref(), r)))
     };
-    let armor_female_races =
-        move || selected_armor_races().into_iter().filter(|a| a.female_model_abs.is_some()).collect::<Vec<_>>();
-    let armor_male_only_races = move || {
-        selected_armor_races()
-            .into_iter()
-            .filter(|a| a.female_model_abs.is_none() && a.male_model_abs.is_some())
-            .collect::<Vec<_>>()
-    };
+    let armor_female_races = move || female_races(&selected_armor_races());
+    let armor_male_only_races = move || male_only_races(&selected_armor_races());
 
     let can_import = Memo::new(move |_| {
         let sw = selected_weapons();
-        scan_result.with(|s| s.is_some())
-            && (!sw.is_empty() || !selected_armor_races().is_empty())
-            && !base_name.with(|b| b.trim().is_empty())
-            && !base_locale_name.with(|b| b.trim().is_empty())
-            && sw.iter().all(|v| weapon_rows.with(|r| r.get(&v.key).map(|x| x.subtype) != Some(-1)))
+        let sa = selected_armor_races();
+        let scanned = scan_result.with(|s| s.is_some());
+        weapon_rows.with(|r| base_name.with(|n| base_locale_name.with(|l| can_import(scanned, &sw, r, &sa, n, l))))
     });
 
     use_save_shortcut(
@@ -360,8 +217,12 @@ pub fn PackageImporter(#[prop(into)] on_imported: Callback<()>) -> impl IntoView
     );
 
     let item_count = move || {
-        (selected_weapons().len() as i64 + if selected_armor_races().is_empty() { 0 } else { 1 })
-            * if chain_enabled.get() { chain_max_level.get() + 1 } else { 1 }
+        item_count(
+            selected_weapons().len(),
+            !selected_armor_races().is_empty(),
+            chain_enabled.get(),
+            chain_max_level.get(),
+        )
     };
 
     let run_import = move || {
@@ -390,9 +251,9 @@ pub fn PackageImporter(#[prop(into)] on_imported: Callback<()>) -> impl IntoView
         };
         let desc = description.get_untracked();
         let summ = summary.get_untracked();
-        let has_desc = !desc.trim().is_empty() || !summ.trim().is_empty();
+        let has_desc = has_description(&desc, &summ);
         let range_start0 = vnum_range_start.get_untracked();
-        let levels = if chain_enabled.get_untracked() { chain_max_level.get_untracked() + 1 } else { 1 };
+        let levels = levels_for(chain_enabled.get_untracked(), chain_max_level.get_untracked());
         let effects = include_effects.get_untracked();
 
         weapon_status.set(sel_weapons.iter().map(|v| (v.key.clone(), StepStatus::Pending)).collect());
@@ -442,7 +303,7 @@ pub fn PackageImporter(#[prop(into)] on_imported: Callback<()>) -> impl IntoView
                         }),
                     )
                     .await?;
-                    let icon_rel_path = format!("icon/item/{}.tga", pad5(base_vnum));
+                    let icon_rel_path = icon_rel_path(base_vnum);
 
                     let mut level_vnums = vec![];
                     for level in 0..levels {
@@ -478,13 +339,13 @@ pub fn PackageImporter(#[prop(into)] on_imported: Callback<()>) -> impl IntoView
                     let shape_index = if !female_races.is_empty() {
                         invoke::<i64>("next_free_shape_index", &json!({})).await?
                     } else {
-                        inp.ref_item.as_ref().map(|r| r.value3).unwrap_or(0)
+                        fallback_shape_index(inp.ref_item.as_ref())
                     };
 
                     if let Some(icon) = a_rows.get(&sel_armors[0].race).and_then(|r| r.icon.clone()) {
                         invoke_unit("write_item_icon", &json!({ "vnum": base_vnum, "sourcePath": icon })).await?;
                     }
-                    let icon_rel_path = format!("icon/item/{}.tga", pad5(base_vnum));
+                    let icon_rel_path = icon_rel_path(base_vnum);
                     let race_keys: Vec<String> = sel_armors.iter().map(|a| a.race.clone()).collect();
 
                     let mut level_vnums = vec![];
@@ -525,11 +386,12 @@ pub fn PackageImporter(#[prop(into)] on_imported: Callback<()>) -> impl IntoView
                 }
 
                 set_other("pack", StepStatus::Running);
-                if !sel_weapons.is_empty() {
+                let (pack_icons, pack_models) = pack_steps(!sel_weapons.is_empty(), !sel_armors.is_empty());
+                if pack_icons {
                     invoke_unit("pack_item_icons", &json!({})).await?;
+                }
+                if pack_models {
                     invoke_unit("pack_item_models", &json!({})).await?;
-                } else if !sel_armors.is_empty() {
-                    invoke_unit("pack_item_icons", &json!({})).await?;
                 }
                 for folder in &touched_race_packs {
                     invoke_unit("pack_folder", &json!({ "folderName": folder })).await?;
@@ -554,7 +416,7 @@ pub fn PackageImporter(#[prop(into)] on_imported: Callback<()>) -> impl IntoView
                     "record_import_batch",
                     &json!({
                         "moduleName": scan.module_name,
-                        "itemType": if !sel_weapons.is_empty() && sel_armors.is_empty() { 1 } else { 2 },
+                        "itemType": batch_item_type(!sel_weapons.is_empty(), !sel_armors.is_empty()),
                         "vnums": created,
                         "hadEffects": effects && !scan.effect_dirs.is_empty(),
                     }),
@@ -585,17 +447,7 @@ pub fn PackageImporter(#[prop(into)] on_imported: Callback<()>) -> impl IntoView
                             Err(_) => failed.push(vnum),
                         }
                     }
-                    message.push_str(&if failed.is_empty() {
-                        format!(
-                            "\n\nAlle {} bereits angelegten Einträge (Datenbank, Icon, item_list.txt) wurden automatisch zurückgenommen.",
-                            created.len()
-                        )
-                    } else {
-                        format!(
-                            "\n\nRollback teilweise fehlgeschlagen - bitte vnums {} manuell im DB Explorer prüfen.",
-                            join_vnums(&failed)
-                        )
-                    });
+                    message.push_str(&rollback_note(created.len(), &failed, " (Datenbank, Icon, item_list.txt)"));
                 }
                 batch_error.set(Some(message));
             }

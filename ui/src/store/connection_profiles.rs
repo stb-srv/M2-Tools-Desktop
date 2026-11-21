@@ -102,16 +102,23 @@ impl ConnectionProfiles {
         self.reload().await
     }
 
-    /// Nach einer Änderung an SSH/MySQL das aktive Profil mitziehen.
-    pub async fn sync_active(&self) -> Result<(), String> {
+    /// Nach einer Änderung an SSH/MySQL das aktive Profil mitziehen. Das
+    /// Hochzählen von `revision` mountet offene Editoren neu; meldet ein
+    /// Bereich ungespeicherte Änderungen, wird vorher nachgefragt.
+    /// `Ok(false)` = Nutzer hat abgebrochen (die Einstellungen sind dann
+    /// schon gespeichert, die Ansicht wird aber nicht neu aufgebaut).
+    pub async fn sync_active(&self) -> Result<bool, String> {
         let active = self.active_id.get_untracked();
         let name = self.profiles.with_untracked(|p| p.iter().find(|x| Some(x.id) == active).map(|x| x.name.clone()));
         if let Some(name) = name {
             invoke_unit("save_connection_profile", &json!({ "name": name })).await?;
         }
         self.reload().await?;
+        if !crate::util::confirm::confirm_discard_all("Ansichten jetzt neu laden").await {
+            return Ok(false);
+        }
         self.bump();
-        Ok(())
+        Ok(true)
     }
 }
 
