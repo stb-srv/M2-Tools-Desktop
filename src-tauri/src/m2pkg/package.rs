@@ -121,6 +121,11 @@ pub fn sha256_reader(r: &mut impl Read) -> Result<String, String> {
     Ok(hasher.finalize().iter().map(|b| format!("{b:02x}")).collect())
 }
 
+pub fn sha256_bytes(bytes: &[u8]) -> String {
+    let mut r = bytes;
+    sha256_reader(&mut r).unwrap_or_default()
+}
+
 pub fn sha256_file(path: &Path) -> Result<String, String> {
     let mut f = File::open(path).map_err(|e| format!("{}: {e}", path.display()))?;
     sha256_reader(&mut f)
@@ -305,6 +310,7 @@ impl Package {
             out.write_all(&buf[..n]).map_err(|e| format!("{}: {e}", dest.display()))?;
         }
         out.flush().map_err(|e| e.to_string())?;
+        out.sync_all().map_err(|e| format!("{}: {e}", dest.display()))?;
         Ok(hasher.finalize().iter().map(|b| format!("{b:02x}")).collect())
     }
 }
