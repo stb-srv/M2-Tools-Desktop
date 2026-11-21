@@ -23,17 +23,7 @@ struct ServerCommandResult {
     exit_status: Option<i64>,
 }
 
-/// Wie JavaScripts `Number(s)` (leer = 0, ungültig = NaN).
-fn js_number(s: &str) -> f64 {
-    let t = s.trim();
-    if t.is_empty() {
-        return 0.0;
-    }
-    if t.chars().any(|c| c.is_ascii_alphabetic() && c != 'e' && c != 'E') {
-        return f64::NAN;
-    }
-    t.parse::<f64>().unwrap_or(f64::NAN)
-}
+use crate::util::num::js_number_basic as js_number;
 
 /// Zahl als JSON-Argument (ganzzahlig, wenn möglich - wie JS es serialisiert).
 fn num_value(n: f64) -> Value {

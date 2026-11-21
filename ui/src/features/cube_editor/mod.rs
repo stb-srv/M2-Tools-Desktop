@@ -31,17 +31,10 @@ struct CubeRecipe {
 
 type Icons = RwSignal<HashMap<i64, Option<String>>>;
 
-fn ensure_icon(icons: Icons, vnum: f64, kind: EntityKind) {
-    let key = vnum as i64;
-    if kind != EntityKind::Item || icons.with_untracked(|m| m.contains_key(&key)) {
-        return;
+fn ensure_icon(vnum: f64, kind: EntityKind) {
+    if kind == EntityKind::Item {
+        crate::store::icons::ensure_icons([vnum as i64]);
     }
-    spawn_local(async move {
-        let url = invoke::<Option<String>>("get_item_icon", &json!({ "vnum": vnum })).await.ok().flatten();
-        icons.update(|m| {
-            m.insert(key, url);
-        });
-    });
 }
 
 #[component]
@@ -56,7 +49,7 @@ fn Field(label: &'static str, children: Children) -> impl IntoView {
 
 #[component]
 fn EntityLabel(#[prop(into)] vnum: Signal<f64>, kind: EntityKind, icons: Icons) -> impl IntoView {
-    Effect::new(move |_| ensure_icon(icons, vnum.get(), kind));
+    Effect::new(move |_| ensure_icon(vnum.get(), kind));
     view! {
         <span class="flex items-center gap-1.5">
             {move || {
@@ -190,7 +183,7 @@ pub fn CubeEditor() -> impl IntoView {
     let loading = RwSignal::new(false);
     let load_error = RwSignal::new(None::<String>);
     let selected_index = RwSignal::new(None::<usize>);
-    let icons: Icons = RwSignal::new(HashMap::new());
+    let icons: Icons = crate::store::icons::icons();
 
     let delete_confirm = RwSignal::new(None::<usize>);
     let saving = RwSignal::new(false);

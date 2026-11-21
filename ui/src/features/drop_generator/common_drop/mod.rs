@@ -20,7 +20,7 @@ use logic::*;
 use serde_json::json;
 use std::collections::{BTreeSet, HashMap, HashSet};
 
-type IconCache = RwSignal<HashMap<u32, Option<String>>>;
+type IconCache = RwSignal<crate::store::icons::IconMap>;
 
 /// Farbe pro Rang (Liste, Karten, Vorschau).
 const RANK_TINT: [&str; RANK_COUNT] = [
@@ -51,25 +51,16 @@ enum LineKind {
 fn ItemIcon(#[prop(into)] vnum: Signal<u32>, cache: IconCache, #[prop(optional)] large: bool) -> impl IntoView {
     Effect::new(move |_| {
         let v = vnum.get();
-        if v == 0 || cache.with_untracked(|c| c.contains_key(&v)) {
-            return;
+        if v != 0 {
+            crate::store::icons::ensure_icons([v as i64]);
         }
-        cache.update(|c| {
-            c.insert(v, None);
-        });
-        spawn_local(async move {
-            let url = invoke::<Option<String>>("get_item_icon", &json!({ "vnum": v })).await.ok().flatten();
-            cache.update(|c| {
-                c.insert(v, url);
-            });
-        });
     });
     let size = if large { "size-12" } else { "size-9" };
     view! {
         <div class=format!("flex {size} shrink-0 items-center justify-center overflow-hidden rounded-md border border-border bg-muted/40")>
             {move || {
                 let v = vnum.get();
-                match cache.with(|c| c.get(&v).cloned().flatten()).filter(|u| !u.is_empty()) {
+                match cache.with(|c| c.get(&(v as i64)).cloned().flatten()).filter(|u| !u.is_empty()) {
                     Some(url) => view! { <img src=url alt="" class="size-full object-contain"/> }.into_any(),
                     None => view! { <Icon name="Package" class="size-4 text-muted-foreground"/> }.into_any(),
                 }
@@ -101,7 +92,7 @@ pub fn CommonDropEditor() -> impl IntoView {
     let checks = RwSignal::new(HashMap::<u32, ItemCheck>::new());
     let pending_checks = StoredValue::new(HashSet::<u32>::new());
     let db_error = RwSignal::new(None::<String>);
-    let icons: IconCache = RwSignal::new(HashMap::new());
+    let icons: IconCache = crate::store::icons::icons();
     let validate_seq = StoredValue::new(0u64);
 
     let dirty = Memo::new(move |_| file.with(|f| f.is_some() && snapshot.with(|s| s != f)));

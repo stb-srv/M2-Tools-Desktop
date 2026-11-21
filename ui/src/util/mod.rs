@@ -7,6 +7,7 @@ pub mod connection;
 pub mod confirm;
 pub mod csv;
 pub mod format;
+pub mod num;
 pub mod shell;
 pub mod storage;
 pub mod changelog;

@@ -4,7 +4,7 @@
 
 use crate::components::{toast, Button, ButtonSize, ButtonVariant, Icon, PageHeader};
 use crate::features::mob_drop_editor::components::shared::{fmt_num, js_number, js_number_or, Field, NumInput};
-use crate::features::mob_drop_editor::{ensure_icons, IconMap};
+use crate::store::icons::{ensure_icons, icons as icon_cache, IconMap};
 use crate::features::shared::{ChangePreview, EntityBrowser, EntityKind, EntityRow, RestartServerButton, RowRenderer};
 use crate::util::{log_activity, use_save_shortcut};
 use crate::util::confirm::confirm_discard_if;
@@ -365,7 +365,7 @@ fn ItemRefEditor(
     });
     Effect::new(move |_| {
         if let Some(v) = numeric_vnum.get() {
-            ensure_icons(icons, [v as i64]);
+            ensure_icons([v as i64]);
         }
     });
     let icon = move || {
@@ -429,7 +429,7 @@ pub fn BoxEditor() -> impl IntoView {
     let loading = RwSignal::new(false);
     let load_error = RwSignal::new(None::<String>);
     let selected_index = RwSignal::new(None::<usize>);
-    let icons = RwSignal::new(IconMap::new());
+    let icons = icon_cache();
 
     let creating = RwSignal::new(false);
     let new_name = RwSignal::new(String::new());
