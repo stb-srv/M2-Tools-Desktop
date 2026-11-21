@@ -15,9 +15,7 @@ use std::path::Path;
 /// `save_with_format(Tga)` path were undecodable and showed as empty
 /// inventory slots.
 pub fn convert_to_tga(source_path: &str, dest_path: &Path) -> Result<(), String> {
-    let image = image::open(source_path)
-        .map_err(|e| format!("Bild konnte nicht gelesen werden: {e}"))?
-        .to_rgba8();
+    let image = image::open(source_path).map_err(|e| format!("Bild konnte nicht gelesen werden: {e}"))?.to_rgba8();
     let (width, height) = image.dimensions();
     if width > u16::MAX as u32 || height > u16::MAX as u32 {
         return Err(format!("Bild ist zu groß für TGA: {width}x{height}"));
@@ -77,10 +75,7 @@ mod tests {
         let source = source_path.to_str().unwrap();
         let dest = std::env::temp_dir().join(format!(
             "m2manager_imageconv_test_{}.tga",
-            std::time::SystemTime::now()
-                .duration_since(std::time::UNIX_EPOCH)
-                .unwrap()
-                .as_nanos()
+            std::time::SystemTime::now().duration_since(std::time::UNIX_EPOCH).unwrap().as_nanos()
         ));
 
         convert_to_tga(source, &dest).expect("convert_to_tga failed");

@@ -7,19 +7,13 @@ use tauri::State;
 use super::support::require_pool;
 
 #[tauri::command]
-pub async fn get_refine_chain(
-    state: State<'_, AppState>,
-    vnum: u32,
-) -> Result<Vec<refine::RefineChainNode>, String> {
+pub async fn get_refine_chain(state: State<'_, AppState>, vnum: u32) -> Result<Vec<refine::RefineChainNode>, String> {
     let pool = require_pool(&state).await?;
     refine::get_refine_chain(&pool, vnum).await
 }
 
 #[tauri::command]
-pub async fn get_refine_recipe(
-    state: State<'_, AppState>,
-    id: i32,
-) -> Result<Option<refine::RefineRecipe>, String> {
+pub async fn get_refine_recipe(state: State<'_, AppState>, id: i32) -> Result<Option<refine::RefineRecipe>, String> {
     let pool = require_pool(&state).await?;
     refine::get_recipe(&pool, id).await
 }
@@ -82,16 +76,12 @@ pub async fn undo_last_refine_change(state: State<'_, AppState>) -> Result<Strin
 
     match snapshot.action.as_str() {
         "update" => {
-            let prior = snapshot
-                .prior
-                .ok_or_else(|| "Ungültiger Undo-Zustand (fehlender vorheriger Stand).".to_string())?;
+            let prior = snapshot.prior.ok_or_else(|| "Ungültiger Undo-Zustand (fehlender vorheriger Stand).".to_string())?;
             refine::save_recipe(&pool, Some(snapshot.recipe_id), prior.cost, prior.prob, &prior.materials).await?;
             Ok(format!("Rezept #{} auf vorherigen Stand zurückgesetzt.", snapshot.recipe_id))
         }
         "delete" => {
-            let prior = snapshot
-                .prior
-                .ok_or_else(|| "Ungültiger Undo-Zustand (fehlender vorheriger Stand).".to_string())?;
+            let prior = snapshot.prior.ok_or_else(|| "Ungültiger Undo-Zustand (fehlender vorheriger Stand).".to_string())?;
             // Nothing can still reference the old id (delete_recipe refuses
             // to delete an in-use recipe), so re-creating under a fresh id
             // is equivalent - there's no dangling reference to repoint.
@@ -107,21 +97,13 @@ pub async fn undo_last_refine_change(state: State<'_, AppState>) -> Result<Strin
 }
 
 #[tauri::command]
-pub async fn set_item_refine_link(
-    state: State<'_, AppState>,
-    vnum: u32,
-    refine_set: u16,
-    refined_vnum: u32,
-) -> Result<(), String> {
+pub async fn set_item_refine_link(state: State<'_, AppState>, vnum: u32, refine_set: u16, refined_vnum: u32) -> Result<(), String> {
     let pool = require_pool(&state).await?;
     refine::set_item_refine_link(&pool, vnum, refine_set, refined_vnum).await
 }
 
 #[tauri::command]
-pub async fn find_refine_shop_sources(
-    state: State<'_, AppState>,
-    vnum: u32,
-) -> Result<Vec<refine::ShopSource>, String> {
+pub async fn find_refine_shop_sources(state: State<'_, AppState>, vnum: u32) -> Result<Vec<refine::ShopSource>, String> {
     let pool = require_pool(&state).await?;
     refine::find_shop_sources(&pool, vnum).await
 }

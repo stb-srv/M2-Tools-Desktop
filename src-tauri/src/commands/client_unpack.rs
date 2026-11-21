@@ -26,10 +26,7 @@ fn resolve_client_path(state: &State<'_, AppState>, client_path: Option<String>)
 }
 
 #[tauri::command(async)]
-pub fn get_client_unpack_status(
-    state: State<'_, AppState>,
-    client_path: Option<String>,
-) -> Result<UnpackStatus, String> {
+pub fn get_client_unpack_status(state: State<'_, AppState>, client_path: Option<String>) -> Result<UnpackStatus, String> {
     let client = resolve_client_path(&state, client_path)?;
     let configured = non_empty_setting(&state, "eterpack_tool_path")?;
     Ok(client_unpack::status(&client, configured))

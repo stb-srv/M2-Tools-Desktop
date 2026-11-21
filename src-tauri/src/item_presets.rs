@@ -31,18 +31,11 @@ pub fn save(conn: &Connection, name: &str, item: &ItemProtoInput) -> Result<i64,
         rusqlite::params![name, data],
     )
     .map_err(|e| e.to_string())?;
-    conn.query_row(
-        "SELECT id FROM item_presets WHERE name = ?1",
-        rusqlite::params![name],
-        |row| row.get(0),
-    )
-    .map_err(|e| e.to_string())
+    conn.query_row("SELECT id FROM item_presets WHERE name = ?1", rusqlite::params![name], |row| row.get(0)).map_err(|e| e.to_string())
 }
 
 pub fn list(conn: &Connection) -> Result<Vec<ItemPreset>, String> {
-    let mut stmt = conn
-        .prepare("SELECT id, name, data FROM item_presets ORDER BY name COLLATE NOCASE")
-        .map_err(|e| e.to_string())?;
+    let mut stmt = conn.prepare("SELECT id, name, data FROM item_presets ORDER BY name COLLATE NOCASE").map_err(|e| e.to_string())?;
     let rows = stmt
         .query_map([], |row| {
             let id: i64 = row.get(0)?;
@@ -62,8 +55,7 @@ pub fn list(conn: &Connection) -> Result<Vec<ItemPreset>, String> {
 }
 
 pub fn delete(conn: &Connection, id: i64) -> Result<(), String> {
-    conn.execute("DELETE FROM item_presets WHERE id = ?1", rusqlite::params![id])
-        .map_err(|e| e.to_string())?;
+    conn.execute("DELETE FROM item_presets WHERE id = ?1", rusqlite::params![id]).map_err(|e| e.to_string())?;
     Ok(())
 }
 

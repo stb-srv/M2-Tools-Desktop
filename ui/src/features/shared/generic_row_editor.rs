@@ -5,9 +5,9 @@
 //! passendem Eingabefeld, Primärschlüssel automatisch erkannt.
 
 use crate::components::{Button, ButtonSize, ButtonVariant, Icon, Skeleton};
-use crate::util::{log_activity, use_save_shortcut};
 use crate::store::navigation::{report_section_dirty, ModuleId, Section};
 use crate::tauri::invoke;
+use crate::util::{log_activity, use_save_shortcut};
 use leptos::prelude::*;
 use leptos::task::spawn_local;
 use serde::Deserialize;
@@ -50,7 +50,8 @@ pub fn GenericRowEditor(
     #[prop(into)] on_close: Callback<()>,
     #[prop(into, optional)] on_saved: Option<Callback<()>>,
     /// Wenn gesetzt, wird ein erfolgreiches Speichern ins Änderungsprotokoll geschrieben.
-    #[prop(into, optional)] activity_module: Option<ModuleId>,
+    #[prop(into, optional)]
+    activity_module: Option<ModuleId>,
 ) -> impl IntoView {
     let columns = RwSignal::new(None::<Vec<ColumnInfo>>);
     let load_error = RwSignal::new(None::<String>);
@@ -63,7 +64,9 @@ pub fn GenericRowEditor(
     let confirm_open = RwSignal::new(false);
 
     let pk_column = Memo::new(move |_| {
-        columns.with(|c| c.as_ref().map(|c| c.iter().filter(|c| c.is_primary_key).map(|c| c.name.clone()).collect::<Vec<_>>()).unwrap_or_default())
+        columns.with(|c| {
+            c.as_ref().map(|c| c.iter().filter(|c| c.is_primary_key).map(|c| c.name.clone()).collect::<Vec<_>>()).unwrap_or_default()
+        })
     });
     let changed_columns = Memo::new(move |_| values.with(|v| original.with(|o| changed(v, o))));
 

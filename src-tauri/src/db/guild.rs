@@ -36,26 +36,18 @@ pub async fn disband_guild(pool: &MySqlPool, database: &str, guild_id: i64) -> R
     let names: Vec<&str> = tables.iter().map(|t| t.name.as_str()).collect();
     for required in REQUIRED_TABLES {
         if !names.contains(required) {
-            return Err(format!(
-                "Datenbank '{database}' hat keine Tabelle '{required}' - falsche Datenbank gewählt?"
-            ));
+            return Err(format!("Datenbank '{database}' hat keine Tabelle '{required}' - falsche Datenbank gewählt?"));
         }
     }
     let has_quest_table = names.contains(&"quest");
 
-    sqlx::query(&format!("DELETE FROM `{database}`.`guild` WHERE id = ?"))
+    sqlx::query(&format!("DELETE FROM `{database}`.`guild` WHERE id = ?")).bind(guild_id).execute(pool).await.map_err(|e| e.to_string())?;
+
+    sqlx::query(&format!("DELETE FROM `{database}`.`guild_grade` WHERE guild_id = ?"))
         .bind(guild_id)
         .execute(pool)
         .await
         .map_err(|e| e.to_string())?;
-
-    sqlx::query(&format!(
-        "DELETE FROM `{database}`.`guild_grade` WHERE guild_id = ?"
-    ))
-    .bind(guild_id)
-    .execute(pool)
-    .await
-    .map_err(|e| e.to_string())?;
 
     // Best-effort: the withdraw-cooldown quest flag is a nice-to-have (so a
     // former member who logs back in still gets the real server's rejoin
@@ -73,21 +65,17 @@ pub async fn disband_guild(pool: &MySqlPool, database: &str, guild_id: i64) -> R
         .map_err(|e| e.to_string())?;
     }
 
-    sqlx::query(&format!(
-        "DELETE FROM `{database}`.`guild_member` WHERE guild_id = ?"
-    ))
-    .bind(guild_id)
-    .execute(pool)
-    .await
-    .map_err(|e| e.to_string())?;
+    sqlx::query(&format!("DELETE FROM `{database}`.`guild_member` WHERE guild_id = ?"))
+        .bind(guild_id)
+        .execute(pool)
+        .await
+        .map_err(|e| e.to_string())?;
 
-    sqlx::query(&format!(
-        "DELETE FROM `{database}`.`guild_comment` WHERE guild_id = ?"
-    ))
-    .bind(guild_id)
-    .execute(pool)
-    .await
-    .map_err(|e| e.to_string())?;
+    sqlx::query(&format!("DELETE FROM `{database}`.`guild_comment` WHERE guild_id = ?"))
+        .bind(guild_id)
+        .execute(pool)
+        .await
+        .map_err(|e| e.to_string())?;
 
     Ok(())
 }

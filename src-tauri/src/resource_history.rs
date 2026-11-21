@@ -77,9 +77,7 @@ pub fn list_recent(conn: &Connection, limit: i64) -> Result<Vec<ResourceHistoryP
              FROM resource_history ORDER BY id DESC LIMIT ?1",
         )
         .map_err(|e| e.to_string())?;
-    let rows = stmt
-        .query_map(rusqlite::params![limit], row_to_point)
-        .map_err(|e| e.to_string())?;
+    let rows = stmt.query_map(rusqlite::params![limit], row_to_point).map_err(|e| e.to_string())?;
     let mut points = rows.collect::<Result<Vec<_>, _>>().map_err(|e| e.to_string())?;
     points.reverse();
     Ok(points)
@@ -135,9 +133,7 @@ mod tests {
         for i in 0..(MAX_ROWS + 50) {
             record(&conn, i as f64, None, None, None).unwrap();
         }
-        let count: i64 = conn
-            .query_row("SELECT COUNT(*) FROM resource_history", [], |r| r.get(0))
-            .unwrap();
+        let count: i64 = conn.query_row("SELECT COUNT(*) FROM resource_history", [], |r| r.get(0)).unwrap();
         assert_eq!(count, MAX_ROWS);
         // oldest rows are the ones dropped, newest survive
         let points = list_recent(&conn, MAX_ROWS);

@@ -3,15 +3,15 @@
 // Allgemeine Helfer-API: nicht jede Funktion/Variante wird aktuell genutzt.
 #![allow(dead_code)]
 
-pub mod connection;
+pub mod changelog;
 pub mod confirm;
+pub mod connection;
 pub mod csv;
 pub mod format;
 pub mod num;
+pub mod release_notes;
 pub mod shell;
 pub mod storage;
-pub mod changelog;
-pub mod release_notes;
 
 use crate::store::navigation::ModuleId;
 use serde_json::json;
@@ -62,11 +62,7 @@ pub fn open_manual(section: Option<ModuleId>) {
 /// `section` der aktive Bereich (und Tab) ist (alle besuchten Bereiche bleiben
 /// versteckt gemountet - ohne die Prüfung würde ein verstecktes Modul den
 /// Tastendruck abfangen).
-pub fn use_save_shortcut(
-    section: crate::store::navigation::Section,
-    enabled: impl Fn() -> bool + 'static,
-    on_save: impl Fn() + 'static,
-) {
+pub fn use_save_shortcut(section: crate::store::navigation::Section, enabled: impl Fn() -> bool + 'static, on_save: impl Fn() + 'static) {
     use leptos::prelude::*;
     // In einem Bereich mit Tabs speichert nur der aktive Tab.
     let tab = use_context::<crate::store::navigation::TabContext>();

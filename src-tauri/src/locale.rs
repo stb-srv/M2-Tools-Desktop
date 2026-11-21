@@ -73,25 +73,15 @@ fn parse_entry(line: &str, namespace: &str) -> Option<LocaleEntry> {
     let rest = trimmed.strip_prefix(&prefix)?;
     let (key, rhs) = rest.split_once('=')?;
     let value = unescape_lua_string(rhs)?;
-    Some(LocaleEntry {
-        key: key.trim().to_string(),
-        value,
-    })
+    Some(LocaleEntry { key: key.trim().to_string(), value })
 }
 
 pub fn list_namespaces(content: &str) -> Vec<String> {
-    content
-        .lines()
-        .filter_map(parse_header)
-        .map(|s| s.to_string())
-        .collect()
+    content.lines().filter_map(parse_header).map(|s| s.to_string()).collect()
 }
 
 pub fn read_namespace(content: &str, namespace: &str) -> Vec<LocaleEntry> {
-    content
-        .lines()
-        .filter_map(|l| parse_entry(l, namespace))
-        .collect()
+    content.lines().filter_map(|l| parse_entry(l, namespace)).collect()
 }
 
 /// Replaces the header-through-last-entry line range for `namespace` with
@@ -115,11 +105,7 @@ pub fn write_namespace(content: &str, namespace: &str, entries: &[LocaleEntry]) 
 
     let mut new_lines: Vec<String> = lines[..=header_idx].iter().map(|s| s.to_string()).collect();
     for entry in entries {
-        new_lines.push(format!(
-            "gameforge.{namespace}.{} = {}",
-            entry.key,
-            escape_lua_string(&entry.value)
-        ));
+        new_lines.push(format!("gameforge.{namespace}.{} = {}", entry.key, escape_lua_string(&entry.value)));
     }
     new_lines.extend(lines[end_idx..].iter().map(|s| s.to_string()));
     // Zeilenende der Datei beibehalten (CRLF-Dateien bleiben CRLF).
@@ -196,26 +182,17 @@ pub struct LocaleCompletenessReport {
 /// `quest_files` is (relative_path, content) for every quest source file -
 /// the caller is responsible for fetching those (SFTP), this stays a pure,
 /// independently testable function like the rest of this module.
-pub fn check_completeness(
-    defined: &[(String, String)],
-    quest_files: &[(String, String)],
-) -> LocaleCompletenessReport {
+pub fn check_completeness(defined: &[(String, String)], quest_files: &[(String, String)]) -> LocaleCompletenessReport {
     let mut refs: Vec<LocaleReference> = Vec::new();
     for (path, content) in quest_files {
         for (line_idx, line) in content.lines().enumerate() {
             for (namespace, key) in extract_line_references(line) {
-                refs.push(LocaleReference {
-                    namespace,
-                    key,
-                    file: path.clone(),
-                    line: (line_idx + 1) as u32,
-                });
+                refs.push(LocaleReference { namespace, key, file: path.clone(), line: (line_idx + 1) as u32 });
             }
         }
     }
 
-    let defined_set: std::collections::HashSet<(&str, &str)> =
-        defined.iter().map(|(ns, k)| (ns.as_str(), k.as_str())).collect();
+    let defined_set: std::collections::HashSet<(&str, &str)> = defined.iter().map(|(ns, k)| (ns.as_str(), k.as_str())).collect();
 
     let mut seen_missing = std::collections::HashSet::new();
     let mut missing = Vec::new();
@@ -226,13 +203,9 @@ pub fn check_completeness(
         }
     }
 
-    let referenced_set: std::collections::HashSet<(&str, &str)> =
-        refs.iter().map(|r| (r.namespace.as_str(), r.key.as_str())).collect();
-    let mut orphaned: Vec<String> = defined
-        .iter()
-        .filter(|(ns, k)| !referenced_set.contains(&(ns.as_str(), k.as_str())))
-        .map(|(ns, k)| format!("{ns}.{k}"))
-        .collect();
+    let referenced_set: std::collections::HashSet<(&str, &str)> = refs.iter().map(|r| (r.namespace.as_str(), r.key.as_str())).collect();
+    let mut orphaned: Vec<String> =
+        defined.iter().filter(|(ns, k)| !referenced_set.contains(&(ns.as_str(), k.as_str()))).map(|(ns, k)| format!("{ns}.{k}")).collect();
     orphaned.sort();
 
     LocaleCompletenessReport { missing, orphaned }
@@ -266,12 +239,9 @@ gameforge.dragon_lair_access._010_npcChat = \"Ich will den Drachen toeten! \"\n"
 
     #[test]
     fn write_namespace_leaves_rest_of_file_untouched() {
-        let updated = write_namespace(
-            SAMPLE,
-            "horse_summon",
-            &[LocaleEntry { key: "_10_npcChat".to_string(), value: "Neuer Text".to_string() }],
-        )
-        .unwrap();
+        let updated =
+            write_namespace(SAMPLE, "horse_summon", &[LocaleEntry { key: "_10_npcChat".to_string(), value: "Neuer Text".to_string() }])
+                .unwrap();
         assert!(updated.contains("gameforge.horse_summon._10_npcChat = \"Neuer Text\""));
         assert!(!updated.contains("_100_say"));
         assert!(updated.contains("gameforge.dragon_lair_access._010_npcChat"));
@@ -306,16 +276,8 @@ gameforge.dragon_lair_access._010_npcChat = \"Ich will den Drachen toeten! \"\n"
 
     #[test]
     fn extracts_multiple_references_on_one_line() {
-        let refs = extract_line_references(
-            "say(string.format(gameforge.a.b, gameforge.c.d))",
-        );
-        assert_eq!(
-            refs,
-            vec![
-                ("a".to_string(), "b".to_string()),
-                ("c".to_string(), "d".to_string())
-            ]
-        );
+        let refs = extract_line_references("say(string.format(gameforge.a.b, gameforge.c.d))");
+        assert_eq!(refs, vec![("a".to_string(), "b".to_string()), ("c".to_string(), "d".to_string())]);
     }
 
     #[test]
@@ -328,14 +290,10 @@ gameforge.dragon_lair_access._010_npcChat = \"Ich will den Drachen toeten! \"\n"
 
     #[test]
     fn check_completeness_finds_missing_and_orphaned() {
-        let defined = vec![
-            ("horse_summon".to_string(), "_10_npcChat".to_string()),
-            ("horse_summon".to_string(), "_20_unused".to_string()),
-        ];
+        let defined = vec![("horse_summon".to_string(), "_10_npcChat".to_string()), ("horse_summon".to_string(), "_20_unused".to_string())];
         let quest_files = vec![(
             "Category/Quest.lua".to_string(),
-            "say(gameforge.horse_summon._10_npcChat)\nsay(gameforge.dragon_lair_access._010_npcChat)\n"
-                .to_string(),
+            "say(gameforge.horse_summon._10_npcChat)\nsay(gameforge.dragon_lair_access._010_npcChat)\n".to_string(),
         )];
         let report = check_completeness(&defined, &quest_files);
 
@@ -350,10 +308,7 @@ gameforge.dragon_lair_access._010_npcChat = \"Ich will den Drachen toeten! \"\n"
 
     #[test]
     fn check_completeness_dedupes_repeated_missing_reference() {
-        let quest_files = vec![(
-            "Q.lua".to_string(),
-            "gameforge.a.b\ngameforge.a.b\n".to_string(),
-        )];
+        let quest_files = vec![("Q.lua".to_string(), "gameforge.a.b\ngameforge.a.b\n".to_string())];
         let report = check_completeness(&[], &quest_files);
         assert_eq!(report.missing.len(), 1);
         assert_eq!(report.missing[0].line, 1);

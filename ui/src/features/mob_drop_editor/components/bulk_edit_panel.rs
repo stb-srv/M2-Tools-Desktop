@@ -62,7 +62,6 @@ pub fn BulkEditPanel(
         confirming.set(false);
     };
 
-
     view! {
         <div class="space-y-3 rounded-lg border border-border p-3">
             <h2 class="text-sm font-medium text-muted-foreground">"Prozentwerte in einem Rutsch ändern"</h2>

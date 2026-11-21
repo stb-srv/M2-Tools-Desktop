@@ -35,8 +35,7 @@ const PAD_X: f64 = 8.0;
 const TAB_SIZE: usize = 4;
 const TEXT_STYLE: &str = "line-height:18px;tab-size:4;-moz-tab-size:4;padding:4px 8px;margin:0;font-variant-ligatures:none;";
 /// Platzhalter hinter einer gefalteten Kopfzeile.
-const FOLD_PLACEHOLDER: &str =
-    "<span class=\"ml-1 rounded-sm border border-border bg-muted px-1 text-muted-foreground\">⋯</span>";
+const FOLD_PLACEHOLDER: &str = "<span class=\"ml-1 rounded-sm border border-border bg-muted px-1 text-muted-foreground\">⋯</span>";
 /// So viele Schritte merkt sich Rückgängig.
 const MAX_UNDO: usize = 300;
 /// Gleichartige Eingaben innerhalb dieser Zeit werden zu einem
@@ -139,15 +138,17 @@ impl CodeEditorHandle {
     /// Bringt die Textarea auf den Stand von `doc` und setzt optional die
     /// Auswahl (voller Text). Gibt die neue Ansicht zurück.
     fn sync(&self, sel: Option<(usize, usize)>) {
-        let (view, sel16) = self.core.try_update_value(|c| {
-            c.view = c.doc.view();
-            let sel16 = sel.map(|(s, e)| {
-                let (vs, ve) = (c.doc.to_view(s), c.doc.to_view(e));
-                (byte_to_utf16(&c.view, vs), byte_to_utf16(&c.view, ve))
-            });
-            (c.view.clone(), sel16)
-        })
-        .unwrap_or_default();
+        let (view, sel16) = self
+            .core
+            .try_update_value(|c| {
+                c.view = c.doc.view();
+                let sel16 = sel.map(|(s, e)| {
+                    let (vs, ve) = (c.doc.to_view(s), c.doc.to_view(e));
+                    (byte_to_utf16(&c.view, vs), byte_to_utf16(&c.view, ve))
+                });
+                (c.view.clone(), sel16)
+            })
+            .unwrap_or_default();
         if let Some(ta) = self.textarea.get_untracked() {
             if ta.value() != view {
                 ta.set_value(&view);
@@ -270,15 +271,17 @@ impl CodeEditorHandle {
                 c.redo.clear();
             }
         });
-        let (from, to) = self.core.try_update_value(|c| {
-            let ls = line_starts(&c.doc.text);
-            let idx = line.clamp(1, ls.len()) - 1;
-            let from = ls[idx];
-            let to = ls.get(idx + 1).map(|n| n - 1).unwrap_or(c.doc.text.len());
-            c.doc.reveal(from, to.max(from + 1).min(c.doc.text.len().max(from)));
-            (from, to)
-        })
-        .unwrap_or_default();
+        let (from, to) = self
+            .core
+            .try_update_value(|c| {
+                let ls = line_starts(&c.doc.text);
+                let idx = line.clamp(1, ls.len()) - 1;
+                let from = ls[idx];
+                let to = ls.get(idx + 1).map(|n| n - 1).unwrap_or(c.doc.text.len());
+                c.doc.reveal(from, to.max(from + 1).min(c.doc.text.len().max(from)));
+                (from, to)
+            })
+            .unwrap_or_default();
         let _ = ta.focus();
         self.sync(Some((from, to)));
         let view = self.core.with_value(|c| c.view.clone());
@@ -307,8 +310,7 @@ impl CodeEditorHandle {
             if fold {
                 // Innersten noch offenen Block falten.
                 let mut l = line;
-                loop {
-                    let Some(h) = Doc::enclosing_block(l, &ranges) else { break };
+                while let Some(h) = Doc::enclosing_block(l, &ranges) {
                     if !c.doc.is_folded_line(h) {
                         c.doc.fold_line(h, &ranges);
                         break;
@@ -449,9 +451,8 @@ pub fn CodeEditor(
     };
 
     // ---- Autovervollständigung ----
-    let char_width = move || {
-        measure.get_untracked().map(|m| m.get_bounding_client_rect().width() / 10.0).filter(|w| *w > 0.0).unwrap_or(7.2)
-    };
+    let char_width =
+        move || measure.get_untracked().map(|m| m.get_bounding_client_rect().width() / 10.0).filter(|w| *w > 0.0).unwrap_or(7.2);
     let open_completion = move |explicit: bool| {
         let Some((s, e)) = h.sel16() else { return };
         if s != e {
@@ -474,13 +475,7 @@ pub fn CodeEditor(
             let line = line_of(&c.view, start);
             let line_start = c.view[..start].rfind('\n').map(|i| i + 1).unwrap_or(0);
             let col = display_cols(&c.view[line_start..start]);
-            Some(CompUi {
-                items,
-                sel: 0,
-                start,
-                top: PAD_Y + (line + 1) as f64 * LINE_HEIGHT,
-                left: PAD_X + col as f64 * cw,
-            })
+            Some(CompUi { items, sel: 0, start, top: PAD_Y + (line + 1) as f64 * LINE_HEIGHT, left: PAD_X + col as f64 * cw })
         });
         comp.set(next);
     };
@@ -610,10 +605,8 @@ pub fn CodeEditor(
     };
     let on_input = move |e: web_sys::Event| {
         let Some(ta) = textarea.get_untracked() else { return };
-        let (kind, data) = e
-            .dyn_ref::<web_sys::InputEvent>()
-            .map(|ie| (ie.input_type(), ie.data().unwrap_or_default()))
-            .unwrap_or_default();
+        let (kind, data) =
+            e.dyn_ref::<web_sys::InputEvent>().map(|ie| (ie.input_type(), ie.data().unwrap_or_default())).unwrap_or_default();
         let new_view = ta.value();
         let now = js_sys::Date::now();
         let res = h.core.try_update_value(|c| {
@@ -625,11 +618,8 @@ pub fn CodeEditor(
                     (c.doc.to_full(vs, false), c.doc.to_full(ve, false))
                 })
                 .unwrap_or((0, 0));
-            let mergeable = matches!(kind.as_str(), "insertText" | "deleteContentBackward" | "deleteContentForward")
-                && !c.accepting;
-            let merge = mergeable
-                && c.last_kind.as_ref().is_some_and(|(k, t)| *k == kind && now - t < UNDO_MERGE_MS)
-                && !c.undo.is_empty();
+            let mergeable = matches!(kind.as_str(), "insertText" | "deleteContentBackward" | "deleteContentForward") && !c.accepting;
+            let merge = mergeable && c.last_kind.as_ref().is_some_and(|(k, t)| *k == kind && now - t < UNDO_MERGE_MS) && !c.undo.is_empty();
             if merge {
                 c.redo.clear();
             } else {

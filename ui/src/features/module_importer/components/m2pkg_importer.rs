@@ -269,8 +269,12 @@ pub fn M2PkgImporter(#[prop(into)] on_imported: Callback<()>) -> impl IntoView {
 
     let choose_out_dir = move || {
         spawn_local(async move {
-            if let Ok(Some(p)) =
-                dialog_open_one(&OpenDialogOptions { directory: true, title: Some("Ordner für die SQL-Dateien".into()), ..Default::default() }).await
+            if let Ok(Some(p)) = dialog_open_one(&OpenDialogOptions {
+                directory: true,
+                title: Some("Ordner für die SQL-Dateien".into()),
+                ..Default::default()
+            })
+            .await
             {
                 out_dir.set(p.clone());
                 save_setting(KEY_OUT, p);
@@ -299,12 +303,8 @@ pub fn M2PkgImporter(#[prop(into)] on_imported: Callback<()>) -> impl IntoView {
             i.as_ref()
                 .map(|i| {
                     selected.with(|s| {
-                        let mut names: Vec<String> = i
-                            .items
-                            .iter()
-                            .filter(|x| s.contains(&x.vnum))
-                            .flat_map(|x| x.assumed_antiflags.clone())
-                            .collect();
+                        let mut names: Vec<String> =
+                            i.items.iter().filter(|x| s.contains(&x.vnum)).flat_map(|x| x.assumed_antiflags.clone()).collect();
                         names.sort();
                         names.dedup();
                         names
@@ -504,7 +504,7 @@ pub fn M2PkgImporter(#[prop(into)] on_imported: Callback<()>) -> impl IntoView {
                         </div>
 
                         <div class="max-h-[28rem] space-y-1 overflow-y-auto rounded-md border border-border p-2">
-                            {i.items.iter().cloned().map(|it| {
+                            {i.items.iter().map(|it| {
                                 let vnum = it.vnum;
                                 let missing_name = it.name.is_none();
                                 view! {

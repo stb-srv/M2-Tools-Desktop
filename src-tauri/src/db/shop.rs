@@ -38,10 +38,7 @@ pub struct ShopUsage {
 // Windows-1252-encoded text (umlauts etc. aren't valid UTF-8 start bytes),
 // so decode explicitly rather than assuming UTF-8.
 pub(crate) fn decode_name(bytes: &[u8]) -> String {
-    let trimmed = bytes
-        .split(|&b| b == 0)
-        .next()
-        .unwrap_or(bytes);
+    let trimmed = bytes.split(|&b| b == 0).next().unwrap_or(bytes);
     let (text, _, _) = encoding_rs::WINDOWS_1252.decode(trimmed);
     text.trim().to_string()
 }
@@ -97,9 +94,7 @@ pub async fn list_shops(pool: &MySqlPool) -> Result<Vec<ShopSummary>, String> {
                 vnum: row.try_get("vnum").unwrap_or_default(),
                 name: row.try_get("name").unwrap_or_default(),
                 npc_vnum: row.try_get("npc_vnum").unwrap_or_default(),
-                npc_name: npc_name_raw
-                    .map(|b| decode_name(&b))
-                    .unwrap_or_else(|| "?".to_string()),
+                npc_name: npc_name_raw.map(|b| decode_name(&b)).unwrap_or_else(|| "?".to_string()),
                 npc_folder: row.try_get("npc_folder").ok(),
                 item_count: row.try_get("item_count").unwrap_or_default(),
             }
@@ -118,10 +113,8 @@ pub async fn rename_shop(pool: &MySqlPool, shop_vnum: i32, name: &str) -> Result
 }
 
 pub async fn create_shop(pool: &MySqlPool, name: &str, npc_vnum: i16) -> Result<i32, String> {
-    let next_vnum: Option<i32> = sqlx::query_scalar("SELECT MAX(vnum) + 1 FROM player.shop")
-        .fetch_one(pool)
-        .await
-        .map_err(|e| e.to_string())?;
+    let next_vnum: Option<i32> =
+        sqlx::query_scalar("SELECT MAX(vnum) + 1 FROM player.shop").fetch_one(pool).await.map_err(|e| e.to_string())?;
     let vnum = next_vnum.unwrap_or(1);
 
     sqlx::query("INSERT INTO player.shop (vnum, name, npc_vnum) VALUES (?, ?, ?)")
@@ -189,11 +182,7 @@ pub async fn find_shops_selling_item(pool: &MySqlPool, item_vnum: u32) -> Result
         .collect())
 }
 
-pub async fn search_items(
-    pool: &MySqlPool,
-    query: &str,
-    limit: i64,
-) -> Result<Vec<ItemSearchResult>, String> {
+pub async fn search_items(pool: &MySqlPool, query: &str, limit: i64) -> Result<Vec<ItemSearchResult>, String> {
     let rows = if let Ok(vnum) = query.trim().parse::<u32>() {
         // Früher nur `WHERE vnum = ?`: eine Zahl lieferte so höchstens einen
         // einzigen Treffer (oder keinen). Jetzt wie in den Pickern alle
@@ -234,10 +223,7 @@ pub async fn search_items(
         .into_iter()
         .map(|row| {
             let name_raw: Vec<u8> = row.try_get("locale_name").unwrap_or_default();
-            ItemSearchResult {
-                vnum: super::get_vnum(&row, "vnum").unwrap_or_default(),
-                name: decode_name(&name_raw),
-            }
+            ItemSearchResult { vnum: super::get_vnum(&row, "vnum").unwrap_or_default(), name: decode_name(&name_raw) }
         })
         .collect())
 }
@@ -253,22 +239,12 @@ pub struct EntityBrowsePage {
 /// rows). `query` narrows like `search_items` (digits = vnum substring,
 /// otherwise case-insensitive name substring), but with a real total count
 /// and paging instead of `search_items`'s fixed `LIMIT`.
-pub async fn browse_items(
-    pool: &MySqlPool,
-    query: Option<&str>,
-    offset: i64,
-    limit: i64,
-) -> Result<EntityBrowsePage, String> {
+pub async fn browse_items(pool: &MySqlPool, query: Option<&str>, offset: i64, limit: i64) -> Result<EntityBrowsePage, String> {
     browse_table(pool, "item_proto", query, offset, limit).await
 }
 
 /// Same as `browse_items` but against `mob_proto`.
-pub async fn browse_mobs(
-    pool: &MySqlPool,
-    query: Option<&str>,
-    offset: i64,
-    limit: i64,
-) -> Result<EntityBrowsePage, String> {
+pub async fn browse_mobs(pool: &MySqlPool, query: Option<&str>, offset: i64, limit: i64) -> Result<EntityBrowsePage, String> {
     browse_table(pool, "mob_proto", query, offset, limit).await
 }
 
@@ -291,19 +267,11 @@ pub async fn fetch_all_entity_names(pool: &MySqlPool, table: &str) -> Result<Vec
 // `table` is always one of the two hardcoded literals above, never
 // user-supplied, so interpolating it directly into the SQL string is safe -
 // the actual user-controlled value (`query`) is always bound as a parameter.
-async fn browse_table(
-    pool: &MySqlPool,
-    table: &str,
-    query: Option<&str>,
-    offset: i64,
-    limit: i64,
-) -> Result<EntityBrowsePage, String> {
+async fn browse_table(pool: &MySqlPool, table: &str, query: Option<&str>, offset: i64, limit: i64) -> Result<EntityBrowsePage, String> {
     let trimmed = query.map(str::trim).filter(|q| !q.is_empty());
     let (where_clause, like_value): (&str, Option<String>) = match trimmed {
         None => ("", None),
-        Some(q) if q.chars().all(|c| c.is_ascii_digit()) => {
-            ("WHERE CAST(vnum AS CHAR) LIKE ?", Some(format!("%{q}%")))
-        }
+        Some(q) if q.chars().all(|c| c.is_ascii_digit()) => ("WHERE CAST(vnum AS CHAR) LIKE ?", Some(format!("%{q}%"))),
         Some(q) => (
             "WHERE LOWER(CONVERT(locale_name USING latin1)) LIKE LOWER(CONVERT(? USING latin1))",
             Some(format!("%{}%", q.replace('%', "\\%").replace('_', "\\_"))),
@@ -315,34 +283,20 @@ async fn browse_table(
     if let Some(v) = &like_value {
         count_query = count_query.bind(v);
     }
-    let total: i64 = count_query
-        .fetch_one(pool)
-        .await
-        .map_err(|e| e.to_string())?
-        .try_get::<i64, _>("c")
-        .unwrap_or(0);
+    let total: i64 = count_query.fetch_one(pool).await.map_err(|e| e.to_string())?.try_get::<i64, _>("c").unwrap_or(0);
 
-    let rows_sql =
-        format!("SELECT vnum, locale_name FROM player.{table} {where_clause} ORDER BY vnum LIMIT ? OFFSET ?");
+    let rows_sql = format!("SELECT vnum, locale_name FROM player.{table} {where_clause} ORDER BY vnum LIMIT ? OFFSET ?");
     let mut rows_query = sqlx::query(&rows_sql);
     if let Some(v) = &like_value {
         rows_query = rows_query.bind(v);
     }
-    let rows = rows_query
-        .bind(limit)
-        .bind(offset)
-        .fetch_all(pool)
-        .await
-        .map_err(|e| e.to_string())?;
+    let rows = rows_query.bind(limit).bind(offset).fetch_all(pool).await.map_err(|e| e.to_string())?;
 
     let rows = rows
         .into_iter()
         .map(|row| {
             let name_raw: Vec<u8> = row.try_get("locale_name").unwrap_or_default();
-            ItemSearchResult {
-                vnum: super::get_vnum(&row, "vnum").unwrap_or_default(),
-                name: decode_name(&name_raw),
-            }
+            ItemSearchResult { vnum: super::get_vnum(&row, "vnum").unwrap_or_default(), name: decode_name(&name_raw) }
         })
         .collect();
 
@@ -351,11 +305,7 @@ async fn browse_table(
 
 /// Same lookup as `search_items` but against `mob_proto` - used by the Quest
 /// Builder's kill-quest template to pick a monster vnum by name.
-pub async fn search_mobs(
-    pool: &MySqlPool,
-    query: &str,
-    limit: i64,
-) -> Result<Vec<ItemSearchResult>, String> {
+pub async fn search_mobs(pool: &MySqlPool, query: &str, limit: i64) -> Result<Vec<ItemSearchResult>, String> {
     let rows = if let Ok(vnum) = query.trim().parse::<u32>() {
         sqlx::query(
             "SELECT vnum, locale_name FROM player.mob_proto \
@@ -385,20 +335,12 @@ pub async fn search_mobs(
         .into_iter()
         .map(|row| {
             let name_raw: Vec<u8> = row.try_get("locale_name").unwrap_or_default();
-            ItemSearchResult {
-                vnum: super::get_vnum(&row, "vnum").unwrap_or_default(),
-                name: decode_name(&name_raw),
-            }
+            ItemSearchResult { vnum: super::get_vnum(&row, "vnum").unwrap_or_default(), name: decode_name(&name_raw) }
         })
         .collect())
 }
 
-pub async fn update_shop_item_count(
-    pool: &MySqlPool,
-    shop_vnum: i32,
-    item_vnum: i32,
-    count: i32,
-) -> Result<(), String> {
+pub async fn update_shop_item_count(pool: &MySqlPool, shop_vnum: i32, item_vnum: i32, count: i32) -> Result<(), String> {
     sqlx::query("UPDATE player.shop_item SET count = ? WHERE shop_vnum = ? AND item_vnum = ?")
         .bind(count.max(0))
         .bind(shop_vnum)
@@ -409,12 +351,7 @@ pub async fn update_shop_item_count(
     Ok(())
 }
 
-pub async fn add_shop_item(
-    pool: &MySqlPool,
-    shop_vnum: i32,
-    item_vnum: i32,
-    count: i32,
-) -> Result<(), String> {
+pub async fn add_shop_item(pool: &MySqlPool, shop_vnum: i32, item_vnum: i32, count: i32) -> Result<(), String> {
     sqlx::query(
         "INSERT INTO player.shop_item (shop_vnum, item_vnum, count) VALUES (?, ?, ?) \
          ON DUPLICATE KEY UPDATE count = VALUES(count)",
@@ -428,11 +365,7 @@ pub async fn add_shop_item(
     Ok(())
 }
 
-pub async fn remove_shop_item(
-    pool: &MySqlPool,
-    shop_vnum: i32,
-    item_vnum: i32,
-) -> Result<(), String> {
+pub async fn remove_shop_item(pool: &MySqlPool, shop_vnum: i32, item_vnum: i32) -> Result<(), String> {
     sqlx::query("DELETE FROM player.shop_item WHERE shop_vnum = ? AND item_vnum = ?")
         .bind(shop_vnum)
         .bind(item_vnum)
@@ -445,26 +378,11 @@ pub async fn remove_shop_item(
 /// Bulk-overwrites shop_item.count so existing entries pick up a new stack
 /// limit retroactively (the per-shop/global "max" setting only affects items
 /// added afterwards otherwise). `shop_vnum: None` applies to every shop.
-pub async fn sync_stack_sizes(
-    pool: &MySqlPool,
-    shop_vnum: Option<i32>,
-    count: i32,
-) -> Result<u64, String> {
+pub async fn sync_stack_sizes(pool: &MySqlPool, shop_vnum: Option<i32>, count: i32) -> Result<u64, String> {
     let count = count.max(1);
     let result = match shop_vnum {
-        Some(vnum) => {
-            sqlx::query("UPDATE player.shop_item SET count = ? WHERE shop_vnum = ?")
-                .bind(count)
-                .bind(vnum)
-                .execute(pool)
-                .await
-        }
-        None => {
-            sqlx::query("UPDATE player.shop_item SET count = ?")
-                .bind(count)
-                .execute(pool)
-                .await
-        }
+        Some(vnum) => sqlx::query("UPDATE player.shop_item SET count = ? WHERE shop_vnum = ?").bind(count).bind(vnum).execute(pool).await,
+        None => sqlx::query("UPDATE player.shop_item SET count = ?").bind(count).execute(pool).await,
     }
     .map_err(|e| e.to_string())?;
     Ok(result.rows_affected())
@@ -472,16 +390,8 @@ pub async fn sync_stack_sizes(
 
 pub async fn delete_shop(pool: &MySqlPool, shop_vnum: i32) -> Result<(), String> {
     let mut tx = pool.begin().await.map_err(|e| e.to_string())?;
-    sqlx::query("DELETE FROM player.shop_item WHERE shop_vnum = ?")
-        .bind(shop_vnum)
-        .execute(&mut *tx)
-        .await
-        .map_err(|e| e.to_string())?;
-    sqlx::query("DELETE FROM player.shop WHERE vnum = ?")
-        .bind(shop_vnum)
-        .execute(&mut *tx)
-        .await
-        .map_err(|e| e.to_string())?;
+    sqlx::query("DELETE FROM player.shop_item WHERE shop_vnum = ?").bind(shop_vnum).execute(&mut *tx).await.map_err(|e| e.to_string())?;
+    sqlx::query("DELETE FROM player.shop WHERE vnum = ?").bind(shop_vnum).execute(&mut *tx).await.map_err(|e| e.to_string())?;
     tx.commit().await.map_err(|e| e.to_string())?;
     Ok(())
 }

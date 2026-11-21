@@ -4,15 +4,18 @@
 use crate::components::{toast, Button, ButtonSize, ButtonVariant, Icon, PageHeader};
 use crate::features::regen_editor::num_input::{js_number_string, NumInput};
 use crate::features::shared::{EntityBrowser, EntityKind, EntityRow};
-use crate::util::{log_activity, use_save_shortcut};
-use crate::util::confirm::confirm_discard_if;
 use crate::store::navigation::{report_section_dirty, Section};
 use crate::tauri::{invoke, invoke0};
+use crate::util::confirm::confirm_discard_if;
+use crate::util::{log_activity, use_save_shortcut};
 use leptos::prelude::*;
 use leptos::task::spawn_local;
 use serde::{Deserialize, Serialize};
 use serde_json::json;
 use std::collections::HashMap;
+
+/// Änderung an einem Rezept, die der Editor auf den aktuellen Stand anwendet.
+type RecipeUpdate = Box<dyn FnOnce(&mut CubeRecipe) + Send + Sync>;
 
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
 struct CubeValue {
@@ -123,7 +126,7 @@ fn ValueListEditor(
     title: &'static str,
     list: ValueList,
     selected: Memo<Option<CubeRecipe>>,
-    #[prop(into)] update: Callback<Box<dyn FnOnce(&mut CubeRecipe) + Send + Sync>>,
+    #[prop(into)] update: Callback<RecipeUpdate>,
     icons: Icons,
 ) -> impl IntoView {
     let len = Memo::new(move |_| selected.with(|s| s.as_ref().map(|r| list.get(r).len()).unwrap_or(0)));
@@ -192,9 +195,7 @@ pub fn CubeEditor() -> impl IntoView {
     let undoing = RwSignal::new(false);
 
     let loaded_snapshot = RwSignal::new(None::<Vec<CubeRecipe>>);
-    let dirty = Memo::new(move |_| {
-        recipes.with(|r| r.is_some()) && recipes.with(|r| loaded_snapshot.with(|s| r != s))
-    });
+    let dirty = Memo::new(move |_| recipes.with(|r| r.is_some()) && recipes.with(|r| loaded_snapshot.with(|s| r != s)));
     Effect::new(move |_| report_section_dirty(Section::CubeEditor, dirty.get()));
     on_cleanup(|| report_section_dirty(Section::CubeEditor, false));
 
@@ -215,7 +216,7 @@ pub fn CubeEditor() -> impl IntoView {
     };
     load();
 
-    let update_recipe = move |index: usize, f: Box<dyn FnOnce(&mut CubeRecipe) + Send + Sync>| {
+    let update_recipe = move |index: usize, f: RecipeUpdate| {
         recipes.update(|r| {
             if let Some(rec) = r.as_mut().and_then(|v| v.get_mut(index)) {
                 f(rec);
@@ -226,13 +227,7 @@ pub fn CubeEditor() -> impl IntoView {
     let add_recipe = move || {
         let len = recipes.with_untracked(|r| r.as_ref().map(|v| v.len()).unwrap_or(0));
         recipes.update(|r| {
-            r.get_or_insert_with(Vec::new).push(CubeRecipe {
-                npc_vnums: vec![],
-                items: vec![],
-                rewards: vec![],
-                percent: 100.0,
-                gold: 0.0,
-            })
+            r.get_or_insert_with(Vec::new).push(CubeRecipe { npc_vnums: vec![], items: vec![], rewards: vec![], percent: 100.0, gold: 0.0 })
         });
         selected_index.set(Some(len));
     };
@@ -262,13 +257,7 @@ pub fn CubeEditor() -> impl IntoView {
                     });
                     let n = current.as_ref().map(|v| v.len()).unwrap_or(0);
                     loaded_snapshot.set(current);
-                    log_activity(
-                        Section::CubeEditor.into(),
-                        "save",
-                        &format!("cube.txt gespeichert ({n} Rezept(e))"),
-                        Some("file"),
-                        None,
-                    );
+                    log_activity(Section::CubeEditor.into(), "save", &format!("cube.txt gespeichert ({n} Rezept(e))"), Some("file"), None);
                 }
                 Err(e) => toast::error(&e),
             }
@@ -303,10 +292,8 @@ pub fn CubeEditor() -> impl IntoView {
         });
     };
 
-    let selected = Memo::new(move |_| {
-        selected_index.get().and_then(|i| recipes.with(|r| r.as_ref().and_then(|v| v.get(i).cloned())))
-    });
-    let update_selected = Callback::new(move |f: Box<dyn FnOnce(&mut CubeRecipe) + Send + Sync>| {
+    let selected = Memo::new(move |_| selected_index.get().and_then(|i| recipes.with(|r| r.as_ref().and_then(|v| v.get(i).cloned()))));
+    let update_selected = Callback::new(move |f: RecipeUpdate| {
         if let Some(i) = selected_index.get_untracked() {
             update_recipe(i, f);
         }

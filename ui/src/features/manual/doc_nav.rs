@@ -39,9 +39,7 @@ pub fn filter_nav(nav: &[NavEntry], pages: Pages, query: &str) -> Vec<NavEntry> 
     if q.is_empty() {
         return nav.to_vec();
     }
-    let matches = |p: &NavPage| {
-        p.label.to_lowercase().contains(&q) || page_content(pages, p.id).unwrap_or("").to_lowercase().contains(&q)
-    };
+    let matches = |p: &NavPage| p.label.to_lowercase().contains(&q) || page_content(pages, p.id).unwrap_or("").to_lowercase().contains(&q);
     nav.iter()
         .filter_map(|e| match e {
             NavEntry::Page(p) => matches(p).then_some(e.clone()),

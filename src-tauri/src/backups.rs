@@ -17,9 +17,7 @@ use serde::Serialize;
 /// doesn't match the pattern this app itself writes (e.g. some unrelated
 /// file a user dropped into the folder by hand).
 pub fn original_name(backup_filename: &str) -> Option<String> {
-    let without_kind = backup_filename
-        .strip_suffix(".bak")
-        .or_else(|| backup_filename.strip_suffix(".deleted"))?;
+    let without_kind = backup_filename.strip_suffix(".bak").or_else(|| backup_filename.strip_suffix(".deleted"))?;
 
     let dot = without_kind.rfind('.')?;
     let (name, timestamp) = without_kind.split_at(dot);
@@ -46,13 +44,10 @@ pub fn target_path_for_backup(backup_path: &str) -> Result<String, String> {
         .rfind('/')
         .map(|idx| (&backup_path[..idx], &backup_path[idx + 1..]))
         .ok_or_else(|| "Ungültiger Backup-Pfad.".to_string())?;
-    let original_filename = original_name(filename).ok_or_else(|| {
-        format!("'{filename}' sieht nicht wie eine von M2Manager erzeugte Backup-Datei aus.")
-    })?;
-    let target_dir = backup_dir
-        .rfind('/')
-        .map(|idx| &backup_dir[..idx])
-        .ok_or_else(|| "Konnte den Zielordner nicht bestimmen.".to_string())?;
+    let original_filename =
+        original_name(filename).ok_or_else(|| format!("'{filename}' sieht nicht wie eine von M2Manager erzeugte Backup-Datei aus."))?;
+    let target_dir =
+        backup_dir.rfind('/').map(|idx| &backup_dir[..idx]).ok_or_else(|| "Konnte den Zielordner nicht bestimmen.".to_string())?;
     Ok(format!("{target_dir}/{original_filename}"))
 }
 
@@ -66,9 +61,9 @@ pub struct BackupDiff {
     pub current_content: Option<String>,
     /// True if either side looks like binary content (see `ssh::looks_binary`)
     /// - `backup_content`/`current_content` are still populated (best-effort
-    /// lossy decode) so the frontend has *something*, but it should show a
-    /// "binary file" notice instead of a line-by-line text diff, which would
-    /// otherwise render as meaningless garbage for a non-text file.
+    ///   lossy decode) so the frontend has *something*, but it should show a
+    ///   "binary file" notice instead of a line-by-line text diff, which would
+    ///   otherwise render as meaningless garbage for a non-text file.
     pub is_binary: bool,
 }
 
@@ -79,27 +74,19 @@ mod tests {
     #[test]
     fn computes_target_path_from_backup_path() {
         assert_eq!(
-            target_path_for_backup(
-                "/usr/home/game/share/quest/Biologie/m2manager_backups/Biochecker.lua.20260730_143012.bak"
-            ),
+            target_path_for_backup("/usr/home/game/share/quest/Biologie/m2manager_backups/Biochecker.lua.20260730_143012.bak"),
             Ok("/usr/home/game/share/quest/Biologie/Biochecker.lua".to_string())
         );
     }
 
     #[test]
     fn recovers_original_name_from_overwrite_backup() {
-        assert_eq!(
-            original_name("Biochecker.lua.20260730_143012.bak"),
-            Some("Biochecker.lua".to_string())
-        );
+        assert_eq!(original_name("Biochecker.lua.20260730_143012.bak"), Some("Biochecker.lua".to_string()));
     }
 
     #[test]
     fn recovers_original_name_from_delete_backup() {
-        assert_eq!(
-            original_name("mob_drop_item.txt.20260101_000000.deleted"),
-            Some("mob_drop_item.txt".to_string())
-        );
+        assert_eq!(original_name("mob_drop_item.txt.20260101_000000.deleted"), Some("mob_drop_item.txt".to_string()));
     }
 
     #[test]

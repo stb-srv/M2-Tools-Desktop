@@ -156,13 +156,7 @@ pub fn new_spawn() -> RegenLine {
 }
 
 pub fn new_exception() -> RegenLine {
-    RegenLine::Exception(RegenException {
-        center_x: 0.0,
-        center_y: 0.0,
-        radius_x: 10.0,
-        radius_y: 10.0,
-        z_section: 0.0,
-    })
+    RegenLine::Exception(RegenException { center_x: 0.0, center_y: 0.0, radius_x: 10.0, radius_y: 10.0, z_section: 0.0 })
 }
 
 // ------------------------------------------------------------- Pfade
@@ -213,11 +207,7 @@ pub const FILTER_KINDS: &[FilterKind] = &[
 ];
 
 pub fn color_for_spawn_type(spawn_type: &str) -> &'static str {
-    FILTER_KINDS
-        .iter()
-        .find(|k| spawn_type.starts_with(k.key))
-        .map(|k| k.color)
-        .unwrap_or("#94a3b8")
+    FILTER_KINDS.iter().find(|k| spawn_type.starts_with(k.key)).map(|k| k.color).unwrap_or("#94a3b8")
 }
 
 /// `spawn_type.charAt(0)`

@@ -5,10 +5,7 @@
 use leptos::prelude::*;
 
 pub fn icon_markup(name: &str) -> Option<&'static str> {
-    super::icons_data::ICONS
-        .binary_search_by(|(n, _)| (*n).cmp(name))
-        .ok()
-        .map(|i| super::icons_data::ICONS[i].1)
+    super::icons_data::ICONS.binary_search_by(|(n, _)| (*n).cmp(name)).ok().map(|i| super::icons_data::ICONS[i].1)
 }
 
 /// `<Icon name="Search" class="size-4"/>` - Größe/Farbe kommen über Tailwind-Klassen.

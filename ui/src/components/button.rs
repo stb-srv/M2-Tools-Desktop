@@ -72,15 +72,13 @@ pub fn Button(
     #[prop(into, optional)] disabled: Signal<bool>,
     #[prop(into, optional)] title: MaybeProp<String>,
     /// "button" (Standard) oder "submit".
-    #[prop(optional, into)] r#type: Option<&'static str>,
+    #[prop(optional, into)]
+    r#type: Option<&'static str>,
     #[prop(optional, into)] on_click: Option<Callback<leptos::ev::MouseEvent>>,
     children: Children,
 ) -> impl IntoView {
     // Icon-Buttons haben keinen sichtbaren Text: der Tooltip dient als Name.
-    let icon_only = matches!(
-        size,
-        ButtonSize::Icon | ButtonSize::IconXs | ButtonSize::IconSm | ButtonSize::IconLg
-    );
+    let icon_only = matches!(size, ButtonSize::Icon | ButtonSize::IconXs | ButtonSize::IconSm | ButtonSize::IconLg);
     view! {
         <button
             type=r#type.unwrap_or("button")

@@ -9,15 +9,15 @@ pub mod types;
 use crate::components::{Button, ButtonSize, ButtonVariant, Icon, Skeleton};
 use crate::features::shared::drop_chance::real_drop_chance_percent;
 use crate::features::shared::{ChangePreview, EntityRow};
-use crate::util::csv::export_rows_as_csv;
-use crate::util::{log_activity, open_manual};
-use crate::util::confirm::confirm_discard_if;
 use crate::store::navigation::{nav, use_section_dirty, EmbeddedModule, Section};
 use crate::tauri::{dialog_open_one, invoke, DialogFilter, OpenDialogOptions};
+use crate::util::confirm::confirm_discard_if;
+use crate::util::csv::export_rows_as_csv;
+use crate::util::{log_activity, open_manual};
 use components::shared::{clamp_percent, fmt_num};
 use components::{
-    BulkEditPanel, BulkEditParams, CreateMobModal, DuplicatesModal, GroupSidebar, ItemPickerModal, MobDetailPanel,
-    ReverseLookupModal, ServerInfoPopover, SimulatorModal,
+    BulkEditPanel, BulkEditParams, CreateMobModal, DuplicatesModal, GroupSidebar, ItemPickerModal, MobDetailPanel, ReverseLookupModal,
+    ServerInfoPopover, SimulatorModal,
 };
 use duplicates::{find_duplicate_items_in_mobs, find_duplicate_mobs};
 use leptos::prelude::*;
@@ -345,7 +345,15 @@ pub fn MobDropEditor() -> impl IntoView {
                 .filter_map(|i| g.get(*i))
                 .flat_map(|g| {
                     if g.items.is_empty() {
-                        vec![vec![g.name.clone(), fmt_num(g.mob_vnum), g.drop_type.clone(), String::new(), String::new(), String::new(), String::new()]]
+                        vec![vec![
+                            g.name.clone(),
+                            fmt_num(g.mob_vnum),
+                            g.drop_type.clone(),
+                            String::new(),
+                            String::new(),
+                            String::new(),
+                            String::new(),
+                        ]]
                     } else {
                         g.items
                             .iter()
@@ -402,9 +410,7 @@ pub fn MobDropEditor() -> impl IntoView {
 
     let on_picker_rows = move |rows: Vec<EntityRow>| ensure_icons(rows.iter().map(|r| r.vnum));
 
-    let selected = Memo::new(move |_| {
-        selected_index.get().filter(|i| groups.with(|g| g.as_ref().is_some_and(|g| *i < g.len())))
-    });
+    let selected = Memo::new(move |_| selected_index.get().filter(|i| groups.with(|g| g.as_ref().is_some_and(|g| *i < g.len()))));
     let has_groups = Memo::new(move |_| groups.with(|g| g.is_some()));
     let has_raw = Memo::new(move |_| raw_recovery.with(|r| r.is_some()));
 

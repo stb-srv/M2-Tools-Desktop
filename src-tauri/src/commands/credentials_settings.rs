@@ -40,11 +40,7 @@ pub fn get_setting(state: State<'_, AppState>, key: String) -> Result<Option<Str
 }
 
 #[tauri::command(async)]
-pub fn set_setting(
-    state: State<'_, AppState>,
-    key: String,
-    value: String,
-) -> Result<(), String> {
+pub fn set_setting(state: State<'_, AppState>, key: String, value: String) -> Result<(), String> {
     let conn = state.settings_db.lock().map_err(|e| e.to_string())?;
     settings::set_path(&conn, &key, &value)?;
     crate::connection_profiles::mirror_setting(&conn, &key, &value)
@@ -56,11 +52,7 @@ pub async fn test_mysql_connection(config: MysqlConfig, password: String) -> Res
 }
 
 #[tauri::command]
-pub async fn connect_mysql(
-    state: State<'_, AppState>,
-    config: MysqlConfig,
-    password: String,
-) -> Result<(), String> {
+pub async fn connect_mysql(state: State<'_, AppState>, config: MysqlConfig, password: String) -> Result<(), String> {
     let pool = mysql::connect(&config, &resolve_password(password, "mysql_password")).await?;
     *state.mysql_pool.lock().await = Some(pool);
     Ok(())

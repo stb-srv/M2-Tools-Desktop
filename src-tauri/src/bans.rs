@@ -64,8 +64,7 @@ pub fn list_bans(conn: &Connection) -> Result<Vec<BanRecord>, String> {
 }
 
 pub fn deactivate_ban(conn: &Connection, id: i64) -> Result<(), String> {
-    conn.execute("UPDATE account_bans SET active = 0 WHERE id = ?1", [id])
-        .map_err(|e| e.to_string())?;
+    conn.execute("UPDATE account_bans SET active = 0 WHERE id = ?1", [id]).map_err(|e| e.to_string())?;
     Ok(())
 }
 

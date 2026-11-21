@@ -44,21 +44,11 @@ pub fn parse(content: &str) -> Result<Vec<ItemDescEntry>, String> {
         }
         let parts: Vec<&str> = line.split('\t').collect();
         if parts.len() < 3 {
-            return Err(format!(
-                "Zeile {}: '<vnum>\\t<Beschreibung>\\t<Kurzbeschreibung>' erwartet, gefunden: {line:?}",
-                line_no + 1
-            ));
+            return Err(format!("Zeile {}: '<vnum>\\t<Beschreibung>\\t<Kurzbeschreibung>' erwartet, gefunden: {line:?}", line_no + 1));
         }
-        let vnum: u32 = parts[0]
-            .parse()
-            .map_err(|_| format!("Zeile {}: ungültige VNUM '{}'", line_no + 1, parts[0]))?;
+        let vnum: u32 = parts[0].parse().map_err(|_| format!("Zeile {}: ungültige VNUM '{}'", line_no + 1, parts[0]))?;
         let extra = if parts.len() > 3 { Some(parts[3..].join("\t")) } else { None };
-        entries.push(ItemDescEntry {
-            vnum,
-            description: parts[1].to_string(),
-            summary: parts[2].to_string(),
-            extra,
-        });
+        entries.push(ItemDescEntry { vnum, description: parts[1].to_string(), summary: parts[2].to_string(), extra });
     }
     Ok(entries)
 }
@@ -110,12 +100,7 @@ pub fn write_entry(client_path: &str, vnum: u32, description: &str, summary: &st
             existing.description = description.to_string();
             existing.summary = summary.to_string();
         }
-        None => entries.push(ItemDescEntry {
-            vnum,
-            description: description.to_string(),
-            summary: summary.to_string(),
-            extra: None,
-        }),
+        None => entries.push(ItemDescEntry { vnum, description: description.to_string(), summary: summary.to_string(), extra: None }),
     }
 
     let out = crate::clientfs::with_eol(&serialize(&entries), eol);

@@ -3,9 +3,9 @@
 use crate::components::{Button, ButtonSize, ButtonVariant, Icon, PageHeader};
 use crate::features::shared::generic_row_editor::{ColumnInfo, TableRows};
 use crate::i18n::t;
-use crate::util::format::de_int;
 use crate::store::navigation::Section;
 use crate::tauri::{invoke, invoke0};
+use crate::util::format::de_int;
 use leptos::prelude::*;
 use leptos::task::spawn_local;
 use serde::Deserialize;
@@ -132,7 +132,9 @@ pub fn DbExplorer() -> impl IntoView {
     });
 
     let run_search = move || {
-        let (Some(db), Some(table), Some(col)) = (selected_db.get_untracked(), selected_table.get_untracked(), search_column.get_untracked()) else {
+        let (Some(db), Some(table), Some(col)) =
+            (selected_db.get_untracked(), selected_table.get_untracked(), search_column.get_untracked())
+        else {
             return;
         };
         let q = search_query.get_untracked().trim().to_string();

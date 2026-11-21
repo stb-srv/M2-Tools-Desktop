@@ -22,30 +22,21 @@ pub(super) fn stored_ssh_auth(state: &State<'_, AppState>) -> Result<(SshConfig,
         )
     };
 
-    let host = host.filter(|h| !h.is_empty()).ok_or_else(|| {
-        "Keine SSH-Verbindung konfiguriert. Bitte unter Verbindungen einrichten.".to_string()
-    })?;
-    let username = username
-        .filter(|u| !u.is_empty())
-        .ok_or_else(|| "Kein SSH-Benutzername konfiguriert.".to_string())?;
+    let host = host
+        .filter(|h| !h.is_empty())
+        .ok_or_else(|| "Keine SSH-Verbindung konfiguriert. Bitte unter Verbindungen einrichten.".to_string())?;
+    let username = username.filter(|u| !u.is_empty()).ok_or_else(|| "Kein SSH-Benutzername konfiguriert.".to_string())?;
 
-    let config = SshConfig {
-        host,
-        port: port.and_then(|p| p.parse().ok()).unwrap_or(22),
-        username,
-    };
+    let config = SshConfig { host, port: port.and_then(|p| p.parse().ok()).unwrap_or(22), username };
 
     let auth = if auth_mode.as_deref() == Some("key") {
         SshAuth::PrivateKey {
-            path: key_path
-                .filter(|p| !p.is_empty())
-                .ok_or_else(|| "Kein SSH-Schlüsselpfad konfiguriert.".to_string())?,
+            path: key_path.filter(|p| !p.is_empty()).ok_or_else(|| "Kein SSH-Schlüsselpfad konfiguriert.".to_string())?,
             passphrase: credentials::get_secret("ssh_key_passphrase").ok(),
         }
     } else {
         SshAuth::Password {
-            password: credentials::get_secret("ssh_password")
-                .map_err(|_| "Kein gespeichertes SSH-Passwort gefunden.".to_string())?,
+            password: credentials::get_secret("ssh_password").map_err(|_| "Kein gespeichertes SSH-Passwort gefunden.".to_string())?,
         }
     };
 
@@ -53,19 +44,12 @@ pub(super) fn stored_ssh_auth(state: &State<'_, AppState>) -> Result<(SshConfig,
 }
 
 pub(super) async fn require_pool(state: &State<'_, AppState>) -> Result<sqlx::MySqlPool, String> {
-    state
-        .mysql_pool
-        .lock()
-        .await
-        .clone()
-        .ok_or_else(|| "Keine aktive MySQL-Verbindung. Bitte zuerst verbinden.".to_string())
+    state.mysql_pool.lock().await.clone().ok_or_else(|| "Keine aktive MySQL-Verbindung. Bitte zuerst verbinden.".to_string())
 }
 
 pub(super) fn client_path_setting(state: &State<'_, AppState>) -> Result<String, String> {
     let conn = state.settings_db.lock().map_err(|e| e.to_string())?;
-    settings::get_path(&conn, "client_path")?
-        .filter(|v| !v.is_empty())
-        .ok_or_else(|| "Kein Client-Pfad konfiguriert.".to_string())
+    settings::get_path(&conn, "client_path")?.filter(|v| !v.is_empty()).ok_or_else(|| "Kein Client-Pfad konfiguriert.".to_string())
 }
 
 /// Guards against a caller-supplied `relative_path` escaping the trusted
@@ -78,10 +62,7 @@ pub(super) fn client_path_setting(state: &State<'_, AppState>) -> Result<String,
 /// overwrite, or delete an arbitrary file on the server outside the
 /// intended quest/regen directory.
 pub(super) fn safe_relative_path(relative_path: &str) -> Result<&str, String> {
-    if relative_path.is_empty()
-        || relative_path.starts_with('/')
-        || relative_path.split('/').any(|seg| seg.is_empty() || seg == "..")
-    {
+    if relative_path.is_empty() || relative_path.starts_with('/') || relative_path.split('/').any(|seg| seg.is_empty() || seg == "..") {
         return Err(format!("Ungültiger relativer Pfad: \"{relative_path}\"."));
     }
     Ok(relative_path)
@@ -94,9 +75,7 @@ pub(super) fn safe_relative_path(relative_path: &str) -> Result<&str, String> {
 // vom riskanten Einspiel-Schritt (deploy_history.rs) gefahrlos nutzbar.
 pub(super) fn build_deploy_setting(state: &State<'_, AppState>, key: &str, default: &str) -> Result<String, String> {
     let conn = state.settings_db.lock().map_err(|e| e.to_string())?;
-    Ok(settings::get_path(&conn, key)?
-        .filter(|v| !v.is_empty())
-        .unwrap_or_else(|| default.to_string()))
+    Ok(settings::get_path(&conn, key)?.filter(|v| !v.is_empty()).unwrap_or_else(|| default.to_string()))
 }
 
 // ---- Item Editor: gemeinsame Pfad-Einstellung, auch vom Item-Importer

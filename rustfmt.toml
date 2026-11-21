@@ -1,0 +1,3 @@
+# max_width und use_small_heuristics passen zum bestehenden, eher dichten Stil
+max_width = 140
+use_small_heuristics = "Max"

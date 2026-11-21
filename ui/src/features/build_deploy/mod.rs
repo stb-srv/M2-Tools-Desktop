@@ -3,9 +3,9 @@
 
 use crate::components::{Button, ButtonSize, ButtonVariant, Icon, PageHeader};
 use crate::features::server_control::util::{auto_scroll, listen_while_mounted};
-use crate::util::format::de_datetime;
 use crate::store::navigation::Section;
 use crate::tauri::{invoke, invoke0};
+use crate::util::format::de_datetime;
 use leptos::prelude::*;
 use leptos::task::spawn_local;
 use serde::Deserialize;
@@ -180,7 +180,8 @@ pub fn BuildDeploy() -> impl IntoView {
         push_log("\n[Baue Server-Quellcode (Arbeitskopie — Live-Server bleibt unberührt)…]\n".into());
         // Bibliotheken immer vor den Programmdateien, die sie brauchen -
         // Reihenfolge unabhängig von der Klick-Reihenfolge des Nutzers.
-        let ordered: Vec<String> = selected.with_untracked(|sel| t.libs.iter().chain(t.bins.iter()).filter(|x| sel.contains(*x)).cloned().collect());
+        let ordered: Vec<String> =
+            selected.with_untracked(|sel| t.libs.iter().chain(t.bins.iter()).filter(|x| sel.contains(*x)).cloned().collect());
         let source_root = setting("build_scratch_source_root");
         let clean = clean_build.get_untracked();
         spawn_local(async move {

@@ -236,15 +236,8 @@ pub type FnGetFileInfo = extern "system" fn(File: *mut granny_file) -> *mut gran
 pub type FnFreeFile = extern "system" fn(File: *mut granny_file);
 pub type FnSetLogCallback = extern "system" fn(LogCallback: *const granny_log_callback);
 pub type FnGetMeshVertexCount = extern "system" fn(Mesh: *const granny_mesh) -> granny_int32;
-pub type FnCopyMeshVertices = extern "system" fn(
-    Mesh: *const granny_mesh,
-    VertexType: *const granny_data_type_definition,
-    DestVertices: *mut c_void,
-);
+pub type FnCopyMeshVertices =
+    extern "system" fn(Mesh: *const granny_mesh, VertexType: *const granny_data_type_definition, DestVertices: *mut c_void);
 pub type FnGetMeshIndexCount = extern "system" fn(Mesh: *const granny_mesh) -> granny_int32;
-pub type FnCopyMeshIndices = extern "system" fn(
-    Mesh: *const granny_mesh,
-    BytesPerIndex: granny_int32,
-    DestIndices: *mut c_void,
-);
+pub type FnCopyMeshIndices = extern "system" fn(Mesh: *const granny_mesh, BytesPerIndex: granny_int32, DestIndices: *mut c_void);
 pub type FnMeshIsRigid = extern "system" fn(Mesh: *const granny_mesh) -> bool;

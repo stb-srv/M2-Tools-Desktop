@@ -1,7 +1,7 @@
 //! "Update verfügbar"-Zustand (Punkt in der Sidebar, Update-Tab).
 
-use crate::util::storage;
 use crate::tauri::UpdateInfo;
+use crate::util::storage;
 use leptos::prelude::*;
 use serde::{Deserialize, Serialize};
 use std::sync::OnceLock;

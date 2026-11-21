@@ -8,13 +8,13 @@ pub mod item_flags;
 pub mod types;
 
 use crate::components::{Button, ButtonSize, ButtonVariant, Icon, PageHeader};
-use crate::features::shared::{EntityBrowser, EntityKind, EntityRow, ItemUsageModal};
-use crate::util::{log_activity, use_save_shortcut};
-use crate::store::navigation::{report_section_dirty, use_pending_selection, Section};
-use crate::util::confirm::confirm_discard_if;
-use crate::tauri::{dialog_open_one, invoke, invoke_unit, listen, DialogFilter, OpenDialogOptions, Unlisten};
-use components::confirm_pipeline_dialog::ConfirmPipelineDialog;
 use crate::features::icon_browser::IconBrowserModal;
+use crate::features::shared::{EntityBrowser, EntityKind, EntityRow, ItemUsageModal};
+use crate::store::navigation::{report_section_dirty, use_pending_selection, Section};
+use crate::tauri::{dialog_open_one, invoke, invoke_unit, listen, DialogFilter, OpenDialogOptions, Unlisten};
+use crate::util::confirm::confirm_discard_if;
+use crate::util::{log_activity, use_save_shortcut};
+use components::confirm_pipeline_dialog::ConfirmPipelineDialog;
 use components::item_flags_section::ItemFlagsSection;
 use components::item_presets_section::ItemPresetsSection;
 use components::shared::{Field, FlagSelect, NumInput, StepRow};
@@ -29,10 +29,7 @@ use types::{empty_item, js_number, num, pad5, ItemDescEntry, ItemProtoInput, Mod
 
 /// `Number((await get_setting(...).catch(() => null)) ?? "500000")`.
 async fn vnum_range_start() -> i64 {
-    let v = invoke::<Option<String>>("get_setting", &json!({ "key": "item_vnum_range_start" }))
-        .await
-        .ok()
-        .flatten();
+    let v = invoke::<Option<String>>("get_setting", &json!({ "key": "item_vnum_range_start" })).await.ok().flatten();
     js_number(v.as_deref().unwrap_or("500000")) as i64
 }
 
@@ -335,8 +332,7 @@ pub fn ItemEditor() -> impl IntoView {
     };
 
     let has_new_icon = Memo::new(move |_| !icon_source_path.with(|p| p.is_empty()));
-    let has_model_copy =
-        Memo::new(move |_| copy_model.get() && ref_model_vnum.get().is_some() && item.with(|i| i.r#type == 1));
+    let has_model_copy = Memo::new(move |_| copy_model.get() && ref_model_vnum.get().is_some() && item.with(|i| i.r#type == 1));
     let has_desc_change = Memo::new(move |_| description.get() != orig_description.get() || summary.get() != orig_summary.get());
     let can_create = Memo::new(move |_| {
         item.with(|i| i.vnum > 0 && !i.name.trim().is_empty() && !i.locale_name.trim().is_empty())
@@ -458,12 +454,7 @@ pub fn ItemEditor() -> impl IntoView {
                     log_activity(
                         Section::ItemEditor.into(),
                         if md == Mode::Create { "create" } else { "update" },
-                        &format!(
-                            "Item {} ('{}') {}",
-                            vnum,
-                            name,
-                            if md == Mode::Create { "angelegt" } else { "aktualisiert" }
-                        ),
+                        &format!("Item {} ('{}') {}", vnum, name, if md == Mode::Create { "angelegt" } else { "aktualisiert" }),
                         Some("item"),
                         Some(&vnum.to_string()),
                     );

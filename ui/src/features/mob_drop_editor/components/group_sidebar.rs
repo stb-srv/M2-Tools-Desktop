@@ -7,7 +7,8 @@ use leptos::prelude::*;
 pub fn GroupSidebar(
     groups: RwSignal<Option<Vec<MobDropGroup>>>,
     /// Indizes der Gruppen, die zur Suche passen.
-    #[prop(into)] filtered_groups: Signal<Vec<usize>>,
+    #[prop(into)]
+    filtered_groups: Signal<Vec<usize>>,
     group_search: RwSignal<String>,
     selected_index: RwSignal<Option<usize>>,
     #[prop(into)] on_create_click: Callback<()>,

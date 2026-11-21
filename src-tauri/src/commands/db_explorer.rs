@@ -16,20 +16,13 @@ pub async fn list_databases(state: State<'_, AppState>) -> Result<Vec<String>, S
 }
 
 #[tauri::command]
-pub async fn list_tables(
-    state: State<'_, AppState>,
-    database: String,
-) -> Result<Vec<TableInfo>, String> {
+pub async fn list_tables(state: State<'_, AppState>, database: String) -> Result<Vec<TableInfo>, String> {
     let pool = require_pool(&state).await?;
     explorer::list_tables(&pool, &database).await
 }
 
 #[tauri::command]
-pub async fn get_table_columns(
-    state: State<'_, AppState>,
-    database: String,
-    table: String,
-) -> Result<Vec<ColumnInfo>, String> {
+pub async fn get_table_columns(state: State<'_, AppState>, database: String, table: String) -> Result<Vec<ColumnInfo>, String> {
     let pool = require_pool(&state).await?;
     explorer::get_columns(&pool, &database, &table).await
 }

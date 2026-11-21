@@ -155,11 +155,7 @@ pub fn backup_file(path: &Path) -> Result<Option<PathBuf>, String> {
     // Den Namen per create_new reservieren, damit nie etwas überschrieben wird.
     let mut counter = 0u32;
     let dest = loop {
-        let name = if counter == 0 {
-            format!("{filename}.{timestamp}.bak")
-        } else {
-            format!("{filename}.{timestamp}-{counter}.bak")
-        };
+        let name = if counter == 0 { format!("{filename}.{timestamp}.bak") } else { format!("{filename}.{timestamp}-{counter}.bak") };
         let candidate = backup_dir.join(name);
         match std::fs::OpenOptions::new().write(true).create_new(true).open(&candidate) {
             Ok(_) => break candidate,

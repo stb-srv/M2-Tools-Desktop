@@ -25,19 +25,11 @@ pub struct HealthCheckResult {
 }
 
 fn result(label: &str, kind: &str, status: &str, detail: impl Into<String>) -> HealthCheckResult {
-    HealthCheckResult {
-        label: label.to_string(),
-        kind: kind.to_string(),
-        status: status.to_string(),
-        detail: detail.into(),
-    }
+    HealthCheckResult { label: label.to_string(), kind: kind.to_string(), status: status.to_string(), detail: detail.into() }
 }
 
 fn read_setting(conn: &rusqlite::Connection, key: &str) -> Option<String> {
-    settings::get_path(conn, key)
-        .ok()
-        .flatten()
-        .filter(|v| !v.is_empty())
+    settings::get_path(conn, key).ok().flatten().filter(|v| !v.is_empty())
 }
 
 const LOCAL_PATH_KEYS: &[(&str, &str)] = &[
@@ -69,12 +61,7 @@ async fn check_ssh(state: &State<'_, AppState>) -> (HealthCheckResult, bool) {
         Err(e) => (result("SSH-Verbindung", "connection", "skipped", e), false),
         Ok((config, auth)) => match ssh::test_connection(&config, &auth).await {
             Ok(()) => (
-                result(
-                    "SSH-Verbindung",
-                    "connection",
-                    "ok",
-                    format!("Verbunden mit {}@{}:{}", config.username, config.host, config.port),
-                ),
+                result("SSH-Verbindung", "connection", "ok", format!("Verbunden mit {}@{}:{}", config.username, config.host, config.port)),
                 true,
             ),
             Err(e) => (result("SSH-Verbindung", "connection", "error", e), false),
@@ -88,44 +75,26 @@ async fn check_mysql(state: &State<'_, AppState>) -> HealthCheckResult {
             Ok(c) => c,
             Err(e) => return result("MySQL-Verbindung", "connection", "error", e.to_string()),
         };
-        (
-            read_setting(&conn, "mysql_host"),
-            read_setting(&conn, "mysql_port"),
-            read_setting(&conn, "mysql_username"),
-        )
+        (read_setting(&conn, "mysql_host"), read_setting(&conn, "mysql_port"), read_setting(&conn, "mysql_username"))
     };
     let (Some(host), Some(username)) = (host, username) else {
         return result("MySQL-Verbindung", "connection", "skipped", "Keine MySQL-Verbindung konfiguriert.");
     };
     let password = match credentials::get_secret("mysql_password") {
         Ok(p) => p,
-        Err(_) => {
-            return result(
-                "MySQL-Verbindung",
-                "connection",
-                "skipped",
-                "Kein gespeichertes MySQL-Passwort gefunden.",
-            )
-        }
+        Err(_) => return result("MySQL-Verbindung", "connection", "skipped", "Kein gespeichertes MySQL-Passwort gefunden."),
     };
-    let config = MysqlConfig {
-        host,
-        port: port.and_then(|p| p.parse().ok()).unwrap_or(3306),
-        username,
-        database: None,
-    };
+    let config = MysqlConfig { host, port: port.and_then(|p| p.parse().ok()).unwrap_or(3306), username, database: None };
     match mysql::test_connection(&config, &password).await {
-        Ok(()) => result(
-            "MySQL-Verbindung",
-            "connection",
-            "ok",
-            format!("Verbunden mit {}:{}", config.host, config.port),
-        ),
+        Ok(()) => result("MySQL-Verbindung", "connection", "ok", format!("Verbunden mit {}:{}", config.host, config.port)),
         Err(e) => result("MySQL-Verbindung", "connection", "error", e),
     }
 }
 
-fn read_path_values(conn: &rusqlite::Connection, keys: &[(&'static str, &'static str)]) -> Vec<(&'static str, &'static str, Option<String>)> {
+fn read_path_values(
+    conn: &rusqlite::Connection,
+    keys: &[(&'static str, &'static str)],
+) -> Vec<(&'static str, &'static str, Option<String>)> {
     keys.iter().map(|(key, label)| (*key, *label, read_setting(conn, key))).collect()
 }
 
@@ -152,11 +121,8 @@ fn check_client_unpacked(client_path: Option<&str>) -> Option<HealthCheckResult>
     if !crate::client_unpack::pack_dir(client).is_dir() {
         return None;
     }
-    let pending: Vec<String> = crate::client_unpack::archive_status(client)
-        .into_iter()
-        .filter(|a| a.recommended && !a.unpacked)
-        .map(|a| a.name)
-        .collect();
+    let pending: Vec<String> =
+        crate::client_unpack::archive_status(client).into_iter().filter(|a| a.recommended && !a.unpacked).map(|a| a.name).collect();
     Some(if pending.is_empty() {
         result("Client entpackt", "client", "ok", "Icons und Texte liegen entpackt vor.")
     } else {
@@ -172,18 +138,17 @@ fn check_client_unpacked(client_path: Option<&str>) -> Option<HealthCheckResult>
     })
 }
 
-async fn check_remote_path_values(state: &State<'_, AppState>, ssh_ok: bool, values: Vec<(&'static str, &'static str, Option<String>)>) -> Vec<HealthCheckResult> {
+async fn check_remote_path_values(
+    state: &State<'_, AppState>,
+    ssh_ok: bool,
+    values: Vec<(&'static str, &'static str, Option<String>)>,
+) -> Vec<HealthCheckResult> {
     if !ssh_ok {
         return values
             .into_iter()
             .map(|(key, label, value)| match value {
                 None => result(label, "remote-path", "skipped", format!("Einstellung '{key}' ist nicht gesetzt.")),
-                Some(_) => result(
-                    label,
-                    "remote-path",
-                    "skipped",
-                    "SSH-Verbindung nicht erreichbar - konnte nicht geprüft werden.",
-                ),
+                Some(_) => result(label, "remote-path", "skipped", "SSH-Verbindung nicht erreichbar - konnte nicht geprüft werden."),
             })
             .collect();
     }
@@ -241,12 +206,8 @@ async fn check_drop_files(state: &State<'_, AppState>, ssh_ok: bool) -> HealthCh
         Ok(r) => r,
         Err(e) => return result(LABEL, "drop-files", "error", e),
     };
-    let errors: Vec<String> = report
-        .issues
-        .iter()
-        .filter(|i| i.is_error())
-        .map(|i| format!("{} · {}: {}", i.file, i.location, i.message))
-        .collect();
+    let errors: Vec<String> =
+        report.issues.iter().filter(|i| i.is_error()).map(|i| format!("{} · {}: {}", i.file, i.location, i.message)).collect();
     let warnings = report.issues.iter().filter(|i| !i.is_error()).count();
     if !errors.is_empty() {
         let mut detail = format!("{} Fehler (Server startet ggf. nicht). ", errors.len());
@@ -281,17 +242,11 @@ pub async fn run_health_check(state: State<'_, AppState>) -> Result<Vec<HealthCh
 
     let (local_values, remote_values) = {
         let conn = state.settings_db.lock().map_err(|e| e.to_string())?;
-        (
-            read_path_values(&conn, LOCAL_PATH_KEYS),
-            read_path_values(&conn, REMOTE_PATH_KEYS),
-        )
+        (read_path_values(&conn, LOCAL_PATH_KEYS), read_path_values(&conn, REMOTE_PATH_KEYS))
     };
 
     results.extend(check_local_path_values(&local_values));
-    let client_path = local_values
-        .iter()
-        .find(|(key, _, _)| *key == "client_path")
-        .and_then(|(_, _, v)| v.clone());
+    let client_path = local_values.iter().find(|(key, _, _)| *key == "client_path").and_then(|(_, _, v)| v.clone());
     results.extend(check_client_unpacked(client_path.as_deref()));
     results.extend(check_remote_path_values(&state, ssh_ok, remote_values).await);
     results.push(check_drop_files(&state, ssh_ok).await);
@@ -314,11 +269,7 @@ mod tests {
 
     #[test]
     fn local_path_check_reports_error_for_missing_path() {
-        let values = vec![(
-            "client_path",
-            "Client-Ordner",
-            Some("Z:\\definitely\\not\\a\\real\\path\\m2manager_test".to_string()),
-        )];
+        let values = vec![("client_path", "Client-Ordner", Some("Z:\\definitely\\not\\a\\real\\path\\m2manager_test".to_string()))];
         let results = check_local_path_values(&values);
         assert_eq!(results[0].status, "error");
     }

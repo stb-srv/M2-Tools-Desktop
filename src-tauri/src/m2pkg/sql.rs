@@ -221,7 +221,7 @@ impl<'a> Cursor<'a> {
     }
 
     fn hex(digits: &str) -> Result<Vec<u8>, String> {
-        if digits.len() % 2 != 0 || !digits.bytes().all(|b| b.is_ascii_hexdigit()) {
+        if !digits.len().is_multiple_of(2) || !digits.bytes().all(|b| b.is_ascii_hexdigit()) {
             return Err("ungültiges Hex-Literal".into());
         }
         Ok((0..digits.len()).step_by(2).map(|k| u8::from_str_radix(&digits[k..k + 2], 16).unwrap()).collect())
@@ -402,10 +402,7 @@ pub fn filter_statements(sql: &str, wanted: &dyn Fn(u32) -> bool) -> Result<Vec<
 }
 
 /// Bindet die Werte eines geprüften Statements an eine sqlx-Abfrage.
-pub fn bind_values<'q>(
-    stmt: &'q str,
-    values: &'q [Value],
-) -> sqlx::query::Query<'q, sqlx::MySql, sqlx::mysql::MySqlArguments> {
+pub fn bind_values<'q>(stmt: &'q str, values: &'q [Value]) -> sqlx::query::Query<'q, sqlx::MySql, sqlx::mysql::MySqlArguments> {
     let mut q = sqlx::query(stmt);
     for v in values {
         q = match v {
@@ -421,10 +418,7 @@ pub fn bind_values<'q>(
 }
 
 /// Führt ein (bereits kanonisches) Statement geprüft und parametrisiert aus.
-pub async fn execute_checked(
-    conn: &mut sqlx::MySqlConnection,
-    canonical: &str,
-) -> Result<(), String> {
+pub async fn execute_checked(conn: &mut sqlx::MySqlConnection, canonical: &str) -> Result<(), String> {
     let st = parse_statement(canonical)?;
     let text = st.parameterized();
     bind_values(&text, &st.values).execute(conn).await.map_err(|e| e.to_string())?;

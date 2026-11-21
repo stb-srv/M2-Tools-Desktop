@@ -3,10 +3,10 @@
 pub mod broadcast_quest;
 
 use crate::components::{Button, ButtonSize, ButtonVariant, Icon, PageHeader};
-use crate::util::{log_activity, use_save_shortcut};
-use crate::util::confirm::confirm_discard_if;
 use crate::store::navigation::{report_section_dirty, ModuleId, Section};
 use crate::tauri::{invoke, invoke0, invoke_unit, listen, Unlisten};
+use crate::util::confirm::confirm_discard_if;
+use crate::util::{log_activity, use_save_shortcut};
 use broadcast_quest::{generate_broadcast_quest, BroadcastMessage};
 use leptos::prelude::*;
 use leptos::task::spawn_local;
@@ -139,15 +139,10 @@ pub fn BroadcastSystem() -> impl IntoView {
         spawn_local(async move {
             let res = match edit {
                 Some(id) => {
-                    invoke_unit(
-                        "update_broadcast_message",
-                        &json!({ "id": id, "text": trimmed, "intervalMinutes": num_value(minutes) }),
-                    )
-                    .await
+                    invoke_unit("update_broadcast_message", &json!({ "id": id, "text": trimmed, "intervalMinutes": num_value(minutes) }))
+                        .await
                 }
-                None => {
-                    invoke_unit("create_broadcast_message", &json!({ "text": trimmed, "intervalMinutes": num_value(minutes) })).await
-                }
+                None => invoke_unit("create_broadcast_message", &json!({ "text": trimmed, "intervalMinutes": num_value(minutes) })).await,
             };
             match res {
                 Ok(()) => {
@@ -190,11 +185,7 @@ pub fn BroadcastSystem() -> impl IntoView {
                     log_activity(
                         MODULE,
                         if m.enabled { "disable" } else { "enable" },
-                        &format!(
-                            "Broadcast-Nachricht '{}' {}",
-                            truncate(&m.text),
-                            if m.enabled { "deaktiviert" } else { "aktiviert" }
-                        ),
+                        &format!("Broadcast-Nachricht '{}' {}", truncate(&m.text), if m.enabled { "deaktiviert" } else { "aktiviert" }),
                         Some("broadcast-message"),
                         Some(&m.id.to_string()),
                     );
@@ -207,9 +198,8 @@ pub fn BroadcastSystem() -> impl IntoView {
     };
 
     let delete_message = move |id: i64| {
-        let target_text = messages.with_untracked(|m| {
-            m.as_ref().and_then(|m| m.iter().find(|m| m.id == id).map(|m| m.text.clone())).unwrap_or_default()
-        });
+        let target_text =
+            messages.with_untracked(|m| m.as_ref().and_then(|m| m.iter().find(|m| m.id == id).map(|m| m.text.clone())).unwrap_or_default());
         busy_id.set(Some(id));
         error.set(None);
         spawn_local(async move {
@@ -262,7 +252,8 @@ pub fn BroadcastSystem() -> impl IntoView {
                     invoke::<Option<String>>("get_setting", &json!({ "key": key })).await.ok().flatten().filter(|s| !s.is_empty())
                 };
                 let workdir = setting("server_workdir").await.unwrap_or_else(|| "/usr/home/game".into());
-                let command = setting("server_cmd_reload_quests").await.unwrap_or_else(|| crate::util::shell::index_sh_command(&workdir, 4));
+                let command =
+                    setting("server_cmd_reload_quests").await.unwrap_or_else(|| crate::util::shell::index_sh_command(&workdir, 4));
 
                 let result = invoke::<ServerCommandResult>("run_server_command", &json!({ "command": command })).await?;
                 match result.exit_status {

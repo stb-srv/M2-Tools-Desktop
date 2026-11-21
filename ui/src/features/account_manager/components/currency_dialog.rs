@@ -1,7 +1,7 @@
 use super::super::shared::{focus_on_mount, num_arg, AccountSummary, ColumnInfo, MODULE};
 use crate::components::{Button, ButtonVariant, Icon};
-use crate::util::log_activity;
 use crate::tauri::invoke;
+use crate::util::log_activity;
 use leptos::prelude::*;
 use leptos::task::spawn_local;
 use serde_json::json;
@@ -32,12 +32,7 @@ pub fn CurrencyDialog(account: AccountSummary, columns: Vec<ColumnInfo>, #[prop(
         error.set(None);
         new_value.set(None);
         spawn_local(async move {
-            match invoke::<i64>(
-                "adjust_account_numeric_column",
-                &json!({ "accountId": id, "column": col, "delta": num_arg(&d) }),
-            )
-            .await
-            {
+            match invoke::<i64>("adjust_account_numeric_column", &json!({ "accountId": id, "column": col, "delta": num_arg(&d) })).await {
                 Ok(v) => {
                     new_value.set(Some(v));
                     log_activity(

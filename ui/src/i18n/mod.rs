@@ -62,10 +62,7 @@ fn lookup<'a>(root: &'a Value, key: &str) -> Option<&'a str> {
 pub fn t(key: &str) -> String {
     let lang = language();
     let primary = if lang == "en" { en() } else { de() };
-    lookup(primary, key)
-        .or_else(|| lookup(en(), key))
-        .map(str::to_string)
-        .unwrap_or_else(|| key.to_string())
+    lookup(primary, key).or_else(|| lookup(en(), key)).map(str::to_string).unwrap_or_else(|| key.to_string())
 }
 
 /// Wie [`t`], ersetzt zusätzlich `{{name}}`-Platzhalter.

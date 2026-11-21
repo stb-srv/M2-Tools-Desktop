@@ -47,9 +47,11 @@ pub fn Modal(
     #[prop(optional, into)] on_close: Option<Callback<()>>,
     /// Id des Titel-Elements; ohne Angabe wird die erste Überschrift
     /// (`h1`-`h3` bzw. `p.font-medium`) im Dialog verwendet.
-    #[prop(optional)] labelled_by: &'static str,
+    #[prop(optional)]
+    labelled_by: &'static str,
     /// Klick auf den abgedunkelten Hintergrund ruft `on_close` auf.
-    #[prop(optional)] close_on_backdrop: bool,
+    #[prop(optional)]
+    close_on_backdrop: bool,
     children: Children,
 ) -> impl IntoView {
     let panel = NodeRef::<leptos::html::Div>::new();

@@ -71,17 +71,13 @@ pub fn suggested_name(path: &str) -> String {
 
 /// Ausgewählte Icon-Pfade in Scan-Reihenfolge.
 pub fn selected_paths(icon_paths: Option<&[String]>, selected: &HashMap<String, bool>) -> Vec<String> {
-    icon_paths
-        .map(|p| p.iter().filter(|x| selected.get(*x).copied().unwrap_or(false)).cloned().collect())
-        .unwrap_or_default()
+    icon_paths.map(|p| p.iter().filter(|x| selected.get(*x).copied().unwrap_or(false)).cloned().collect()).unwrap_or_default()
 }
 
 /// Import erlaubt: mindestens ein Icon gewählt und überall Name + Anzeigename gesetzt.
 pub fn can_import(selected: &[String], rows: &HashMap<String, IconItemRow>) -> bool {
     !selected.is_empty()
-        && selected
-            .iter()
-            .all(|p| rows.get(p).is_some_and(|x| !x.name.trim().is_empty() && !x.locale_name.trim().is_empty()))
+        && selected.iter().all(|p| rows.get(p).is_some_and(|x| !x.name.trim().is_empty() && !x.locale_name.trim().is_empty()))
 }
 
 /// Anzahl Stufen (Basis + Aufwertungen) der Zeile.
@@ -111,11 +107,7 @@ pub fn build_icon_item(row: &IconItemRow, vnum: i64, level: i64) -> ItemProtoInp
     ItemProtoInput {
         vnum,
         vnum_range: 0,
-        name: fit_to_byte_limit_with_suffix(
-            &row.name,
-            &if level > 0 { format!("_{level}") } else { String::new() },
-            ITEM_NAME_MAX_BYTES,
-        ),
+        name: fit_to_byte_limit_with_suffix(&row.name, &if level > 0 { format!("_{level}") } else { String::new() }, ITEM_NAME_MAX_BYTES),
         locale_name: fit_to_byte_limit_with_suffix(&row.locale_name, &suffix, ITEM_NAME_MAX_BYTES),
         r#type: row.item_type,
         subtype: row.subtype,

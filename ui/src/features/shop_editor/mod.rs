@@ -7,10 +7,10 @@ use crate::components::{Button, ButtonSize, ButtonVariant, Icon, PageHeader, Pas
 use crate::features::model_viewer::{Gr2Canvas, Gr2ModelInfo};
 use crate::features::shared::{EntityBrowser, EntityKind, EntityRow, RowRenderer};
 use crate::i18n::t;
-use crate::util::connection::{auto_connect_mysql, connect_mysql, get_setting, save_mysql, MysqlValues};
-use crate::util::{log_activity, open_manual};
 use crate::store::navigation::{ModuleId, Section};
 use crate::tauri::{invoke, invoke0, invoke_unit};
+use crate::util::connection::{auto_connect_mysql, connect_mysql, get_setting, save_mysql, MysqlValues};
+use crate::util::{log_activity, open_manual};
 use leptos::prelude::*;
 use leptos::task::spawn_local;
 use logic::{js_number, js_number_json, place_items, update_columns, update_rows, ShopItem, MAX_SLOTS};
@@ -141,9 +141,7 @@ pub fn ShopEditor() -> impl IntoView {
     });
 
     // NPC-Modell des gewählten Shops laden.
-    let model_key = Memo::new(move |_| {
-        selected_shop.with(|s| s.as_ref().map(|s| (s.vnum, s.npc_vnum, s.npc_folder.clone())))
-    });
+    let model_key = Memo::new(move |_| selected_shop.with(|s| s.as_ref().map(|s| (s.vnum, s.npc_vnum, s.npc_folder.clone()))));
     let model_request = StoredValue::new(0u64);
     Effect::new(move |_| {
         let key = model_key.get();
@@ -159,11 +157,8 @@ pub fn ShopEditor() -> impl IntoView {
         npc_model.set(None);
         spawn_local(async move {
             let res: Result<Gr2ModelInfo, String> = async {
-                let (dll_path, gr2_path) = invoke::<(String, String)>(
-                    "locate_npc_model",
-                    &json!({ "npcVnum": npc_vnum, "folder": folder }),
-                )
-                .await?;
+                let (dll_path, gr2_path) =
+                    invoke::<(String, String)>("locate_npc_model", &json!({ "npcVnum": npc_vnum, "folder": folder })).await?;
                 invoke::<Gr2ModelInfo>("load_gr2_model", &json!({ "grannyDllPath": dll_path, "gr2Path": gr2_path })).await
             }
             .await;
@@ -250,11 +245,7 @@ pub fn ShopEditor() -> impl IntoView {
             }
         });
         spawn_local(async move {
-            let res = invoke_unit(
-                "update_shop_item_count",
-                &json!({ "shopVnum": shop.vnum, "itemVnum": vnum, "count": next_count }),
-            )
-            .await;
+            let res = invoke_unit("update_shop_item_count", &json!({ "shopVnum": shop.vnum, "itemVnum": vnum, "count": next_count })).await;
             match res {
                 Ok(()) => log_activity(
                     module_id(),
@@ -307,11 +298,7 @@ pub fn ShopEditor() -> impl IntoView {
         let Some(shop) = selected_shop.get_untracked() else { return };
         let count = max_value.get_untracked();
         spawn_local(async move {
-            let res = invoke_unit(
-                "add_shop_item",
-                &json!({ "shopVnum": shop.vnum, "itemVnum": item.vnum, "count": count }),
-            )
-            .await;
+            let res = invoke_unit("add_shop_item", &json!({ "shopVnum": shop.vnum, "itemVnum": item.vnum, "count": count })).await;
             match res {
                 Ok(()) => {
                     log_activity(
@@ -441,13 +428,7 @@ pub fn ShopEditor() -> impl IntoView {
         spawn_local(async move {
             match invoke_unit("create_shop", &json!({ "name": name, "npcVnum": js_number_json(npc_vnum) })).await {
                 Ok(()) => {
-                    log_activity(
-                        module_id(),
-                        "create",
-                        &format!("Shop '{name}' angelegt (NPC {npc_vnum})"),
-                        Some("shop"),
-                        None,
-                    );
+                    log_activity(module_id(), "create", &format!("Shop '{name}' angelegt (NPC {npc_vnum})"), Some("shop"), None);
                     refresh_shops().await;
                     creating.set(false);
                     new_shop_name.set(String::new());
@@ -951,14 +932,7 @@ pub fn ShopEditor() -> impl IntoView {
 }
 
 #[component]
-fn Stepper(
-    label: &'static str,
-    value: RwSignal<i64>,
-    on_change: Callback<i64>,
-    min: i64,
-    max: i64,
-    step: i64,
-) -> impl IntoView {
+fn Stepper(label: &'static str, value: RwSignal<i64>, on_change: Callback<i64>, min: i64, max: i64, step: i64) -> impl IntoView {
     view! {
         <div class="flex items-center gap-1">
             <span class="text-muted-foreground">{label} ":"</span>

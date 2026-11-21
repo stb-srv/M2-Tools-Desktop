@@ -2,12 +2,12 @@
 //! Box-/Cube-Editor (Datei-basiert, ein SFTP-Backup existiert schon vor
 //! jedem Überschreiben) ist `refine_proto` reine DB-Zeilen ohne Datei-Backup
 //! - hier wird deshalb der vorherige Zeilenstand vor jeder destruktiven
-//! Schreibaktion (Update/Löschen/Anlegen) in eine eigene kleine lokale
-//! SQLite-Tabelle gespiegelt (`refine_undo`, siehe `settings.rs::init_db`).
-//! Bewusst nur die *letzte* Änderung (Single-Row-Tabelle, `id = 1`
-//! erzwungen) statt eines vollen Verlaufs - das deckt den eigentlich
-//! angefragten Anwendungsfall ("ups, falsch gespeichert") ab, ohne eine
-//! komplette Undo-Stack-Infrastruktur für ein Nischen-Feature zu bauen.
+//!   Schreibaktion (Update/Löschen/Anlegen) in eine eigene kleine lokale
+//!   SQLite-Tabelle gespiegelt (`refine_undo`, siehe `settings.rs::init_db`).
+//!   Bewusst nur die *letzte* Änderung (Single-Row-Tabelle, `id = 1`
+//!   erzwungen) statt eines vollen Verlaufs - das deckt den eigentlich
+//!   angefragten Anwendungsfall ("ups, falsch gespeichert") ab, ohne eine
+//!   komplette Undo-Stack-Infrastruktur für ein Nischen-Feature zu bauen.
 
 use crate::refine::RefineRecipe;
 use rusqlite::{Connection, OptionalExtension};
@@ -26,10 +26,7 @@ pub struct RefineUndoState {
 /// replaces whatever was recorded before it, since only the last change is
 /// undoable by design.
 pub fn record(conn: &Connection, action: &str, recipe_id: i32, prior: Option<&RefineRecipe>) -> Result<(), String> {
-    let prior_json = prior
-        .map(serde_json::to_string)
-        .transpose()
-        .map_err(|e| e.to_string())?;
+    let prior_json = prior.map(serde_json::to_string).transpose().map_err(|e| e.to_string())?;
     conn.execute(
         "INSERT INTO refine_undo (id, recipe_id, action, prior_json, created_at) VALUES (1, ?1, ?2, ?3, ?4) \
          ON CONFLICT(id) DO UPDATE SET recipe_id = excluded.recipe_id, action = excluded.action, \
@@ -45,22 +42,14 @@ pub fn record(conn: &Connection, action: &str, recipe_id: i32, prior: Option<&Re
 /// "nothing to undo" instead of re-applying the same restore.
 pub fn take(conn: &Connection) -> Result<Option<RefineUndoState>, String> {
     let row: Option<(i32, String, Option<String>)> = conn
-        .query_row(
-            "SELECT recipe_id, action, prior_json FROM refine_undo WHERE id = 1",
-            [],
-            |r| Ok((r.get(0)?, r.get(1)?, r.get(2)?)),
-        )
+        .query_row("SELECT recipe_id, action, prior_json FROM refine_undo WHERE id = 1", [], |r| Ok((r.get(0)?, r.get(1)?, r.get(2)?)))
         .optional()
         .map_err(|e| e.to_string())?;
     let Some((recipe_id, action, prior_json)) = row else {
         return Ok(None);
     };
-    let prior = prior_json
-        .map(|j| serde_json::from_str(&j))
-        .transpose()
-        .map_err(|e| e.to_string())?;
-    conn.execute("DELETE FROM refine_undo WHERE id = 1", [])
-        .map_err(|e| e.to_string())?;
+    let prior = prior_json.map(|j| serde_json::from_str(&j)).transpose().map_err(|e| e.to_string())?;
+    conn.execute("DELETE FROM refine_undo WHERE id = 1", []).map_err(|e| e.to_string())?;
     Ok(Some(RefineUndoState { action, recipe_id, prior }))
 }
 

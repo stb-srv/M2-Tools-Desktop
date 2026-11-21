@@ -28,9 +28,7 @@ fn resolve_texture_path(model_path: &str, texture_name: Option<&str>) -> Option<
     let mut found = None;
     for entry in std::fs::read_dir(dir).ok()?.flatten() {
         let path = entry.path();
-        if path.extension().and_then(|e| e.to_str()).map(|e| e.eq_ignore_ascii_case("dds"))
-            == Some(true)
-        {
+        if path.extension().and_then(|e| e.to_str()).map(|e| e.eq_ignore_ascii_case("dds")) == Some(true) {
             if found.is_some() {
                 return None; // ambiguous, don't guess
             }
@@ -45,15 +43,11 @@ fn resolve_texture_path(model_path: &str, texture_name: Option<&str>) -> Option<
 /// NPC/model texture loading here and by `mapdata`'s minimap compositing.
 pub fn decode_dds_file(path: &Path) -> Result<image::RgbaImage, String> {
     let bytes = std::fs::read(path).map_err(|e| format!("DDS nicht lesbar: {e}"))?;
-    let dds = ddsfile::Dds::read(&mut std::io::Cursor::new(bytes))
-        .map_err(|e| format!("DDS konnte nicht gelesen werden: {e}"))?;
+    let dds = ddsfile::Dds::read(&mut std::io::Cursor::new(bytes)).map_err(|e| format!("DDS konnte nicht gelesen werden: {e}"))?;
     image_dds::image_from_dds(&dds, 0).map_err(|e| format!("DDS konnte nicht dekodiert werden: {e}"))
 }
 
-pub fn load_texture_data_url(
-    model_path: &str,
-    texture_name: Option<&str>,
-) -> Result<Option<String>, String> {
+pub fn load_texture_data_url(model_path: &str, texture_name: Option<&str>) -> Result<Option<String>, String> {
     let Some(path) = resolve_texture_path(model_path, texture_name) else {
         return Ok(None);
     };
@@ -61,11 +55,8 @@ pub fn load_texture_data_url(
     let rgba = decode_dds_file(&path)?;
 
     let mut png_bytes = Vec::new();
-    rgba.write_to(
-        &mut std::io::Cursor::new(&mut png_bytes),
-        image::ImageFormat::Png,
-    )
-    .map_err(|e| format!("Textur konnte nicht konvertiert werden: {e}"))?;
+    rgba.write_to(&mut std::io::Cursor::new(&mut png_bytes), image::ImageFormat::Png)
+        .map_err(|e| format!("Textur konnte nicht konvertiert werden: {e}"))?;
 
     let encoded = base64::engine::general_purpose::STANDARD.encode(png_bytes);
     Ok(Some(format!("data:image/png;base64,{encoded}")))
@@ -79,9 +70,7 @@ mod tests {
     #[ignore = "braucht echte Client-Dateien (M2_TEST_CLIENT_DIR oder Client-Pfad aus M2Manager) - mit `cargo test -- --ignored` ausführen"]
     fn decodes_npc_dds_texture() {
         let model = &crate::test_support::client_dir().join("pack/npc/ymir work/npc/arms/arms.gr2").to_string_lossy().into_owned();
-        let url = load_texture_data_url(model, None)
-            .expect("texture lookup failed")
-            .expect("expected a texture next to arms.gr2");
+        let url = load_texture_data_url(model, None).expect("texture lookup failed").expect("expected a texture next to arms.gr2");
         assert!(url.starts_with("data:image/png;base64,"));
         println!("arms texture data url: {} bytes", url.len());
     }

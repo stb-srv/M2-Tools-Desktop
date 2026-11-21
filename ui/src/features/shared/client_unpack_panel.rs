@@ -66,9 +66,7 @@ pub async fn load_unpack_status(client_path: &str) -> Result<UnpackStatus, Strin
 /// `client_path`: leer = gespeicherter Client-Ordner (Einstellungen/Dashboard),
 /// sonst der im Assistenten gewählte, noch nicht gespeicherte Ordner.
 #[component]
-pub fn ClientUnpackPanel(
-    #[prop(into)] client_path: Signal<String>,
-) -> impl IntoView {
+pub fn ClientUnpackPanel(#[prop(into)] client_path: Signal<String>) -> impl IntoView {
     let job = client_unpack_store();
     let status = RwSignal::new(None::<Result<UnpackStatus, String>>);
     let selected = RwSignal::new(HashSet::<String>::new());
@@ -83,13 +81,7 @@ pub fn ClientUnpackPanel(
         spawn_local(async move {
             let res = load_unpack_status(&path).await;
             if let Ok(s) = &res {
-                selected.set(
-                    s.archives
-                        .iter()
-                        .filter(|a| a.recommended && !a.unpacked)
-                        .map(|a| a.name.clone())
-                        .collect(),
-                );
+                selected.set(s.archives.iter().filter(|a| a.recommended && !a.unpacked).map(|a| a.name.clone()).collect());
             }
             status.set(Some(res));
         });
@@ -131,12 +123,7 @@ pub fn ClientUnpackPanel(
 
     let start = move |_| {
         let names: Vec<String> = status.with_untracked(|s| match s {
-            Some(Ok(s)) => s
-                .archives
-                .iter()
-                .map(|a| a.name.clone())
-                .filter(|n| selected.with_untracked(|sel| sel.contains(n)))
-                .collect(),
+            Some(Ok(s)) => s.archives.iter().map(|a| a.name.clone()).filter(|n| selected.with_untracked(|sel| sel.contains(n))).collect(),
             _ => Vec::new(),
         });
         let path = client_path.get_untracked();
@@ -162,9 +149,8 @@ pub fn ClientUnpackPanel(
         .into_any(),
         Some(Ok(s)) => {
             let sizes: Vec<(String, u64)> = s.archives.iter().map(|a| (a.name.clone(), a.size_bytes)).collect();
-            let total_selected = move || -> u64 {
-                selected.with(|sel| sizes.iter().filter(|(n, _)| sel.contains(n)).map(|(_, b)| b).sum())
-            };
+            let total_selected =
+                move || -> u64 { selected.with(|sel| sizes.iter().filter(|(n, _)| sel.contains(n)).map(|(_, b)| b).sum()) };
             let pending = s.needs_unpack();
             let has_optional = s.archives.iter().any(|a| !a.recommended);
             let tool = s.tool_path.clone();

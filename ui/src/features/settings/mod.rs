@@ -11,10 +11,10 @@ pub mod updates_tab;
 
 use crate::components::{Button, ButtonSize, ButtonVariant, Icon};
 use crate::i18n::t;
-use crate::util::open_manual;
 use crate::store::navigation::Section;
 use crate::store::settings_section::{settings_section, SettingsSection};
 use crate::store::update::update_store;
+use crate::util::open_manual;
 use leptos::prelude::*;
 
 struct SectionDef {

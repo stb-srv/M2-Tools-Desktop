@@ -1,7 +1,7 @@
 use super::super::shared::{js_error, num_arg, ColumnInfo, TableRows, MODULE};
 use crate::components::{Button, ButtonSize, ButtonVariant, Icon};
-use crate::util::log_activity;
 use crate::tauri::{invoke, invoke_unit};
+use crate::util::log_activity;
 use leptos::prelude::*;
 use leptos::task::spawn_local;
 use serde_json::json;
@@ -48,10 +48,7 @@ pub fn PlayerToolsDialog(
         spawn_local(async move {
             let res: Result<(String, Position), String> = async {
                 let cols = invoke::<Vec<ColumnInfo>>("get_table_columns", &json!({ "database": "player", "table": "player" })).await?;
-                let pk = cols
-                    .iter()
-                    .find(|c| c.is_primary_key)
-                    .ok_or_else(|| js_error("player.player hat keinen Primärschlüssel."))?;
+                let pk = cols.iter().find(|c| c.is_primary_key).ok_or_else(|| js_error("player.player hat keinen Primärschlüssel."))?;
                 let row = invoke::<Option<TableRows>>(
                     "get_table_row",
                     &json!({ "database": "player", "table": "player", "pkColumn": pk.name, "pkValue": player_id }),

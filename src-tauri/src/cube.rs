@@ -77,9 +77,7 @@ pub fn parse(content: &str) -> Result<Vec<CubeRecipe>, String> {
                 current = Some(CubeRecipe { npc_vnums: Vec::new(), items: Vec::new(), rewards: Vec::new(), percent: 0, gold: 0 });
             }
             "npc" => {
-                let recipe = current
-                    .as_mut()
-                    .ok_or_else(|| format!("Zeile {line_no}: 'npc' außerhalb eines 'section'-Blocks."))?;
+                let recipe = current.as_mut().ok_or_else(|| format!("Zeile {line_no}: 'npc' außerhalb eines 'section'-Blocks."))?;
                 let vnum: u32 = tokens
                     .get(1)
                     .ok_or_else(|| format!("Zeile {line_no}: 'npc <vnum>' erwartet."))?
@@ -89,19 +87,11 @@ pub fn parse(content: &str) -> Result<Vec<CubeRecipe>, String> {
             }
             "item" => {
                 let value = parse_value(&tokens, line_no)?;
-                current
-                    .as_mut()
-                    .ok_or_else(|| format!("Zeile {line_no}: 'item' außerhalb eines 'section'-Blocks."))?
-                    .items
-                    .push(value);
+                current.as_mut().ok_or_else(|| format!("Zeile {line_no}: 'item' außerhalb eines 'section'-Blocks."))?.items.push(value);
             }
             "reward" => {
                 let value = parse_value(&tokens, line_no)?;
-                current
-                    .as_mut()
-                    .ok_or_else(|| format!("Zeile {line_no}: 'reward' außerhalb eines 'section'-Blocks."))?
-                    .rewards
-                    .push(value);
+                current.as_mut().ok_or_else(|| format!("Zeile {line_no}: 'reward' außerhalb eines 'section'-Blocks."))?.rewards.push(value);
             }
             "percent" => {
                 let percent: i32 = tokens
@@ -109,10 +99,7 @@ pub fn parse(content: &str) -> Result<Vec<CubeRecipe>, String> {
                     .ok_or_else(|| format!("Zeile {line_no}: 'percent <wert>' erwartet."))?
                     .parse()
                     .map_err(|_| format!("Zeile {line_no}: ungültiger Prozentwert '{}'", tokens[1]))?;
-                current
-                    .as_mut()
-                    .ok_or_else(|| format!("Zeile {line_no}: 'percent' außerhalb eines 'section'-Blocks."))?
-                    .percent = percent;
+                current.as_mut().ok_or_else(|| format!("Zeile {line_no}: 'percent' außerhalb eines 'section'-Blocks."))?.percent = percent;
             }
             "gold" => {
                 let gold: i64 = tokens
@@ -120,15 +107,10 @@ pub fn parse(content: &str) -> Result<Vec<CubeRecipe>, String> {
                     .ok_or_else(|| format!("Zeile {line_no}: 'gold <wert>' erwartet."))?
                     .parse()
                     .map_err(|_| format!("Zeile {line_no}: ungültiger Gold-Wert '{}'", tokens[1]))?;
-                current
-                    .as_mut()
-                    .ok_or_else(|| format!("Zeile {line_no}: 'gold' außerhalb eines 'section'-Blocks."))?
-                    .gold = gold;
+                current.as_mut().ok_or_else(|| format!("Zeile {line_no}: 'gold' außerhalb eines 'section'-Blocks."))?.gold = gold;
             }
             "end" => {
-                let recipe = current
-                    .take()
-                    .ok_or_else(|| format!("Zeile {line_no}: 'end' ohne vorheriges 'section'."))?;
+                let recipe = current.take().ok_or_else(|| format!("Zeile {line_no}: 'end' ohne vorheriges 'section'."))?;
                 validate(&recipe, line_no)?;
                 recipes.push(recipe);
             }
@@ -160,8 +142,10 @@ fn parse_value(tokens: &[&str], line_no: usize) -> Result<CubeValue, String> {
 }
 
 fn validate(recipe: &CubeRecipe, end_line_no: usize) -> Result<(), String> {
-    if recipe.npc_vnums.iter().any(|&v| v == 0) {
-        return Err(format!("Abschnitt (endet Zeile {end_line_no}): eine NPC-VNUM ist 0 - der Server würde dieses Rezept sonst stillschweigend verwerfen."));
+    if recipe.npc_vnums.contains(&0) {
+        return Err(format!(
+            "Abschnitt (endet Zeile {end_line_no}): eine NPC-VNUM ist 0 - der Server würde dieses Rezept sonst stillschweigend verwerfen."
+        ));
     }
     if recipe.items.iter().any(|v| v.vnum == 0 || v.count == 0) {
         return Err(format!("Abschnitt (endet Zeile {end_line_no}): eine Material-VNUM oder -Anzahl ist 0 - der Server würde dieses Rezept sonst stillschweigend verwerfen."));

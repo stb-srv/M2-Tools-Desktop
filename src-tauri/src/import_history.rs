@@ -14,13 +14,7 @@ pub struct ImportBatch {
 /// Records a completed Item-Importer batch so it can be undone later (even
 /// after restarting the app) - see `commands::undo_import_batch`. Written
 /// once, right after the import pipeline finishes successfully.
-pub fn record_batch(
-    conn: &Connection,
-    module_name: &str,
-    item_type: i32,
-    vnums: &[u32],
-    had_effects: bool,
-) -> Result<i64, String> {
+pub fn record_batch(conn: &Connection, module_name: &str, item_type: i32, vnums: &[u32], had_effects: bool) -> Result<i64, String> {
     let vnums_json = serde_json::to_string(vnums).map_err(|e| e.to_string())?;
     let created_at = chrono::Local::now().to_rfc3339();
     conn.execute(
@@ -61,8 +55,7 @@ pub fn get_batch(conn: &Connection, id: i64) -> Result<Option<ImportBatch>, Stri
 }
 
 pub fn delete_batch_record(conn: &Connection, id: i64) -> Result<(), String> {
-    conn.execute("DELETE FROM module_import_batches WHERE id = ?1", [id])
-        .map_err(|e| e.to_string())?;
+    conn.execute("DELETE FROM module_import_batches WHERE id = ?1", [id]).map_err(|e| e.to_string())?;
     Ok(())
 }
 

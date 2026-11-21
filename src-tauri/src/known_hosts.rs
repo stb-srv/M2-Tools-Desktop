@@ -48,12 +48,7 @@ pub fn evaluate(entries: &mut Vec<KnownHost>, host: &str, port: u16, fingerprint
         Some(e) if e.fingerprint == fingerprint => Decision::Known,
         Some(e) => Decision::Mismatch { stored: e.fingerprint.clone() },
         None => {
-            entries.push(KnownHost {
-                host,
-                port,
-                fingerprint: fingerprint.to_string(),
-                first_seen: now.to_string(),
-            });
+            entries.push(KnownHost { host, port, fingerprint: fingerprint.to_string(), first_seen: now.to_string() });
             Decision::New
         }
     }
@@ -62,10 +57,7 @@ pub fn evaluate(entries: &mut Vec<KnownHost>, host: &str, port: u16, fingerprint
 /// Beim App-Start aufrufen: Speicherort setzen und Datei laden.
 pub fn init(app_data_dir: &std::path::Path, app: tauri::AppHandle) {
     let path = app_data_dir.join("known_hosts.json");
-    let entries = std::fs::read_to_string(&path)
-        .ok()
-        .and_then(|s| serde_json::from_str::<Vec<KnownHost>>(&s).ok())
-        .unwrap_or_default();
+    let entries = std::fs::read_to_string(&path).ok().and_then(|s| serde_json::from_str::<Vec<KnownHost>>(&s).ok()).unwrap_or_default();
     if let Ok(mut s) = store().lock() {
         s.path = Some(path);
         s.entries = entries;
@@ -95,15 +87,8 @@ pub fn check(host: &str, port: u16, fingerprint: &str) -> Decision {
     };
     if decision == Decision::New {
         if let Some(app) = APP.get() {
-            let _ = app.emit(
-                "ssh-host-key-new",
-                KnownHost {
-                    host: norm_host(host),
-                    port,
-                    fingerprint: fingerprint.to_string(),
-                    first_seen: now,
-                },
-            );
+            let _ = app
+                .emit("ssh-host-key-new", KnownHost { host: norm_host(host), port, fingerprint: fingerprint.to_string(), first_seen: now });
         }
     }
     decision
@@ -142,10 +127,7 @@ mod tests {
     fn changed_key_is_a_mismatch_and_not_overwritten() {
         let mut v = Vec::new();
         evaluate(&mut v, "h", 22, "SHA256:a", "t");
-        assert_eq!(
-            evaluate(&mut v, "h", 22, "SHA256:b", "t"),
-            Decision::Mismatch { stored: "SHA256:a".into() }
-        );
+        assert_eq!(evaluate(&mut v, "h", 22, "SHA256:b", "t"), Decision::Mismatch { stored: "SHA256:a".into() });
         assert_eq!(v[0].fingerprint, "SHA256:a");
     }
 

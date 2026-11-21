@@ -1,7 +1,7 @@
 use super::super::shared::{focus_on_mount, AccountSummary, MODULE};
 use crate::components::{Button, ButtonVariant, Icon};
-use crate::util::log_activity;
 use crate::tauri::invoke_unit;
+use crate::util::log_activity;
 use leptos::prelude::*;
 use leptos::task::spawn_local;
 use serde_json::json;

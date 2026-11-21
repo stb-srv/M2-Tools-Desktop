@@ -4,16 +4,7 @@ use crate::tauri::DialogFilter;
 use leptos::prelude::*;
 
 fn def(key: &'static str, label: &'static str, dialog_title: &'static str) -> PathSettingDef {
-    PathSettingDef {
-        key,
-        label,
-        hint: None,
-        directory: false,
-        dialog_title,
-        filters: vec![],
-        empty_text: None,
-        clearable: false,
-    }
+    PathSettingDef { key, label, hint: None, directory: false, dialog_title, filters: vec![], empty_text: None, clearable: false }
 }
 
 #[component]

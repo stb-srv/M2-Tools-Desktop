@@ -48,7 +48,13 @@ struct ServerAction {
 }
 
 const ACTIONS: [ServerAction; 4] = [
-    ServerAction { id: ActionId::Start, label_key: "serverControl.startServer", icon: "Play", variant: ButtonVariant::Default, confirm: None },
+    ServerAction {
+        id: ActionId::Start,
+        label_key: "serverControl.startServer",
+        icon: "Play",
+        variant: ButtonVariant::Default,
+        confirm: None,
+    },
     ServerAction {
         id: ActionId::Stop,
         label_key: "serverControl.stopServer",
@@ -63,7 +69,13 @@ const ACTIONS: [ServerAction; 4] = [
         variant: ButtonVariant::Destructive,
         confirm: Some("Alle Logdateien werden unwiderruflich gelöscht."),
     },
-    ServerAction { id: ActionId::ReloadQuests, label_key: "serverControl.reloadQuests", icon: "RefreshCw", variant: ButtonVariant::Outline, confirm: None },
+    ServerAction {
+        id: ActionId::ReloadQuests,
+        label_key: "serverControl.reloadQuests",
+        icon: "RefreshCw",
+        variant: ButtonVariant::Outline,
+        confirm: None,
+    },
 ];
 
 impl ActionId {
@@ -175,7 +187,8 @@ pub fn ServerControl() -> impl IntoView {
     Effect::new(move |_| {
         profiles.revision.track();
         spawn_local(async move {
-            let saved_workdir = get_setting("server_workdir").await.filter(|s| !s.is_empty()).unwrap_or_else(|| DEFAULT_WORKDIR.to_string());
+            let saved_workdir =
+                get_setting("server_workdir").await.filter(|s| !s.is_empty()).unwrap_or_else(|| DEFAULT_WORKDIR.to_string());
             workdir.set(saved_workdir.clone());
 
             let mut loaded: [String; 4] = Default::default();

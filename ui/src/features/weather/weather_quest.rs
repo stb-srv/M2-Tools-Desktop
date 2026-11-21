@@ -51,10 +51,7 @@ pub fn generate_weather_quest(state: &WeatherState) -> String {
 /// warten - dieselben GM-Befehle, die die Quest intern nutzt
 /// (`cmd.cpp:189,286`), beide nur GM_HIGH_WIZARD.
 pub fn gm_commands_for(night_enabled: bool, snow_enabled: bool) -> Vec<String> {
-    vec![
-        format!("/eventflag day {}", if night_enabled { 1 } else { 0 }),
-        format!("/xmas_snow {}", if snow_enabled { 1 } else { 0 }),
-    ]
+    vec![format!("/eventflag day {}", if night_enabled { 1 } else { 0 }), format!("/xmas_snow {}", if snow_enabled { 1 } else { 0 })]
 }
 
 #[cfg(test)]

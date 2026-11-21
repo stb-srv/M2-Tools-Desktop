@@ -1,8 +1,8 @@
 use super::diff::{diff_lines, has_changes};
 use crate::components::{toast, Button, ButtonSize, ButtonVariant, Icon, PageHeader};
-use crate::util::log_activity;
 use crate::store::navigation::Section;
 use crate::tauri::invoke;
+use crate::util::log_activity;
 use leptos::prelude::*;
 use leptos::task::spawn_local;
 use serde::Deserialize;
@@ -44,15 +44,7 @@ pub fn parse_timestamp(filename: &str) -> Option<String> {
     if !date.bytes().chain(time.bytes()).all(|c| c.is_ascii_digit()) {
         return None;
     }
-    Some(format!(
-        "{}-{}-{} {}:{}:{}",
-        &date[0..4],
-        &date[4..6],
-        &date[6..8],
-        &time[0..2],
-        &time[2..4],
-        &time[4..6]
-    ))
+    Some(format!("{}-{}-{} {}:{}:{}", &date[0..4], &date[4..6], &date[6..8], &time[0..2], &time[2..4], &time[4..6]))
 }
 
 fn last_segment(path: &str) -> String {

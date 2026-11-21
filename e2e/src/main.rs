@@ -91,14 +91,7 @@ async fn stable_main_text(driver: &WebDriver) -> WebDriverResult<Option<String>>
 }
 
 async fn open_section(driver: &WebDriver, label: &str) -> Result<String, String> {
-    driver
-        .action_chain()
-        .key_down(Key::Control)
-        .send_keys("k")
-        .key_up(Key::Control)
-        .perform()
-        .await
-        .map_err(|e| e.to_string())?;
+    driver.action_chain().key_down(Key::Control).send_keys("k").key_up(Key::Control).perform().await.map_err(|e| e.to_string())?;
     let input = driver
         .query(By::Css("input[placeholder*='Bereich springen']"))
         .wait(Duration::from_secs(5), Duration::from_millis(100))

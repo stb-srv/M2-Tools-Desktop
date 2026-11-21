@@ -15,12 +15,8 @@ impl MysqlConfig {
     /// beliebige Zeichen (`@`, `/`, `:` ...) enthalten, ohne dass etwas
     /// escaped werden müsste oder das Passwort in einer URL landet.
     fn options(&self, password: &str, ssl_mode: MySqlSslMode) -> MySqlConnectOptions {
-        let mut opts = MySqlConnectOptions::new()
-            .host(&self.host)
-            .port(self.port)
-            .username(&self.username)
-            .password(password)
-            .ssl_mode(ssl_mode);
+        let mut opts =
+            MySqlConnectOptions::new().host(&self.host).port(self.port).username(&self.username).password(password).ssl_mode(ssl_mode);
         if let Some(db) = self.database.as_deref().filter(|d| !d.is_empty()) {
             opts = opts.database(db);
         }

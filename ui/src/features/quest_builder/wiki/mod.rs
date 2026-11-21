@@ -70,9 +70,8 @@ fn open_url(url: &'static str) {
 pub fn QuestWiki() -> impl IntoView {
     let current = RwSignal::new("intro".to_string());
     let all_pages = flatten(&nav());
-    let current_label = move || {
-        current.with(|c| all_pages.iter().find(|p| p.id == c).map(|p| p.label.to_string()).unwrap_or_else(|| c.clone()))
-    };
+    let current_label =
+        move || current.with(|c| all_pages.iter().find(|p| p.id == c).map(|p| p.label.to_string()).unwrap_or_else(|| c.clone()));
     let content = Signal::derive(move || current.with(|c| page_content(PAGES, c).unwrap_or("").to_string()));
 
     view! {

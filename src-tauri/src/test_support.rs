@@ -27,16 +27,12 @@ pub fn settings_db_path() -> PathBuf {
 /// Liest einen Wert aus der Settings-Datenbank (`paths`-Tabelle).
 pub fn setting(key: &str) -> Option<String> {
     let conn = rusqlite::Connection::open(settings_db_path()).ok()?;
-    conn.query_row("SELECT value FROM paths WHERE key = ?1", [key], |r| r.get(0))
-        .ok()
+    conn.query_row("SELECT value FROM paths WHERE key = ?1", [key], |r| r.get(0)).ok()
 }
 
 /// Client-Ordner, falls einer bekannt ist (für Tests, die sich sonst überspringen).
 pub fn try_client_dir() -> Option<PathBuf> {
-    std::env::var("M2_TEST_CLIENT_DIR")
-        .ok()
-        .or_else(|| setting("client_path"))
-        .map(PathBuf::from)
+    std::env::var("M2_TEST_CLIENT_DIR").ok().or_else(|| setting("client_path")).map(PathBuf::from)
 }
 
 /// Metin2-Client-Ordner für Tests, die echte Client-Dateien lesen.
@@ -49,23 +45,16 @@ pub async fn mysql_pool() -> sqlx::MySqlPool {
     let host = setting("mysql_host").expect("mysql_host ist nicht eingerichtet");
     let port: u16 = setting("mysql_port").unwrap_or_else(|| "3306".into()).parse().unwrap();
     let user = setting("mysql_username").expect("mysql_username ist nicht eingerichtet");
-    let password = crate::credentials::get_secret("mysql_password")
-        .expect("mysql_password ist nicht im Schlüsselbund gespeichert");
+    let password = crate::credentials::get_secret("mysql_password").expect("mysql_password ist nicht im Schlüsselbund gespeichert");
     let url = format!("mysql://{user}:{password}@{host}:{port}/player");
-    sqlx::mysql::MySqlPoolOptions::new()
-        .max_connections(1)
-        .connect(&url)
-        .await
-        .expect("Verbindung zur Dev-Datenbank fehlgeschlagen")
+    sqlx::mysql::MySqlPoolOptions::new().max_connections(1).connect(&url).await.expect("Verbindung zur Dev-Datenbank fehlgeschlagen")
 }
 
 /// Erzeugt ein kleines Test-Bild (Verlauf mit Alpha) als Datei - Ersatz für
 /// echte Client-Icons in Tests, die nur irgendein lesbares Bild brauchen.
 pub fn sample_image(dir: &std::path::Path, file_name: &str) -> PathBuf {
     std::fs::create_dir_all(dir).expect("create fixture dir");
-    let img = image::RgbaImage::from_fn(32, 32, |x, y| {
-        image::Rgba([(x * 8) as u8, (y * 8) as u8, 128, if x < 4 { 0 } else { 255 }])
-    });
+    let img = image::RgbaImage::from_fn(32, 32, |x, y| image::Rgba([(x * 8) as u8, (y * 8) as u8, 128, if x < 4 { 0 } else { 255 }]));
     let path = dir.join(file_name);
     img.save(&path).expect("write fixture image");
     path
@@ -73,11 +62,6 @@ pub fn sample_image(dir: &std::path::Path, file_name: &str) -> PathBuf {
 
 /// Eindeutiger Ordner im Temp-Verzeichnis.
 pub fn scratch_dir(prefix: &str) -> PathBuf {
-    std::env::temp_dir().join(format!(
-        "{prefix}_{}",
-        std::time::SystemTime::now()
-            .duration_since(std::time::UNIX_EPOCH)
-            .unwrap()
-            .as_nanos()
-    ))
+    std::env::temp_dir()
+        .join(format!("{prefix}_{}", std::time::SystemTime::now().duration_since(std::time::UNIX_EPOCH).unwrap().as_nanos()))
 }

@@ -2,7 +2,7 @@
 //! Rückgängigmachen. Die Logik steckt in `crate::m2pkg`.
 
 use crate::activity_log;
-use crate::m2pkg::{self, ApplyOptions, ApplyReport, Inspect, ImportRecord, Package, Preflight, UndoReport};
+use crate::m2pkg::{self, ApplyOptions, ApplyReport, ImportRecord, Inspect, Package, Preflight, UndoReport};
 use crate::state::AppState;
 use std::path::{Path, PathBuf};
 use tauri::{AppHandle, State};
@@ -10,9 +10,7 @@ use tauri::{AppHandle, State};
 use super::support::client_path_setting;
 
 async fn open_package(zip_path: String) -> Result<Package, String> {
-    tokio::task::spawn_blocking(move || Package::open(Path::new(&zip_path)))
-        .await
-        .map_err(|e| e.to_string())?
+    tokio::task::spawn_blocking(move || Package::open(Path::new(&zip_path))).await.map_err(|e| e.to_string())?
 }
 
 /// Führt eine Future mit schwerer Datei-/Hash-Arbeit auf einem Blocking-Thread
@@ -23,9 +21,7 @@ where
     T: Send + 'static,
 {
     let handle = tokio::runtime::Handle::current();
-    tokio::task::spawn_blocking(move || handle.block_on(fut))
-        .await
-        .map_err(|e| e.to_string())?
+    tokio::task::spawn_blocking(move || handle.block_on(fut)).await.map_err(|e| e.to_string())?
 }
 
 async fn optional_pool(state: &State<'_, AppState>) -> Option<sqlx::MySqlPool> {
@@ -37,9 +33,7 @@ async fn optional_pool(state: &State<'_, AppState>) -> Option<sqlx::MySqlPool> {
 #[tauri::command]
 pub async fn m2pkg_inspect(zip_path: String) -> Result<Inspect, String> {
     let pkg = open_package(zip_path.clone()).await?;
-    tokio::task::spawn_blocking(move || m2pkg::inspect(&pkg, &zip_path))
-        .await
-        .map_err(|e| e.to_string())?
+    tokio::task::spawn_blocking(move || m2pkg::inspect(&pkg, &zip_path)).await.map_err(|e| e.to_string())?
 }
 
 /// Vorschaubilder (kleine PNG-Data-URLs) für höchstens 300 Icon-Pfade aus dem Paket.
@@ -48,9 +42,7 @@ pub async fn m2pkg_icons(zip_path: String, paths: Vec<String>) -> Result<std::co
     if paths.len() > 300 {
         return Err("Höchstens 300 Icons pro Anfrage.".into());
     }
-    tokio::task::spawn_blocking(move || m2pkg::icon_thumbnails(Path::new(&zip_path), &paths))
-        .await
-        .map_err(|e| e.to_string())?
+    tokio::task::spawn_blocking(move || m2pkg::icon_thumbnails(Path::new(&zip_path), &paths)).await.map_err(|e| e.to_string())?
 }
 
 /// Was gibt es schon? (Vnum in der Datenbank/item_list, abweichende Dateien)
@@ -89,11 +81,7 @@ pub async fn m2pkg_import(app: AppHandle, state: State<'_, AppState>, options: A
     let pool = optional_pool(&state).await;
     let collection = pkg.manifest.collection_name();
     let zip_name = Path::new(&options.zip_path).file_name().map(|f| f.to_string_lossy().into_owned()).unwrap_or_default();
-    let folders = if options.repack {
-        m2pkg::touched_pack_folders(&pkg, &options.vnums)
-    } else {
-        Vec::new()
-    };
+    let folders = if options.repack { m2pkg::touched_pack_folders(&pkg, &options.vnums) } else { Vec::new() };
     let mut report = off_thread(m2pkg::import(pkg, client_dir.clone(), options, pool)).await?;
     if !folders.is_empty() {
         match repack_folders(&app, &client_dir, &folders, &Default::default()).await {
@@ -130,9 +118,7 @@ fn created_pack_files(client_dir: &Path, id: &str) -> std::collections::HashMap<
     if id.is_empty() || !id.chars().all(|c| c.is_ascii_digit() || c == '_') {
         return out;
     }
-    let path = ["m2manager_backups", "m2pkg", id, "journal.json"]
-        .iter()
-        .fold(client_dir.to_path_buf(), |p, c| p.join(c));
+    let path = ["m2manager_backups", "m2pkg", id, "journal.json"].iter().fold(client_dir.to_path_buf(), |p, c| p.join(c));
     let Ok(text) = std::fs::read_to_string(path) else { return out };
     let Ok(journal) = serde_json::from_str::<m2pkg::Journal>(&text) else { return out };
     for rel in &journal.files_created {
@@ -151,9 +137,7 @@ pub async fn m2pkg_undo(app: AppHandle, state: State<'_, AppState>, id: String) 
     let pool = optional_pool(&state).await;
     let created = {
         let (dir, id) = (client_dir.clone(), id.clone());
-        tokio::task::spawn_blocking(move || created_pack_files(&dir, &id))
-            .await
-            .map_err(|e| e.to_string())?
+        tokio::task::spawn_blocking(move || created_pack_files(&dir, &id)).await.map_err(|e| e.to_string())?
     };
     let mut report = off_thread(m2pkg::undo(client_dir.clone(), id.clone(), pool)).await?;
     // Neupacken, damit die entfernten Dateien auch aus den .epk verschwinden.
@@ -170,7 +154,11 @@ pub async fn m2pkg_undo(app: AppHandle, state: State<'_, AppState>, id: String) 
     }
     if let Ok(conn) = state.settings_db.lock() {
         let _ = activity_log::record(
-            &conn, "Paket-Import", "Paket-Import rückgängig gemacht", Some("m2pkg"), Some(&id),
+            &conn,
+            "Paket-Import",
+            "Paket-Import rückgängig gemacht",
+            Some("m2pkg"),
+            Some(&id),
             &format!("Import {id} zurückgenommen{repack_note}"),
         );
     }

@@ -4,12 +4,12 @@
 
 use crate::components::{toast, Button, ButtonSize, ButtonVariant, Icon, PageHeader};
 use crate::features::mob_drop_editor::components::shared::{fmt_num, js_number, js_number_or, Field, NumInput};
-use crate::store::icons::{ensure_icons, icons as icon_cache, IconMap};
 use crate::features::shared::{ChangePreview, EntityBrowser, EntityKind, EntityRow, RestartServerButton, RowRenderer};
-use crate::util::{log_activity, use_save_shortcut};
-use crate::util::confirm::confirm_discard_if;
+use crate::store::icons::{ensure_icons, icons as icon_cache, IconMap};
 use crate::store::navigation::{nav, use_section_dirty, EmbeddedModule, Section};
 use crate::tauri::invoke;
+use crate::util::confirm::confirm_discard_if;
+use crate::util::{log_activity, use_save_shortcut};
 use leptos::prelude::*;
 use leptos::task::spawn_local;
 use serde::{Deserialize, Serialize};
@@ -518,9 +518,7 @@ pub fn BoxEditor() -> impl IntoView {
         }
         let vnum = js_number_or(&new_vnum.get_untracked(), 0.0);
         let len = groups.with_untracked(|g| g.as_ref().map(|g| g.len()).unwrap_or(0));
-        groups.update(|g| {
-            g.get_or_insert_with(Vec::new).push(SpecialItemGroup { name: preview, vnum, group_type: None, entries: vec![] })
-        });
+        groups.update(|g| g.get_or_insert_with(Vec::new).push(SpecialItemGroup { name: preview, vnum, group_type: None, entries: vec![] }));
         selected_index.set(Some(len));
         creating.set(false);
         new_name.set(String::new());
@@ -567,11 +565,7 @@ pub fn BoxEditor() -> impl IntoView {
         });
     };
 
-    use_save_shortcut(
-        Section::DropGenerator,
-        move || dirty.get_untracked() && !saving.get_untracked(),
-        move || save_confirm.set(true),
-    );
+    use_save_shortcut(Section::DropGenerator, move || dirty.get_untracked() && !saving.get_untracked(), move || save_confirm.set(true));
 
     // "Letzte Änderung rückgängig machen" - jedes Speichern legt serverseitig
     // schon ein Backup an, das undo_special_item_group_write nur restauriert.
@@ -599,7 +593,9 @@ pub fn BoxEditor() -> impl IntoView {
 
     let has_groups = Memo::new(move |_| groups.with(|g| g.is_some()));
     let group_count = move || groups.with(|g| g.as_ref().map(|g| g.len()).unwrap_or(0));
-    let gread = move |i: usize| groups.with(|g| g.as_ref().and_then(|g| g.get(i)).map(|g| (g.name.clone(), g.vnum, g.group_type.clone(), g.entries.len())));
+    let gread = move |i: usize| {
+        groups.with(|g| g.as_ref().and_then(|g| g.get(i)).map(|g| (g.name.clone(), g.vnum, g.group_type.clone(), g.entries.len())))
+    };
     let eread = move |gi: usize, ei: usize| groups.with(|g| g.as_ref().and_then(|g| g.get(gi)).and_then(|g| g.entries.get(ei)).cloned());
     let selected = Memo::new(move |_| selected_index.get().filter(|i| groups.with(|g| g.as_ref().is_some_and(|g| *i < g.len()))));
 

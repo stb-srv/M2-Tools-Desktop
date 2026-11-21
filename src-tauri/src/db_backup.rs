@@ -27,11 +27,7 @@ pub fn build_dump_command(
     backup_dir: &str,
     filename: &str,
 ) -> String {
-    let db_args = databases
-        .iter()
-        .map(|d| shell_single_quote(d))
-        .collect::<Vec<_>>()
-        .join(" ");
+    let db_args = databases.iter().map(|d| shell_single_quote(d)).collect::<Vec<_>>().join(" ");
     let full_path = format!("{}/{}", backup_dir.trim_end_matches('/'), filename);
     format!(
         "mkdir -p {dir} && MYSQL_PWD={pw} mysqldump -h {host} -P {port} -u {user} --databases {dbs} > {path}",
@@ -44,13 +40,7 @@ pub fn build_dump_command(
     )
 }
 
-pub fn build_restore_command(
-    host: &str,
-    port: u16,
-    username: &str,
-    password: &str,
-    backup_path: &str,
-) -> String {
+pub fn build_restore_command(host: &str, port: u16, username: &str, password: &str, backup_path: &str) -> String {
     format!(
         "MYSQL_PWD={pw} mysql -h {host} -P {port} -u {user} < {path}",
         pw = shell_single_quote(password),
@@ -115,10 +105,7 @@ mod tests {
     #[test]
     fn builds_restore_command() {
         let cmd = build_restore_command("localhost", 3306, "root", "pw", "/home/game/backups/x.sql");
-        assert_eq!(
-            cmd,
-            "MYSQL_PWD='pw' mysql -h 'localhost' -P 3306 -u 'root' < '/home/game/backups/x.sql'"
-        );
+        assert_eq!(cmd, "MYSQL_PWD='pw' mysql -h 'localhost' -P 3306 -u 'root' < '/home/game/backups/x.sql'");
     }
 
     #[test]

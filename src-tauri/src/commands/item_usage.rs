@@ -92,16 +92,10 @@ pub struct ItemUsageReport {
 
 fn path_setting(state: &State<'_, AppState>, key: &str, default: &str) -> Result<String, String> {
     let conn = state.settings_db.lock().map_err(|e| e.to_string())?;
-    Ok(settings::get_path(&conn, key)?
-        .filter(|v| !v.is_empty())
-        .unwrap_or_else(|| default.to_string()))
+    Ok(settings::get_path(&conn, key)?.filter(|v| !v.is_empty()).unwrap_or_else(|| default.to_string()))
 }
 
-async fn read_optional_file(
-    config: &SshConfig,
-    auth: &SshAuth,
-    path: &str,
-) -> Result<Option<String>, String> {
+async fn read_optional_file(config: &SshConfig, auth: &SshAuth, path: &str) -> Result<Option<String>, String> {
     ssh::read_remote_file_if_exists(config, auth, path).await
 }
 
@@ -131,14 +125,10 @@ pub async fn find_item_usages(state: State<'_, AppState>, vnum: u32) -> Result<I
     }
 
     let internal_name: Option<String> = match &pool {
-        Ok(pool) => match item::get_item_internal_name(pool, vnum).await {
-            Ok(name) => Some(name),
-            Err(_) => None, // vnum ist gar kein bekanntes Item - etc_drop kann dann ohnehin nichts referenzieren
-        },
+        // Err: vnum ist gar kein bekanntes Item - etc_drop kann dann ohnehin nichts referenzieren
+        Ok(pool) => item::get_item_internal_name(pool, vnum).await.ok(),
         Err(e) => {
-            report
-                .warnings
-                .push(format!("etc_drop_item.txt konnte nicht geprüft werden (keine DB-Verbindung): {e}"));
+            report.warnings.push(format!("etc_drop_item.txt konnte nicht geprüft werden (keine DB-Verbindung): {e}"));
             None
         }
     };
@@ -146,10 +136,7 @@ pub async fn find_item_usages(state: State<'_, AppState>, vnum: u32) -> Result<I
     // ---- SSH-Quellen (alle übrigen 5) ----
     let ssh_auth = stored_ssh_auth(&state);
     let Ok((config, auth)) = ssh_auth else {
-        report.warnings.push(format!(
-            "Drop-/Kisten-/Cube-/Quest-Dateien konnten nicht geprüft werden: {}",
-            ssh_auth.err().unwrap()
-        ));
+        report.warnings.push(format!("Drop-/Kisten-/Cube-/Quest-Dateien konnten nicht geprüft werden: {}", ssh_auth.err().unwrap()));
         return Ok(report);
     };
 
@@ -204,9 +191,7 @@ pub async fn find_item_usages(state: State<'_, AppState>, vnum: u32) -> Result<I
                     }
                 }
                 if invalid > 0 {
-                    report
-                        .warnings
-                        .push(format!("common_drop_item.txt: {invalid} fehlerhafte Zeile(n) übersprungen."));
+                    report.warnings.push(format!("common_drop_item.txt: {invalid} fehlerhafte Zeile(n) übersprungen."));
                 }
             }
             Ok(None) => {}
@@ -272,10 +257,7 @@ pub async fn find_item_usages(state: State<'_, AppState>, vnum: u32) -> Result<I
                         }
                         for entry in &g.entries {
                             if entry.item_ref.parse::<u32>() == Ok(vnum) {
-                                report.possible_reward_in.push(BoxRewardUsage {
-                                    group_name: g.name.clone(),
-                                    box_vnum: g.vnum,
-                                });
+                                report.possible_reward_in.push(BoxRewardUsage { group_name: g.name.clone(), box_vnum: g.vnum });
                             }
                         }
                     }
@@ -295,16 +277,10 @@ pub async fn find_item_usages(state: State<'_, AppState>, vnum: u32) -> Result<I
                 Ok(recipes) => {
                     for r in &recipes {
                         if r.items.iter().any(|v| v.vnum == vnum) {
-                            report.cube_ingredient_in.push(CubeUsage {
-                                npc_vnums: r.npc_vnums.clone(),
-                                percent: r.percent,
-                            });
+                            report.cube_ingredient_in.push(CubeUsage { npc_vnums: r.npc_vnums.clone(), percent: r.percent });
                         }
                         if r.rewards.iter().any(|v| v.vnum == vnum) {
-                            report.cube_reward_in.push(CubeUsage {
-                                npc_vnums: r.npc_vnums.clone(),
-                                percent: r.percent,
-                            });
+                            report.cube_reward_in.push(CubeUsage { npc_vnums: r.npc_vnums.clone(), percent: r.percent });
                         }
                     }
                 }

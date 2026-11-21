@@ -42,10 +42,7 @@ pub struct ThemeStore {
 static STORE: OnceLock<ThemeStore> = OnceLock::new();
 
 fn system_dark() -> bool {
-    web_sys::window()
-        .and_then(|w| w.match_media("(prefers-color-scheme: dark)").ok().flatten())
-        .map(|m| m.matches())
-        .unwrap_or(false)
+    web_sys::window().and_then(|w| w.match_media("(prefers-color-scheme: dark)").ok().flatten()).map(|m| m.matches()).unwrap_or(false)
 }
 
 fn apply_theme(theme: Theme) {

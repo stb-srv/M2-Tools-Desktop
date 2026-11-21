@@ -3,21 +3,16 @@ use super::{BanDialog, CurrencyDialog, ResetPasswordDialog};
 use crate::components::{Button, ButtonSize, ButtonVariant, Icon};
 use crate::features::shared::generic_row_editor::is_numeric_type;
 use crate::features::shared::GenericRowEditor;
+use crate::tauri::{invoke, invoke0, invoke_unit};
 use crate::util::format::de_datetime;
 use crate::util::log_activity;
-use crate::tauri::{invoke, invoke0, invoke_unit};
 use leptos::prelude::*;
 use leptos::task::spawn_local;
 use serde_json::{json, Value};
 
 const CURRENCY_EXCLUDED_COLUMNS: [&str; 2] = ["id", "empire"];
 
-const EMPIRE_LABELS: [(i64, &str); 4] = [
-    (0, "Noch nicht gewählt"),
-    (1, "Shinsoo (Rot)"),
-    (2, "Chunjo (Gelb)"),
-    (3, "Jinno (Blau)"),
-];
+const EMPIRE_LABELS: [(i64, &str); 4] = [(0, "Noch nicht gewählt"), (1, "Shinsoo (Rot)"), (2, "Chunjo (Gelb)"), (3, "Jinno (Blau)")];
 
 const PAGE_SIZE: i64 = 20;
 
@@ -77,11 +72,9 @@ pub fn AccountSection() -> impl IntoView {
         load_error.set(None);
         spawn_local(async move {
             let res: Result<(Vec<AccountSummary>, i64), String> = async {
-                let rows = invoke::<Vec<AccountSummary>>(
-                    "list_accounts",
-                    &json!({ "search": s, "limit": PAGE_SIZE, "offset": p * PAGE_SIZE }),
-                )
-                .await?;
+                let rows =
+                    invoke::<Vec<AccountSummary>>("list_accounts", &json!({ "search": s, "limit": PAGE_SIZE, "offset": p * PAGE_SIZE }))
+                        .await?;
                 let count = invoke::<i64>("count_accounts", &json!({ "search": s })).await?;
                 Ok((rows, count))
             }

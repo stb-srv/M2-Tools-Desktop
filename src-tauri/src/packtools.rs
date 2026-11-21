@@ -9,12 +9,7 @@ use tokio::process::Command;
 /// `item_list.txt` entry exists yet for a custom vnum, so the plain
 /// `{vnum:05}.tga` convention is what actually gets picked up.
 pub fn write_icon_tga(client_path: &str, vnum: u32, source_image_path: &str) -> Result<PathBuf, String> {
-    let path = Path::new(client_path)
-        .join("pack")
-        .join("icon")
-        .join("icon")
-        .join("item")
-        .join(format!("{vnum:05}.tga"));
+    let path = Path::new(client_path).join("pack").join("icon").join("icon").join("item").join(format!("{vnum:05}.tga"));
 
     crate::imageconv::convert_to_tga(source_image_path, &path)?;
     crate::icons::invalidate_caches();
@@ -28,12 +23,7 @@ pub fn write_icon_tga(client_path: &str, vnum: u32, source_image_path: &str) -> 
 /// model file named after the decade's base vnum, so refine levels fall
 /// back to that if there's no exact-vnum file.
 fn find_weapon_model(client_path: &str, vnum: u32) -> Option<PathBuf> {
-    let base = Path::new(client_path)
-        .join("pack")
-        .join("item")
-        .join("ymir work")
-        .join("item")
-        .join("weapon");
+    let base = Path::new(client_path).join("pack").join("item").join("ymir work").join("item").join("weapon");
     let exact = base.join(format!("{vnum:05}.gr2"));
     if exact.exists() {
         return Some(exact);
@@ -50,15 +40,10 @@ fn find_weapon_model(client_path: &str, vnum: u32) -> Option<PathBuf> {
 /// armor (body models are swapped per race/gender inside the much larger
 /// `pc_*` character model trees), so this only covers weapons.
 pub fn copy_weapon_model(client_path: &str, new_vnum: u32, source_vnum: u32) -> Result<PathBuf, String> {
-    let source = find_weapon_model(client_path, source_vnum)
-        .ok_or_else(|| format!("Kein Waffen-Modell für vnum {source_vnum} gefunden."))?;
-    let dest = Path::new(client_path)
-        .join("pack")
-        .join("item")
-        .join("ymir work")
-        .join("item")
-        .join("weapon")
-        .join(format!("{new_vnum:05}.gr2"));
+    let source =
+        find_weapon_model(client_path, source_vnum).ok_or_else(|| format!("Kein Waffen-Modell für vnum {source_vnum} gefunden."))?;
+    let dest =
+        Path::new(client_path).join("pack").join("item").join("ymir work").join("item").join("weapon").join(format!("{new_vnum:05}.gr2"));
     backup_file(&dest)?;
     std::fs::copy(&source, &dest).map_err(|e| e.to_string())?;
     Ok(dest)
@@ -68,10 +53,7 @@ pub fn copy_weapon_model(client_path: &str, new_vnum: u32, source_vnum: u32) -> 
 /// module names come from a user-picked folder (e.g. "FrostEdge") and get
 /// embedded directly into a client filesystem path below.
 fn sanitize_path_segment(name: &str) -> String {
-    let cleaned: String = name
-        .chars()
-        .map(|c| if c.is_alphanumeric() || c == '-' || c == '_' { c } else { '_' })
-        .collect();
+    let cleaned: String = name.chars().map(|c| if c.is_alphanumeric() || c == '-' || c == '_' { c } else { '_' }).collect();
     if cleaned.is_empty() {
         "modul".to_string()
     } else {
@@ -144,13 +126,10 @@ fn place_absolute_reference_textures(client_path: &str, source_gr2: &Path, textu
             continue;
         }
         let Some(basename) = texture_name.rsplit(['\\', '/']).next() else { continue };
-        let Some(matching_source) = texture_sources.iter().find(|s| {
-            Path::new(s)
-                .file_name()
-                .and_then(|f| f.to_str())
-                .map(|f| f.eq_ignore_ascii_case(basename))
-                .unwrap_or(false)
-        }) else {
+        let Some(matching_source) = texture_sources
+            .iter()
+            .find(|s| Path::new(s).file_name().and_then(|f| f.to_str()).map(|f| f.eq_ignore_ascii_case(basename)).unwrap_or(false))
+        else {
             continue;
         };
 
@@ -220,21 +199,12 @@ pub fn import_custom_weapon_model(
     source_abs: &Path,
     texture_sources: &[String],
 ) -> Result<(PathBuf, String, Vec<String>), String> {
-    let source_file_name = source_abs
-        .file_name()
-        .and_then(|f| f.to_str())
-        .ok_or("Ungültiger Modell-Dateiname")?;
+    let source_file_name = source_abs.file_name().and_then(|f| f.to_str()).ok_or("Ungültiger Modell-Dateiname")?;
     let dest_file_name = format!("{vnum}.gr2");
     let safe_module = sanitize_path_segment(module_name);
 
-    let dest_dir = Path::new(client_path)
-        .join("pack")
-        .join("item")
-        .join("ymir work")
-        .join("item")
-        .join("weapon")
-        .join("custom")
-        .join(&safe_module);
+    let dest_dir =
+        Path::new(client_path).join("pack").join("item").join("ymir work").join("item").join("weapon").join("custom").join(&safe_module);
     std::fs::create_dir_all(&dest_dir).map_err(|e| e.to_string())?;
 
     let dest = dest_dir.join(&dest_file_name);
@@ -272,10 +242,7 @@ pub fn import_custom_armor_model(
     source_abs: &Path,
     texture_sources: &[String],
 ) -> Result<(PathBuf, String, String), String> {
-    let file_name = source_abs
-        .file_name()
-        .and_then(|f| f.to_str())
-        .ok_or("Ungültiger Modell-Dateiname")?;
+    let file_name = source_abs.file_name().and_then(|f| f.to_str()).ok_or("Ungültiger Modell-Dateiname")?;
     let safe_module = sanitize_path_segment(module_name);
 
     let dest_dir = Path::new(client_path)
@@ -299,11 +266,7 @@ pub fn import_custom_armor_model(
     // model with no separate texture file (skin baked into the .gr2, rare
     // but seen in some packs) falls back to the model's own filename so the
     // ShapeData entry is still syntactically complete.
-    let skin_name = copied_textures
-        .first()
-        .and_then(|p| p.file_name())
-        .and_then(|f| f.to_str())
-        .unwrap_or(file_name);
+    let skin_name = copied_textures.first().and_then(|p| p.file_name()).and_then(|f| f.to_str()).unwrap_or(file_name);
     let skin_rel = format!("custom/{safe_module}/{skin_name}");
 
     Ok((dest, model_rel, skin_rel))
@@ -317,15 +280,8 @@ pub fn import_custom_armor_model(
 /// `item_list.txt`-style DB/text wiring for effects - the engine derives
 /// glow effects contextually, so this is a best-effort copy-through only;
 /// verify visually in-client after importing.
-pub fn import_effect_bundle(
-    client_path: &str,
-    module_name: &str,
-    source_dir: &Path,
-) -> Result<Vec<PathBuf>, String> {
-    let dir_name = source_dir
-        .file_name()
-        .and_then(|f| f.to_str())
-        .ok_or("Ungültiger Effekt-Ordnername")?;
+pub fn import_effect_bundle(client_path: &str, module_name: &str, source_dir: &Path) -> Result<Vec<PathBuf>, String> {
+    let dir_name = source_dir.file_name().and_then(|f| f.to_str()).ok_or("Ungültiger Effekt-Ordnername")?;
     let safe_module = sanitize_path_segment(module_name);
 
     let dest_dir = Path::new(client_path)
@@ -338,8 +294,7 @@ pub fn import_effect_bundle(
         .join(dir_name);
     std::fs::create_dir_all(&dest_dir).map_err(|e| e.to_string())?;
 
-    let entries = std::fs::read_dir(source_dir)
-        .map_err(|e| format!("Effekt-Ordner {source_dir:?} nicht lesbar: {e}"))?;
+    let entries = std::fs::read_dir(source_dir).map_err(|e| format!("Effekt-Ordner {source_dir:?} nicht lesbar: {e}"))?;
 
     let mut copied = Vec::new();
     for entry in entries.flatten() {
@@ -375,11 +330,8 @@ fn prune_backups(path: &Path, keep: usize) {
     let dir = parent.join("m2manager_backups");
     let prefix = format!("{filename}.");
     let Ok(rd) = std::fs::read_dir(&dir) else { return };
-    let mut names: Vec<String> = rd
-        .flatten()
-        .filter_map(|e| e.file_name().into_string().ok())
-        .filter(|n| n.starts_with(&prefix) && n.ends_with(".bak"))
-        .collect();
+    let mut names: Vec<String> =
+        rd.flatten().filter_map(|e| e.file_name().into_string().ok()).filter(|n| n.starts_with(&prefix) && n.ends_with(".bak")).collect();
     names.sort();
     if names.len() > keep {
         for n in &names[..names.len() - keep] {
@@ -404,10 +356,7 @@ fn prune_backups(path: &Path, keep: usize) {
 /// Abbruch-sicher (für `select!`): `buf` wird erst nach einer vollständig
 /// gelesenen Zeile geleert. Wurde das Lesen mittendrin abgebrochen, bleiben
 /// die schon gelesenen Bytes im Puffer und der nächste Aufruf setzt dort fort.
-async fn read_decoded_line(
-    reader: &mut (impl tokio::io::AsyncBufRead + Unpin),
-    buf: &mut Vec<u8>,
-) -> std::io::Result<Option<String>> {
+async fn read_decoded_line(reader: &mut (impl tokio::io::AsyncBufRead + Unpin), buf: &mut Vec<u8>) -> std::io::Result<Option<String>> {
     AsyncBufReadExt::read_until(reader, b'\n', buf).await?;
     if buf.is_empty() {
         return Ok(None);
@@ -434,13 +383,7 @@ fn hide_console_window(cmd: &mut Command) {
 /// Höchstdauer eines Packer-/Proto-Laufs, bevor der Prozess beendet wird.
 const RUN_TIMEOUT: std::time::Duration = std::time::Duration::from_secs(30 * 60);
 
-async fn run_streamed(
-    app: &AppHandle,
-    event: &str,
-    program: &Path,
-    args: &[&str],
-    cwd: &Path,
-) -> Result<String, String> {
+async fn run_streamed(app: &AppHandle, event: &str, program: &Path, args: &[&str], cwd: &Path) -> Result<String, String> {
     run_process(program, args, cwd, RUN_TIMEOUT, &|l| {
         let _ = app.emit(event, l);
     })
@@ -458,16 +401,9 @@ async fn run_process(
     on_line: &(dyn Fn(&str) + Sync),
 ) -> Result<String, String> {
     let mut cmd = Command::new(program);
-    cmd.args(args)
-        .current_dir(cwd)
-        .stdin(Stdio::null())
-        .stdout(Stdio::piped())
-        .stderr(Stdio::piped())
-        .kill_on_drop(true);
+    cmd.args(args).current_dir(cwd).stdin(Stdio::null()).stdout(Stdio::piped()).stderr(Stdio::piped()).kill_on_drop(true);
     hide_console_window(&mut cmd);
-    let mut child = cmd
-        .spawn()
-        .map_err(|e| format!("{} konnte nicht gestartet werden: {e}", program.display()))?;
+    let mut child = cmd.spawn().map_err(|e| format!("{} konnte nicht gestartet werden: {e}", program.display()))?;
 
     let stdout = child.stdout.take().ok_or("Kein stdout-Handle")?;
     let stderr = child.stderr.take().ok_or("Kein stderr-Handle")?;
@@ -522,11 +458,7 @@ async fn run_process(
         }
     };
     if !status.success() {
-        return Err(format!(
-            "{} beendete sich mit Fehlercode {:?}\n{output}",
-            program.display(),
-            status.code()
-        ));
+        return Err(format!("{} beendete sich mit Fehlercode {:?}\n{output}", program.display(), status.code()));
     }
 
     Ok(output)
@@ -545,11 +477,7 @@ pub fn item_icon_pack_rel(vnum: u32) -> String {
 }
 
 /// Wie `run_eterpack_pack` ohne Ausschlussliste.
-pub async fn run_eterpack_pack(
-    app: &AppHandle,
-    tool_path: &str,
-    folder_name: &str,
-) -> Result<(), String> {
+pub async fn run_eterpack_pack(app: &AppHandle, tool_path: &str, folder_name: &str) -> Result<(), String> {
     run_eterpack_pack_excluding(app, tool_path, folder_name, &[]).await
 }
 
@@ -581,16 +509,9 @@ pub async fn run_eterpack_pack(
 /// `icon/item/00300.tga`), die bewusst entfernt wurden (Rückgängig): sie
 /// werden nicht aus dem alten Archiv zurückkopiert und fehlen danach im
 /// neuen Archiv.
-pub async fn run_eterpack_pack_excluding(
-    app: &AppHandle,
-    tool_path: &str,
-    folder_name: &str,
-    excluded: &[String],
-) -> Result<(), String> {
+pub async fn run_eterpack_pack_excluding(app: &AppHandle, tool_path: &str, folder_name: &str, excluded: &[String]) -> Result<(), String> {
     let tool = Path::new(tool_path);
-    let cwd = tool
-        .parent()
-        .ok_or("EterPackConsoleLz4-Pfad hat kein übergeordnetes Verzeichnis")?;
+    let cwd = tool.parent().ok_or("EterPackConsoleLz4-Pfad hat kein übergeordnetes Verzeichnis")?;
 
     let epk = cwd.join(format!("{folder_name}.epk"));
     let eix = cwd.join(format!("{folder_name}.eix"));
@@ -605,17 +526,13 @@ pub async fn run_eterpack_pack_excluding(
         })
         .await
         .map_err(|e| e.to_string())??;
-        extract_missing_from_archive(app, "item-editor-output", tool, cwd, folder_name, excluded)
-            .await
-            .map(|_| ())?;
+        extract_missing_from_archive(app, "item-editor-output", tool, cwd, folder_name, excluded).await.map(|_| ())?;
     }
 
     run_streamed(app, "item-editor-output", tool, &[folder_name], cwd).await?;
 
     if !epk.exists() || !eix.exists() {
-        return Err(format!(
-            "Packen abgeschlossen, aber {epk:?}/{eix:?} wurden nicht gefunden."
-        ));
+        return Err(format!("Packen abgeschlossen, aber {epk:?}/{eix:?} wurden nicht gefunden."));
     }
     Ok(())
 }
@@ -623,13 +540,9 @@ pub async fn run_eterpack_pack_excluding(
 /// Sperre je Pack-Ordner: zwei gleichzeitige Läufe würden sonst im selben
 /// Scratch-Ordner arbeiten und sich gegenseitig löschen.
 fn folder_lock(key: &str) -> std::sync::Arc<tokio::sync::Mutex<()>> {
-    static LOCKS: std::sync::OnceLock<
-        std::sync::Mutex<std::collections::HashMap<String, std::sync::Arc<tokio::sync::Mutex<()>>>>,
-    > = std::sync::OnceLock::new();
-    let mut map = LOCKS
-        .get_or_init(Default::default)
-        .lock()
-        .unwrap_or_else(|e| e.into_inner());
+    static LOCKS: std::sync::OnceLock<std::sync::Mutex<std::collections::HashMap<String, std::sync::Arc<tokio::sync::Mutex<()>>>>> =
+        std::sync::OnceLock::new();
+    let mut map = LOCKS.get_or_init(Default::default).lock().unwrap_or_else(|e| e.into_inner());
     map.entry(key.to_string()).or_default().clone()
 }
 
@@ -656,10 +569,7 @@ pub async fn extract_missing_from_archive(
     let lock = folder_lock(&key);
     let _guard = lock.lock().await;
 
-    let scratch = std::env::temp_dir().join(format!(
-        "m2manager_pack_merge_{folder_name}_{}",
-        std::process::id()
-    ));
+    let scratch = std::env::temp_dir().join(format!("m2manager_pack_merge_{folder_name}_{}", std::process::id()));
     let excluded: std::collections::HashSet<String> = excluded.iter().map(|e| normalize_rel(e)).collect();
 
     // Vorbereiten: Scratch leeren, Archiv hineinkopieren (große Dateien).
@@ -669,11 +579,8 @@ pub async fn extract_missing_from_archive(
             let _ = std::fs::remove_dir_all(&scratch);
             std::fs::create_dir_all(&scratch).map_err(|e| e.to_string())?;
             for ext in ["epk", "eix"] {
-                std::fs::copy(
-                    archive_dir.join(format!("{folder}.{ext}")),
-                    scratch.join(format!("{folder}.{ext}")),
-                )
-                .map_err(|e| e.to_string())?;
+                std::fs::copy(archive_dir.join(format!("{folder}.{ext}")), scratch.join(format!("{folder}.{ext}")))
+                    .map_err(|e| e.to_string())?;
             }
             Ok(())
         })
@@ -719,11 +626,8 @@ fn copy_missing_recursive(
     for entry in std::fs::read_dir(src).map_err(|e| e.to_string())?.flatten() {
         let path = entry.path();
         let name = entry.file_name();
-        let rel = if rel_prefix.is_empty() {
-            name.to_string_lossy().into_owned()
-        } else {
-            format!("{rel_prefix}/{}", name.to_string_lossy())
-        };
+        let rel =
+            if rel_prefix.is_empty() { name.to_string_lossy().into_owned() } else { format!("{rel_prefix}/{}", name.to_string_lossy()) };
         let target = dest.join(&name);
         if path.is_dir() {
             copied += copy_missing_recursive(&path, &target, excluded, &rel)?;
@@ -757,10 +661,7 @@ pub async fn run_mysql2proto(app: &AppHandle, tool_dir: &str) -> Result<PathBuf,
 /// Finds every `locale/*/item_proto` under the client path, backs each up,
 /// and overwrites it with the freshly generated file. Returns the list of
 /// updated paths.
-pub fn replace_client_item_proto(
-    client_path: &str,
-    generated_proto_path: &str,
-) -> Result<Vec<String>, String> {
+pub fn replace_client_item_proto(client_path: &str, generated_proto_path: &str) -> Result<Vec<String>, String> {
     let locale_dir = Path::new(client_path).join("locale");
     let mut updated = Vec::new();
     for dir in crate::clientfs::locale_dirs(client_path)? {
@@ -774,9 +675,7 @@ pub fn replace_client_item_proto(
     }
 
     if updated.is_empty() {
-        return Err(format!(
-            "Keine item_proto-Datei unter {locale_dir:?}/<lang>/ gefunden."
-        ));
+        return Err(format!("Keine item_proto-Datei unter {locale_dir:?}/<lang>/ gefunden."));
     }
     Ok(updated)
 }
@@ -788,12 +687,7 @@ pub fn replace_client_item_proto(
 pub fn delete_item_icon(client_path: &str, vnum: u32) -> Result<Option<PathBuf>, String> {
     // Icon-Zuordnung/-Dateien ändern sich - zwischengespeicherte Icons verwerfen.
     crate::icons::invalidate_caches();
-    let path = Path::new(client_path)
-        .join("pack")
-        .join("icon")
-        .join("icon")
-        .join("item")
-        .join(format!("{vnum:05}.tga"));
+    let path = Path::new(client_path).join("pack").join("icon").join("icon").join("item").join(format!("{vnum:05}.tga"));
     if !path.exists() {
         return Ok(None);
     }
@@ -808,6 +702,7 @@ pub fn delete_item_icon(client_path: &str, vnum: u32) -> Result<Option<PathBuf>,
 /// icon/model for a vnum that no longer has an `item_proto` row at all.
 /// A missing row (nothing to remove) is not an error - the item may never
 /// have gotten a row in the first place (e.g. an armor piece with no icon).
+#[cfg(test)] // nur von Tests genutzt; Produktivcode nutzt die Batch-Variante
 pub fn remove_item_list_entries(client_path: &str, vnum: u32) -> Result<Vec<String>, String> {
     remove_item_list_entries_batch(client_path, &[vnum])
 }
@@ -837,11 +732,8 @@ pub fn remove_item_list_entries_batch(client_path: &str, vnums: &[u32]) -> Resul
         let lines: Vec<&str> = text
             .lines()
             .filter(|line| {
-                let is_target_vnum = line
-                    .split('\t')
-                    .next()
-                    .and_then(|v| v.trim().parse::<u32>().ok())
-                    .is_some_and(|v| wanted.contains(&v));
+                let is_target_vnum =
+                    line.split('\t').next().and_then(|v| v.trim().parse::<u32>().ok()).is_some_and(|v| wanted.contains(&v));
                 if is_target_vnum {
                     found = true;
                 }
@@ -917,11 +809,7 @@ pub fn upsert_item_list_entries(
         let mut lines: Vec<String> = text
             .lines()
             .map(|line| {
-                let is_target_vnum = line
-                    .split('\t')
-                    .next()
-                    .and_then(|v| v.trim().parse::<u32>().ok())
-                    == Some(vnum);
+                let is_target_vnum = line.split('\t').next().and_then(|v| v.trim().parse::<u32>().ok()) == Some(vnum);
                 if is_target_vnum {
                     found = true;
                     new_line.clone()
@@ -943,9 +831,7 @@ pub fn upsert_item_list_entries(
     }
 
     if updated.is_empty() {
-        return Err(format!(
-            "Keine item_list.txt-Datei unter {locale_dir:?}/<lang>/ gefunden."
-        ));
+        return Err(format!("Keine item_list.txt-Datei unter {locale_dir:?}/<lang>/ gefunden."));
     }
     Ok(updated)
 }
@@ -972,16 +858,10 @@ mod tests {
         let mut reader = tokio::io::BufReader::new(&line[..]);
         let mut buf = Vec::new();
 
-        let first = read_decoded_line(&mut reader, &mut buf)
-            .await
-            .expect("must not error on non-UTF-8 bytes")
-            .expect("line present");
+        let first = read_decoded_line(&mut reader, &mut buf).await.expect("must not error on non-UTF-8 bytes").expect("line present");
         assert_eq!(first, "Adding: Straße_grün.dds");
 
-        let second = read_decoded_line(&mut reader, &mut buf)
-            .await
-            .unwrap()
-            .unwrap();
+        let second = read_decoded_line(&mut reader, &mut buf).await.unwrap().unwrap();
         assert_eq!(second, "second line");
 
         assert!(read_decoded_line(&mut reader, &mut buf).await.unwrap().is_none());
@@ -1008,10 +888,7 @@ mod tests {
     fn copy_missing_recursive_fills_gaps_without_overwriting_existing_files() {
         let scratch = std::env::temp_dir().join(format!(
             "m2manager_packtools_mergetest_{}",
-            std::time::SystemTime::now()
-                .duration_since(std::time::UNIX_EPOCH)
-                .unwrap()
-                .as_nanos()
+            std::time::SystemTime::now().duration_since(std::time::UNIX_EPOCH).unwrap().as_nanos()
         ));
         let archive_extract = scratch.join("archive").join("icon").join("item");
         let real_loose = scratch.join("real").join("icon").join("item");
@@ -1043,10 +920,7 @@ mod tests {
     fn writes_icon_and_backs_up_existing_file() {
         let scratch = std::env::temp_dir().join(format!(
             "m2manager_packtools_test_{}",
-            std::time::SystemTime::now()
-                .duration_since(std::time::UNIX_EPOCH)
-                .unwrap()
-                .as_nanos()
+            std::time::SystemTime::now().duration_since(std::time::UNIX_EPOCH).unwrap().as_nanos()
         ));
         std::fs::create_dir_all(&scratch).expect("create scratch dir");
         let client_path = scratch.to_str().unwrap();
@@ -1070,17 +944,9 @@ mod tests {
     fn copies_weapon_model_with_decade_fallback() {
         let scratch = std::env::temp_dir().join(format!(
             "m2manager_packtools_model_test_{}",
-            std::time::SystemTime::now()
-                .duration_since(std::time::UNIX_EPOCH)
-                .unwrap()
-                .as_nanos()
+            std::time::SystemTime::now().duration_since(std::time::UNIX_EPOCH).unwrap().as_nanos()
         ));
-        let weapon_dir = scratch
-            .join("pack")
-            .join("item")
-            .join("ymir work")
-            .join("item")
-            .join("weapon");
+        let weapon_dir = scratch.join("pack").join("item").join("ymir work").join("item").join("weapon");
         std::fs::create_dir_all(&weapon_dir).expect("create scratch weapon dir");
         let client_path = scratch.to_str().unwrap();
 
@@ -1110,10 +976,7 @@ mod tests {
     fn upserts_item_list_entry_insert_and_update() {
         let scratch = std::env::temp_dir().join(format!(
             "m2manager_packtools_itemlist_test_{}",
-            std::time::SystemTime::now()
-                .duration_since(std::time::UNIX_EPOCH)
-                .unwrap()
-                .as_nanos()
+            std::time::SystemTime::now().duration_since(std::time::UNIX_EPOCH).unwrap().as_nanos()
         ));
         let locale_dir = scratch.join("locale").join("de");
         std::fs::create_dir_all(&locale_dir).expect("create scratch locale dir");
@@ -1127,14 +990,8 @@ mod tests {
         std::fs::write(locale_dir.join("item_list.txt"), encoded).expect("seed item_list.txt");
 
         // Insert: brand-new vnum gets appended.
-        let updated = upsert_item_list_entries(
-            client_path,
-            500001,
-            1,
-            "icon/item/500001.tga",
-            Some("d:/ymir work/item/weapon/500001.gr2"),
-        )
-        .expect("insert failed");
+        let updated = upsert_item_list_entries(client_path, 500001, 1, "icon/item/500001.tga", Some("d:/ymir work/item/weapon/500001.gr2"))
+            .expect("insert failed");
         assert_eq!(updated.len(), 1);
         let bytes = std::fs::read(&updated[0]).unwrap();
         let (text, _, _) = encoding_rs::WINDOWS_1252.decode(&bytes);
@@ -1143,8 +1000,7 @@ mod tests {
 
         // Update: re-running for the same vnum replaces its row, not
         // duplicates it (e.g. picking a different icon and re-running).
-        upsert_item_list_entries(client_path, 500001, 1, "icon/item/other.tga", None)
-            .expect("update failed");
+        upsert_item_list_entries(client_path, 500001, 1, "icon/item/other.tga", None).expect("update failed");
         let bytes = std::fs::read(&updated[0]).unwrap();
         let (text, _, _) = encoding_rs::WINDOWS_1252.decode(&bytes);
         assert_eq!(text.matches("500001\t").count(), 1);
@@ -1181,10 +1037,7 @@ mod tests {
             eprintln!("skipping: FireDragon fixture package not present on this machine");
             return;
         }
-        let texture_source = source_gr2
-            .parent()
-            .unwrap()
-            .join("free_firedragon_zrye_weapon.dds");
+        let texture_source = source_gr2.parent().unwrap().join("free_firedragon_zrye_weapon.dds");
         assert!(texture_source.exists(), "fixture's own texture must exist");
 
         let expected_dest = Path::new(client_path)
@@ -1200,16 +1053,9 @@ mod tests {
         std::fs::remove_file(&expected_dest).ok();
         assert!(!expected_dest.exists());
 
-        place_absolute_reference_textures(
-            client_path,
-            source_gr2,
-            &[texture_source.display().to_string()],
-        );
+        place_absolute_reference_textures(client_path, source_gr2, &[texture_source.display().to_string()]);
 
-        assert!(
-            expected_dest.exists(),
-            "texture must land at the exact virtual path {expected_dest:?} baked into the model's material"
-        );
+        assert!(expected_dest.exists(), "texture must land at the exact virtual path {expected_dest:?} baked into the model's material");
 
         std::fs::remove_file(&expected_dest).ok();
     }
@@ -1218,10 +1064,7 @@ mod tests {
     fn imports_custom_weapon_model_renamed_by_vnum() {
         let scratch = std::env::temp_dir().join(format!(
             "m2manager_packtools_custommodel_test_{}",
-            std::time::SystemTime::now()
-                .duration_since(std::time::UNIX_EPOCH)
-                .unwrap()
-                .as_nanos()
+            std::time::SystemTime::now().duration_since(std::time::UNIX_EPOCH).unwrap().as_nanos()
         ));
         std::fs::create_dir_all(&scratch).expect("create scratch dir");
         let client_path = scratch.to_str().unwrap();
@@ -1235,19 +1078,13 @@ mod tests {
         let textures = vec![texture_file.display().to_string()];
 
         let (dest, virtual_path, _) =
-            import_custom_weapon_model(client_path, "FrostEdge", 700000, &source_file, &textures)
-                .expect("import failed");
+            import_custom_weapon_model(client_path, "FrostEdge", 700000, &source_file, &textures).expect("import failed");
         assert!(dest.exists());
         // Renamed to {vnum}.gr2 - not the module author's own filename - so
         // browsing the folder shows what item it belongs to at a glance,
         // consistent with icons already being named {vnum}.tga.
-        assert_eq!(
-            virtual_path,
-            "d:/ymir work/item/weapon/custom/FrostEdge/700000.gr2"
-        );
-        assert!(dest.to_string_lossy().replace('\\', "/").ends_with(
-            "pack/item/ymir work/item/weapon/custom/FrostEdge/700000.gr2"
-        ));
+        assert_eq!(virtual_path, "d:/ymir work/item/weapon/custom/FrostEdge/700000.gr2");
+        assert!(dest.to_string_lossy().replace('\\', "/").ends_with("pack/item/ymir work/item/weapon/custom/FrostEdge/700000.gr2"));
         // The texture must still be copied under its OWN original filename
         // (fe_sword.dds, not 700000.dds) - textures.rs resolves it by exact
         // filename in the model's folder, and the .gr2's internal material
@@ -1258,8 +1095,7 @@ mod tests {
 
         // Re-importing (e.g. re-running the pipeline) must back up, not fail.
         let (dest2, _, _) =
-            import_custom_weapon_model(client_path, "FrostEdge", 700000, &source_file, &textures)
-                .expect("re-import failed");
+            import_custom_weapon_model(client_path, "FrostEdge", 700000, &source_file, &textures).expect("re-import failed");
         assert_eq!(dest, dest2);
 
         std::fs::remove_dir_all(&scratch).ok();
@@ -1269,10 +1105,7 @@ mod tests {
     fn imports_custom_armor_model_and_returns_msm_relative_paths() {
         let scratch = std::env::temp_dir().join(format!(
             "m2manager_packtools_armormodel_test_{}",
-            std::time::SystemTime::now()
-                .duration_since(std::time::UNIX_EPOCH)
-                .unwrap()
-                .as_nanos()
+            std::time::SystemTime::now().duration_since(std::time::UNIX_EPOCH).unwrap().as_nanos()
         ));
         std::fs::create_dir_all(&scratch).expect("create scratch dir");
         let client_path = scratch.to_str().unwrap();
@@ -1286,12 +1119,12 @@ mod tests {
         let textures = vec![texture_file.display().to_string()];
 
         let (dest, model_rel, skin_rel) =
-            import_custom_armor_model(client_path, "Jotunthrym", "warrior", &source_file, &textures)
-                .expect("import failed");
+            import_custom_armor_model(client_path, "Jotunthrym", "warrior", &source_file, &textures).expect("import failed");
         assert!(dest.exists());
-        assert!(dest.to_string_lossy().replace('\\', "/").ends_with(
-            "pack/pc_warrior/ymir work/pc2/warrior/custom/Jotunthrym/warrior_body.gr2"
-        ));
+        assert!(dest
+            .to_string_lossy()
+            .replace('\\', "/")
+            .ends_with("pack/pc_warrior/ymir work/pc2/warrior/custom/Jotunthrym/warrior_body.gr2"));
         assert_eq!(model_rel, "custom/Jotunthrym/warrior_body.gr2");
         assert_eq!(skin_rel, "custom/Jotunthrym/warrior_body.dds");
         assert!(dest.parent().unwrap().join("warrior_body.dds").exists());
@@ -1303,10 +1136,7 @@ mod tests {
     fn imports_effect_bundle_preserving_folder_contents() {
         let scratch = std::env::temp_dir().join(format!(
             "m2manager_packtools_effectbundle_test_{}",
-            std::time::SystemTime::now()
-                .duration_since(std::time::UNIX_EPOCH)
-                .unwrap()
-                .as_nanos()
+            std::time::SystemTime::now().duration_since(std::time::UNIX_EPOCH).unwrap().as_nanos()
         ));
         std::fs::create_dir_all(&scratch).expect("create scratch dir");
         let client_path = scratch.to_str().unwrap();
@@ -1317,8 +1147,7 @@ mod tests {
         std::fs::write(source_dir.join("fe_sword_glow.mde"), b"mde").expect("seed mde");
         std::fs::write(source_dir.join("fe_sword.dds"), b"dds").expect("seed dds");
 
-        let copied =
-            import_effect_bundle(client_path, "FrostEdge", &source_dir).expect("import_effect_bundle failed");
+        let copied = import_effect_bundle(client_path, "FrostEdge", &source_dir).expect("import_effect_bundle failed");
         assert_eq!(copied.len(), 3);
         for f in &copied {
             assert!(f.exists());
@@ -1341,10 +1170,7 @@ mod tests {
     fn deletes_item_icon_and_backs_up_first() {
         let scratch = std::env::temp_dir().join(format!(
             "m2manager_packtools_deleteicon_test_{}",
-            std::time::SystemTime::now()
-                .duration_since(std::time::UNIX_EPOCH)
-                .unwrap()
-                .as_nanos()
+            std::time::SystemTime::now().duration_since(std::time::UNIX_EPOCH).unwrap().as_nanos()
         ));
         std::fs::create_dir_all(&scratch).expect("create scratch dir");
         let client_path = scratch.to_str().unwrap();
@@ -1368,10 +1194,7 @@ mod tests {
     fn removes_item_list_entry_leaving_others_untouched() {
         let scratch = std::env::temp_dir().join(format!(
             "m2manager_packtools_removeitemlist_test_{}",
-            std::time::SystemTime::now()
-                .duration_since(std::time::UNIX_EPOCH)
-                .unwrap()
-                .as_nanos()
+            std::time::SystemTime::now().duration_since(std::time::UNIX_EPOCH).unwrap().as_nanos()
         ));
         let locale_dir = scratch.join("locale").join("de");
         std::fs::create_dir_all(&locale_dir).expect("create scratch locale dir");
@@ -1403,10 +1226,7 @@ mod tests {
         let dir = std::env::temp_dir().join(format!(
             "m2manager_packtools_{tag}_{}_{}",
             std::process::id(),
-            std::time::SystemTime::now()
-                .duration_since(std::time::UNIX_EPOCH)
-                .unwrap()
-                .as_nanos()
+            std::time::SystemTime::now().duration_since(std::time::UNIX_EPOCH).unwrap().as_nanos()
         ));
         std::fs::create_dir_all(&dir).unwrap();
         dir
@@ -1419,8 +1239,7 @@ mod tests {
         std::fs::create_dir_all(&archive).unwrap();
         std::fs::write(archive.join("00300.tga"), b"a").unwrap();
         std::fs::write(archive.join("00301.tga"), b"b").unwrap();
-        let excluded: std::collections::HashSet<String> =
-            [normalize_rel("ICON\\Item\\00300.TGA")].into_iter().collect();
+        let excluded: std::collections::HashSet<String> = [normalize_rel("ICON\\Item\\00300.TGA")].into_iter().collect();
 
         let n = copy_missing_recursive(&scratch.join("archive"), &scratch.join("real"), &excluded, "").unwrap();
         assert_eq!(n, 1);
@@ -1513,9 +1332,7 @@ mod tests {
     async fn run_process_reports_exit_code_and_timeout() {
         let (prog, args) = shell("exit 3");
         let a: Vec<&str> = args.iter().map(|s| s.as_str()).collect();
-        let err = run_process(&prog, &a, &std::env::temp_dir(), std::time::Duration::from_secs(30), &|_| {})
-            .await
-            .unwrap_err();
+        let err = run_process(&prog, &a, &std::env::temp_dir(), std::time::Duration::from_secs(30), &|_| {}).await.unwrap_err();
         assert!(err.contains("Fehlercode"), "{err}");
 
         #[cfg(windows)]
@@ -1525,9 +1342,7 @@ mod tests {
         let (prog, args) = shell(script);
         let a: Vec<&str> = args.iter().map(|s| s.as_str()).collect();
         let started = std::time::Instant::now();
-        let err = run_process(&prog, &a, &std::env::temp_dir(), std::time::Duration::from_millis(500), &|_| {})
-            .await
-            .unwrap_err();
+        let err = run_process(&prog, &a, &std::env::temp_dir(), std::time::Duration::from_millis(500), &|_| {}).await.unwrap_err();
         assert!(err.contains("beendet"), "{err}");
         assert!(started.elapsed() < std::time::Duration::from_secs(20));
     }

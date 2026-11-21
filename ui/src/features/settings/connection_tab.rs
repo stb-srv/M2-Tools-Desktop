@@ -2,11 +2,10 @@ use super::shared::SettingsCard;
 use crate::components::{toast, Button, ButtonSize, ButtonVariant, Icon};
 use crate::features::connection::fields::ConnectionTest;
 use crate::features::connection::{MysqlFields, NewProfileDialog, SshFields, TestResult, TestState};
-use crate::util::connection::{
-    connect_mysql, load_stored_connection, mysql_complete, save_mysql, save_ssh, ssh_complete, test_mysql, test_ssh,
-    MysqlValues, SshValues,
-};
 use crate::store::connection_profiles::{connection_profiles, ConnectionProfile};
+use crate::util::connection::{
+    connect_mysql, load_stored_connection, mysql_complete, save_mysql, save_ssh, ssh_complete, test_mysql, test_ssh, MysqlValues, SshValues,
+};
 use leptos::prelude::*;
 use leptos::task::spawn_local;
 
@@ -209,12 +208,7 @@ enum EditorKind {
 }
 
 #[component]
-fn ConnectionEditor(
-    title: &'static str,
-    icon: &'static str,
-    #[prop(into)] description: Signal<String>,
-    kind: EditorKind,
-) -> impl IntoView {
+fn ConnectionEditor(title: &'static str, icon: &'static str, #[prop(into)] description: Signal<String>, kind: EditorKind) -> impl IntoView {
     // Zustand geht bei jeder Änderung an den Feldern zurück auf "idle".
     let fingerprint = Signal::derive(move || match kind {
         EditorKind::Ssh(s) => format!("{:?}", s.get()),

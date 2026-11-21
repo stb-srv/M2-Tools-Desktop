@@ -83,30 +83,22 @@ pub fn parse(granny_dll_path: &str, gr2_path: &str) -> Result<ModelInfo, String>
         use std::os::windows::process::CommandExt;
         cmd.creation_flags(crate::packtools::CREATE_NO_WINDOW);
     }
-    let output = cmd
-        .output()
-        .map_err(|e| format!("GR2-Sidecar konnte nicht gestartet werden: {e}"))?;
+    let output = cmd.output().map_err(|e| format!("GR2-Sidecar konnte nicht gestartet werden: {e}"))?;
 
     let stdout = String::from_utf8_lossy(&output.stdout);
-    let parsed: SidecarOutput = serde_json::from_str(stdout.trim())
-        .map_err(|e| format!("Ungültige Antwort vom GR2-Sidecar: {e} (stdout: {stdout})"))?;
+    let parsed: SidecarOutput =
+        serde_json::from_str(stdout.trim()).map_err(|e| format!("Ungültige Antwort vom GR2-Sidecar: {e} (stdout: {stdout})"))?;
 
     if !parsed.ok {
-        return Err(parsed
-            .error
-            .unwrap_or_else(|| "Unbekannter Fehler im GR2-Sidecar".to_string()));
+        return Err(parsed.error.unwrap_or_else(|| "Unbekannter Fehler im GR2-Sidecar".to_string()));
     }
 
-    let mut model = parsed
-        .data
-        .ok_or_else(|| "GR2-Sidecar meldete Erfolg ohne Daten".to_string())?;
+    let mut model = parsed.data.ok_or_else(|| "GR2-Sidecar meldete Erfolg ohne Daten".to_string())?;
 
     // Textures live next to the .gr2 as .dds; a model without one still renders
     // untextured, so a failed lookup must not fail the whole load.
     for mesh in &mut model.meshes {
-        mesh.texture =
-            crate::textures::load_texture_data_url(gr2_path, mesh.texture_name.as_deref())
-                .unwrap_or(None);
+        mesh.texture = crate::textures::load_texture_data_url(gr2_path, mesh.texture_name.as_deref()).unwrap_or(None);
     }
 
     Ok(model)
@@ -123,9 +115,7 @@ pub fn find_npclist(client_path: &str, override_path: Option<&str>) -> Option<Pa
         }
     }
 
-    let default = std::path::Path::new(client_path)
-        .join("root")
-        .join("npclist.txt");
+    let default = std::path::Path::new(client_path).join("root").join("npclist.txt");
     if default.is_file() {
         return Some(default);
     }
@@ -147,9 +137,7 @@ fn find_file_recursive(dir: &std::path::Path, filename: &str, max_depth: u32) ->
             return Some(path);
         }
     }
-    subdirs
-        .into_iter()
-        .find_map(|d| find_file_recursive(&d, filename, max_depth - 1))
+    subdirs.into_iter().find_map(|d| find_file_recursive(&d, filename, max_depth - 1))
 }
 
 /// Shop NPCs generally have an empty `mob_proto.folder`; the client resolves
@@ -244,12 +232,7 @@ mod tests {
 
         let dll = find_granny_dll(client).expect("granny2.dll not found");
         let parsed = parse(&dll, &model).expect("failed to parse shop NPC model");
-        println!(
-            "meshes: {}, skipped: {}, bones: {}",
-            parsed.meshes.len(),
-            parsed.skipped_meshes,
-            parsed.bone_count
-        );
+        println!("meshes: {}, skipped: {}, bones: {}", parsed.meshes.len(), parsed.skipped_meshes, parsed.bone_count);
         assert!(!parsed.meshes.is_empty(), "shop NPC should yield geometry");
         assert!(parsed.meshes.iter().all(|m| !m.vertices.is_empty()));
     }

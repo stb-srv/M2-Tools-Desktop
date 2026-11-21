@@ -53,16 +53,12 @@ pub fn parse_setting(content: &str) -> Result<MapSetting, String> {
             continue;
         };
         match *key {
-            "MapSize" if values.len() >= 2 => {
-                map_size = values[0].parse().ok().zip(values[1].parse().ok())
-            }
+            "MapSize" if values.len() >= 2 => map_size = values[0].parse().ok().zip(values[1].parse().ok()),
             _ => {}
         }
     }
 
-    Ok(MapSetting {
-        map_size: map_size.ok_or_else(|| "setting.txt: MapSize fehlt".to_string())?,
-    })
+    Ok(MapSetting { map_size: map_size.ok_or_else(|| "setting.txt: MapSize fehlt".to_string())? })
 }
 
 /// Stitches every cell's `minimap.dds` into one composite image. Missing
@@ -87,12 +83,7 @@ pub fn build_composite(map_dir: &Path, setting: &MapSetting) -> Result<image::Rg
         }
     }
 
-    let (tile_w, tile_h) = tile_size.ok_or_else(|| {
-        format!(
-            "Keine minimap.dds-Kacheln in {} gefunden.",
-            map_dir.display()
-        )
-    })?;
+    let (tile_w, tile_h) = tile_size.ok_or_else(|| format!("Keine minimap.dds-Kacheln in {} gefunden.", map_dir.display()))?;
 
     let mut composite = image::RgbaImage::new(cols * tile_w, rows * tile_h);
     for (x, y, tile) in tiles {
@@ -115,8 +106,7 @@ pub struct MapFolderInfo {
 /// scope for this feature.
 pub fn list_map_folders(client_path: &str) -> Result<Vec<MapFolderInfo>, String> {
     let pack_dir = Path::new(client_path).join("pack");
-    let entries = std::fs::read_dir(&pack_dir)
-        .map_err(|e| format!("pack-Ordner nicht lesbar unter {}: {e}", pack_dir.display()))?;
+    let entries = std::fs::read_dir(&pack_dir).map_err(|e| format!("pack-Ordner nicht lesbar unter {}: {e}", pack_dir.display()))?;
 
     let mut result = Vec::new();
     for entry in entries.flatten() {
@@ -135,10 +125,7 @@ pub fn list_map_folders(client_path: &str) -> Result<Vec<MapFolderInfo>, String>
             let sub_path = sub.path();
             if sub_path.is_dir() && sub_path.join("setting.txt").exists() {
                 if let Some(folder_name) = sub_path.file_name().and_then(|n| n.to_str()) {
-                    result.push(MapFolderInfo {
-                        category: category.clone(),
-                        folder_name: folder_name.to_string(),
-                    });
+                    result.push(MapFolderInfo { category: category.clone(), folder_name: folder_name.to_string() });
                 }
             }
         }
@@ -157,9 +144,7 @@ pub struct RegenMapImage {
 }
 
 fn cache_path(app_data_dir: &Path, category: &str, folder_name: &str) -> PathBuf {
-    app_data_dir
-        .join("map_cache")
-        .join(format!("{category}__{folder_name}.png"))
+    app_data_dir.join("map_cache").join(format!("{category}__{folder_name}.png"))
 }
 
 /// Builds (or loads from disk cache) the composite minimap for one map
@@ -173,32 +158,21 @@ pub fn render_map(
     folder_name: &str,
     force_rebuild: bool,
 ) -> Result<RegenMapImage, String> {
-    let map_dir = Path::new(client_path)
-        .join("pack")
-        .join(category)
-        .join(folder_name);
+    let map_dir = Path::new(client_path).join("pack").join(category).join(folder_name);
     let setting_path = map_dir.join("setting.txt");
-    let setting_content = std::fs::read_to_string(&setting_path).map_err(|e| {
-        format!(
-            "setting.txt nicht lesbar unter {}: {e}",
-            setting_path.display()
-        )
-    })?;
+    let setting_content =
+        std::fs::read_to_string(&setting_path).map_err(|e| format!("setting.txt nicht lesbar unter {}: {e}", setting_path.display()))?;
     let setting = parse_setting(&setting_content)?;
 
     let cache = cache_path(app_data_dir, category, folder_name);
     let composite = if !force_rebuild && cache.exists() {
-        image::open(&cache)
-            .map_err(|e| format!("Kartencache nicht lesbar: {e}"))?
-            .to_rgba8()
+        image::open(&cache).map_err(|e| format!("Kartencache nicht lesbar: {e}"))?.to_rgba8()
     } else {
         let built = build_composite(&map_dir, &setting)?;
         if let Some(parent) = cache.parent() {
             std::fs::create_dir_all(parent).map_err(|e| e.to_string())?;
         }
-        built
-            .save_with_format(&cache, image::ImageFormat::Png)
-            .map_err(|e| format!("Kartencache konnte nicht geschrieben werden: {e}"))?;
+        built.save_with_format(&cache, image::ImageFormat::Png).map_err(|e| format!("Kartencache konnte nicht geschrieben werden: {e}"))?;
         built
     };
 
@@ -238,8 +212,7 @@ mod tests {
     #[ignore = "braucht echte Client-Dateien (M2_TEST_CLIENT_DIR oder Client-Pfad aus M2Manager) - mit `cargo test -- --ignored` ausführen"]
     fn builds_composite_from_real_client_map() {
         let map_dir = crate::test_support::client_dir().join("pack/map_empire/metin2_map_a1");
-        let setting_content = std::fs::read_to_string(map_dir.join("setting.txt"))
-            .expect("real client setting.txt should be readable");
+        let setting_content = std::fs::read_to_string(map_dir.join("setting.txt")).expect("real client setting.txt should be readable");
         let setting = parse_setting(&setting_content).unwrap();
         let composite = build_composite(&map_dir, &setting).expect("composite should build");
         assert_eq!(composite.width(), setting.map_size.0 * 256);
@@ -249,11 +222,8 @@ mod tests {
     #[test]
     #[ignore = "braucht echte Client-Dateien (M2_TEST_CLIENT_DIR oder Client-Pfad aus M2Manager) - mit `cargo test -- --ignored` ausführen"]
     fn lists_real_client_map_folders() {
-        let folders = list_map_folders(&crate::test_support::client_dir().to_string_lossy().into_owned())
-            .expect("should list map folders");
-        assert!(folders
-            .iter()
-            .any(|f| f.category == "map_empire" && f.folder_name == "metin2_map_a1"));
+        let folders = list_map_folders(&crate::test_support::client_dir().to_string_lossy()).expect("should list map folders");
+        assert!(folders.iter().any(|f| f.category == "map_empire" && f.folder_name == "metin2_map_a1"));
     }
 
     #[test]
@@ -261,32 +231,17 @@ mod tests {
     fn render_map_produces_cached_png_data_url() {
         let app_data_dir = std::env::temp_dir().join(format!(
             "m2manager_mapdata_test_{}",
-            std::time::SystemTime::now()
-                .duration_since(std::time::UNIX_EPOCH)
-                .unwrap()
-                .as_nanos()
+            std::time::SystemTime::now().duration_since(std::time::UNIX_EPOCH).unwrap().as_nanos()
         ));
-        let result = render_map(
-            &app_data_dir,
-            &crate::test_support::client_dir().to_string_lossy().into_owned(),
-            "map_empire",
-            "metin2_map_a1",
-            false,
-        )
-        .expect("render_map should succeed against the real client");
+        let result = render_map(&app_data_dir, &crate::test_support::client_dir().to_string_lossy(), "map_empire", "metin2_map_a1", false)
+            .expect("render_map should succeed against the real client");
         assert!(result.image_data_url.starts_with("data:image/png;base64,"));
         assert_eq!(result.units_per_pixel, 1.0);
         assert!(cache_path(&app_data_dir, "map_empire", "metin2_map_a1").exists());
 
         // Second call should hit the cache without recomputing.
-        let cached = render_map(
-            &app_data_dir,
-            &crate::test_support::client_dir().to_string_lossy().into_owned(),
-            "map_empire",
-            "metin2_map_a1",
-            false,
-        )
-        .expect("cached render_map should succeed");
+        let cached = render_map(&app_data_dir, &crate::test_support::client_dir().to_string_lossy(), "map_empire", "metin2_map_a1", false)
+            .expect("cached render_map should succeed");
         assert_eq!(cached.width_px, result.width_px);
 
         std::fs::remove_dir_all(&app_data_dir).ok();

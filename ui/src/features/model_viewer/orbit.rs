@@ -110,11 +110,8 @@ impl Orbit {
         let before = self.position;
         let mut offset = self.position - self.target;
         let mut radius = offset.length();
-        let (mut theta, mut phi) = if radius == 0.0 {
-            (0.0, 0.0)
-        } else {
-            (offset.x.atan2(offset.z), (offset.y / radius).clamp(-1.0, 1.0).acos())
-        };
+        let (mut theta, mut phi) =
+            if radius == 0.0 { (0.0, 0.0) } else { (offset.x.atan2(offset.z), (offset.y / radius).clamp(-1.0, 1.0).acos()) };
 
         theta += self.delta_theta * DAMPING;
         phi += self.delta_phi * DAMPING;

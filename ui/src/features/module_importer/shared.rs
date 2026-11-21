@@ -187,16 +187,11 @@ const ANTIFLAG_NO_NINJA: i64 = 1 << 3;
 const ANTIFLAG_NO_SURA: i64 = 1 << 4;
 const ANTIFLAG_NO_SHAMAN: i64 = 1 << 5;
 const ANTIFLAG_NO_WOLFMAN: i64 = 1 << 18;
-pub const CLASS_ANTIFLAG_MASK: i64 =
-    ANTIFLAG_NO_WARRIOR | ANTIFLAG_NO_NINJA | ANTIFLAG_NO_SURA | ANTIFLAG_NO_SHAMAN | ANTIFLAG_NO_WOLFMAN;
+pub const CLASS_ANTIFLAG_MASK: i64 = ANTIFLAG_NO_WARRIOR | ANTIFLAG_NO_NINJA | ANTIFLAG_NO_SURA | ANTIFLAG_NO_SHAMAN | ANTIFLAG_NO_WOLFMAN;
 
 /// `RACE_ANTIFLAG` in Deklarationsreihenfolge.
-pub const RACE_ANTIFLAG: [(&str, i64); 4] = [
-    ("warrior", ANTIFLAG_NO_WARRIOR),
-    ("assassin", ANTIFLAG_NO_NINJA),
-    ("sura", ANTIFLAG_NO_SURA),
-    ("shaman", ANTIFLAG_NO_SHAMAN),
-];
+pub const RACE_ANTIFLAG: [(&str, i64); 4] =
+    [("warrior", ANTIFLAG_NO_WARRIOR), ("assassin", ANTIFLAG_NO_NINJA), ("sura", ANTIFLAG_NO_SURA), ("shaman", ANTIFLAG_NO_SHAMAN)];
 
 /// Inventar-Größe einer Waffe hängt nur vom Subtyp ab (live verifiziert).
 pub fn size_for_subtype(subtype: i64) -> i64 {
@@ -227,16 +222,12 @@ pub fn class_antiflag_for_weapon(subtype: i64, is_sura_model: bool) -> i64 {
 }
 
 pub fn class_label_for(blocked_mask: i64) -> String {
-    let classes: Vec<&str> = [
-        (ANTIFLAG_NO_WARRIOR, "Krieger"),
-        (ANTIFLAG_NO_NINJA, "Ninja"),
-        (ANTIFLAG_NO_SURA, "Sura"),
-        (ANTIFLAG_NO_SHAMAN, "Schamane"),
-    ]
-    .iter()
-    .filter(|(bit, _)| blocked_mask & bit == 0)
-    .map(|(_, l)| *l)
-    .collect();
+    let classes: Vec<&str> =
+        [(ANTIFLAG_NO_WARRIOR, "Krieger"), (ANTIFLAG_NO_NINJA, "Ninja"), (ANTIFLAG_NO_SURA, "Sura"), (ANTIFLAG_NO_SHAMAN, "Schamane")]
+            .iter()
+            .filter(|(bit, _)| blocked_mask & bit == 0)
+            .map(|(_, l)| *l)
+            .collect();
     if classes.is_empty() {
         "alle Klassen".to_string()
     } else {
@@ -265,17 +256,13 @@ mod tests {
         let long_base = "Sehr Langer Waffenname XX";
         let names: Vec<String> = (0..17)
             .map(|level| {
-                fit_to_byte_limit_with_suffix(
-                    long_base,
-                    &if level > 0 { format!(" +{level}") } else { String::new() },
-                    ITEM_NAME_MAX_BYTES,
-                )
+                fit_to_byte_limit_with_suffix(long_base, &if level > 0 { format!(" +{level}") } else { String::new() }, ITEM_NAME_MAX_BYTES)
             })
             .collect();
         let unique: HashSet<&String> = names.iter().collect();
         assert_eq!(unique.len(), names.len());
-        for level in 1..=16 {
-            assert!(names[level].ends_with(&format!(" +{level}")), "{}", names[level]);
+        for (level, name) in names.iter().enumerate().take(17).skip(1) {
+            assert!(name.ends_with(&format!(" +{level}")), "{name}");
         }
     }
 
@@ -290,10 +277,7 @@ mod tests {
     #[test]
     fn matches_plain_fit_without_suffix() {
         let base = "Kurzer Name";
-        assert_eq!(
-            fit_to_byte_limit_with_suffix(base, "", ITEM_NAME_MAX_BYTES),
-            fit_to_byte_limit(base, ITEM_NAME_MAX_BYTES)
-        );
+        assert_eq!(fit_to_byte_limit_with_suffix(base, "", ITEM_NAME_MAX_BYTES), fit_to_byte_limit(base, ITEM_NAME_MAX_BYTES));
     }
 
     #[test]

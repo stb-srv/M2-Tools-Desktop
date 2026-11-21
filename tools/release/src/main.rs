@@ -68,10 +68,8 @@ fn main() {
 
     let assets: Vec<Value> = serde_json::from_str(&gh_api(&format!("repos/{repo}/releases/{release_id}/assets"), &[]))
         .unwrap_or_else(|e| fail(&format!("Asset-Liste ungültig: {e}")));
-    let by_name: HashMap<String, i64> = assets
-        .iter()
-        .filter_map(|a| Some((a.get("name")?.as_str()?.to_string(), a.get("id")?.as_i64()?)))
-        .collect();
+    let by_name: HashMap<String, i64> =
+        assets.iter().filter_map(|a| Some((a.get("name")?.as_str()?.to_string(), a.get("id")?.as_i64()?))).collect();
 
     let latest_id = by_name.get("latest.json").copied().unwrap_or_else(|| {
         fail("No \"latest.json\" asset found on this release - check that uploadUpdaterJson is enabled and that tauri.conf.json has bundle.createUpdaterArtifacts set.")

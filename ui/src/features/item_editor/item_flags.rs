@@ -337,21 +337,10 @@ pub fn subtypes_by_type(item_type: i64) -> Option<&'static [FlagOption]> {
             FlagOption { value: 2, label: "Dokument" },
             FlagOption { value: 3, label: "Geist (Spirit)" },
         ],
-        7 => &[
-            FlagOption { value: 0, label: "Angelrute" },
-        ],
-        8 => &[
-            FlagOption { value: 0, label: "Los (Ticket)" },
-            FlagOption { value: 1, label: "Sofort-Los" },
-        ],
-        10 => &[
-            FlagOption { value: 0, label: "Normal" },
-            FlagOption { value: 1, label: "Gold" },
-        ],
-        12 => &[
-            FlagOption { value: 0, label: "Lebendig" },
-            FlagOption { value: 1, label: "Tot" },
-        ],
+        7 => &[FlagOption { value: 0, label: "Angelrute" }],
+        8 => &[FlagOption { value: 0, label: "Los (Ticket)" }, FlagOption { value: 1, label: "Sofort-Los" }],
+        10 => &[FlagOption { value: 0, label: "Normal" }, FlagOption { value: 1, label: "Gold" }],
+        12 => &[FlagOption { value: 0, label: "Lebendig" }, FlagOption { value: 1, label: "Tot" }],
         14 => &[
             FlagOption { value: 0, label: "Fischgräte" },
             FlagOption { value: 1, label: "Wasserstein-Stück" },
@@ -380,10 +369,7 @@ pub fn subtypes_by_type(item_type: i64) -> Option<&'static [FlagOption]> {
             FlagOption { value: 4, label: "Reittier" },
             FlagOption { value: 5, label: "Begleiter (Pet)" },
         ],
-        31 => &[
-            FlagOption { value: 0, label: "Dragon Soul" },
-            FlagOption { value: 1, label: "Dragon Heart" },
-        ],
+        31 => &[FlagOption { value: 0, label: "Dragon Soul" }, FlagOption { value: 1, label: "Dragon Heart" }],
         _ => return None,
     })
 }

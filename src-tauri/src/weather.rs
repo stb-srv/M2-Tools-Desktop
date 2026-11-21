@@ -32,24 +32,13 @@ pub struct WeatherState {
 }
 
 pub fn get_state(conn: &Connection) -> Result<WeatherState, String> {
-    conn.execute(
-        "INSERT OR IGNORE INTO weather_state (id, night_enabled, snow_enabled, revision) VALUES (1, 0, 0, 1)",
-        [],
-    )
-    .map_err(|e| e.to_string())?;
-    conn.query_row(
-        "SELECT night_enabled, snow_enabled, revision FROM weather_state WHERE id = 1",
-        [],
-        |row| {
-            let night: i64 = row.get(0)?;
-            let snow: i64 = row.get(1)?;
-            Ok(WeatherState {
-                night_enabled: night != 0,
-                snow_enabled: snow != 0,
-                revision: row.get(2)?,
-            })
-        },
-    )
+    conn.execute("INSERT OR IGNORE INTO weather_state (id, night_enabled, snow_enabled, revision) VALUES (1, 0, 0, 1)", [])
+        .map_err(|e| e.to_string())?;
+    conn.query_row("SELECT night_enabled, snow_enabled, revision FROM weather_state WHERE id = 1", [], |row| {
+        let night: i64 = row.get(0)?;
+        let snow: i64 = row.get(1)?;
+        Ok(WeatherState { night_enabled: night != 0, snow_enabled: snow != 0, revision: row.get(2)? })
+    })
     .map_err(|e| e.to_string())
 }
 
@@ -109,9 +98,7 @@ mod tests {
         let conn = scratch_conn();
         get_state(&conn).expect("get failed");
         get_state(&conn).expect("get failed");
-        let count: i64 = conn
-            .query_row("SELECT COUNT(*) FROM weather_state", [], |r| r.get(0))
-            .expect("count failed");
+        let count: i64 = conn.query_row("SELECT COUNT(*) FROM weather_state", [], |r| r.get(0)).expect("count failed");
         assert_eq!(count, 1);
     }
 }

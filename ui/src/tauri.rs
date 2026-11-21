@@ -42,10 +42,7 @@ pub fn js_err(v: JsValue) -> String {
     if let Some(e) = v.dyn_ref::<js_sys::Error>() {
         return String::from(e.message());
     }
-    js_sys::JSON::stringify(&v)
-        .ok()
-        .and_then(|s| s.as_string())
-        .unwrap_or_else(|| format!("{v:?}"))
+    js_sys::JSON::stringify(&v).ok().and_then(|s| s.as_string()).unwrap_or_else(|| format!("{v:?}"))
 }
 
 async fn call_fn(f: &JsValue, this: &JsValue, args: &[JsValue]) -> Result<JsValue, String> {
@@ -70,8 +67,7 @@ async fn call(parts: &[&str], args: &[JsValue]) -> Result<JsValue, String> {
 }
 
 fn to_js<T: Serialize + ?Sized>(v: &T) -> Result<JsValue, String> {
-    v.serialize(&serde_wasm_bindgen::Serializer::json_compatible())
-        .map_err(|e| e.to_string())
+    v.serialize(&serde_wasm_bindgen::Serializer::json_compatible()).map_err(|e| e.to_string())
 }
 
 fn from_js<T: DeserializeOwned>(v: JsValue) -> Result<T, String> {
@@ -207,10 +203,7 @@ pub async fn emit(event: &str, payload: &impl Serialize) -> Result<(), String> {
 
 /// Hört auf ein Tauri-Event. Der Rückgabewert hebt das Abo beim Drop *nicht*
 /// auf - [`Unlisten::unlisten`] explizit aufrufen (z.B. in `on_cleanup`).
-pub async fn listen<T: DeserializeOwned + 'static>(
-    event: &str,
-    handler: impl Fn(T) + 'static,
-) -> Result<Unlisten, String> {
+pub async fn listen<T: DeserializeOwned + 'static>(event: &str, handler: impl Fn(T) + 'static) -> Result<Unlisten, String> {
     let cb = Closure::<dyn Fn(JsValue)>::new(move |ev: JsValue| {
         let payload = Reflect::get(&ev, &"payload".into()).unwrap_or(JsValue::NULL);
         match serde_wasm_bindgen::from_value::<T>(payload) {
