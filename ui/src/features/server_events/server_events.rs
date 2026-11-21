@@ -261,7 +261,7 @@ pub fn ServerEvents() -> impl IntoView {
 
             <FlagSection title="Saison-Events (Sonder-Drops)" default_open=true>
                 <p class="mb-2 text-xs text-muted-foreground">
-                    "Diese Werte sind keine direkte Prozentangabe, sondern eine \"je kleiner, desto häufiger\"-Stärke (Server-Formel: 40000 × Stufen-Faktor ÷ Wert) - Details siehe EVENT.md im Projekt. Ohne gesetzten Wert ist das Event komplett "
+                    "Diese Werte sind keine direkte Prozentangabe, sondern eine \"je kleiner, desto häufiger\"-Stärke (Server-Formel: 40000 × Stufen-Faktor ÷ Wert) Ohne gesetzten Wert ist das Event komplett "
                     <strong>"aus"</strong>
                     " (0), nicht \"Standard\"."
                 </p>

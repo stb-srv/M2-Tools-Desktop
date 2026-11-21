@@ -4,7 +4,7 @@ Alle nennenswerten Änderungen an M2Manager werden hier dokumentiert. Format
 angelehnt an [Keep a Changelog](https://keepachangelog.com/), Versionierung
 nach [SemVer](https://semver.org/) (`MAJOR.MINOR.PATCH`, solange < 1.0 gilt
 `MINOR` für neue Features, `PATCH` für reine Fixes). Für die vollständige
-Feature-Historie mit allen Details siehe `STATUS.md`.
+Feature-Historie mit allen Details siehe `docs/archiv/STATUS.md`.
 
 ## [1.0.3] - 2026-11-17
 
@@ -678,4 +678,4 @@ Erste funktionsfähige Version. Wesentliche Bereiche:
 - Sidebar mit Kategorien, Favoriten/Zuletzt-verwendet und Hinweis auf
   ungespeicherte Änderungen
 
-Vollständige Detail-Historie mit allen Einzelschritten: siehe `STATUS.md`.
+Vollständige Detail-Historie mit allen Einzelschritten: siehe `docs/archiv/STATUS.md`.
