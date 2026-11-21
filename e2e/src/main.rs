@@ -129,8 +129,8 @@ async fn main() {
     tokio::time::sleep(Duration::from_secs(2)).await;
 
     let mut caps = Capabilities::new();
-    caps.insert("browserName".into(), "wry".into());
-    caps.insert("tauri:options".into(), serde_json::json!({ "application": exe.to_string_lossy() }));
+    caps.set("browserName", "wry").expect("Capability browserName");
+    caps.set("tauri:options", serde_json::json!({ "application": exe.to_string_lossy() })).expect("Capability tauri:options");
 
     let mut results: Vec<(&str, Result<String, String>)> = vec![];
     match WebDriver::new(format!("http://localhost:{TAURI_DRIVER_PORT}"), caps).await {
