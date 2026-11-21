@@ -305,7 +305,7 @@ pub fn QuestBuilder() -> impl IntoView {
             };
             let workdir = setting("server_workdir").await.unwrap_or_else(|| "/usr/home/game".to_string());
             let command =
-                setting("server_cmd_reload_quests").await.unwrap_or_else(|| format!("cd {workdir} && echo 4 | sh index.sh"));
+                setting("server_cmd_reload_quests").await.unwrap_or_else(|| crate::util::shell::index_sh_command(&workdir, 4));
             match invoke::<CommandResult>("run_server_command", &json!({ "command": command })).await {
                 Ok(r) => {
                     if let Some(code) = r.exit_status.filter(|c| *c != 0) {

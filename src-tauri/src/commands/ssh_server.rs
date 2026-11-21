@@ -3,6 +3,7 @@
 
 use super::support::{build_deploy_setting, stored_ssh_auth};
 use crate::build_deploy;
+use crate::db_backup::shell_single_quote as q;
 use crate::deploy_history;
 use crate::resources;
 use crate::settings;
@@ -12,6 +13,16 @@ use tauri::{AppHandle, Emitter, State};
 
 #[tauri::command]
 pub async fn test_ssh_connection(config: SshConfig, auth: SshAuth) -> Result<(), String> {
+    // Leere Felder aus dem Webview = gespeicherte Geheimnisse verwenden.
+    let auth = match auth {
+        SshAuth::Password { password } if password.is_empty() => SshAuth::Password {
+            password: crate::credentials::get_secret("ssh_password").unwrap_or_default(),
+        },
+        SshAuth::PrivateKey { path, passphrase } if passphrase.as_deref().map_or(true, str::is_empty) => {
+            SshAuth::PrivateKey { path, passphrase: crate::credentials::get_secret("ssh_key_passphrase").ok().filter(|s| !s.is_empty()) }
+        }
+        other => other,
+    };
     ssh::test_connection(&config, &auth).await
 }
 
@@ -56,7 +67,7 @@ pub async fn sync_build_source(app: AppHandle, state: State<'_, AppState>) -> Re
     let (config, auth) = stored_ssh_auth(&state)?;
     let live = build_deploy_setting(&state, "build_live_source_root", "/usr/home/source/server")?;
     let scratch = build_deploy_setting(&state, "build_scratch_source_root", "/usr/home/m2manager_build/server")?;
-    let command = build_deploy::sync_script(&live, &scratch);
+    let command = build_deploy::sync_script(&live, &scratch)?;
     let result = ssh::run_command_streaming(&config, &auth, &command, |chunk| {
         let _ = app.emit("build-deploy-output", chunk);
     })
@@ -71,7 +82,7 @@ pub async fn run_source_build(
     options: build_deploy::BuildOptions,
 ) -> Result<ServerCommandResult, String> {
     let (config, auth) = stored_ssh_auth(&state)?;
-    let command = build_deploy::build_script(&options);
+    let command = build_deploy::build_script(&options)?;
     let result = ssh::run_command_streaming(&config, &auth, &command, |chunk| {
         let _ = app.emit("build-deploy-output", chunk);
     })
@@ -137,6 +148,9 @@ pub async fn run_deploy(
 ) -> Result<deploy_history::DeployRecord, String> {
     let (config, auth) = stored_ssh_auth(&state)?;
     let scratch = build_deploy_setting(&state, "build_scratch_source_root", "/usr/home/m2manager_build/server")?;
+    if let Some(bad) = targets.iter().find(|t| !build_deploy::BUILD_BINS.contains(&t.as_str())) {
+        return Err(format!("Unbekanntes Einspiel-Ziel '{bad}'."));
+    }
     let live_game = build_deploy_setting(&state, "build_live_game_binary", "/usr/home/source/server/game/game")?;
     let live_db = build_deploy_setting(&state, "build_live_db_binary", "/usr/home/source/server/db/db")?;
     let stop_cmd = build_deploy_setting(&state, "server_cmd_stop", "")?;
@@ -173,10 +187,10 @@ pub async fn run_deploy(
     emit_stage("3/5 Neu gebaute Programmdateien einspielen");
     let mut copy_cmds = Vec::new();
     if targets.iter().any(|t| t == "game") {
-        copy_cmds.push(format!("cp -p '{scratch}/game/game' '{live_game}'"));
+        copy_cmds.push(format!("cp -p {} {}", q(&format!("{scratch}/game/game")), q(&live_game)));
     }
     if targets.iter().any(|t| t == "db") {
-        copy_cmds.push(format!("cp -p '{scratch}/db/db' '{live_db}'"));
+        copy_cmds.push(format!("cp -p {} {}", q(&format!("{scratch}/db/db")), q(&live_db)));
     }
     if copy_cmds.is_empty() {
         return Err("Keine Ziele ausgewählt (weder 'game' noch 'db').".to_string());
@@ -256,10 +270,10 @@ pub async fn run_rollback(
     emit_stage("2/4 Gesicherte Programmdatei(en) zurückkopieren");
     let mut copy_cmds = Vec::new();
     if let Some(backup) = &target_record.game_backup_path {
-        copy_cmds.push(format!("cp -p '{backup}' '{live_game}'"));
+        copy_cmds.push(format!("cp -p {} {}", q(backup), q(&live_game)));
     }
     if let Some(backup) = &target_record.db_backup_path {
-        copy_cmds.push(format!("cp -p '{backup}' '{live_db}'"));
+        copy_cmds.push(format!("cp -p {} {}", q(backup), q(&live_db)));
     }
     if copy_cmds.is_empty() {
         return Err("Der gewählte Verlauf-Eintrag hat keine Sicherungsdatei(en) hinterlegt.".to_string());

@@ -76,6 +76,9 @@ pub async fn create_quest_file(
     // server (verified in share/quest/Runs/*.quest) - qc_x64 doesn't care
     // about the extension itself, only quest_list has to list the right one.
     let extension = extension.filter(|e| !e.is_empty()).unwrap_or_else(|| "lua".to_string());
+    if !matches!(extension.as_str(), "lua" | "quest") {
+        return Err(format!("Ungültige Dateiendung '{extension}' (erlaubt: lua, quest)."));
+    }
     let relative_path = format!("{category}/{name}.{extension}");
 
     let list_path = format!("{dir}/quest_list");

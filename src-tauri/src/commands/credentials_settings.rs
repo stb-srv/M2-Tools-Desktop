@@ -12,9 +12,20 @@ pub fn store_credential(account: String, secret: String) -> Result<(), String> {
     credentials::store_secret(&account, &secret)
 }
 
+/// Verrät dem Webview nur, OB ein (nicht leeres) Geheimnis gespeichert ist,
+/// nie den Klartext. Das Backend holt Passwörter bei Bedarf selbst.
 #[tauri::command]
-pub fn get_credential(account: String) -> Result<String, String> {
-    credentials::get_secret(&account)
+pub fn has_credential(account: String) -> Result<bool, String> {
+    Ok(credentials::get_secret(&account).map(|s| !s.is_empty()).unwrap_or(false))
+}
+
+/// Leeres Passwort vom Webview = „gespeichertes Passwort verwenden“.
+fn resolve_password(password: String, account: &str) -> String {
+    if password.is_empty() {
+        credentials::get_secret(account).unwrap_or_default()
+    } else {
+        password
+    }
 }
 
 #[tauri::command]
@@ -41,7 +52,7 @@ pub fn set_setting(
 
 #[tauri::command]
 pub async fn test_mysql_connection(config: MysqlConfig, password: String) -> Result<(), String> {
-    mysql::test_connection(&config, &password).await
+    mysql::test_connection(&config, &resolve_password(password, "mysql_password")).await
 }
 
 #[tauri::command]
@@ -50,7 +61,7 @@ pub async fn connect_mysql(
     config: MysqlConfig,
     password: String,
 ) -> Result<(), String> {
-    let pool = mysql::connect(&config, &password).await?;
+    let pool = mysql::connect(&config, &resolve_password(password, "mysql_password")).await?;
     *state.mysql_pool.lock().await = Some(pool);
     Ok(())
 }

@@ -9,6 +9,6 @@
     "dialog:default",
     "core:webview:allow-create-webview-window",
     "updater:default",
-    "process:default"
+    "process:allow-restart"
   ]
 }
