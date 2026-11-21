@@ -245,7 +245,7 @@ pub fn ShopEditor() -> impl IntoView {
         let (h, p, u, pw) = (host.get_untracked(), port.get_untracked(), username.get_untracked(), password.get_untracked());
         spawn_local(async move {
             let res: Result<(), String> = async {
-                let values = MysqlValues { host: h, port: p, username: u, password: pw };
+                let values = MysqlValues { host: h, port: p, username: u, password: pw, password_saved: false };
                 connect_mysql(&values).await?;
                 save_mysql(&values).await?;
                 connected.set(true);

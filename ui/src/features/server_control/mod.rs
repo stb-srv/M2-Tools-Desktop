@@ -535,7 +535,7 @@ mod tests {
 
     #[test]
     fn default_commands() {
-        assert_eq!(default_command("/usr/home/game", 1), "cd /usr/home/game && echo 1 | sh index.sh");
+        assert_eq!(default_command("/usr/home/game", 1), "cd '/usr/home/game' && echo 1 | sh index.sh");
         assert_eq!(ActionId::ReloadQuests.default_choice(), 4);
     }
 
