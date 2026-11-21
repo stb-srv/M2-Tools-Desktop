@@ -1,0 +1,9 @@
+# Konfiguration für `cargo audit` (CI-Job "audit", Arbeitsverzeichnis ui).
+# Nur nicht behebbare Hinweise, jeweils mit Begründung.
+
+[advisories]
+ignore = [
+    # paste: unmaintained, kein Sicherheitsproblem. Reines Proc-Macro zur
+    # Build-Zeit (über Leptos), es gibt keine gepatchte Version.
+    "RUSTSEC-2024-0436",
+]

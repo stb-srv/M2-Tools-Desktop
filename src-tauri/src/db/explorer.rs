@@ -121,12 +121,17 @@ pub async fn get_rows(pool: &MySqlPool, database: &str, table: &str, limit: i64,
     // both come from information_schema listings we generated ourselves
     // (never raw user text), so backtick-quoting them is safe here.
     let query = format!("SELECT * FROM `{}`.`{}` LIMIT ? OFFSET ?", database.replace('`', ""), table.replace('`', ""));
-    let rows = sqlx::query(&query).bind(limit).bind(offset).fetch_all(pool).await.map_err(|e| e.to_string())?;
+    let rows =
+        sqlx::query(sqlx::AssertSqlSafe(query.as_str())).bind(limit).bind(offset).fetch_all(pool).await.map_err(|e| e.to_string())?;
 
-    let total_rows: i64 = sqlx::query_scalar(&format!("SELECT COUNT(*) FROM `{}`.`{}`", database.replace('`', ""), table.replace('`', "")))
-        .fetch_one(pool)
-        .await
-        .map_err(|e| e.to_string())?;
+    let total_rows: i64 = sqlx::query_scalar(sqlx::AssertSqlSafe(format!(
+        "SELECT COUNT(*) FROM `{}`.`{}`",
+        database.replace('`', ""),
+        table.replace('`', "")
+    )))
+    .fetch_one(pool)
+    .await
+    .map_err(|e| e.to_string())?;
 
     let columns: Vec<String> = rows.first().map(|r| r.columns().iter().map(|c| c.name().to_string()).collect()).unwrap_or_default();
 
@@ -191,7 +196,7 @@ pub async fn get_row_by_pk(
         return Err(format!("Unbekannte Primärschlüssel-Spalte: {pk_column}"));
     }
     let sql = format!("SELECT * FROM {}.{} WHERE {} = ? LIMIT 1", quote_ident(database), quote_ident(table), quote_ident(pk_column));
-    let row = sqlx::query(&sql).bind(pk_value).fetch_optional(pool).await.map_err(|e| e.to_string())?;
+    let row = sqlx::query(sqlx::AssertSqlSafe(sql.as_str())).bind(pk_value).fetch_optional(pool).await.map_err(|e| e.to_string())?;
 
     Ok(row.map(|r| {
         let columns: Vec<String> = r.columns().iter().map(|c| c.name().to_string()).collect();
@@ -228,7 +233,7 @@ pub async fn update_row(
 
     let column_names: Vec<String> = changes.iter().map(|(n, _)| n.clone()).collect();
     let sql = build_update_sql(database, table, pk_column, &column_names);
-    let mut query = sqlx::query(&sql);
+    let mut query = sqlx::query(sqlx::AssertSqlSafe(sql.as_str()));
     for (name, value) in changes {
         let is_binary = find(name).unwrap().data_type.contains("binary");
         query = bind_value(query, is_binary, value.clone());
@@ -255,7 +260,7 @@ pub async fn insert_row(pool: &MySqlPool, database: &str, table: &str, values: &
 
     let column_names: Vec<String> = values.iter().map(|(n, _)| n.clone()).collect();
     let sql = build_insert_sql(database, table, &column_names);
-    let mut query = sqlx::query(&sql);
+    let mut query = sqlx::query(sqlx::AssertSqlSafe(sql.as_str()));
     for (name, value) in values {
         let is_binary = find(name).unwrap().data_type.contains("binary");
         query = bind_value(query, is_binary, value.clone());
@@ -273,7 +278,7 @@ pub async fn delete_row(pool: &MySqlPool, database: &str, table: &str, pk_column
         return Err(format!("Unbekannte Primärschlüssel-Spalte: {pk_column}"));
     }
     let sql = build_delete_sql(database, table, pk_column);
-    sqlx::query(&sql).bind(pk_value).execute(pool).await.map_err(|e| e.to_string())?;
+    sqlx::query(sqlx::AssertSqlSafe(sql.as_str())).bind(pk_value).execute(pool).await.map_err(|e| e.to_string())?;
     Ok(())
 }
 
@@ -313,7 +318,7 @@ pub async fn search_rows(
     } else {
         format!("SELECT * FROM `{db}`.`{tbl}` WHERE `{col}` LIKE ? LIMIT ?")
     };
-    let rows = sqlx::query(&sql).bind(like).bind(limit).fetch_all(pool).await.map_err(|e| e.to_string())?;
+    let rows = sqlx::query(sqlx::AssertSqlSafe(sql.as_str())).bind(like).bind(limit).fetch_all(pool).await.map_err(|e| e.to_string())?;
 
     let columns: Vec<String> = rows
         .first()

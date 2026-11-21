@@ -1,0 +1,28 @@
+# Konfiguration für `cargo audit` (CI-Job "audit", Arbeitsverzeichnis src-tauri).
+# Hier stehen nur Hinweise, die sich nicht durch ein Update beheben lassen.
+# Jeder Eintrag begründet, warum er für diese Desktop-App akzeptabel ist.
+# Beim Anheben von Tauri/chrono prüfen, ob ein Eintrag entfallen kann.
+
+[advisories]
+ignore = [
+    # chrono: "unmaintained"-Hinweis ohne Sicherheitslücke, es gibt keine
+    # gepatchte Version. Wird direkt und über sqlx genutzt; kein Ersatz in Sicht.
+    "RUSTSEC-2026-0543",
+
+    # proc-macro-error: unmaintained, nur Build-Zeit-Makro einer transitiven
+    # Abhängigkeit von Tauri (GTK-Makros, nur Linux). Läuft nicht in der App.
+    "RUSTSEC-2024-0370",
+
+    # glib 0.18 (Unsoundness in VariantStrIter): wird von Tauri/wry über die
+    # GTK3-Bindings erzwungen und nur unter Linux gebaut. Die App wird für
+    # Windows ausgeliefert und nutzt VariantStrIter nicht; ein Update erfordert
+    # den Wechsel von Tauri auf GTK4-Bindings.
+    "RUSTSEC-2024-0429",
+
+    # zbus_names / zvariant / zvariant_derive: unmaintained, kommen über Tauri
+    # (D-Bus-Anbindung, nur Linux) herein. Keine Sicherheitslücke, kein
+    # Ersatz verfügbar, in der Windows-Version nicht enthalten.
+    "RUSTSEC-2026-0370",
+    "RUSTSEC-2026-0371",
+    "RUSTSEC-2026-0372",
+]

@@ -942,7 +942,7 @@ async fn existing_db_vnums(pool: &MySqlPool, vnums: &[u32]) -> Result<Vec<u32>, 
     for chunk in vnums.chunks(500) {
         let marks = vec!["?"; chunk.len()].join(",");
         let q = format!("SELECT CAST(vnum AS CHAR) AS v FROM player.item_proto WHERE vnum IN ({marks})");
-        let mut query = sqlx::query(&q);
+        let mut query = sqlx::query(sqlx::AssertSqlSafe(q.as_str()));
         for v in chunk {
             query = query.bind(*v);
         }
@@ -967,7 +967,7 @@ async fn backup_proto_rows(pool: &MySqlPool, vnums: &[u32]) -> Result<String, St
     for chunk in vnums.chunks(200) {
         let marks = vec!["?"; chunk.len()].join(",");
         let q = format!("SELECT {} FROM player.item_proto WHERE vnum IN ({marks})", select_cols.join(", "));
-        let mut query = sqlx::query(&q);
+        let mut query = sqlx::query(sqlx::AssertSqlSafe(q.as_str()));
         for v in chunk {
             query = query.bind(*v);
         }
@@ -1219,7 +1219,7 @@ pub async fn undo(client_dir: PathBuf, id: String, pool: Option<MySqlPool>) -> R
         for chunk in j.db_new_vnums.chunks(200) {
             let list = chunk.iter().map(|v| v.to_string()).collect::<Vec<_>>().join(",");
             let q = format!("DELETE FROM player.item_proto WHERE vnum IN ({list})");
-            sqlx::query(&q).execute(&mut *tx).await.map_err(|e| scrub_error(&e.to_string()))?;
+            sqlx::query(sqlx::AssertSqlSafe(q.as_str())).execute(&mut *tx).await.map_err(|e| scrub_error(&e.to_string()))?;
         }
         rep.db_deleted = j.db_new_vnums.len();
         if !j.db_replaced_vnums.is_empty() {

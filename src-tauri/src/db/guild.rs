@@ -41,9 +41,13 @@ pub async fn disband_guild(pool: &MySqlPool, database: &str, guild_id: i64) -> R
     }
     let has_quest_table = names.contains(&"quest");
 
-    sqlx::query(&format!("DELETE FROM `{database}`.`guild` WHERE id = ?")).bind(guild_id).execute(pool).await.map_err(|e| e.to_string())?;
+    sqlx::query(sqlx::AssertSqlSafe(format!("DELETE FROM `{database}`.`guild` WHERE id = ?")))
+        .bind(guild_id)
+        .execute(pool)
+        .await
+        .map_err(|e| e.to_string())?;
 
-    sqlx::query(&format!("DELETE FROM `{database}`.`guild_grade` WHERE guild_id = ?"))
+    sqlx::query(sqlx::AssertSqlSafe(format!("DELETE FROM `{database}`.`guild_grade` WHERE guild_id = ?")))
         .bind(guild_id)
         .execute(pool)
         .await
@@ -54,24 +58,24 @@ pub async fn disband_guild(pool: &MySqlPool, database: &str, guild_id: i64) -> R
     // cooldown), not essential to a successful disband - skip it quietly if
     // this core's `quest` table isn't in the same database.
     if has_quest_table {
-        sqlx::query(&format!(
+        sqlx::query(sqlx::AssertSqlSafe(format!(
             "REPLACE INTO `{database}`.`quest` (dwPID, szName, szState, lValue) \
              SELECT pid, 'guild_manage', 'withdraw_time', UNIX_TIMESTAMP() \
              FROM `{database}`.`guild_member` WHERE guild_id = ?"
-        ))
+        )))
         .bind(guild_id)
         .execute(pool)
         .await
         .map_err(|e| e.to_string())?;
     }
 
-    sqlx::query(&format!("DELETE FROM `{database}`.`guild_member` WHERE guild_id = ?"))
+    sqlx::query(sqlx::AssertSqlSafe(format!("DELETE FROM `{database}`.`guild_member` WHERE guild_id = ?")))
         .bind(guild_id)
         .execute(pool)
         .await
         .map_err(|e| e.to_string())?;
 
-    sqlx::query(&format!("DELETE FROM `{database}`.`guild_comment` WHERE guild_id = ?"))
+    sqlx::query(sqlx::AssertSqlSafe(format!("DELETE FROM `{database}`.`guild_comment` WHERE guild_id = ?")))
         .bind(guild_id)
         .execute(pool)
         .await

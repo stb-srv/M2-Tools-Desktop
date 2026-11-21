@@ -59,6 +59,8 @@ Feature-Historie mit allen Details siehe `docs/archiv/STATUS.md`.
 - **Shop-Editor**: Beim schnellen Wechsel zwischen Shops werden keine Gegenstände des vorherigen Shops mehr angezeigt oder verändert. Die Shop-Liste ist per Tastatur bedienbar.
 - **Fehlermeldungen statt Stille**: Fehlgeschlagene Suchen (Item entfernen, Referenz-Item), die Drop-Prüfung, das Aufheben fälliger Sperren und das Speichern von Importer-Einstellungen zeigen Fehler jetzt an.
 
+- **Sicherheitsupdates**: Verwendete Bibliotheken (SSH, Datenbank, ZIP-Verarbeitung, TLS, Updater) sind auf Versionen ohne bekannte Sicherheitslücken aktualisiert. Das Verhalten der App ändert sich dadurch nicht.
+
 ### Entwicklung
 
 - Clippy-Warnungen in allen Crates beseitigt, Code einheitlich mit `cargo fmt` formatiert (`rustfmt.toml`, max_width 140); CI prüft Formatierung und Clippy (`-D warnings`). Der Formatierungs-Commit steht in `.git-blame-ignore-revs` (`git config blame.ignoreRevsFile .git-blame-ignore-revs`).
@@ -70,6 +72,7 @@ Feature-Historie mit allen Details siehe `docs/archiv/STATUS.md`.
 - Release-Tools: Versionsersetzung nur noch an der richtigen Stelle (Top-Level-`version`, `[package]`, passender `Cargo.lock`-Eintrag), Zeilenenden bleiben erhalten, Überschriften in Code-Blöcken werden ignoriert.
 - Dirty-Store nach (Bereich, Quelle) getrennt, Hooks `use_section_dirty`/`use_pending_selection`, Hilfe `util/confirm.rs`, Shell-Quoting-Helfer `util/shell.rs`.
 - Notizdateien nach `docs/archiv/`, Test-Fixture nach `src-tauri/tests/fixtures/`, README und `howtorelease.md` aktualisiert.
+- Abhängigkeiten wegen Sicherheitshinweisen (`cargo audit`) aktualisiert: russh 0.65, rusqlite 0.43, sqlx 0.9 (nötig wegen `libsqlite3-sys`-Konflikt), zip 9, tauri-plugin-updater 2.14 (mit Tauri 2.12), rustls, tokio u. a. sqlx 0.9 verlangt `AssertSqlSafe` für dynamisch gebaute SQL-Texte. Nicht behebbare Hinweise (unmaintained/Linux-GTK) stehen mit Begründung in `src-tauri/.cargo/audit.toml` und `ui/.cargo/audit.toml`. `build.rs` bettet das Common-Controls-v6-Manifest für alle Binärdateien ein, damit `cargo test --lib` unter Windows startet.
 
 ## [1.0.3] - 2026-11-17
 

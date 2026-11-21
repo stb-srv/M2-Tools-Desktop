@@ -49,7 +49,7 @@ pub async fn browse_item_proto(
     let where_clause = if conditions.is_empty() { String::new() } else { format!("WHERE {}", conditions.join(" AND ")) };
 
     let count_sql = format!("SELECT COUNT(*) AS c FROM player.item_proto {where_clause}");
-    let mut count_query = sqlx::query(&count_sql);
+    let mut count_query = sqlx::query(sqlx::AssertSqlSafe(count_sql.as_str()));
     if let Some(v) = &like_value {
         count_query = count_query.bind(v);
     }
@@ -59,7 +59,7 @@ pub async fn browse_item_proto(
     let total: i64 = count_query.fetch_one(pool).await.map_err(|e| e.to_string())?.try_get::<i64, _>("c").unwrap_or(0);
 
     let rows_sql = format!("SELECT vnum, locale_name, type, subtype FROM player.item_proto {where_clause} ORDER BY vnum LIMIT ? OFFSET ?");
-    let mut rows_query = sqlx::query(&rows_sql);
+    let mut rows_query = sqlx::query(sqlx::AssertSqlSafe(rows_sql.as_str()));
     if let Some(v) = &like_value {
         rows_query = rows_query.bind(v);
     }
