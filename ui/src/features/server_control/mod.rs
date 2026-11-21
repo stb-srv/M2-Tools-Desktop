@@ -101,7 +101,7 @@ const DEFAULT_WORKDIR: &str = "/usr/home/game";
 /// Das typische Metin2-Steuerskript zeigt ein Menü und liest eine Zahl von
 /// stdin - jede Aktion ist also dieses Skript mit der passenden Menüauswahl.
 fn default_command(workdir: &str, choice: u32) -> String {
-    format!("cd {workdir} && echo {choice} | sh index.sh")
+    crate::util::shell::index_sh_command(workdir, choice)
 }
 
 #[derive(Clone, Copy, PartialEq, Eq, Debug)]

@@ -40,7 +40,7 @@ pub async fn run_server_command(
 ) -> Result<ServerCommandResult, String> {
     let (config, auth) = stored_ssh_auth(&state)?;
 
-    let result = ssh::run_command_streaming(&config, &auth, &command, |chunk| {
+    let result = ssh::run_command_with_timeout(&config, &auth, &command, None, |chunk| {
         let _ = app.emit("server-output", chunk);
     })
     .await?;
@@ -68,7 +68,7 @@ pub async fn sync_build_source(app: AppHandle, state: State<'_, AppState>) -> Re
     let live = build_deploy_setting(&state, "build_live_source_root", "/usr/home/source/server")?;
     let scratch = build_deploy_setting(&state, "build_scratch_source_root", "/usr/home/m2manager_build/server")?;
     let command = build_deploy::sync_script(&live, &scratch)?;
-    let result = ssh::run_command_streaming(&config, &auth, &command, |chunk| {
+    let result = ssh::run_command_with_timeout(&config, &auth, &command, None, |chunk| {
         let _ = app.emit("build-deploy-output", chunk);
     })
     .await?;
@@ -83,7 +83,7 @@ pub async fn run_source_build(
 ) -> Result<ServerCommandResult, String> {
     let (config, auth) = stored_ssh_auth(&state)?;
     let command = build_deploy::build_script(&options)?;
-    let result = ssh::run_command_streaming(&config, &auth, &command, |chunk| {
+    let result = ssh::run_command_with_timeout(&config, &auth, &command, None, |chunk| {
         let _ = app.emit("build-deploy-output", chunk);
     })
     .await?;
