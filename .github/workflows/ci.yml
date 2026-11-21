@@ -129,3 +129,87 @@ jobs:
       - name: cargo audit (ui)
         working-directory: ui
         run: cargo audit
+
+  fmt:
+    name: Formatierung (cargo fmt --check)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
+
+      - uses: dtolnay/rust-toolchain@39008827e6b4319a349e9a42dfc90579dd25f1ca # stable-Branch
+        with:
+          toolchain: 1.100.0 # gleich wie rust-toolchain.toml
+          components: rustfmt
+
+      - name: cargo fmt --check (alle Crates)
+        shell: bash
+        run: |
+          for dir in src-tauri src-tauri/gr2-sidecar ui tools/release e2e; do
+            echo "::group::$dir"
+            (cd "$dir" && cargo fmt --check)
+            echo "::endgroup::"
+          done
+
+  clippy-backend:
+    name: Clippy (src-tauri, -D warnings)
+    # Windows wie der Rust-Test-Job: das Backend hat Windows-spezifische Abhängigkeiten.
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
+
+      - uses: dtolnay/rust-toolchain@39008827e6b4319a349e9a42dfc90579dd25f1ca # stable-Branch
+        with:
+          toolchain: 1.100.0 # gleich wie rust-toolchain.toml
+          components: clippy
+
+      - uses: Swatinem/rust-cache@d1527c8f67ef9af357290475d4af4b0fab8f12e0 # v2.9.3
+        with:
+          workspaces: "src-tauri -> target"
+
+      # tauri_build prüft beim Kompilieren, dass frontendDist existiert.
+      - name: Platzhalter für das Frontend-Bundle
+        shell: bash
+        run: mkdir -p dist && echo '<!doctype html>' > dist/index.html
+
+      - name: cargo clippy
+        working-directory: src-tauri
+        run: cargo clippy --all-targets -- -D warnings
+
+  clippy-frontend:
+    name: Clippy (ui, WASM, -D warnings)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
+
+      - uses: dtolnay/rust-toolchain@39008827e6b4319a349e9a42dfc90579dd25f1ca # stable-Branch
+        with:
+          toolchain: 1.100.0 # gleich wie rust-toolchain.toml
+          targets: wasm32-unknown-unknown
+          components: clippy
+
+      - uses: Swatinem/rust-cache@d1527c8f67ef9af357290475d4af4b0fab8f12e0 # v2.9.3
+        with:
+          workspaces: "ui -> target"
+
+      - name: cargo clippy
+        working-directory: ui
+        run: cargo clippy --target wasm32-unknown-unknown -- -D warnings
+
+  clippy-release-tools:
+    name: Clippy (tools/release, -D warnings)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
+
+      - uses: dtolnay/rust-toolchain@39008827e6b4319a349e9a42dfc90579dd25f1ca # stable-Branch
+        with:
+          toolchain: 1.100.0 # gleich wie rust-toolchain.toml
+          components: clippy
+
+      - uses: Swatinem/rust-cache@d1527c8f67ef9af357290475d4af4b0fab8f12e0 # v2.9.3
+        with:
+          workspaces: "tools/release -> target"
+
+      - name: cargo clippy
+        working-directory: tools/release
+        run: cargo clippy --all-targets -- -D warnings
