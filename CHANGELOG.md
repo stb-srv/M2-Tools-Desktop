@@ -61,6 +61,7 @@ Feature-Historie mit allen Details siehe `docs/archiv/STATUS.md`.
 
 ### Entwicklung
 
+- Clippy-Warnungen in allen Crates beseitigt, Code einheitlich mit `cargo fmt` formatiert (`rustfmt.toml`, max_width 140); CI prüft Formatierung und Clippy (`-D warnings`). Der Formatierungs-Commit steht in `.git-blame-ignore-revs` (`git config blame.ignoreRevsFile .git-blame-ignore-revs`).
 - Neues Backend-Modul `clientfs` (atomares Schreiben, Backups, Locale-Suche, Codepages) ersetzt Duplikate in packtools, itemdesc und m2pkg; 46 Commands als `#[tauri::command(async)]`.
 - Frontend: gemeinsame `util/num.rs`, `store/icons.rs`, `components/modal.rs`; Import-Logik in `package_logic.rs`/`icon_logic.rs` ausgelagert und getestet.
 - Content-Security-Policy gesetzt, `get_credential` durch `has_credential` ersetzt, Capability `process:allow-restart` statt `process:default`.
