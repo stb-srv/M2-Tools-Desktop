@@ -27,8 +27,9 @@ on:
     tags:
       - "v*"
 
+# Standard minimal; die Jobs holen sich ihre Rechte selbst.
 permissions:
-  contents: write
+  contents: read
 
 # Nie zwei Releases gleichzeitig: sonst überholen sie sich beim Schreiben von
 # updater/latest.json.
@@ -41,6 +42,9 @@ jobs:
     name: Version hochzählen, Changelog, Tag
     if: github.event_name == 'workflow_dispatch'
     runs-on: ubuntu-latest
+    permissions:
+      contents: write
+      actions: read
     outputs:
       tag: ${{ steps.release.outputs.tag }}
     steps:
@@ -50,15 +54,31 @@ jobs:
           echo "::error::Releases bitte von master starten (gewählt: ${GITHUB_REF_NAME})."
           exit 1
 
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
         with:
           ref: master
 
-      - uses: dtolnay/rust-toolchain@stable
+      - uses: dtolnay/rust-toolchain@39008827e6b4319a349e9a42dfc90579dd25f1ca # stable-Branch
+        with:
+          toolchain: 1.100.0 # gleich wie rust-toolchain.toml
 
-      - uses: Swatinem/rust-cache@v2
+      - uses: Swatinem/rust-cache@d1527c8f67ef9af357290475d4af4b0fab8f12e0 # v2.9.3
         with:
           workspaces: "tools/release -> target"
+
+      # Nur auf grünem master releasen. Hinweis: Commits, die dieser Workflow
+      # mit GITHUB_TOKEN pusht (Release-Commit, latest.json), lösen kein CI aus.
+      - name: Letzter CI-Lauf auf master muss grün sein
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          set -euo pipefail
+          conclusion=$(gh run list --branch master --workflow ci.yml --limit 1 --json conclusion --jq '.[0].conclusion')
+          echo "Letzter CI-Lauf auf master: ${conclusion:-<keiner>}"
+          if [ "$conclusion" != "success" ]; then
+            echo "::error::Der letzte CI-Lauf auf master ist nicht grün (${conclusion:-keiner}). Erst beheben, dann releasen."
+            exit 1
+          fi
 
       - name: Version und Changelog setzen
         id: release
@@ -95,7 +115,14 @@ jobs:
           fi
           git tag "$tag"
           # Commit und Tag gemeinsam oder gar nicht.
-          git push --atomic origin HEAD:master "$tag"
+          # Ist master inzwischen weitergelaufen, wird der Push abgelehnt:
+          # einmal neu aufsetzen und noch einmal versuchen.
+          if ! git push --atomic origin HEAD:master "$tag"; then
+            echo "::warning::Push abgelehnt, einmal mit git pull --rebase wiederholt."
+            git pull --rebase origin master
+            git tag -f "$tag"
+            git push --atomic origin HEAD:master "$tag"
+          fi
           echo "tag=$tag" >> "$GITHUB_OUTPUT"
           {
             echo "### Release $tag vorbereitet"
@@ -109,29 +136,33 @@ jobs:
     # Läuft nach "prepare" (Knopf) oder direkt bei einem von Hand gepushten Tag.
     if: ${{ !failure() && !cancelled() }}
     runs-on: windows-latest
+    permissions:
+      contents: write
     env:
       TAG: ${{ needs.prepare.outputs.tag || github.ref_name }}
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
         with:
           ref: ${{ env.TAG }}
 
-      - uses: dtolnay/rust-toolchain@stable
+      - uses: dtolnay/rust-toolchain@39008827e6b4319a349e9a42dfc90579dd25f1ca # stable-Branch
         with:
+          toolchain: 1.100.0 # gleich wie rust-toolchain.toml
           targets: wasm32-unknown-unknown
 
-      - uses: Swatinem/rust-cache@v2
+      - uses: Swatinem/rust-cache@d1527c8f67ef9af357290475d4af4b0fab8f12e0 # v2.9.3
         with:
           workspaces: |
             src-tauri -> target
             ui -> target
             tools/release -> target
+            src-tauri/gr2-sidecar -> target
 
       # Trunk baut das Leptos-Frontend (beforeBuildCommand in tauri.conf.json),
       # tauri-cli ersetzt das frühere npm-Paket @tauri-apps/cli.
-      - uses: taiki-e/install-action@v2
+      - uses: taiki-e/install-action@25f51f6b1bf4e18876107cece836f4f77ac17c8c # v2.90.7
         with:
-          tool: trunk,tauri-cli
+          tool: trunk,tauri-cli@2.11.5
 
       # Der Tag muss zur Version in tauri.conf.json, src-tauri/Cargo.toml und
       # ui/Cargo.toml passen. Sonst baut die Pipeline still die alte Version,
@@ -166,9 +197,19 @@ jobs:
             echo "M2_RELEASE_NOTES_EOF"
           } >> "$GITHUB_OUTPUT"
 
+      # 3D-Viewer: 32-Bit-Sidecar bauen und unter dem Namen mit dem Haupt-Triple
+      # (x86_64) ablegen, wie Tauri es für externalBin verlangt.
+      - name: GR2-Sidecar (32-Bit) bauen
+        shell: bash
+        run: |
+          rustup target add i686-pc-windows-msvc
+          cargo build --release --locked --target i686-pc-windows-msvc --manifest-path src-tauri/gr2-sidecar/Cargo.toml
+          mkdir -p src-tauri/binaries
+          cp src-tauri/gr2-sidecar/target/i686-pc-windows-msvc/release/gr2-sidecar.exe src-tauri/binaries/gr2-sidecar-x86_64-pc-windows-msvc.exe
+
       - name: Build, sign and publish the GitHub Release
         id: tauri-action
-        uses: tauri-apps/tauri-action@v0
+        uses: tauri-apps/tauri-action@84b9d35b5fc46c1e45415bdb6144030364f7ebc5 # v0.6.2
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
@@ -181,6 +222,7 @@ jobs:
           releaseDraft: false
           prerelease: false
           tauriScript: cargo tauri
+          args: --config src-tauri/tauri.sidecar.conf.json
 
       - name: Rewrite latest.json (api.github.com asset URLs + release notes)
         env:
