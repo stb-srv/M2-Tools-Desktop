@@ -1,5 +1,5 @@
 use russh::client::{connect, Config, Handle, Handler, KeyboardInteractiveAuthResponse};
-use russh::keys::{load_secret_key, PrivateKeyWithHashAlg, PublicKey};
+use russh::keys::{load_secret_key, HashAlg, PrivateKeyWithHashAlg, PublicKey};
 use russh_sftp::client::SftpSession;
 use russh_sftp::protocol::OpenFlags;
 use serde::{Deserialize, Serialize};
@@ -18,6 +18,37 @@ use tokio::io::AsyncWriteExt;
 // connect/login attempt so a stall always turns into a clear, actionable
 // error instead of an infinite spinner.
 const SSH_TIMEOUT: Duration = Duration::from_secs(20);
+
+/// Zeitlimit pro einzelner SFTP-Dateioperation (Lesen, Schreiben, Umbenennen ...).
+const SFTP_OP_TIMEOUT: Duration = Duration::from_secs(60);
+
+/// Gesamtlimit für Befehle, die `run_command_streaming` ohne eigene Angabe
+/// startet. Großzügig, weil darüber auch Build-/Dump-/Deploy-Schritte laufen;
+/// wer wirklich unbegrenzt warten will, nutzt `run_command_with_timeout(.., None, ..)`.
+const DEFAULT_COMMAND_TIMEOUT: Duration = Duration::from_secs(30 * 60);
+
+async fn read_bytes(sftp: &SftpSession, path: &str) -> Result<Vec<u8>, String> {
+    sftp_op(&format!("Datei konnte nicht gelesen werden ({path})"), sftp.read(path)).await
+}
+
+async fn exists(sftp: &SftpSession, path: &str) -> Result<bool, String> {
+    sftp_op(&format!("Prüfung fehlgeschlagen ({path})"), sftp.try_exists(path)).await
+}
+
+/// Sichert eine einzelne SFTP-Operation gegen Hänger ab.
+async fn sftp_op<T, E: std::fmt::Display>(
+    what: &str,
+    fut: impl std::future::Future<Output = Result<T, E>>,
+) -> Result<T, String> {
+    match tokio::time::timeout(SFTP_OP_TIMEOUT, fut).await {
+        Ok(Ok(v)) => Ok(v),
+        Ok(Err(e)) => Err(format!("{what}: {e}")),
+        Err(_) => Err(format!(
+            "{what}: keine Antwort des Servers nach {}s (Zeitüberschreitung).",
+            SFTP_OP_TIMEOUT.as_secs()
+        )),
+    }
+}
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct SshConfig {
@@ -38,21 +69,53 @@ pub enum SshAuth {
     },
 }
 
-struct AcceptAllHandler;
+/// Host-Key-Prüfung per TOFU (siehe `known_hosts.rs`): unbekannte Schlüssel
+/// werden gemerkt, abweichende Schlüssel brechen die Verbindung ab.
+struct AcceptAllHandler {
+    host: String,
+    port: u16,
+    mismatch: Arc<Mutex<Option<(String, String)>>>,
+}
 
 impl Handler for AcceptAllHandler {
     type Error = russh::Error;
 
-    async fn check_server_key(&mut self, _server_public_key: &PublicKey) -> Result<bool, Self::Error> {
-        Ok(true)
+    async fn check_server_key(&mut self, server_public_key: &PublicKey) -> Result<bool, Self::Error> {
+        let fingerprint = server_public_key.fingerprint(HashAlg::Sha256).to_string();
+        match crate::known_hosts::check(&self.host, self.port, &fingerprint) {
+            crate::known_hosts::Decision::Known | crate::known_hosts::Decision::New => Ok(true),
+            crate::known_hosts::Decision::Mismatch { stored } => {
+                if let Ok(mut m) = self.mismatch.lock() {
+                    *m = Some((stored, fingerprint));
+                }
+                Ok(false)
+            }
+        }
     }
+}
+
+fn host_key_mismatch_message(host: &str, port: u16, stored: &str, presented: &str) -> String {
+    format!(
+        "WARNUNG: Der SSH-Schlüssel von {host}:{port} hat sich geändert. Die Verbindung wurde aus Sicherheitsgründen abgebrochen.\n\
+         Gespeicherter Fingerprint: {stored}\n\
+         Neuer Fingerprint: {presented}\n\
+         Das kann ein Man-in-the-Middle-Angriff sein - oder der Server wurde neu installiert. \
+         Nur wenn Sie die Änderung erwartet haben: unter Einstellungen › Verbindung beim SSH-Zugang \
+         „Schlüssel vergessen“ wählen und neu verbinden."
+    )
 }
 
 async fn open_session(config: &SshConfig) -> Result<Handle<AcceptAllHandler>, String> {
     let ssh_config = Arc::new(Config::default());
-    tokio::time::timeout(
+    let mismatch = Arc::new(Mutex::new(None));
+    let handler = AcceptAllHandler {
+        host: config.host.clone(),
+        port: config.port,
+        mismatch: mismatch.clone(),
+    };
+    let result = tokio::time::timeout(
         SSH_TIMEOUT,
-        connect(ssh_config, (config.host.as_str(), config.port), AcceptAllHandler),
+        connect(ssh_config, (config.host.as_str(), config.port), handler),
     )
     .await
     .map_err(|_| {
@@ -62,8 +125,11 @@ async fn open_session(config: &SshConfig) -> Result<Handle<AcceptAllHandler>, St
             config.port,
             SSH_TIMEOUT.as_secs()
         )
-    })?
-    .map_err(|e| e.to_string())
+    })?;
+    if let Some((stored, presented)) = mismatch.lock().ok().and_then(|m| m.clone()) {
+        return Err(host_key_mismatch_message(&config.host, config.port, &stored, &presented));
+    }
+    result.map_err(|e| e.to_string())
 }
 
 // Remembers, per (host, port, username), whether the last successful login
@@ -195,6 +261,23 @@ pub async fn run_command_streaming<F>(
     config: &SshConfig,
     auth: &SshAuth,
     command: &str,
+    on_output: F,
+) -> Result<CommandResult, String>
+where
+    F: FnMut(&str),
+{
+    run_command_with_timeout(config, auth, command, Some(DEFAULT_COMMAND_TIMEOUT), on_output).await
+}
+
+/// Wie `run_command_streaming`, aber mit wählbarem Gesamtlimit für die
+/// Befehlsausführung (`None` = unbegrenzt, z.B. für sehr lange Builds).
+/// Verbindungsaufbau, Anmeldung und Kanalöffnung haben immer ihr eigenes
+/// Zeitlimit.
+pub async fn run_command_with_timeout<F>(
+    config: &SshConfig,
+    auth: &SshAuth,
+    command: &str,
+    limit: Option<Duration>,
     mut on_output: F,
 ) -> Result<CommandResult, String>
 where
@@ -205,28 +288,44 @@ where
         return Err("Authentifizierung fehlgeschlagen".into());
     }
 
-    let mut channel = session
-        .channel_open_session()
+    let mut channel = tokio::time::timeout(SSH_TIMEOUT, session.channel_open_session())
         .await
+        .map_err(|_| "Kanal konnte nicht geöffnet werden (Zeitüberschreitung).".to_string())?
         .map_err(|e| e.to_string())?;
-    channel.exec(true, command).await.map_err(|e| e.to_string())?;
+    tokio::time::timeout(SSH_TIMEOUT, channel.exec(true, command))
+        .await
+        .map_err(|_| "Befehl konnte nicht gestartet werden (Zeitüberschreitung).".to_string())?
+        .map_err(|e| e.to_string())?;
 
     let mut output = String::new();
     let mut exit_status = None;
 
-    while let Some(msg) = channel.wait().await {
-        match msg {
-            russh::ChannelMsg::Data { ref data }
-            | russh::ChannelMsg::ExtendedData { ref data, .. } => {
-                let chunk = String::from_utf8_lossy(data);
-                on_output(&chunk);
-                output.push_str(&chunk);
+    let run = async {
+        while let Some(msg) = channel.wait().await {
+            match msg {
+                russh::ChannelMsg::Data { ref data }
+                | russh::ChannelMsg::ExtendedData { ref data, .. } => {
+                    let chunk = String::from_utf8_lossy(data);
+                    on_output(&chunk);
+                    output.push_str(&chunk);
+                }
+                russh::ChannelMsg::ExitStatus { exit_status: code } => {
+                    exit_status = Some(code);
+                }
+                _ => {}
             }
-            russh::ChannelMsg::ExitStatus { exit_status: code } => {
-                exit_status = Some(code);
-            }
-            _ => {}
         }
+    };
+    match limit {
+        Some(d) => {
+            if tokio::time::timeout(d, run).await.is_err() {
+                return Err(format!(
+                    "Befehl nach {} Minuten ohne Abschluss abgebrochen (Zeitüberschreitung).",
+                    (d.as_secs() / 60).max(1)
+                ));
+            }
+        }
+        None => run.await,
     }
 
     Ok(CommandResult {
@@ -245,17 +344,9 @@ pub(crate) async fn open_sftp(config: &SshConfig, auth: &SshAuth) -> Result<Sftp
     if !authenticate(&mut session, config, auth).await? {
         return Err("Authentifizierung fehlgeschlagen".into());
     }
-    let channel = session
-        .channel_open_session()
-        .await
-        .map_err(|e| e.to_string())?;
-    channel
-        .request_subsystem(true, "sftp")
-        .await
-        .map_err(|e| e.to_string())?;
-    SftpSession::new(channel.into_stream())
-        .await
-        .map_err(|e| e.to_string())
+    let channel = sftp_op("SFTP-Kanal konnte nicht geöffnet werden", session.channel_open_session()).await?;
+    sftp_op("SFTP-Subsystem konnte nicht gestartet werden", channel.request_subsystem(true, "sftp")).await?;
+    sftp_op("SFTP-Sitzung konnte nicht gestartet werden", SftpSession::new(channel.into_stream())).await
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -365,24 +456,106 @@ fn pick_latest_backup(filename: &str, entries: &[RemoteEntry]) -> Option<String>
 /// `backup_remote_binary`. Returns the backup path, or `None` if `path`
 /// doesn't exist (nothing to back up - e.g. a brand-new file).
 async fn backup_existing(sftp: &SftpSession, path: &str, suffix: &str) -> Result<Option<String>, String> {
-    if !sftp.try_exists(path).await.map_err(|e| e.to_string())? {
+    if !exists(sftp, path).await? {
         return Ok(None);
     }
+    let dest = backup_destination(sftp, path, suffix).await;
+    sftp_op("Backup fehlgeschlagen", sftp.rename(path, &dest)).await?;
+    Ok(Some(dest))
+}
 
+/// Legt (falls nötig) den Backup-Ordner neben `path` an und liefert den
+/// Zielpfad `<dir>/m2manager_backups/<datei>.<zeitstempel>.<suffix>`.
+async fn backup_destination(sftp: &SftpSession, path: &str, suffix: &str) -> String {
     let (dir, filename) = match path.rfind('/') {
         Some(idx) => (&path[..idx], &path[idx + 1..]),
         None => (".", path),
     };
     let backup_dir = format!("{dir}/m2manager_backups");
-    if !sftp.try_exists(&backup_dir).await.unwrap_or(false) {
-        let _ = sftp.create_dir(&backup_dir).await;
+    if !exists(sftp, &backup_dir).await.unwrap_or(false) {
+        let _ = sftp_op("Backup-Ordner", sftp.create_dir(&backup_dir)).await;
     }
     let timestamp = chrono::Local::now().format("%Y%m%d_%H%M%S");
-    let dest = format!("{backup_dir}/{filename}.{timestamp}.{suffix}");
-    sftp.rename(path, &dest)
-        .await
-        .map_err(|e| format!("Backup fehlgeschlagen: {e}"))?;
-    Ok(Some(dest))
+    format!("{backup_dir}/{filename}.{timestamp}.{suffix}")
+}
+
+/// Schreibt `bytes` in eine (neue/überschriebene) Datei, schließt sie
+/// vollständig und prüft danach die Größe auf dem Server.
+async fn write_and_verify(sftp: &SftpSession, path: &str, bytes: &[u8]) -> Result<(), String> {
+    let what = format!("Datei konnte nicht geschrieben werden ({path})");
+    let mut file = sftp_op(
+        &what,
+        sftp.open_with_flags(path, OpenFlags::CREATE | OpenFlags::TRUNCATE | OpenFlags::WRITE),
+    )
+    .await?;
+    sftp_op(&what, file.write_all(bytes)).await?;
+    sftp_op(&what, file.shutdown()).await?;
+    drop(file);
+    let size = sftp_op(&what, sftp.metadata(path)).await?.size;
+    if let Some(size) = size {
+        if size != bytes.len() as u64 {
+            return Err(format!(
+                "Datei konnte nicht vollständig geschrieben werden ({path}): {size} von {} Bytes angekommen.",
+                bytes.len()
+            ));
+        }
+    }
+    Ok(())
+}
+
+/// Atomares Schreiben: erst nach `<pfad>.m2tmp`, Größe prüfen, dann das
+/// Original (`original`, falls vorhanden) als Kopie nach `m2manager_backups`
+/// sichern und zuletzt die Temp-Datei auf den Zielpfad umbenennen. Fehler in
+/// irgendeiner Phase entfernen die Temp-Datei; das Original bleibt bis zum
+/// letzten Schritt unangetastet. Liefert den Backup-Pfad.
+async fn write_atomic(
+    sftp: &SftpSession,
+    path: &str,
+    bytes: &[u8],
+    original: Option<&[u8]>,
+) -> Result<Option<String>, String> {
+    let tmp = format!("{path}.m2tmp");
+    let result = write_atomic_inner(sftp, path, &tmp, bytes, original).await;
+    if result.is_err() {
+        let _ = sftp_op("Temp-Datei", sftp.remove_file(tmp.as_str())).await;
+    }
+    result
+}
+
+async fn write_atomic_inner(
+    sftp: &SftpSession,
+    path: &str,
+    tmp: &str,
+    bytes: &[u8],
+    original: Option<&[u8]>,
+) -> Result<Option<String>, String> {
+    write_and_verify(sftp, tmp, bytes).await?;
+
+    let backup_path = match original {
+        Some(orig) => {
+            let dest = backup_destination(sftp, path, "bak").await;
+            write_and_verify(sftp, &dest, orig)
+                .await
+                .map_err(|e| format!("Backup fehlgeschlagen: {e}"))?;
+            Some(dest)
+        }
+        None => None,
+    };
+
+    if sftp_op("Umbenennen", sftp.rename(tmp, path)).await.is_err() {
+        // Manche SFTP-Server (OpenSSH, SFTP v3) überschreiben beim Umbenennen
+        // nicht - dann das Ziel entfernen (Backup liegt bereits) und erneut versuchen.
+        sftp_op("Altes Original entfernen", sftp.remove_file(path)).await?;
+        if let Err(e) = sftp_op("Umbenennen", sftp.rename(tmp, path)).await {
+            if let Some(orig) = original {
+                let _ = write_and_verify(sftp, path, orig).await;
+            }
+            return Err(format!(
+                "Datei konnte nicht ersetzt werden ({path}): {e}. Der ursprüngliche Inhalt wurde wiederhergestellt."
+            ));
+        }
+    }
+    Ok(backup_path)
 }
 
 /// Moves a remote file into the same `m2manager_backups` folder used by
@@ -416,7 +589,7 @@ pub async fn backup_remote_binary(config: &SshConfig, auth: &SshAuth, path: &str
 /// into another backup folder before deleting it would be pointless churn.
 pub async fn delete_remote_file(config: &SshConfig, auth: &SshAuth, path: &str) -> Result<(), String> {
     let sftp = open_sftp(config, auth).await?;
-    sftp.remove_file(path).await.map_err(|e| format!("Löschen fehlgeschlagen ({path}): {e}"))
+    sftp_op(&format!("Löschen fehlgeschlagen ({path})"), sftp.remove_file(path)).await
 }
 
 // Quest/config source files on this server are a mix of plain UTF-8 and
@@ -449,23 +622,40 @@ pub(crate) fn decode_bytes(bytes: Vec<u8>) -> String {
 /// first edit - mojibake for every downstream reader still expecting
 /// Windows-1252, compounding on every subsequent save of the same file.
 /// `original: None` (brand-new file) keeps the existing UTF-8 default.
-pub(crate) fn encode_matching(content: &str, original: Option<&[u8]>) -> Vec<u8> {
-    match original {
-        Some(bytes) if std::str::from_utf8(bytes).is_err() => {
-            let (encoded, _, _) = encoding_rs::WINDOWS_1252.encode(content);
-            encoded.into_owned()
-        }
-        _ => content.as_bytes().to_vec(),
+///
+/// Nur eine Datei, die bereits echtes (nicht-ASCII) UTF-8 enthält, bleibt
+/// UTF-8. Alles andere - Windows-1252-Dateien, reine ASCII-Dateien und neue
+/// Dateien - wird als Windows-1252 geschrieben, dem Standard der
+/// Metin2-Serverdateien; eine bisher reine ASCII-Datei wird also nicht
+/// plötzlich zu UTF-8. Zeichen, die Windows-1252 nicht darstellen kann,
+/// führen zu einem Fehler statt zu stiller Ersetzung.
+pub(crate) fn encode_matching(content: &str, original: Option<&[u8]>) -> Result<Vec<u8>, String> {
+    let keep_utf8 = matches!(original, Some(bytes) if !bytes.is_ascii() && std::str::from_utf8(bytes).is_ok());
+    if keep_utf8 {
+        return Ok(content.as_bytes().to_vec());
     }
+    let (encoded, _, had_unmappable) = encoding_rs::WINDOWS_1252.encode(content);
+    if had_unmappable {
+        let bad: Vec<String> = content
+            .chars()
+            .filter(|c| {
+                let mut buf = [0u8; 4];
+                encoding_rs::WINDOWS_1252.encode(c.encode_utf8(&mut buf)).2
+            })
+            .take(5)
+            .map(|c| format!("„{c}“"))
+            .collect();
+        return Err(format!(
+            "Der Text enthält Zeichen, die in der Windows-1252-Kodierung der Serverdatei nicht darstellbar sind ({}). Bitte entfernen oder ersetzen.",
+            bad.join(", ")
+        ));
+    }
+    Ok(encoded.into_owned())
 }
 
 pub async fn read_remote_file(config: &SshConfig, auth: &SshAuth, path: &str) -> Result<String, String> {
     let sftp = open_sftp(config, auth).await?;
-    let bytes = sftp
-        .read(path)
-        .await
-        .map_err(|e| format!("Datei konnte nicht gelesen werden ({path}): {e}"))?;
-    Ok(decode_bytes(bytes))
+    Ok(decode_bytes(read_bytes(&sftp, path).await?))
 }
 
 /// Raw byte read, bypassing `decode_bytes` entirely - used where the file's
@@ -476,9 +666,7 @@ pub async fn read_remote_file(config: &SshConfig, auth: &SshAuth, path: &str) ->
 /// 0x9D decode to U+FFFD and can't be recovered on re-encode).
 pub async fn read_remote_file_bytes(config: &SshConfig, auth: &SshAuth, path: &str) -> Result<Vec<u8>, String> {
     let sftp = open_sftp(config, auth).await?;
-    sftp.read(path)
-        .await
-        .map_err(|e| format!("Datei konnte nicht gelesen werden ({path}): {e}"))
+    read_bytes(&sftp, path).await
 }
 
 /// True if `bytes` looks like binary content rather than text - used only to
@@ -505,14 +693,10 @@ pub async fn read_remote_file_if_exists(
 /// Session-reusing counterpart to `read_remote_file_if_exists` - see
 /// `open_sftp`'s own doc for why a caller would want this instead.
 pub(crate) async fn read_file_if_exists_via(sftp: &SftpSession, path: &str) -> Result<Option<String>, String> {
-    if !sftp.try_exists(path).await.map_err(|e| e.to_string())? {
+    if !exists(sftp, path).await? {
         return Ok(None);
     }
-    let bytes = sftp
-        .read(path)
-        .await
-        .map_err(|e| format!("Datei konnte nicht gelesen werden ({path}): {e}"))?;
-    Ok(Some(decode_bytes(bytes)))
+    Ok(Some(decode_bytes(read_bytes(sftp, path).await?)))
 }
 
 /// Byte-level counterpart to `read_remote_file_if_exists` - see
@@ -523,14 +707,10 @@ pub async fn read_remote_file_bytes_if_exists(
     path: &str,
 ) -> Result<Option<Vec<u8>>, String> {
     let sftp = open_sftp(config, auth).await?;
-    if !sftp.try_exists(path).await.map_err(|e| e.to_string())? {
+    if !exists(&sftp, path).await? {
         return Ok(None);
     }
-    let bytes = sftp
-        .read(path)
-        .await
-        .map_err(|e| format!("Datei konnte nicht gelesen werden ({path}): {e}"))?;
-    Ok(Some(bytes))
+    Ok(Some(read_bytes(&sftp, path).await?))
 }
 
 /// Opens one SFTP session and reads every path within it - used by the Quest
@@ -546,11 +726,7 @@ pub async fn read_remote_files(
     let sftp = open_sftp(config, auth).await?;
     let mut results = Vec::with_capacity(paths.len());
     for path in paths {
-        let result = sftp
-            .read(path)
-            .await
-            .map(decode_bytes)
-            .map_err(|e| format!("Datei konnte nicht gelesen werden ({path}): {e}"));
+        let result = read_bytes(&sftp, path).await.map(decode_bytes);
         results.push(result);
     }
     Ok(results)
@@ -569,7 +745,7 @@ pub async fn read_remote_files(
 /// abort the write - the follow-up `open_with_flags` below is the real
 /// failure signal if the directory genuinely isn't usable.
 async fn ensure_remote_dir(sftp: &SftpSession, dir: &str) {
-    if dir.is_empty() || dir == "/" || sftp.try_exists(dir).await.unwrap_or(false) {
+    if dir.is_empty() || dir == "/" || exists(sftp, dir).await.unwrap_or(false) {
         return;
     }
     let mut current = String::new();
@@ -579,8 +755,8 @@ async fn ensure_remote_dir(sftp: &SftpSession, dir: &str) {
         }
         current.push('/');
         current.push_str(segment);
-        if !sftp.try_exists(&current).await.unwrap_or(false) {
-            let _ = sftp.create_dir(&current).await;
+        if !exists(sftp, &current).await.unwrap_or(false) {
+            let _ = sftp_op("Ordner anlegen", sftp.create_dir(&current)).await;
         }
     }
 }
@@ -610,27 +786,16 @@ pub(crate) async fn write_file_with_backup_via(
         ensure_remote_dir(sftp, &path[..idx]).await;
     }
 
-    // Peeked *before* backup_existing renames the file away, so this still
-    // sees the file's own bytes - see encode_matching's doc for why this
-    // matters (preserves Windows-1252 across re-saves instead of silently
-    // upgrading to UTF-8).
-    let original_bytes = sftp.read(path).await.ok();
+    // Einmal lesen: die Bytes dienen sowohl der Kodierungserkennung (siehe
+    // encode_matching) als auch als Inhalt der Backup-Kopie.
+    let original_bytes = if exists(sftp, path).await? {
+        Some(read_bytes(sftp, path).await?)
+    } else {
+        None
+    };
 
-    let backup_path = backup_existing(sftp, path, "bak").await?;
-
-    // sftp.write() only opens with WRITE (no CREATE), which would fail here
-    // since the path above was just renamed away - open with CREATE
-    // explicitly so this also works for a brand-new file.
-    let mut file = sftp
-        .open_with_flags(path, OpenFlags::CREATE | OpenFlags::TRUNCATE | OpenFlags::WRITE)
-        .await
-        .map_err(|e| format!("Datei konnte nicht geschrieben werden ({path}): {e}"))?;
-    file.write_all(&encode_matching(content, original_bytes.as_deref()))
-        .await
-        .map_err(|e| e.to_string())?;
-    file.shutdown().await.map_err(|e| e.to_string())?;
-
-    Ok(backup_path)
+    let encoded = encode_matching(content, original_bytes.as_deref())?;
+    write_atomic(sftp, path, &encoded, original_bytes.as_deref()).await
 }
 
 /// Byte-exact write, bypassing `encode_matching`/UTF-8 entirely - same
@@ -649,16 +814,12 @@ pub async fn write_remote_file_bytes_with_backup(
         ensure_remote_dir(&sftp, &path[..idx]).await;
     }
 
-    let backup_path = backup_existing(&sftp, path, "bak").await?;
-
-    let mut file = sftp
-        .open_with_flags(path, OpenFlags::CREATE | OpenFlags::TRUNCATE | OpenFlags::WRITE)
-        .await
-        .map_err(|e| format!("Datei konnte nicht geschrieben werden ({path}): {e}"))?;
-    file.write_all(content).await.map_err(|e| e.to_string())?;
-    file.shutdown().await.map_err(|e| e.to_string())?;
-
-    Ok(backup_path)
+    let original_bytes = if exists(&sftp, path).await? {
+        Some(read_bytes(&sftp, path).await?)
+    } else {
+        None
+    };
+    write_atomic(&sftp, path, content, original_bytes.as_deref()).await
 }
 
 #[cfg(test)]
@@ -720,17 +881,39 @@ mod tests {
         // Schreiben nie geprüft hat, wie die Datei ursprünglich kodiert war.
         let original_cp1252 = vec![b'K', 0xE4, b'f', b'e', b'r']; // "Käfer"
         let decoded = decode_bytes(original_cp1252.clone());
-        let re_encoded = encode_matching(&decoded, Some(&original_cp1252));
+        let re_encoded = encode_matching(&decoded, Some(&original_cp1252)).unwrap();
         assert_eq!(re_encoded, original_cp1252);
     }
 
     #[test]
-    fn encode_matching_uses_utf8_for_brand_new_or_already_utf8_files() {
-        assert_eq!(encode_matching("hello", None), b"hello".to_vec());
-        assert_eq!(
-            encode_matching("hello", Some("existing utf-8".as_bytes())),
-            b"hello".to_vec()
-        );
+    fn encode_matching_keeps_real_utf8_files_utf8() {
+        let original = "Käfer".as_bytes();
+        assert_eq!(encode_matching("Größe", Some(original)).unwrap(), "Größe".as_bytes().to_vec());
+        // auch Zeichen außerhalb von cp1252 sind in UTF-8-Dateien erlaubt
+        assert_eq!(encode_matching("日本", Some(original)).unwrap(), "日本".as_bytes().to_vec());
+    }
+
+    #[test]
+    fn encode_matching_does_not_upgrade_ascii_or_new_files_to_utf8() {
+        assert_eq!(encode_matching("hello", None).unwrap(), b"hello".to_vec());
+        // reine ASCII-Datei + neues "ä" => cp1252 (0xE4), nicht UTF-8 (0xC3 0xA4)
+        assert_eq!(encode_matching("ä", Some(b"plain ascii")).unwrap(), vec![0xE4]);
+        assert_eq!(encode_matching("ä", None).unwrap(), vec![0xE4]);
+    }
+
+    #[test]
+    fn encode_matching_rejects_chars_outside_windows_1252() {
+        let err = encode_matching("Drache 龍", Some(b"ascii")).unwrap_err();
+        assert!(err.contains("龍"), "{err}");
+        assert!(encode_matching("x", Some(&[0xE4])).is_ok());
+        assert!(encode_matching("日", Some(&[0xE4])).is_err());
+    }
+
+    #[test]
+    fn host_key_mismatch_message_names_both_fingerprints() {
+        let m = host_key_mismatch_message("srv", 22, "SHA256:alt", "SHA256:neu");
+        assert!(m.contains("SHA256:alt") && m.contains("SHA256:neu") && m.contains("srv:22"));
+        assert!(m.contains("Schlüssel vergessen"));
     }
 
     #[test]

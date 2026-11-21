@@ -139,10 +139,12 @@ pub(super) async fn build_drop_check_report(
     let mut issues = Vec::new();
     let mut per_file_refs = Vec::new();
 
+    // Eine SFTP-Sitzung für alle Dateien statt einer Verbindung pro Datei.
+    let sftp = ssh::open_sftp(config, auth).await?;
     for kind in DropFileKind::ALL {
         let path = drop_file_path(state, kind)?;
         let mut status = DropFileStatus { kind, file: kind.file_name().into(), state: "ok".into(), detail: None, entries: 0 };
-        match ssh::read_remote_file_if_exists(config, auth, &path).await {
+        match ssh::read_file_if_exists_via(&sftp, &path).await {
             Ok(None) => {
                 status.state = "missing".into();
                 status.detail = Some(format!("{path} gibt es nicht."));

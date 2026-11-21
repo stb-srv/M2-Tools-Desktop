@@ -3,6 +3,7 @@
 pub mod client_tab;
 pub mod connection_tab;
 pub mod general_tab;
+pub mod known_hosts_card;
 pub mod notifications_tab;
 pub mod server_paths_tab;
 pub mod shared;
