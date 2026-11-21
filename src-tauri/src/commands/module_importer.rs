@@ -26,7 +26,7 @@ pub fn scan_icon_folder(path: String) -> Result<Vec<String>, String> {
 }
 
 #[tauri::command]
-pub fn import_weapon_model(
+pub async fn import_weapon_model(
     state: State<'_, AppState>,
     module_name: String,
     vnum: u32,
@@ -34,13 +34,20 @@ pub fn import_weapon_model(
     texture_sources: Vec<String>,
 ) -> Result<(String, String), String> {
     let client_path = item_editor_setting(&state, "client_path")?;
-    let (dest, virtual_path) = packtools::import_custom_weapon_model(
-        &client_path,
-        &module_name,
-        vnum,
-        std::path::Path::new(&source_abs),
-        &texture_sources,
-    )?;
+    let (dest, virtual_path, warnings) = tokio::task::spawn_blocking(move || {
+        packtools::import_custom_weapon_model(
+            &client_path,
+            &module_name,
+            vnum,
+            std::path::Path::new(&source_abs),
+            &texture_sources,
+        )
+    })
+    .await
+    .map_err(|e| e.to_string())??;
+    for w in &warnings {
+        eprintln!("Modell-Import {vnum}: {w}");
+    }
     Ok((dest.display().to_string(), virtual_path))
 }
 
@@ -65,7 +72,7 @@ pub async fn next_free_shape_index(state: State<'_, AppState>) -> Result<u32, St
 /// `shape_index` - see `msm.rs`'s module doc for why there is no male
 /// equivalent.
 #[tauri::command]
-pub fn import_armor_model(
+pub async fn import_armor_model(
     state: State<'_, AppState>,
     module_name: String,
     race: String,
@@ -74,14 +81,18 @@ pub fn import_armor_model(
     shape_index: u32,
 ) -> Result<(), String> {
     let client_path = item_editor_setting(&state, "client_path")?;
-    let (_, model_rel, skin_rel) = packtools::import_custom_armor_model(
-        &client_path,
-        &module_name,
-        &race,
-        std::path::Path::new(&source_abs),
-        &texture_sources,
-    )?;
-    msm::add_shape_data(&client_path, &race, shape_index, &model_rel, &skin_rel)
+    tokio::task::spawn_blocking(move || {
+        let (_, model_rel, skin_rel) = packtools::import_custom_armor_model(
+            &client_path,
+            &module_name,
+            &race,
+            std::path::Path::new(&source_abs),
+            &texture_sources,
+        )?;
+        msm::add_shape_data(&client_path, &race, shape_index, &model_rel, &skin_rel)
+    })
+    .await
+    .map_err(|e| e.to_string())?
 }
 
 /// Repacks `<client>/pack/<folder_name>.epk` - a generic counterpart to
@@ -94,14 +105,17 @@ pub async fn pack_folder(app: AppHandle, state: State<'_, AppState>, folder_name
 }
 
 #[tauri::command]
-pub fn import_effect_bundle(
+pub async fn import_effect_bundle(
     state: State<'_, AppState>,
     module_name: String,
     source_dir: String,
 ) -> Result<Vec<String>, String> {
     let client_path = item_editor_setting(&state, "client_path")?;
-    let copied =
-        packtools::import_effect_bundle(&client_path, &module_name, std::path::Path::new(&source_dir))?;
+    let copied = tokio::task::spawn_blocking(move || {
+        packtools::import_effect_bundle(&client_path, &module_name, std::path::Path::new(&source_dir))
+    })
+    .await
+    .map_err(|e| e.to_string())??;
     Ok(copied.into_iter().map(|p| p.display().to_string()).collect())
 }
 
@@ -139,7 +153,7 @@ pub fn list_import_batches(state: State<'_, AppState>) -> Result<Vec<import_hist
 /// deleting them per-vnum would risk breaking a sibling item. Leaving them
 /// behind is harmless: without a DB row or `item_list.txt` entry, nothing
 /// references them anymore.
-async fn teardown_item(pool: &sqlx::MySqlPool, client_path: &str, vnum: u32) -> Result<(), String> {
+async fn teardown_item_db(pool: &sqlx::MySqlPool, vnum: u32) -> Result<(), String> {
     // Fetched *before* the delete below so the item's own refine linkage
     // is still readable - used afterward to also drop its recipe if this
     // was the last item using it (e.g. undoing a Module-Importer refine
@@ -155,8 +169,6 @@ async fn teardown_item(pool: &sqlx::MySqlPool, client_path: &str, vnum: u32) -> 
         .map(|row| sqlx::Row::try_get(&row, "refine_set").unwrap_or_default());
 
     item::delete_item_proto(pool, vnum).await?;
-    packtools::remove_item_list_entries(client_path, vnum)?;
-    packtools::delete_item_icon(client_path, vnum)?;
 
     if let Some(refine_set) = refine_set {
         if refine_set != 0 {
@@ -164,6 +176,31 @@ async fn teardown_item(pool: &sqlx::MySqlPool, client_path: &str, vnum: u32) -> 
         }
     }
     Ok(())
+}
+
+/// Client-Seite des Rückgängigmachens für mehrere Vnum auf einmal:
+/// `item_list.txt` je Locale einmal sichern und schreiben, Icons löschen.
+/// Liefert die bewusst entfernten Dateien (relativ zum Pack-Ordner `icon`),
+/// damit das Neupacken sie nicht aus dem alten Archiv zurückholt.
+async fn teardown_client_files(client_path: &str, vnums: &[u32]) -> Result<Vec<String>, String> {
+    let client_path = client_path.to_string();
+    let vnums = vnums.to_vec();
+    tokio::task::spawn_blocking(move || -> Result<Vec<String>, String> {
+        packtools::remove_item_list_entries_batch(&client_path, &vnums)?;
+        let mut excluded = Vec::with_capacity(vnums.len());
+        for vnum in &vnums {
+            packtools::delete_item_icon(&client_path, *vnum)?;
+            excluded.push(packtools::item_icon_pack_rel(*vnum));
+        }
+        Ok(excluded)
+    })
+    .await
+    .map_err(|e| e.to_string())?
+}
+
+async fn teardown_item(pool: &sqlx::MySqlPool, client_path: &str, vnum: u32) -> Result<Vec<String>, String> {
+    teardown_item_db(pool, vnum).await?;
+    teardown_client_files(client_path, &[vnum]).await
 }
 
 /// Rolls back one item created earlier in an import batch that then failed
@@ -179,7 +216,7 @@ async fn teardown_item(pool: &sqlx::MySqlPool, client_path: &str, vnum: u32) -> 
 pub async fn rollback_created_item(state: State<'_, AppState>, vnum: u32) -> Result<(), String> {
     let pool = require_pool(&state).await?;
     let client_path = item_editor_setting(&state, "client_path")?;
-    teardown_item(&pool, &client_path, vnum).await
+    teardown_item(&pool, &client_path, vnum).await.map(|_| ())
 }
 
 #[tauri::command]
@@ -187,10 +224,10 @@ pub async fn remove_single_item(app: AppHandle, state: State<'_, AppState>, vnum
     let pool = require_pool(&state).await?;
     let client_path = item_editor_setting(&state, "client_path")?;
 
-    teardown_item(&pool, &client_path, vnum).await?;
+    let excluded = teardown_item(&pool, &client_path, vnum).await?;
 
     let tool_path = item_editor_setting(&state, "eterpack_tool_path")?;
-    packtools::run_eterpack_pack(&app, &tool_path, "icon").await?;
+    packtools::run_eterpack_pack_excluding(&app, &tool_path, "icon", &excluded).await?;
     let generated = packtools::run_mysql2proto(&app, &item_editor_setting(&state, "mysql2proto_dir")?).await?;
     packtools::replace_client_item_proto(&client_path, &generated.display().to_string())?;
     Ok(())
@@ -208,11 +245,12 @@ pub async fn undo_import_batch(app: AppHandle, state: State<'_, AppState>, id: i
     let client_path = item_editor_setting(&state, "client_path")?;
 
     for vnum in &batch.vnums {
-        teardown_item(&pool, &client_path, *vnum).await?;
+        teardown_item_db(&pool, *vnum).await?;
     }
+    let excluded = teardown_client_files(&client_path, &batch.vnums).await?;
 
     let tool_path = item_editor_setting(&state, "eterpack_tool_path")?;
-    packtools::run_eterpack_pack(&app, &tool_path, "icon").await?;
+    packtools::run_eterpack_pack_excluding(&app, &tool_path, "icon", &excluded).await?;
     let generated = packtools::run_mysql2proto(&app, &item_editor_setting(&state, "mysql2proto_dir")?).await?;
     packtools::replace_client_item_proto(&client_path, &generated.display().to_string())?;
 
