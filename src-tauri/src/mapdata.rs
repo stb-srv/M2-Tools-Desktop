@@ -249,7 +249,7 @@ mod tests {
     #[test]
     #[ignore = "braucht echte Client-Dateien (M2_TEST_CLIENT_DIR oder Client-Pfad aus M2Manager) - mit `cargo test -- --ignored` ausführen"]
     fn lists_real_client_map_folders() {
-        let folders = list_map_folders(&crate::test_support::client_dir().to_string_lossy().into_owned())
+        let folders = list_map_folders(&crate::test_support::client_dir().to_string_lossy())
             .expect("should list map folders");
         assert!(folders
             .iter()
@@ -268,7 +268,7 @@ mod tests {
         ));
         let result = render_map(
             &app_data_dir,
-            &crate::test_support::client_dir().to_string_lossy().into_owned(),
+            &crate::test_support::client_dir().to_string_lossy(),
             "map_empire",
             "metin2_map_a1",
             false,
@@ -281,7 +281,7 @@ mod tests {
         // Second call should hit the cache without recomputing.
         let cached = render_map(
             &app_data_dir,
-            &crate::test_support::client_dir().to_string_lossy().into_owned(),
+            &crate::test_support::client_dir().to_string_lossy(),
             "map_empire",
             "metin2_map_a1",
             false,

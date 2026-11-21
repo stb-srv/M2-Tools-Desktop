@@ -20,6 +20,9 @@ use logic::*;
 use serde_json::json;
 use std::collections::{BTreeSet, HashMap, HashSet};
 
+/// Änderung an den Blöcken einer Regel-Zeile.
+type BlocksUpdate = Box<dyn FnOnce(&mut Vec<Block>)>;
+
 type IconCache = RwSignal<crate::store::icons::IconMap>;
 
 /// Farbe pro Rang (Liste, Karten, Vorschau).
@@ -180,7 +183,7 @@ pub fn CommonDropEditor() -> impl IntoView {
         })
     };
     let block = move |li: usize, r: usize| rule_blocks(li).and_then(|b| b.get(r).cloned());
-    let update_blocks = move |li: usize, f: Box<dyn FnOnce(&mut Vec<Block>)>| {
+    let update_blocks = move |li: usize, f: BlocksUpdate| {
         file.update(|file| {
             if let Some(Line::Rule { blocks }) = file.as_mut().and_then(|file| file.lines.get_mut(li)) {
                 f(blocks);

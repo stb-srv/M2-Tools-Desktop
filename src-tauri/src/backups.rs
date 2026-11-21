@@ -66,9 +66,9 @@ pub struct BackupDiff {
     pub current_content: Option<String>,
     /// True if either side looks like binary content (see `ssh::looks_binary`)
     /// - `backup_content`/`current_content` are still populated (best-effort
-    /// lossy decode) so the frontend has *something*, but it should show a
-    /// "binary file" notice instead of a line-by-line text diff, which would
-    /// otherwise render as meaningless garbage for a non-text file.
+    ///   lossy decode) so the frontend has *something*, but it should show a
+    ///   "binary file" notice instead of a line-by-line text diff, which would
+    ///   otherwise render as meaningless garbage for a non-text file.
     pub is_binary: bool,
 }
 

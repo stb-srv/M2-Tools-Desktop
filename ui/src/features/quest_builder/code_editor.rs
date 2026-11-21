@@ -307,8 +307,7 @@ impl CodeEditorHandle {
             if fold {
                 // Innersten noch offenen Block falten.
                 let mut l = line;
-                loop {
-                    let Some(h) = Doc::enclosing_block(l, &ranges) else { break };
+                while let Some(h) = Doc::enclosing_block(l, &ranges) {
                     if !c.doc.is_folded_line(h) {
                         c.doc.fold_line(h, &ranges);
                         break;

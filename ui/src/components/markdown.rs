@@ -78,7 +78,7 @@ pub fn strip_frontmatter(src: &str) -> &str {
 /// Ziel ist ein relativer Pfad/Anker oder hat ein harmloses Schema
 /// (http, https, mailto). Alles andere (`javascript:`, `data:`, `vbscript:`,
 /// ...) wird nie als Link/Bild ausgegeben. Steuerzeichen und Leerraum vor/in
-/// dem Schema (`java	script:`) werden vor der Prüfung entfernt, wie es
+/// dem Schema (`java\tscript:`) werden vor der Prüfung entfernt, wie es
 /// Browser beim Parsen auch tun.
 pub fn is_safe_url(url: &str) -> bool {
     let cleaned: String = url.chars().filter(|c| !c.is_control() && !c.is_whitespace()).collect();

@@ -2,12 +2,12 @@
 //! Box-/Cube-Editor (Datei-basiert, ein SFTP-Backup existiert schon vor
 //! jedem Überschreiben) ist `refine_proto` reine DB-Zeilen ohne Datei-Backup
 //! - hier wird deshalb der vorherige Zeilenstand vor jeder destruktiven
-//! Schreibaktion (Update/Löschen/Anlegen) in eine eigene kleine lokale
-//! SQLite-Tabelle gespiegelt (`refine_undo`, siehe `settings.rs::init_db`).
-//! Bewusst nur die *letzte* Änderung (Single-Row-Tabelle, `id = 1`
-//! erzwungen) statt eines vollen Verlaufs - das deckt den eigentlich
-//! angefragten Anwendungsfall ("ups, falsch gespeichert") ab, ohne eine
-//! komplette Undo-Stack-Infrastruktur für ein Nischen-Feature zu bauen.
+//!   Schreibaktion (Update/Löschen/Anlegen) in eine eigene kleine lokale
+//!   SQLite-Tabelle gespiegelt (`refine_undo`, siehe `settings.rs::init_db`).
+//!   Bewusst nur die *letzte* Änderung (Single-Row-Tabelle, `id = 1`
+//!   erzwungen) statt eines vollen Verlaufs - das deckt den eigentlich
+//!   angefragten Anwendungsfall ("ups, falsch gespeichert") ab, ohne eine
+//!   komplette Undo-Stack-Infrastruktur für ein Nischen-Feature zu bauen.
 
 use crate::refine::RefineRecipe;
 use rusqlite::{Connection, OptionalExtension};

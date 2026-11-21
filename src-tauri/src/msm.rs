@@ -72,7 +72,7 @@ fn max_shape_index(client_path: &str) -> u32 {
         };
         for cap in text.match_indices("ShapeIndex") {
             let rest = &text[cap.0 + "ShapeIndex".len()..];
-            if let Some(n) = rest.trim_start().split_whitespace().next() {
+            if let Some(n) = rest.split_whitespace().next() {
                 if let Ok(v) = n.parse::<u32>() {
                     max = max.max(v);
                 }
@@ -114,7 +114,6 @@ pub fn add_shape_data(
     let after_label = &block[count_label_rel + "ShapeDataCount".len()..];
     let ws_len = after_label.len() - after_label.trim_start().len();
     let digits = after_label
-        .trim_start()
         .split_whitespace()
         .next()
         .ok_or("ShapeDataCount-Wert nicht lesbar.")?;

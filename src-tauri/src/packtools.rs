@@ -808,6 +808,7 @@ pub fn delete_item_icon(client_path: &str, vnum: u32) -> Result<Option<PathBuf>,
 /// icon/model for a vnum that no longer has an `item_proto` row at all.
 /// A missing row (nothing to remove) is not an error - the item may never
 /// have gotten a row in the first place (e.g. an armor piece with no icon).
+#[cfg(test)] // nur von Tests genutzt; Produktivcode nutzt die Batch-Variante
 pub fn remove_item_list_entries(client_path: &str, vnum: u32) -> Result<Vec<String>, String> {
     remove_item_list_entries_batch(client_path, &[vnum])
 }

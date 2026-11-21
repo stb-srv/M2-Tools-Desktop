@@ -736,9 +736,7 @@ fn apply_client(
     }
     // Neue Dateien stehen vorab im Journal, mit einem einzigen Speichern. Das Rückgängigmachen überspringt
     // Dateien, die es nicht gibt. Vorher wurde das Journal nach jeder Datei neu geschrieben (quadratisch).
-    let new_rels: Vec<String> = planned
-        .iter()
-        .filter_map(|(zip_path, _)| {
+    let new_rels: Vec<String> = planned.keys().filter_map(|zip_path| {
             let target = client_target(client_dir, zip_path).ok()?;
             (!target.exists()).then(|| rel_of(client_dir, &target))
         })

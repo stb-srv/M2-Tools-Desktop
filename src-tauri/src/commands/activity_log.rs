@@ -102,7 +102,7 @@ pub fn list_activity_feed(
     // Operationen, keine Massenaktion) - Filterung nach dem Laden in Rust,
     // statt eine zweite SQL-Filterlogik für diese beiden Tabellen zu bauen.
     let search_lower = search.as_deref().map(|s| s.to_lowercase());
-    let module_matches = |m: &str| module.as_deref().map_or(true, |filter| filter == m);
+    let module_matches = |m: &str| module.as_deref().is_none_or(|filter| filter == m);
 
     if module_matches("build-deploy") {
         for d in deploy_history::list_deploys(&conn)? {

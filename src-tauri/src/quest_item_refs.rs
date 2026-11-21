@@ -144,9 +144,9 @@ fn blank_strings_and_comments(src: &str) -> String {
                 out.push(c);
             }
             Mode::Str(q) => {
-                if c == '\\' && next.is_some() {
+                if let (true, Some(n)) = (c == '\\', next) {
                     out.push(' ');
-                    out.push(blank(next.unwrap()));
+                    out.push(blank(n));
                     i += 2;
                     continue;
                 }

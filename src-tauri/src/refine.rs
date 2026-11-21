@@ -157,9 +157,9 @@ async fn fetch_node(pool: &MySqlPool, vnum: u32) -> Result<Option<RefineChainNod
 /// item in the middle of a chain (e.g. "Schwert+5") still shows the whole
 /// chain, not just what comes after it. Both walks are capped at 30 steps
 /// - refine chains are always short (+0..+9 at most on this server, per
-/// the real data), so a longer walk almost certainly means a data error
-/// (a cycle from a bad manual edit), and the cap turns that into an
-/// incomplete-but-safe result instead of an infinite loop.
+///   the real data), so a longer walk almost certainly means a data error
+///   (a cycle from a bad manual edit), and the cap turns that into an
+///   incomplete-but-safe result instead of an infinite loop.
 pub async fn get_refine_chain(pool: &MySqlPool, vnum: u32) -> Result<Vec<RefineChainNode>, String> {
     const MAX_STEPS: usize = 30;
 

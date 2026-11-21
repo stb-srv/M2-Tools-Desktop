@@ -14,6 +14,9 @@ use serde::{Deserialize, Serialize};
 use serde_json::json;
 use std::collections::HashMap;
 
+/// Änderung an einem Rezept, die der Editor auf den aktuellen Stand anwendet.
+type RecipeUpdate = Box<dyn FnOnce(&mut CubeRecipe) + Send + Sync>;
+
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
 struct CubeValue {
     vnum: f64,
@@ -123,7 +126,7 @@ fn ValueListEditor(
     title: &'static str,
     list: ValueList,
     selected: Memo<Option<CubeRecipe>>,
-    #[prop(into)] update: Callback<Box<dyn FnOnce(&mut CubeRecipe) + Send + Sync>>,
+    #[prop(into)] update: Callback<RecipeUpdate>,
     icons: Icons,
 ) -> impl IntoView {
     let len = Memo::new(move |_| selected.with(|s| s.as_ref().map(|r| list.get(r).len()).unwrap_or(0)));
@@ -215,7 +218,7 @@ pub fn CubeEditor() -> impl IntoView {
     };
     load();
 
-    let update_recipe = move |index: usize, f: Box<dyn FnOnce(&mut CubeRecipe) + Send + Sync>| {
+    let update_recipe = move |index: usize, f: RecipeUpdate| {
         recipes.update(|r| {
             if let Some(rec) = r.as_mut().and_then(|v| v.get_mut(index)) {
                 f(rec);
@@ -306,7 +309,7 @@ pub fn CubeEditor() -> impl IntoView {
     let selected = Memo::new(move |_| {
         selected_index.get().and_then(|i| recipes.with(|r| r.as_ref().and_then(|v| v.get(i).cloned())))
     });
-    let update_selected = Callback::new(move |f: Box<dyn FnOnce(&mut CubeRecipe) + Send + Sync>| {
+    let update_selected = Callback::new(move |f: RecipeUpdate| {
         if let Some(i) = selected_index.get_untracked() {
             update_recipe(i, f);
         }

@@ -131,10 +131,8 @@ pub async fn find_item_usages(state: State<'_, AppState>, vnum: u32) -> Result<I
     }
 
     let internal_name: Option<String> = match &pool {
-        Ok(pool) => match item::get_item_internal_name(pool, vnum).await {
-            Ok(name) => Some(name),
-            Err(_) => None, // vnum ist gar kein bekanntes Item - etc_drop kann dann ohnehin nichts referenzieren
-        },
+        // Err: vnum ist gar kein bekanntes Item - etc_drop kann dann ohnehin nichts referenzieren
+        Ok(pool) => item::get_item_internal_name(pool, vnum).await.ok(),
         Err(e) => {
             report
                 .warnings

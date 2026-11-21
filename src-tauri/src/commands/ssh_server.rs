@@ -18,7 +18,7 @@ pub async fn test_ssh_connection(config: SshConfig, auth: SshAuth) -> Result<(),
         SshAuth::Password { password } if password.is_empty() => SshAuth::Password {
             password: crate::credentials::get_secret("ssh_password").unwrap_or_default(),
         },
-        SshAuth::PrivateKey { path, passphrase } if passphrase.as_deref().map_or(true, str::is_empty) => {
+        SshAuth::PrivateKey { path, passphrase } if passphrase.as_deref().is_none_or(str::is_empty) => {
             SshAuth::PrivateKey { path, passphrase: crate::credentials::get_secret("ssh_key_passphrase").ok().filter(|s| !s.is_empty()) }
         }
         other => other,

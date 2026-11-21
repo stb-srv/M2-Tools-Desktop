@@ -504,7 +504,7 @@ pub fn M2PkgImporter(#[prop(into)] on_imported: Callback<()>) -> impl IntoView {
                         </div>
 
                         <div class="max-h-[28rem] space-y-1 overflow-y-auto rounded-md border border-border p-2">
-                            {i.items.iter().cloned().map(|it| {
+                            {i.items.iter().map(|it| {
                                 let vnum = it.vnum;
                                 let missing_name = it.name.is_none();
                                 view! {

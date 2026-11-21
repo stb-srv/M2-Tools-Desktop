@@ -142,9 +142,10 @@ async fn open_session(config: &SshConfig) -> Result<Handle<AcceptAllHandler>, St
 // password. Best-effort only: a `false`/missing entry just means "try
 // password first, same as before" - it never blocks the keyboard-interactive
 // fallback from still running if password unexpectedly fails.
-static NEEDS_KEYBOARD_INTERACTIVE: OnceLock<Mutex<HashMap<(String, u16, String), bool>>> = OnceLock::new();
+type AuthCacheKey = (String, u16, String);
+static NEEDS_KEYBOARD_INTERACTIVE: OnceLock<Mutex<HashMap<AuthCacheKey, bool>>> = OnceLock::new();
 
-fn auth_cache_key(config: &SshConfig) -> (String, u16, String) {
+fn auth_cache_key(config: &SshConfig) -> AuthCacheKey {
     (config.host.clone(), config.port, config.username.clone())
 }
 

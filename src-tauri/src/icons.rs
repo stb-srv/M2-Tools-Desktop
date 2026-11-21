@@ -246,8 +246,8 @@ fn collect_tga_files(dir: &Path, out: &mut Vec<IconFile>) {
 
 /// Lists every `.tga` file under the client's item-icon folder (recursively)
 /// - used by the Icon Browser to let the user pick an icon by appearance
-/// when creating a brand-new item, which has no vnum→icon mapping yet for
-/// `item_list.txt`/vnum-guessing to resolve.
+///   when creating a brand-new item, which has no vnum→icon mapping yet for
+///   `item_list.txt`/vnum-guessing to resolve.
 pub fn list_item_icon_files(client_path: &str) -> Vec<IconFile> {
     let base = Path::new(client_path)
         .join("pack")

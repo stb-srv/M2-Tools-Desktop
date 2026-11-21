@@ -6,7 +6,7 @@ use sha2::{Digest, Sha256};
 use std::collections::BTreeMap;
 use std::fs::File;
 use std::io::{Read, Write};
-use std::path::{Path, PathBuf};
+use std::path::Path;
 use std::sync::Mutex;
 
 pub const SUPPORTED_FORMAT_VERSION: u64 = 1;
@@ -326,6 +326,7 @@ fn read_entry(ar: &mut Archive, name: &str) -> Result<Vec<u8>, String> {
 pub(crate) mod test_pkg {
     use super::*;
     use std::io::Write;
+    use std::path::PathBuf;
     use zip::write::SimpleFileOptions;
 
     pub fn sha(data: &[u8]) -> String {

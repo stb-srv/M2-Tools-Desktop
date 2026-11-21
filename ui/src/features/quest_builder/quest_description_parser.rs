@@ -522,6 +522,7 @@ pub enum LookupKind {
 /// Welches QuestStep-Feld ein fehlgeschlagener Lookup betrifft - die UI
 /// bietet dafür direkt einen "Suchen"-Knopf an.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
+#[allow(clippy::enum_variant_names)] // Namen spiegeln die QuestStep-Felder 1:1
 pub enum UnresolvedField {
     NpcVnum,
     RequiredItemVnum,

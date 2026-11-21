@@ -17,7 +17,7 @@ pub fn bounds(meshes: &[Gr2Mesh], rot: Mat4) -> Option<(Vec3, Vec3)> {
     let mut max = Vec3::splat(f32::NEG_INFINITY);
     let mut any = false;
     for m in meshes {
-        for p in m.vertices.chunks_exact(3) {
+        for p in m.vertices.as_chunks::<3>().0 {
             let v = rot.transform_point3(Vec3::new(p[0], p[1], p[2]));
             min = min.min(v);
             max = max.max(v);

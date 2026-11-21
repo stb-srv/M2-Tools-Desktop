@@ -46,17 +46,11 @@ pub fn join_all<F: Future>(futs: impl IntoIterator<Item = F>) -> JoinAll<F> {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use std::sync::Arc;
-    use std::task::{Wake, Waker};
-
-    struct Noop;
-    impl Wake for Noop {
-        fn wake(self: Arc<Self>) {}
-    }
+    use std::task::Waker;
 
     #[test]
     fn keeps_order() {
-        let waker = Waker::from(Arc::new(Noop));
+        let waker = Waker::noop().clone();
         let mut cx = Context::from_waker(&waker);
         let mut j = join_all((1..=3).map(|i| async move { i * 2 }));
         match Pin::new(&mut j).poll(&mut cx) {

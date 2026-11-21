@@ -160,7 +160,7 @@ fn parse_value(tokens: &[&str], line_no: usize) -> Result<CubeValue, String> {
 }
 
 fn validate(recipe: &CubeRecipe, end_line_no: usize) -> Result<(), String> {
-    if recipe.npc_vnums.iter().any(|&v| v == 0) {
+    if recipe.npc_vnums.contains(&0) {
         return Err(format!("Abschnitt (endet Zeile {end_line_no}): eine NPC-VNUM ist 0 - der Server würde dieses Rezept sonst stillschweigend verwerfen."));
     }
     if recipe.items.iter().any(|v| v.vnum == 0 || v.count == 0) {

@@ -312,7 +312,9 @@ impl Renderer {
                 mesh.indices.clone()
             } else {
                 mesh.indices
-                    .chunks_exact(3)
+                    .as_chunks::<3>()
+                    .0
+                    .iter()
                     .filter(|t| t.iter().all(|&i| (i as usize) < vertex_count))
                     .flatten()
                     .copied()

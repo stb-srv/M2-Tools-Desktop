@@ -170,7 +170,7 @@ pub fn QuestBuilder() -> impl IntoView {
     load_files();
     // Globale Suche (Strg+Umschalt+F) springt hierher mit dem relative_path
     // eines Quest-Treffers.
-    use_pending_selection(Section::QuestBuilder, move |target| open_file(target));
+    use_pending_selection(Section::QuestBuilder, open_file);
 
     // Ausgabe des Kompilier-Befehls mitschreiben.
     let unlisten = StoredValue::new_local(None::<Unlisten>);

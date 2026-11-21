@@ -182,7 +182,7 @@ unsafe fn extract_mesh(api: &GrannyApi, mesh_ptr: *mut granny_mesh) -> Option<Me
     let mut vertices = Vec::with_capacity(vertex_count * 3);
     let mut normals = Vec::with_capacity(vertex_count * 3);
     let mut uvs = Vec::with_capacity(vertex_count * 2);
-    for v in raw_vertices.chunks_exact(8) {
+    for v in raw_vertices.as_chunks::<8>().0 {
         vertices.extend_from_slice(&v[0..3]);
         normals.extend_from_slice(&v[3..6]);
         uvs.extend_from_slice(&v[6..8]);

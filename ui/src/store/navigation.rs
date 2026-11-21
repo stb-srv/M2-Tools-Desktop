@@ -406,7 +406,7 @@ pub fn use_section_dirty_as(section: Section, key: &'static str, dirty: impl Fn(
 
 /// Führt `handler` mit der per `go_to_with_selection` hinterlegten Auswahl aus
 /// - beim Mounten und auch, wenn der Bereich schon gemountet ist. Hat der
-/// Bereich ungespeicherte Änderungen, wird vorher nachgefragt.
+///   Bereich ungespeicherte Änderungen, wird vorher nachgefragt.
 pub fn use_pending_selection(section: Section, handler: impl Fn(String) + Clone + 'static) {
     Effect::new(move |_| {
         let Some(target) = nav().pending_selection.get().filter(|p| p.section == section) else {

@@ -274,8 +274,8 @@ mod tests {
             .collect();
         let unique: HashSet<&String> = names.iter().collect();
         assert_eq!(unique.len(), names.len());
-        for level in 1..=16 {
-            assert!(names[level].ends_with(&format!(" +{level}")), "{}", names[level]);
+        for (level, name) in names.iter().enumerate().take(17).skip(1) {
+            assert!(name.ends_with(&format!(" +{level}")), "{name}");
         }
     }
 
