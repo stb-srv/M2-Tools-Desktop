@@ -44,11 +44,11 @@ impl Orbit {
     }
 
     pub fn view(&self) -> Mat4 {
-        Mat4::look_at_rh(self.position, self.target, Vec3::Y)
+        glam::camera::rh::view::look_at_mat4(self.position, self.target, Vec3::Y)
     }
 
     pub fn projection(&self) -> Mat4 {
-        Mat4::perspective_rh_gl(self.fov_deg.to_radians(), self.aspect, self.near, self.far)
+        glam::camera::rh::proj::opengl::perspective(self.fov_deg.to_radians(), self.aspect, self.near, self.far)
     }
 
     /// Weltmatrix der Kamera (Spalte 0 = rechts, Spalte 1 = oben).
