@@ -68,7 +68,7 @@ pub async fn existing_mob_vnums(pool: &MySqlPool, vnums: &[u32]) -> Result<HashS
     for chunk in vnums.chunks(500) {
         let placeholders = vec!["?"; chunk.len()].join(",");
         let sql = format!("SELECT vnum FROM player.mob_proto WHERE vnum IN ({placeholders})");
-        let mut q = sqlx::query(&sql);
+        let mut q = sqlx::query(sqlx::AssertSqlSafe(sql.as_str()));
         for v in chunk {
             q = q.bind(*v);
         }

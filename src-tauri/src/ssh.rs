@@ -1,5 +1,5 @@
 use russh::client::{connect, Config, Handle, Handler, KeyboardInteractiveAuthResponse};
-use russh::keys::{load_secret_key, HashAlg, PrivateKeyWithHashAlg, PublicKey};
+use russh::keys::{load_secret_key, HashAlg, PrivateKeyWithHashAlg, PublicKeyOrCertificate};
 use russh_sftp::client::SftpSession;
 use russh_sftp::protocol::OpenFlags;
 use serde::{Deserialize, Serialize};
@@ -71,8 +71,8 @@ struct AcceptAllHandler {
 impl Handler for AcceptAllHandler {
     type Error = russh::Error;
 
-    async fn check_server_key(&mut self, server_public_key: &PublicKey) -> Result<bool, Self::Error> {
-        let fingerprint = server_public_key.fingerprint(HashAlg::Sha256).to_string();
+    async fn check_server_key(&mut self, server_public_key: &PublicKeyOrCertificate) -> Result<bool, Self::Error> {
+        let fingerprint = server_public_key.public_key().fingerprint(HashAlg::Sha256).to_string();
         match crate::known_hosts::check(&self.host, self.port, &fingerprint) {
             crate::known_hosts::Decision::Known | crate::known_hosts::Decision::New => Ok(true),
             crate::known_hosts::Decision::Mismatch { stored } => {

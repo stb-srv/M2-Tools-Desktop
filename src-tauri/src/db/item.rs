@@ -387,7 +387,7 @@ pub async fn existing_item_vnums(pool: &MySqlPool, vnums: &[u32]) -> Result<std:
     for chunk in vnums.chunks(500) {
         let placeholders = vec!["?"; chunk.len()].join(",");
         let sql = format!("SELECT vnum FROM player.item_proto WHERE vnum IN ({placeholders})");
-        let mut q = sqlx::query(&sql);
+        let mut q = sqlx::query(sqlx::AssertSqlSafe(sql.as_str()));
         for v in chunk {
             q = q.bind(*v);
         }
@@ -415,7 +415,7 @@ pub async fn items_by_internal_names(pool: &MySqlPool, names: &[String]) -> Resu
     for chunk in names.chunks(500) {
         let placeholders = vec!["?"; chunk.len()].join(",");
         let sql = format!("SELECT vnum, name, locale_name FROM player.item_proto WHERE name IN ({placeholders}) ORDER BY vnum");
-        let mut q = sqlx::query(&sql);
+        let mut q = sqlx::query(sqlx::AssertSqlSafe(sql.as_str()));
         for n in chunk {
             q = q.bind(encode_name(n));
         }
@@ -435,7 +435,7 @@ pub async fn item_locale_names(pool: &MySqlPool, vnums: &[u32]) -> Result<std::c
     for chunk in vnums.chunks(500) {
         let placeholders = vec!["?"; chunk.len()].join(",");
         let sql = format!("SELECT vnum, locale_name FROM player.item_proto WHERE vnum IN ({placeholders})");
-        let mut q = sqlx::query(&sql);
+        let mut q = sqlx::query(sqlx::AssertSqlSafe(sql.as_str()));
         for v in chunk {
             q = q.bind(*v);
         }

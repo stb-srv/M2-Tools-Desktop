@@ -167,7 +167,7 @@ impl Package {
             if f.is_dir() {
                 continue;
             }
-            let name = f.name().to_string();
+            let name = f.name().map_err(|e| format!("ZIP-Eintrag nicht lesbar: {e}"))?.into_owned();
             if !is_safe_zip_path(&name) {
                 return Err(format!("Unsicherer Pfad im Paket: „{name}“. Das Paket wird nicht importiert."));
             }

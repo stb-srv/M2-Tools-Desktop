@@ -22,9 +22,9 @@ tauri = { version = "2", features = [] }
 tauri-plugin-opener = "2"
 serde = { version = "1", features = ["derive"] }
 serde_json = "1"
-russh = { version = "0.60", default-features = false, features = ["flate2", "rsa", "ring"] }
+russh = { version = "0.65", default-features = false, features = ["flate2", "rsa", "ring"] }
 russh-sftp = "2"
-rusqlite = { version = "0.32", features = ["bundled"] }
+rusqlite = { version = "0.43", features = ["bundled"] }
 keyring = { version = "3", features = ["windows-native"] }
 tokio = { version = "1", features = ["full"] }
 tauri-plugin-dialog = "2.7.2"
@@ -32,12 +32,12 @@ tauri-plugin-updater = "2"
 tauri-plugin-process = "2"
 encoding_rs = "0.8.35"
 image = { version = "0.25.10", default-features = false, features = ["tga", "png", "jpeg", "bmp", "gif"] }
-base64 = "0.23"
+base64 = "0.22"
 # Gleicher Krypto-Provider wie tauri-plugin-updater (ring); wird in run() installiert,
 # weil reqwest mit "rustls-no-provider" sonst beim ersten HTTPS-Aufruf abbricht.
 rustls = { version = "0.23", default-features = false, features = ["ring"] }
 image_dds = { version = "0.7.2", default-features = false, features = ["ddsfile", "image"] }
-ddsfile = "0.6"
+ddsfile = "0.5"
 chrono = "0.4.45"
 sha2 = "0.11"
 zip = { version = "9", default-features = false, features = ["deflate"] }

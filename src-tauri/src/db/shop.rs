@@ -253,7 +253,7 @@ pub async fn browse_mobs(pool: &MySqlPool, query: Option<&str>, offset: i64, lim
 /// table to mirror it, not one page at a time.
 pub async fn fetch_all_entity_names(pool: &MySqlPool, table: &str) -> Result<Vec<(u32, String)>, String> {
     let sql = format!("SELECT vnum, locale_name FROM player.{table} ORDER BY vnum");
-    let rows = sqlx::query(&sql).fetch_all(pool).await.map_err(|e| e.to_string())?;
+    let rows = sqlx::query(sqlx::AssertSqlSafe(sql.as_str())).fetch_all(pool).await.map_err(|e| e.to_string())?;
     Ok(rows
         .into_iter()
         .map(|row| {
@@ -279,14 +279,14 @@ async fn browse_table(pool: &MySqlPool, table: &str, query: Option<&str>, offset
     };
 
     let count_sql = format!("SELECT COUNT(*) AS c FROM player.{table} {where_clause}");
-    let mut count_query = sqlx::query(&count_sql);
+    let mut count_query = sqlx::query(sqlx::AssertSqlSafe(count_sql.as_str()));
     if let Some(v) = &like_value {
         count_query = count_query.bind(v);
     }
     let total: i64 = count_query.fetch_one(pool).await.map_err(|e| e.to_string())?.try_get::<i64, _>("c").unwrap_or(0);
 
     let rows_sql = format!("SELECT vnum, locale_name FROM player.{table} {where_clause} ORDER BY vnum LIMIT ? OFFSET ?");
-    let mut rows_query = sqlx::query(&rows_sql);
+    let mut rows_query = sqlx::query(sqlx::AssertSqlSafe(rows_sql.as_str()));
     if let Some(v) = &like_value {
         rows_query = rows_query.bind(v);
     }

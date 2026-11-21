@@ -403,7 +403,7 @@ pub fn filter_statements(sql: &str, wanted: &dyn Fn(u32) -> bool) -> Result<Vec<
 
 /// Bindet die Werte eines geprüften Statements an eine sqlx-Abfrage.
 pub fn bind_values<'q>(stmt: &'q str, values: &'q [Value]) -> sqlx::query::Query<'q, sqlx::MySql, sqlx::mysql::MySqlArguments> {
-    let mut q = sqlx::query(stmt);
+    let mut q = sqlx::query(sqlx::AssertSqlSafe(stmt));
     for v in values {
         q = match v {
             Value::Null => q.bind(None::<String>),
