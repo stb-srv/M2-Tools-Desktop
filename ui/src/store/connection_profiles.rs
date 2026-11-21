@@ -60,27 +60,41 @@ impl ConnectionProfiles {
         Ok(())
     }
 
-    pub async fn activate(&self, id: i64) -> Result<(), String> {
+    /// Wechselt den Server. Meldet ein Bereich ungespeicherte Änderungen,
+    /// wird vorher nachgefragt; `Ok(false)` = Nutzer hat abgebrochen.
+    pub async fn activate(&self, id: i64) -> Result<bool, String> {
+        if !crate::util::confirm::confirm_discard_all("Server wechseln").await {
+            return Ok(false);
+        }
         invoke_unit("activate_connection_profile", &json!({ "id": id })).await?;
         // SSH liest seine Einstellungen bei jedem Befehl frisch, der MySQL-Pool
         // bleibt dagegen bis zum Neuverbinden am alten Server.
         let (_, mysql) = load_stored_connection().await;
+        let mut mysql_error = None;
         if !mysql.host.is_empty() && !mysql.username.is_empty() && mysql.password_saved {
-            let _ = connect_mysql(&mysql).await;
+            if let Err(e) = connect_mysql(&mysql).await {
+                mysql_error = Some(e);
+            }
         }
         self.reload().await?;
         self.bump();
-        Ok(())
+        match mysql_error {
+            Some(e) => Err(format!("Server gewechselt, aber die MySQL-Verbindung ist fehlgeschlagen: {e}")),
+            None => Ok(true),
+        }
     }
 
     pub async fn create(&self, name: &str, ssh: &SshValues, mysql: &MysqlValues) -> Result<(), String> {
         save_ssh(ssh).await?;
         save_mysql(mysql).await?;
         invoke_unit("save_connection_profile", &json!({ "name": name })).await?;
-        let _ = connect_mysql(mysql).await;
+        let mysql_error = connect_mysql(mysql).await.err();
         self.reload().await?;
         self.bump();
-        Ok(())
+        match mysql_error {
+            Some(e) => Err(format!("Profil angelegt, aber die MySQL-Verbindung ist fehlgeschlagen: {e}")),
+            None => Ok(()),
+        }
     }
 
     pub async fn remove(&self, id: i64) -> Result<(), String> {

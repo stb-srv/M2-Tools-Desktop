@@ -44,7 +44,8 @@ pub fn ServerSwitcher() -> impl IntoView {
         switching.set(true);
         spawn_local(async move {
             match store.activate(id).await {
-                Ok(()) => toast::success(&format!("Verbunden mit „{name}“")),
+                Ok(true) => toast::success(&format!("Verbunden mit „{name}“")),
+                Ok(false) => {}
                 Err(e) => toast::error(&e),
             }
             switching.set(false);

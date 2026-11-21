@@ -7,7 +7,8 @@ use crate::features::mob_drop_editor::components::shared::{fmt_num, js_number, j
 use crate::features::mob_drop_editor::{ensure_icons, IconMap};
 use crate::features::shared::{ChangePreview, EntityBrowser, EntityKind, EntityRow, RestartServerButton, RowRenderer};
 use crate::util::{log_activity, use_save_shortcut};
-use crate::store::navigation::{nav, report_section_dirty, EmbeddedModule, Section};
+use crate::util::confirm::confirm_discard_if;
+use crate::store::navigation::{nav, use_section_dirty, EmbeddedModule, Section};
 use crate::tauri::invoke;
 use leptos::prelude::*;
 use leptos::task::spawn_local;
@@ -445,8 +446,7 @@ pub fn BoxEditor() -> impl IntoView {
 
     let loaded_snapshot = RwSignal::new(None::<Vec<SpecialItemGroup>>);
     let dirty = Memo::new(move |_| groups.with(|g| g.is_some() && loaded_snapshot.with(|s| s != g)));
-    Effect::new(move |_| report_section_dirty(Section::DropGenerator, dirty.get()));
-    on_cleanup(move || report_section_dirty(Section::DropGenerator, false));
+    use_section_dirty(Section::DropGenerator, move || dirty.get());
 
     let load = move || {
         selected_index.set(None);
@@ -636,7 +636,7 @@ pub fn BoxEditor() -> impl IntoView {
             </div>
 
             <div class="flex items-center gap-2">
-                <Button variant=ButtonVariant::Outline on_click=move |_| load() disabled=loading>
+                <Button variant=ButtonVariant::Outline on_click=move |_| confirm_discard_if(dirty.get_untracked(), "Ungespeicherte Änderungen verwerfen und neu laden?", load) disabled=loading>
                     <Icon
                         name="RefreshCw"
                         class=Signal::derive(move || if loading.get() { "size-4 animate-spin".to_string() } else { "size-4 ".to_string() })

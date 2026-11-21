@@ -11,7 +11,7 @@ use crate::features::item_editor::item_flags::{
 use crate::features::item_editor::types::{js_number, num};
 use crate::features::module_importer::shared::*;
 use crate::util::{log_activity, use_save_shortcut};
-use crate::store::navigation::{report_section_dirty, Section};
+use crate::store::navigation::{use_section_dirty_as, Section};
 use crate::tauri::{dialog_open_one, invoke, invoke_unit, OpenDialogOptions};
 use leptos::prelude::*;
 use leptos::task::spawn_local;
@@ -105,8 +105,7 @@ pub fn IconItemImporter(#[prop(into)] on_imported: Callback<()>) -> impl IntoVie
     let confirm = RwSignal::new(false);
 
     let dirty = Memo::new(move |_| icon_paths.with(|p| p.is_some()) && batch_done.with(|b| b.is_none()));
-    Effect::new(move |_| report_section_dirty(Section::ModuleImporter, dirty.get()));
-    on_cleanup(|| report_section_dirty(Section::ModuleImporter, false));
+    use_section_dirty_as(Section::ModuleImporter, "icon", move || dirty.get());
 
     spawn_local(async move {
         if let Ok(v) = invoke::<Option<String>>("get_setting", &json!({ "key": "item_vnum_range_start" })).await {
