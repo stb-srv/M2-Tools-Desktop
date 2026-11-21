@@ -132,6 +132,8 @@ struct UndoReport {
     files_restored: usize,
     db_deleted: usize,
     db_restored: usize,
+    #[serde(default)]
+    notes: Vec<String>,
 }
 
 const KEY_DB: &str = "m2pkg_write_db";
@@ -147,7 +149,9 @@ async fn load_setting(key: &str) -> Option<String> {
 
 fn save_setting(key: &'static str, value: String) {
     spawn_local(async move {
-        let _ = invoke_unit("set_setting", &json!({ "key": key, "value": value })).await;
+        if let Err(e) = invoke_unit("set_setting", &json!({ "key": key, "value": value })).await {
+            crate::components::toast::error(&format!("Einstellung konnte nicht gespeichert werden: {e}"));
+        }
     });
 }
 
@@ -265,8 +269,12 @@ pub fn M2PkgImporter(#[prop(into)] on_imported: Callback<()>) -> impl IntoView {
 
     let choose_out_dir = move || {
         spawn_local(async move {
-            if let Ok(Some(p)) =
-                dialog_open_one(&OpenDialogOptions { directory: true, title: Some("Ordner für die SQL-Dateien".into()), ..Default::default() }).await
+            if let Ok(Some(p)) = dialog_open_one(&OpenDialogOptions {
+                directory: true,
+                title: Some("Ordner für die SQL-Dateien".into()),
+                ..Default::default()
+            })
+            .await
             {
                 out_dir.set(p.clone());
                 save_setting(KEY_OUT, p);
@@ -295,12 +303,8 @@ pub fn M2PkgImporter(#[prop(into)] on_imported: Callback<()>) -> impl IntoView {
             i.as_ref()
                 .map(|i| {
                     selected.with(|s| {
-                        let mut names: Vec<String> = i
-                            .items
-                            .iter()
-                            .filter(|x| s.contains(&x.vnum))
-                            .flat_map(|x| x.assumed_antiflags.clone())
-                            .collect();
+                        let mut names: Vec<String> =
+                            i.items.iter().filter(|x| s.contains(&x.vnum)).flat_map(|x| x.assumed_antiflags.clone()).collect();
                         names.sort();
                         names.dedup();
                         names
@@ -388,6 +392,7 @@ pub fn M2PkgImporter(#[prop(into)] on_imported: Callback<()>) -> impl IntoView {
             match invoke::<Report>("m2pkg_import", &args).await {
                 Ok(r) => {
                     toast::success("Paket eingespielt");
+                    crate::store::icons::clear();
                     let wrote_db = r.db_written.is_some();
                     report.set(Some(r));
                     if wrote_db && auto_proto.get_untracked() {
@@ -409,10 +414,18 @@ pub fn M2PkgImporter(#[prop(into)] on_imported: Callback<()>) -> impl IntoView {
         spawn_local(async move {
             match invoke::<UndoReport>("m2pkg_undo", &json!({ "id": id })).await {
                 Ok(u) => {
+                    crate::store::icons::clear();
                     toast::success(&format!(
                         "Rückgängig gemacht: {} Datei(en) entfernt, {} wiederhergestellt, {} Datenbankzeile(n) gelöscht, {} wiederhergestellt",
                         u.files_removed, u.files_restored, u.db_deleted, u.db_restored
                     ));
+                    for n in &u.notes {
+                        if n.contains("NICHT") {
+                            toast::warning(n);
+                        } else {
+                            toast::info(n);
+                        }
+                    }
                     report.set(None);
                     refresh_history();
                 }
@@ -491,7 +504,7 @@ pub fn M2PkgImporter(#[prop(into)] on_imported: Callback<()>) -> impl IntoView {
                         </div>
 
                         <div class="max-h-[28rem] space-y-1 overflow-y-auto rounded-md border border-border p-2">
-                            {i.items.iter().cloned().map(|it| {
+                            {i.items.iter().map(|it| {
                                 let vnum = it.vnum;
                                 let missing_name = it.name.is_none();
                                 view! {

@@ -2,7 +2,7 @@
 
 Desktop-Werkzeugkasten für Metin2-Privatserver: Server steuern, Datenbank und Server-Dateien bearbeiten, Items anlegen, Quests bauen - alles aus einer App, ohne ständig zwischen SSH-Konsole, MySQL-Client und Texteditor zu wechseln.
 
-Gebaut mit [Tauri 2](https://tauri.app/) (Rust) und React/TypeScript. Läuft unter Windows.
+Gebaut mit [Tauri 2](https://tauri.app/) und [Leptos](https://leptos.dev/) (Rust, im Fenster als WebAssembly). Läuft unter Windows.
 
 ## Was M2Manager kann
 
@@ -83,4 +83,4 @@ cd src-tauri && cargo test --lib -- --ignored
 
 ### Release
 
-Siehe [howtorelease.md](howtorelease.md): Version in `src-tauri/tauri.conf.json`, `src-tauri/Cargo.toml` und `ui/Cargo.toml` hochzählen, Tag `vX.Y.Z` pushen, GitHub Actions baut und veröffentlicht den Rest. Änderungen stehen im [CHANGELOG](CHANGELOG.md).
+Release über GitHub › Actions › **Release** › „Run workflow“ wählen (patch, minor oder major). Der Lauf setzt die Version, erstellt Tag und GitHub-Release und baut den Installer. Details: [howtorelease.md](howtorelease.md). Änderungen stehen im [CHANGELOG](CHANGELOG.md).

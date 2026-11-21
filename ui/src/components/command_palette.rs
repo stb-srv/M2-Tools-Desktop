@@ -21,8 +21,7 @@ pub struct Group {
 pub fn build_groups(query: &str, label: impl Fn(Section) -> String, favorites: &[Section], recent: &[Section]) -> Vec<Group> {
     let q = query.trim().to_lowercase();
     if !q.is_empty() {
-        let items: Vec<Section> =
-            Section::ALL.iter().copied().filter(|s| label(*s).to_lowercase().contains(&q)).collect();
+        let items: Vec<Section> = Section::ALL.iter().copied().filter(|s| label(*s).to_lowercase().contains(&q)).collect();
         return if items.is_empty() {
             vec![]
         } else {
@@ -43,11 +42,7 @@ pub fn build_groups(query: &str, label: impl Fn(Section) -> String, favorites: &
             groups.push(Group { key: c.id().into(), label_key: c.label_key(), items });
         }
     }
-    groups.push(Group {
-        key: "settings".into(),
-        label_key: Category::Settings.label_key(),
-        items: vec![Section::Settings],
-    });
+    groups.push(Group { key: "settings".into(), label_key: Category::Settings.label_key(), items: vec![Section::Settings] });
     groups
 }
 
@@ -120,6 +115,9 @@ pub fn CommandPalette() -> impl IntoView {
                 on:click=move |_| open.set(false)
             >
                 <div
+                    role="dialog"
+                    aria-modal="true"
+                    aria-label="Befehlspalette"
                     class="w-full max-w-lg overflow-hidden rounded-lg border border-border bg-card shadow-xl"
                     on:click=|e| e.stop_propagation()
                 >

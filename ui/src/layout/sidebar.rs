@@ -26,6 +26,7 @@ fn NavRow(section: Section, rail: bool) -> impl IntoView {
             <button
                 on:click=move |_| n.set_section(section)
                 title=label
+                aria-label=label
                 class=move || if is_active() {
                     "relative mx-auto flex size-9 items-center justify-center rounded-md transition-colors bg-primary text-primary-foreground"
                 } else {
@@ -76,6 +77,7 @@ fn NavRow(section: Section, rail: bool) -> impl IntoView {
                     n.toggle_favorite(section);
                 }
                 title=move || t(if is_fav() { "nav.unpin" } else { "nav.pin" })
+                aria-label=move || t(if is_fav() { "nav.unpin" } else { "nav.pin" })
                 class=move || {
                     let vis = if is_fav() { "opacity-100" } else { "opacity-0 group-hover:opacity-100" };
                     let col = if is_active() { "text-primary-foreground hover:bg-primary-foreground/20" } else { "text-muted-foreground hover:bg-border" };
@@ -104,6 +106,7 @@ pub fn Sidebar() -> impl IntoView {
                         <button
                             on:click=move |_| n.toggle_rail()
                             title=move || t("nav.expandSidebar")
+                            aria-label=move || t("nav.expandSidebar")
                             class="rounded-md p-1.5 text-muted-foreground hover:bg-muted hover:text-foreground"
                         >
                             <Icon name="PanelLeft" class="size-4"/>
@@ -131,6 +134,7 @@ pub fn Sidebar() -> impl IntoView {
                         <button
                             on:click=move |_| n.toggle_rail()
                             title=move || t("nav.collapseSidebar")
+                            aria-label=move || t("nav.collapseSidebar")
                             class="rounded-md p-1 text-muted-foreground hover:bg-muted hover:text-foreground"
                         >
                             <Icon name="PanelLeftClose" class="size-4"/>

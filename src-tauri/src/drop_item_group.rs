@@ -100,51 +100,38 @@ pub fn parse(content: &str) -> Result<Vec<DropItemGroup>, String> {
         }
         let name = tokens[0].to_string();
 
-        let (line_no, line) =
-            next_nonblank(&mut lines).ok_or_else(|| format!("Unerwartetes Dateiende nach '{name}'"))?;
+        let (line_no, line) = next_nonblank(&mut lines).ok_or_else(|| format!("Unerwartetes Dateiende nach '{name}'"))?;
         if line.trim() != "{" {
             return Err(format!("Zeile {}: '{{' erwartet, gefunden: {line:?}", line_no + 1));
         }
 
-        let (line_no, line) =
-            next_nonblank(&mut lines).ok_or_else(|| format!("Unerwartetes Dateiende in Gruppe '{name}'"))?;
+        let (line_no, line) = next_nonblank(&mut lines).ok_or_else(|| format!("Unerwartetes Dateiende in Gruppe '{name}'"))?;
         let tokens: Vec<&str> = line.split_whitespace().collect();
         if tokens.len() != 2 || tokens[0] != "Vnum" {
             return Err(format!("Zeile {}: 'Vnum <id>' erwartet, gefunden: {line:?}", line_no + 1));
         }
         // Vnum's actual value is never used by the server, see module doc -
         // parsed only to validate the line shape, then discarded.
-        tokens[1]
-            .parse::<i32>()
-            .map_err(|_| format!("Zeile {}: ungültige Vnum '{}'", line_no + 1, tokens[1]))?;
+        tokens[1].parse::<i32>().map_err(|_| format!("Zeile {}: ungültige Vnum '{}'", line_no + 1, tokens[1]))?;
 
-        let (line_no, line) =
-            next_nonblank(&mut lines).ok_or_else(|| format!("Unerwartetes Dateiende in Gruppe '{name}'"))?;
+        let (line_no, line) = next_nonblank(&mut lines).ok_or_else(|| format!("Unerwartetes Dateiende in Gruppe '{name}'"))?;
         let tokens: Vec<&str> = line.split_whitespace().collect();
         if tokens.len() != 2 || tokens[0] != "Mob" {
             return Err(format!("Zeile {}: 'Mob <vnum>' erwartet, gefunden: {line:?}", line_no + 1));
         }
-        let mob_vnum: u32 = tokens[1]
-            .parse()
-            .map_err(|_| format!("Zeile {}: ungültige Mob-Vnum '{}'", line_no + 1, tokens[1]))?;
+        let mob_vnum: u32 = tokens[1].parse().map_err(|_| format!("Zeile {}: ungültige Mob-Vnum '{}'", line_no + 1, tokens[1]))?;
 
         let mut items = Vec::new();
         loop {
-            let (line_no, line) =
-                next_nonblank(&mut lines).ok_or_else(|| format!("Unerwartetes Dateiende in Gruppe '{name}'"))?;
+            let (line_no, line) = next_nonblank(&mut lines).ok_or_else(|| format!("Unerwartetes Dateiende in Gruppe '{name}'"))?;
             if line.trim() == "}" {
                 break;
             }
             let tokens: Vec<&str> = line.split_whitespace().collect();
             if tokens.len() != 3 && tokens.len() != 4 {
-                return Err(format!(
-                    "Zeile {}: Eintrag erwartet ('<Nr> <Item> <Prozent> [<Anzahl>]'), gefunden: {line:?}",
-                    line_no + 1
-                ));
+                return Err(format!("Zeile {}: Eintrag erwartet ('<Nr> <Item> <Prozent> [<Anzahl>]'), gefunden: {line:?}", line_no + 1));
             }
-            tokens[0]
-                .parse::<u32>()
-                .map_err(|_| format!("Zeile {}: ungültige laufende Nummer '{}'", line_no + 1, tokens[0]))?;
+            tokens[0].parse::<u32>().map_err(|_| format!("Zeile {}: ungültige laufende Nummer '{}'", line_no + 1, tokens[0]))?;
 
             let item_ref = tokens[1].to_string();
             if item_ref.parse::<u32>().is_err() {
@@ -154,13 +141,9 @@ pub fn parse(content: &str) -> Result<Vec<DropItemGroup>, String> {
                     item_ref
                 ));
             }
-            let percent: f64 = tokens[2]
-                .parse()
-                .map_err(|_| format!("Zeile {}: ungültiger Prozentwert '{}'.", line_no + 1, tokens[2]))?;
+            let percent: f64 = tokens[2].parse().map_err(|_| format!("Zeile {}: ungültiger Prozentwert '{}'.", line_no + 1, tokens[2]))?;
             let count: i32 = if tokens.len() == 4 {
-                tokens[3]
-                    .parse()
-                    .map_err(|_| format!("Zeile {}: ungültige Anzahl '{}'.", line_no + 1, tokens[3]))?
+                tokens[3].parse().map_err(|_| format!("Zeile {}: ungültige Anzahl '{}'.", line_no + 1, tokens[3]))?
             } else {
                 1
             };
@@ -232,7 +215,8 @@ mod tests {
 
     #[test]
     fn merges_duplicate_mob_vnum_blocks_like_the_real_server() {
-        let content = "First\n{\n\tVnum\t1\n\tMob\t500\n\t1\t10\t1.000000\t1\n}\n\nSecond\n{\n\tVnum\t2\n\tMob\t500\n\t1\t20\t2.000000\t1\n}\n";
+        let content =
+            "First\n{\n\tVnum\t1\n\tMob\t500\n\t1\t10\t1.000000\t1\n}\n\nSecond\n{\n\tVnum\t2\n\tMob\t500\n\t1\t20\t2.000000\t1\n}\n";
         let groups = parse(content).unwrap();
         assert_eq!(groups.len(), 1, "duplicate mob vnum must merge into one group, not create two");
         assert_eq!(groups[0].name, "First", "the first block's name wins, matching the server keeping the first-created group object");

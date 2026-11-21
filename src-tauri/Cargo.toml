@@ -2,7 +2,7 @@
 name = "m2manager"
 version = "1.0.3"
 description = "M2Manager - Metin2 Server Management Desktop App"
-authors = ["you"]
+authors = ["stb-srv"]
 edition = "2021"
 
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
@@ -32,17 +32,21 @@ tauri-plugin-updater = "2"
 tauri-plugin-process = "2"
 encoding_rs = "0.8.35"
 image = { version = "0.25.10", default-features = false, features = ["tga", "png", "jpeg", "bmp", "gif"] }
-base64 = "0.23.0"
+base64 = "0.22"
+# Gleicher Krypto-Provider wie tauri-plugin-updater (ring); wird in run() installiert,
+# weil reqwest mit "rustls-no-provider" sonst beim ersten HTTPS-Aufruf abbricht.
+rustls = { version = "0.23", default-features = false, features = ["ring"] }
 image_dds = { version = "0.7.2", default-features = false, features = ["ddsfile", "image"] }
 ddsfile = "0.5"
 chrono = "0.4.45"
 sha2 = "0.10"
 zip = { version = "4", default-features = false, features = ["deflate"] }
-reqwest = { version = "0.12", default-features = false, features = ["json", "native-tls"] }
+reqwest = { version = "0.13", default-features = false, features = ["json", "rustls-no-provider"] }
 
 [dependencies.sqlx]
 version = "0.8"
-features = ["runtime-tokio", "mysql", "chrono"]
+default-features = false
+features = ["runtime-tokio", "mysql", "chrono", "tls-rustls"]
 
 [profile.release]
 # Strips debug symbols/local variable names from the shipped .exe - doesn't
@@ -51,8 +55,8 @@ features = ["runtime-tokio", "mysql", "chrono"]
 strip = true
 # "Fat" LTO (`lto = true`) forces the whole dependency graph through a
 # single-threaded codegen unit at link time - by far the biggest cost in
-# `npm run release` for this project (minutes, not the ~9s the Vite side
-# takes). Thin LTO cross-optimizes each crate in parallel and only does a
+# `cargo tauri build` for this project (minutes). Thin LTO cross-optimizes
+# each crate in parallel and only does a
 # lighter global pass, cutting release build time substantially for a
 # GUI app like this where the last few % of codegen optimization doesn't
 # matter, while keeping the exe close in size/speed to fat LTO.

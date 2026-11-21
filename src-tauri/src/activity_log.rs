@@ -65,9 +65,7 @@ pub fn list(conn: &Connection, module: Option<&str>, search: Option<&str>) -> Re
              ORDER BY id DESC",
         )
         .map_err(|e| e.to_string())?;
-    let rows = stmt
-        .query_map(rusqlite::params![module, search_pattern], row_to_record)
-        .map_err(|e| e.to_string())?;
+    let rows = stmt.query_map(rusqlite::params![module, search_pattern], row_to_record).map_err(|e| e.to_string())?;
     rows.collect::<Result<Vec<_>, _>>().map_err(|e| e.to_string())
 }
 
@@ -95,15 +93,8 @@ mod tests {
     #[test]
     fn records_and_lists() {
         let conn = scratch_conn();
-        let id = record(
-            &conn,
-            "item-editor",
-            "update",
-            Some("item"),
-            Some("3219"),
-            "Item 3219 ('Schwert+9') aktualisiert",
-        )
-        .expect("record failed");
+        let id = record(&conn, "item-editor", "update", Some("item"), Some("3219"), "Item 3219 ('Schwert+9') aktualisiert")
+            .expect("record failed");
 
         let entries = list(&conn, None, None).expect("list failed");
         assert_eq!(entries.len(), 1);

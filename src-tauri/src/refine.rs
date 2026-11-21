@@ -85,11 +85,8 @@ async fn fetch_recipe(pool: &MySqlPool, id: i32) -> Result<Option<RefineRecipe>,
     if id <= 0 {
         return Ok(None);
     }
-    let row = sqlx::query("SELECT * FROM player.refine_proto WHERE id = ?")
-        .bind(id)
-        .fetch_optional(pool)
-        .await
-        .map_err(|e| e.to_string())?;
+    let row =
+        sqlx::query("SELECT * FROM player.refine_proto WHERE id = ?").bind(id).fetch_optional(pool).await.map_err(|e| e.to_string())?;
     let Some(row) = row else {
         return Ok(None);
     };
@@ -120,13 +117,11 @@ async fn hydrate_material_names(pool: &MySqlPool, recipe: &mut RefineRecipe) -> 
 }
 
 async fn fetch_node(pool: &MySqlPool, vnum: u32) -> Result<Option<RefineChainNode>, String> {
-    let row = sqlx::query(
-        "SELECT vnum, locale_name, refine_set, refined_vnum FROM player.item_proto WHERE vnum = ?",
-    )
-    .bind(vnum)
-    .fetch_optional(pool)
-    .await
-    .map_err(|e| e.to_string())?;
+    let row = sqlx::query("SELECT vnum, locale_name, refine_set, refined_vnum FROM player.item_proto WHERE vnum = ?")
+        .bind(vnum)
+        .fetch_optional(pool)
+        .await
+        .map_err(|e| e.to_string())?;
     let Some(row) = row else {
         return Ok(None);
     };
@@ -141,13 +136,7 @@ async fn fetch_node(pool: &MySqlPool, vnum: u32) -> Result<Option<RefineChainNod
         hydrate_material_names(pool, recipe).await?;
     }
 
-    Ok(Some(RefineChainNode {
-        vnum,
-        locale_name: locale_name.trim().to_string(),
-        refine_set,
-        refined_vnum,
-        recipe,
-    }))
+    Ok(Some(RefineChainNode { vnum, locale_name: locale_name.trim().to_string(), refine_set, refined_vnum, recipe }))
 }
 
 /// Builds the full upgrade chain containing `vnum`, in order from the base
@@ -157,22 +146,20 @@ async fn fetch_node(pool: &MySqlPool, vnum: u32) -> Result<Option<RefineChainNod
 /// item in the middle of a chain (e.g. "Schwert+5") still shows the whole
 /// chain, not just what comes after it. Both walks are capped at 30 steps
 /// - refine chains are always short (+0..+9 at most on this server, per
-/// the real data), so a longer walk almost certainly means a data error
-/// (a cycle from a bad manual edit), and the cap turns that into an
-/// incomplete-but-safe result instead of an infinite loop.
+///   the real data), so a longer walk almost certainly means a data error
+///   (a cycle from a bad manual edit), and the cap turns that into an
+///   incomplete-but-safe result instead of an infinite loop.
 pub async fn get_refine_chain(pool: &MySqlPool, vnum: u32) -> Result<Vec<RefineChainNode>, String> {
     const MAX_STEPS: usize = 30;
 
     let mut start = vnum;
     for _ in 0..MAX_STEPS {
-        let prev: Option<u32> = sqlx::query(
-            "SELECT vnum FROM player.item_proto WHERE refined_vnum = ? ORDER BY vnum LIMIT 1",
-        )
-        .bind(start)
-        .fetch_optional(pool)
-        .await
-        .map_err(|e| e.to_string())?
-        .map(|row| crate::db::get_vnum(&row, "vnum").unwrap_or_default());
+        let prev: Option<u32> = sqlx::query("SELECT vnum FROM player.item_proto WHERE refined_vnum = ? ORDER BY vnum LIMIT 1")
+            .bind(start)
+            .fetch_optional(pool)
+            .await
+            .map_err(|e| e.to_string())?
+            .map(|row| crate::db::get_vnum(&row, "vnum").unwrap_or_default());
 
         match prev {
             Some(p) if p != start => start = p,
@@ -219,13 +206,7 @@ pub async fn get_recipe(pool: &MySqlPool, id: i32) -> Result<Option<RefineRecipe
 /// Writes (creates if `id` is `None`, replaces all fields if `Some`) one
 /// recipe row. Materials shorter than 5 entries are padded with vnum=0 /
 /// count=0, matching the fixed-slot storage `refine_proto` actually uses.
-pub async fn save_recipe(
-    pool: &MySqlPool,
-    id: Option<i32>,
-    cost: i32,
-    prob: i16,
-    materials: &[RefineMaterial],
-) -> Result<i32, String> {
+pub async fn save_recipe(pool: &MySqlPool, id: Option<i32>, cost: i32, prob: i16, materials: &[RefineMaterial]) -> Result<i32, String> {
     if materials.len() > 5 {
         return Err("Maximal 5 Materialien pro Rezept möglich.".into());
     }
@@ -240,12 +221,19 @@ pub async fn save_recipe(
              vnum0=?, count0=?, vnum1=?, count1=?, vnum2=?, count2=?, \
              vnum3=?, count3=?, vnum4=?, count4=?, cost=?, prob=? WHERE id=?",
         )
-        .bind(slots[0].0).bind(slots[0].1)
-        .bind(slots[1].0).bind(slots[1].1)
-        .bind(slots[2].0).bind(slots[2].1)
-        .bind(slots[3].0).bind(slots[3].1)
-        .bind(slots[4].0).bind(slots[4].1)
-        .bind(cost).bind(prob).bind(id)
+        .bind(slots[0].0)
+        .bind(slots[0].1)
+        .bind(slots[1].0)
+        .bind(slots[1].1)
+        .bind(slots[2].0)
+        .bind(slots[2].1)
+        .bind(slots[3].0)
+        .bind(slots[3].1)
+        .bind(slots[4].0)
+        .bind(slots[4].1)
+        .bind(cost)
+        .bind(prob)
+        .bind(id)
         .execute(pool)
         .await
         .map_err(|e| e.to_string())?;
@@ -256,12 +244,18 @@ pub async fn save_recipe(
              (vnum0, count0, vnum1, count1, vnum2, count2, vnum3, count3, vnum4, count4, cost, src_vnum, result_vnum, prob) \
              VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 0, 0, ?)",
         )
-        .bind(slots[0].0).bind(slots[0].1)
-        .bind(slots[1].0).bind(slots[1].1)
-        .bind(slots[2].0).bind(slots[2].1)
-        .bind(slots[3].0).bind(slots[3].1)
-        .bind(slots[4].0).bind(slots[4].1)
-        .bind(cost).bind(prob)
+        .bind(slots[0].0)
+        .bind(slots[0].1)
+        .bind(slots[1].0)
+        .bind(slots[1].1)
+        .bind(slots[2].0)
+        .bind(slots[2].1)
+        .bind(slots[3].0)
+        .bind(slots[3].1)
+        .bind(slots[4].0)
+        .bind(slots[4].1)
+        .bind(cost)
+        .bind(prob)
         .execute(pool)
         .await
         .map_err(|e| e.to_string())?;
@@ -283,15 +277,9 @@ pub async fn delete_recipe(pool: &MySqlPool, id: i32) -> Result<(), String> {
         .try_get("c")
         .unwrap_or_default();
     if used_by > 0 {
-        return Err(format!(
-            "Rezept wird noch von {used_by} Item(s) verwendet - erst dort die Verknüpfung ändern."
-        ));
+        return Err(format!("Rezept wird noch von {used_by} Item(s) verwendet - erst dort die Verknüpfung ändern."));
     }
-    sqlx::query("DELETE FROM player.refine_proto WHERE id = ?")
-        .bind(id)
-        .execute(pool)
-        .await
-        .map_err(|e| e.to_string())?;
+    sqlx::query("DELETE FROM player.refine_proto WHERE id = ?").bind(id).execute(pool).await.map_err(|e| e.to_string())?;
     Ok(())
 }
 
@@ -301,12 +289,7 @@ pub async fn delete_recipe(pool: &MySqlPool, id: i32) -> Result<(), String> {
 /// deliberately narrower than `db/item.rs::update_item_proto`, which needs
 /// the item's *entire* payload and would be a heavy, error-prone way to
 /// change two columns.
-pub async fn set_item_refine_link(
-    pool: &MySqlPool,
-    vnum: u32,
-    refine_set: u16,
-    refined_vnum: u32,
-) -> Result<(), String> {
+pub async fn set_item_refine_link(pool: &MySqlPool, vnum: u32, refine_set: u16, refined_vnum: u32) -> Result<(), String> {
     let result = sqlx::query("UPDATE player.item_proto SET refine_set = ?, refined_vnum = ? WHERE vnum = ?")
         .bind(refine_set)
         .bind(refined_vnum)
@@ -389,12 +372,7 @@ pub async fn find_recipes_using_material(pool: &MySqlPool, vnum: u32) -> Result<
     let mut out = Vec::new();
     for row in &rows {
         let recipe = row_to_recipe(row, 0);
-        let count: i16 = recipe
-            .materials
-            .iter()
-            .filter(|m| m.vnum == vnum)
-            .map(|m| m.count)
-            .sum();
+        let count: i16 = recipe.materials.iter().filter(|m| m.vnum == vnum).map(|m| m.count).sum();
         let used_by_count: i64 = sqlx::query("SELECT COUNT(*) AS c FROM player.item_proto WHERE refine_set = ?")
             .bind(recipe.id)
             .fetch_one(pool)
@@ -402,19 +380,17 @@ pub async fn find_recipes_using_material(pool: &MySqlPool, vnum: u32) -> Result<
             .map_err(|e| e.to_string())?
             .try_get("c")
             .unwrap_or_default();
-        let used_by = sqlx::query(
-            "SELECT vnum, locale_name FROM player.item_proto WHERE refine_set = ? ORDER BY vnum LIMIT 5",
-        )
-        .bind(recipe.id)
-        .fetch_all(pool)
-        .await
-        .map_err(|e| e.to_string())?
-        .iter()
-        .map(|r| {
-            let name: Vec<u8> = r.try_get("locale_name").unwrap_or_default();
-            (crate::db::get_vnum(r, "vnum").unwrap_or_default(), decode_locale(&name))
-        })
-        .collect();
+        let used_by = sqlx::query("SELECT vnum, locale_name FROM player.item_proto WHERE refine_set = ? ORDER BY vnum LIMIT 5")
+            .bind(recipe.id)
+            .fetch_all(pool)
+            .await
+            .map_err(|e| e.to_string())?
+            .iter()
+            .map(|r| {
+                let name: Vec<u8> = r.try_get("locale_name").unwrap_or_default();
+                (crate::db::get_vnum(r, "vnum").unwrap_or_default(), decode_locale(&name))
+            })
+            .collect();
         out.push(RefineMaterialUsage { recipe_id: recipe.id, count, used_by, used_by_count });
     }
     Ok(out)
@@ -423,20 +399,18 @@ pub async fn find_recipes_using_material(pool: &MySqlPool, vnum: u32) -> Result<
 /// Items, die per `refined_vnum` zu `vnum` aufgewertet werden (z.B. ist
 /// „Schwert+0“ die Vorstufe von „Schwert+1“).
 pub async fn find_refine_predecessors(pool: &MySqlPool, vnum: u32) -> Result<Vec<(u32, String)>, String> {
-    Ok(sqlx::query(
-        "SELECT vnum, locale_name FROM player.item_proto WHERE refined_vnum = ? AND vnum <> ? ORDER BY vnum",
-    )
-    .bind(vnum)
-    .bind(vnum)
-    .fetch_all(pool)
-    .await
-    .map_err(|e| e.to_string())?
-    .iter()
-    .map(|r| {
-        let name: Vec<u8> = r.try_get("locale_name").unwrap_or_default();
-        (crate::db::get_vnum(r, "vnum").unwrap_or_default(), decode_locale(&name))
-    })
-    .collect())
+    Ok(sqlx::query("SELECT vnum, locale_name FROM player.item_proto WHERE refined_vnum = ? AND vnum <> ? ORDER BY vnum")
+        .bind(vnum)
+        .bind(vnum)
+        .fetch_all(pool)
+        .await
+        .map_err(|e| e.to_string())?
+        .iter()
+        .map(|r| {
+            let name: Vec<u8> = r.try_get("locale_name").unwrap_or_default();
+            (crate::db::get_vnum(r, "vnum").unwrap_or_default(), decode_locale(&name))
+        })
+        .collect())
 }
 
 #[cfg(test)]

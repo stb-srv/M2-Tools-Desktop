@@ -56,12 +56,7 @@ pub fn create_message(conn: &Connection, text: &str, interval_minutes: i64) -> R
 /// timer on the next deploy+reload instead of colliding with whatever the
 /// live server still has queued for the old name (see plan: `Reload()`
 /// clears the name->NPC map but doesn't cancel already-pending timer events).
-pub fn update_message(
-    conn: &Connection,
-    id: i64,
-    text: &str,
-    interval_minutes: i64,
-) -> Result<(), String> {
+pub fn update_message(conn: &Connection, id: i64, text: &str, interval_minutes: i64) -> Result<(), String> {
     if text.trim().is_empty() {
         return Err("Text darf nicht leer sein.".to_string());
     }
@@ -87,8 +82,7 @@ pub fn set_enabled(conn: &Connection, id: i64, enabled: bool) -> Result<(), Stri
 }
 
 pub fn delete_message(conn: &Connection, id: i64) -> Result<(), String> {
-    conn.execute("DELETE FROM broadcast_messages WHERE id = ?1", [id])
-        .map_err(|e| e.to_string())?;
+    conn.execute("DELETE FROM broadcast_messages WHERE id = ?1", [id]).map_err(|e| e.to_string())?;
     Ok(())
 }
 

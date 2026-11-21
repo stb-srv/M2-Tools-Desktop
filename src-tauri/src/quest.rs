@@ -68,10 +68,7 @@ pub fn quest_list_add(content: &str, relative_path: &str) -> String {
 }
 
 pub fn quest_list_remove(content: &str, relative_path: &str) -> String {
-    let kept: Vec<&str> = content
-        .lines()
-        .filter(|l| l.trim() != relative_path)
-        .collect();
+    let kept: Vec<&str> = content.lines().filter(|l| l.trim() != relative_path).collect();
     if kept.is_empty() {
         String::new()
     } else {
@@ -127,11 +124,7 @@ pub struct QuestSearchMatch {
 /// split out from the Tauri command so it's testable without a live SFTP
 /// connection. `contents` must be the same length/order as `files` (a failed
 /// read for one file just excludes it, rather than failing the whole search).
-pub fn search_contents(
-    files: &[QuestFile],
-    contents: &[Result<String, String>],
-    query: &str,
-) -> Vec<QuestSearchMatch> {
+pub fn search_contents(files: &[QuestFile], contents: &[Result<String, String>], query: &str) -> Vec<QuestSearchMatch> {
     let needle = query.to_lowercase();
     if needle.is_empty() {
         return Vec::new();
@@ -145,10 +138,7 @@ pub fn search_contents(
                 .lines()
                 .enumerate()
                 .filter(|(_, line)| line.to_lowercase().contains(&needle))
-                .map(|(i, line)| QuestSearchLine {
-                    line_number: i + 1,
-                    text: line.to_string(),
-                })
+                .map(|(i, line)| QuestSearchLine { line_number: i + 1, text: line.to_string() })
                 .collect();
             if lines.is_empty() {
                 None

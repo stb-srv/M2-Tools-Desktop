@@ -63,9 +63,7 @@ pub fn parse(content: &str) -> Result<Vec<EtcDropEntry>, String> {
         if item_name.is_empty() {
             return Err(format!("Zeile {line_no}: leerer Item-Name."));
         }
-        let percent: f64 = percent_str
-            .parse()
-            .map_err(|_| format!("Zeile {line_no}: ungültiger Prozentwert '{percent_str}'."))?;
+        let percent: f64 = percent_str.parse().map_err(|_| format!("Zeile {line_no}: ungültiger Prozentwert '{percent_str}'."))?;
         if percent == 0.0 {
             return Err(format!(
                 "Zeile {line_no}: Prozentwert 0 - der Server würde diese Zeile beim Laden stillschweigend überspringen, wäre also nie wirksam."

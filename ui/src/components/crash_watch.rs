@@ -11,8 +11,8 @@
 //! DB-Backups: "geplant" heißt nur "fällig beim nächsten Tick, während die
 //! App offen ist", nie ein echter Cron.
 
-use crate::tauri::{invoke, invoke0, invoke_unit};
 use crate::features::db_backups::schedule::is_backup_due;
+use crate::tauri::{invoke, invoke0, invoke_unit};
 use leptos::prelude::*;
 use leptos::task::spawn_local;
 use serde::Deserialize;
@@ -45,20 +45,7 @@ struct ServerOverview {
     disk: Option<DiskUsage>,
 }
 
-/// Wie `Number(x ?? 0)` in JS (leer = 0, ungültig = NaN).
-pub fn js_number(s: Option<&str>) -> f64 {
-    match s {
-        None => 0.0,
-        Some(s) => {
-            let t = s.trim();
-            if t.is_empty() {
-                0.0
-            } else {
-                t.parse::<f64>().unwrap_or(f64::NAN)
-            }
-        }
-    }
-}
+use crate::util::num::js_number_opt as js_number;
 
 async fn get_setting(key: &str) -> Result<Option<String>, String> {
     invoke::<Option<String>>("get_setting", &json!({ "key": key })).await
@@ -135,7 +122,6 @@ pub fn CrashWatch() -> impl IntoView {
 #[cfg(test)]
 mod tests {
     use super::*;
-
 
     #[test]
     fn number_like_js() {

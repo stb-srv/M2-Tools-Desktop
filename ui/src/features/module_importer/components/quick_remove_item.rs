@@ -1,8 +1,8 @@
 use crate::components::{Button, ButtonSize, ButtonVariant, Icon};
 use crate::features::module_importer::shared::ItemSearchResult;
-use crate::util::log_activity;
 use crate::store::navigation::Section;
 use crate::tauri::{invoke, invoke_unit};
+use crate::util::log_activity;
 use leptos::prelude::*;
 use leptos::task::spawn_local;
 use serde_json::json;
@@ -24,8 +24,9 @@ pub fn QuickRemoveItem() -> impl IntoView {
         }
         searching.set(true);
         spawn_local(async move {
-            if let Ok(r) = invoke::<Vec<ItemSearchResult>>("search_items", &json!({ "query": q })).await {
-                results.set(r);
+            match invoke::<Vec<ItemSearchResult>>("search_items", &json!({ "query": q })).await {
+                Ok(r) => results.set(r),
+                Err(e) => crate::components::toast::error(&format!("Suche fehlgeschlagen: {e}")),
             }
             searching.set(false);
         });
@@ -38,6 +39,7 @@ pub fn QuickRemoveItem() -> impl IntoView {
         spawn_local(async move {
             match invoke_unit("remove_single_item", &json!({ "vnum": vnum })).await {
                 Ok(()) => {
+                    crate::store::icons::clear();
                     results.update(|r| r.retain(|x| x.vnum != vnum));
                     last_removed.set(Some(vnum));
                     log_activity(

@@ -114,57 +114,55 @@ pub fn MobDropsModal(vnum: u32, #[prop(into)] on_close: Callback<()>) -> impl In
     };
 
     view! {
-        <div class="fixed inset-0 z-50 flex items-center justify-center bg-black/50" on:click=move |_| on_close.run(())>
-            <div class="max-h-[85vh] w-[36rem] space-y-3 overflow-y-auto rounded-lg border border-border bg-card p-4" on:click=|e| e.stop_propagation()>
-                <div class="flex items-start justify-between gap-2">
-                    <div>
-                        <p class="font-medium">"Was droppt dieser Mob?"</p>
-                        <p class="text-sm text-muted-foreground">
-                            {move || report.with(|r| match r {
-                                Some(Ok(r)) => match &r.mob {
-                                    Some(m) => format!(
-                                        "{} (#{}){}{}",
-                                        m.name,
-                                        m.vnum,
-                                        m.level.map(|l| format!(", Level {l}")).unwrap_or_default(),
-                                        m.rank.as_deref().map(|rk| format!(", {rk} – {}", rank_label(rk))).unwrap_or_default(),
-                                    ),
-                                    None => format!("Mob #{vnum}"),
-                                },
-                                _ => format!("Mob #{vnum}"),
-                            })}
-                        </p>
-                    </div>
-                    <Button variant=ButtonVariant::Ghost on_click=move |_| on_close.run(())>
-                        <Icon name="X" class="size-4"/>
-                    </Button>
+        <crate::components::Modal class="max-h-[85vh] w-[36rem] space-y-3 overflow-y-auto rounded-lg border border-border bg-card p-4" overlay_class="z-50" on_close=on_close close_on_backdrop=true>
+            <div class="flex items-start justify-between gap-2">
+                <div>
+                    <p class="font-medium">"Was droppt dieser Mob?"</p>
+                    <p class="text-sm text-muted-foreground">
+                        {move || report.with(|r| match r {
+                            Some(Ok(r)) => match &r.mob {
+                                Some(m) => format!(
+                                    "{} (#{}){}{}",
+                                    m.name,
+                                    m.vnum,
+                                    m.level.map(|l| format!(", Level {l}")).unwrap_or_default(),
+                                    m.rank.as_deref().map(|rk| format!(", {rk} – {}", rank_label(rk))).unwrap_or_default(),
+                                ),
+                                None => format!("Mob #{vnum}"),
+                            },
+                            _ => format!("Mob #{vnum}"),
+                        })}
+                    </p>
                 </div>
-                {move || match report.get() {
-                    None => view! {
-                        <p class="flex items-center gap-2 text-sm text-muted-foreground">
-                            <Icon name="Loader2" class="size-4 animate-spin"/>
-                            "Lese die Drop-Dateien vom Server…"
-                        </p>
-                    }.into_any(),
-                    Some(Err(e)) => view! { <p class="text-sm text-destructive">{e}</p> }.into_any(),
-                    Some(Ok(r)) => view! {
-                        <div class="space-y-3">
-                            {section(&r, "mob_drop")}
-                            {section(&r, "drop_item_group")}
-                            {section(&r, "common_drop")}
-                            <p class="text-xs text-muted-foreground">
-                                "Jeder Eintrag wird bei einem Kill einzeln gewürfelt. Die Chance gilt bei gleichem Level von Spieler und Mob. Common-Drops gelten nur für Spieler im angegebenen Level-Bereich."
-                            </p>
-                            {r.warnings.into_iter().map(|w| view! {
-                                <p class="flex items-start gap-1 text-xs text-amber-600 dark:text-amber-400">
-                                    <Icon name="AlertTriangle" class="mt-0.5 size-3.5 shrink-0"/>
-                                    {w}
-                                </p>
-                            }).collect_view()}
-                        </div>
-                    }.into_any(),
-                }}
+                <Button variant=ButtonVariant::Ghost on_click=move |_| on_close.run(())>
+                    <Icon name="X" class="size-4"/>
+                </Button>
             </div>
-        </div>
+            {move || match report.get() {
+                None => view! {
+                    <p class="flex items-center gap-2 text-sm text-muted-foreground">
+                        <Icon name="Loader2" class="size-4 animate-spin"/>
+                        "Lese die Drop-Dateien vom Server…"
+                    </p>
+                }.into_any(),
+                Some(Err(e)) => view! { <p class="text-sm text-destructive">{e}</p> }.into_any(),
+                Some(Ok(r)) => view! {
+                    <div class="space-y-3">
+                        {section(&r, "mob_drop")}
+                        {section(&r, "drop_item_group")}
+                        {section(&r, "common_drop")}
+                        <p class="text-xs text-muted-foreground">
+                            "Jeder Eintrag wird bei einem Kill einzeln gewürfelt. Die Chance gilt bei gleichem Level von Spieler und Mob. Common-Drops gelten nur für Spieler im angegebenen Level-Bereich."
+                        </p>
+                        {r.warnings.into_iter().map(|w| view! {
+                            <p class="flex items-start gap-1 text-xs text-amber-600 dark:text-amber-400">
+                                <Icon name="AlertTriangle" class="mt-0.5 size-3.5 shrink-0"/>
+                                {w}
+                            </p>
+                        }).collect_view()}
+                    </div>
+                }.into_any(),
+            }}
+        </crate::components::Modal>
     }
 }

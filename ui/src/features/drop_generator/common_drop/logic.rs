@@ -151,14 +151,7 @@ pub fn clean_name(name: &str) -> String {
 
 pub fn new_rule(vnum: u32, name: &str) -> Vec<Block> {
     (0..RANK_COUNT)
-        .map(|_| Block {
-            name: clean_name(name),
-            level_from: DEFAULT_LEVEL_FROM,
-            level_to: DEFAULT_LEVEL_TO,
-            chance: 4.0,
-            vnum,
-            count: 1,
-        })
+        .map(|_| Block { name: clean_name(name), level_from: DEFAULT_LEVEL_FROM, level_to: DEFAULT_LEVEL_TO, chance: 4.0, vnum, count: 1 })
         .collect()
 }
 
@@ -259,10 +252,7 @@ pub fn item_issues(file: &DropFile, checks: &std::collections::HashMap<u32, Item
                     line_index: li,
                     rank,
                     level: "error".into(),
-                    message: format!(
-                        "{prefix}Item {} gibt es nicht in item_proto - der Server startet dann nicht.",
-                        b.vnum
-                    ),
+                    message: format!("{prefix}Item {} gibt es nicht in item_proto - der Server startet dann nicht.", b.vnum),
                 });
             }
             if let Some(other) = &check.name_collision {

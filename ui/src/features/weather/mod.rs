@@ -5,9 +5,9 @@ pub mod weather_quest;
 
 use crate::components::{Button, ButtonSize, ButtonVariant, Icon, PageHeader};
 use crate::features::server_control::util::{auto_scroll, copy_to_clipboard, listen_while_mounted};
-use crate::util::log_activity;
 use crate::store::navigation::EmbeddedModule;
 use crate::tauri::{invoke, invoke0, invoke_unit};
+use crate::util::log_activity;
 use leptos::prelude::*;
 use leptos::task::spawn_local;
 use serde::Deserialize;
@@ -122,7 +122,7 @@ pub fn WeatherControl() -> impl IntoView {
                     .ok()
                     .flatten()
                     .filter(|s| !s.is_empty())
-                    .unwrap_or_else(|| format!("cd {workdir} && echo 4 | sh index.sh"));
+                    .unwrap_or_else(|| crate::util::shell::index_sh_command(&workdir, 4));
 
                 let result = invoke::<ServerCommandResult>("run_server_command", &json!({ "command": command })).await?;
                 match result.exit_status {

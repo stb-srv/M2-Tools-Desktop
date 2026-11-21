@@ -4,9 +4,9 @@
 pub mod logic;
 
 use crate::components::{Button, ButtonSize, ButtonVariant, Icon, PageHeader};
-use crate::util::log_activity;
 use crate::store::navigation::{nav, report_section_dirty, Section};
 use crate::tauri::{invoke, invoke0, invoke_unit};
+use crate::util::log_activity;
 use leptos::prelude::*;
 use leptos::task::spawn_local;
 use logic::{filter_namespaces, namespace_of_orphan, to_display, to_stored};
@@ -126,9 +126,7 @@ impl State {
         self.save_confirm.set(false);
         self.saving.set(true);
         self.save_error.set(None);
-        match invoke::<Option<String>>("write_locale_namespace", &json!({ "namespace": selected, "entries": entries }))
-            .await
-        {
+        match invoke::<Option<String>>("write_locale_namespace", &json!({ "namespace": selected, "entries": entries })).await {
             Ok(backup) => {
                 self.save_ok.set(Some(match backup {
                     Some(b) if !b.is_empty() => format!("Gespeichert. Backup: {b}"),
@@ -189,16 +187,14 @@ impl State {
 #[component]
 fn Modal(#[prop(into)] on_close: Callback<()>, children: Children) -> impl IntoView {
     view! {
-        <div class="fixed inset-0 flex items-center justify-center bg-black/50">
-            <div class="w-96 rounded-lg border border-border bg-card p-4">
-                <div class="mb-2 flex justify-end">
-                    <button on:click=move |_| on_close.run(()) class="text-muted-foreground hover:text-foreground">
-                        <Icon name="X" class="size-4"/>
-                    </button>
-                </div>
-                {children()}
+        <crate::components::Modal class="w-96 rounded-lg border border-border bg-card p-4">
+            <div class="mb-2 flex justify-end">
+                <button on:click=move |_| on_close.run(()) class="text-muted-foreground hover:text-foreground">
+                    <Icon name="X" class="size-4"/>
+                </button>
             </div>
-        </div>
+            {children()}
+        </crate::components::Modal>
     }
 }
 
@@ -484,25 +480,23 @@ pub fn LocaleEditor() -> impl IntoView {
             </Show>
 
             <Show when=move || s.save_confirm.get()>
-                <div class="fixed inset-0 flex items-center justify-center bg-black/50">
-                    <div class="w-96 space-y-3 rounded-lg border border-border bg-card p-4">
-                        <p class="flex items-start gap-2 text-sm">
-                            <Icon name="AlertTriangle" class="mt-0.5 size-4 shrink-0 text-destructive"/>
-                            <span>
-                                <code>"translate.lua"</code>
-                                " wird gesichert, danach werden nur die Zeilen von "
-                                <code>"gameforge." {move || s.selected.get().unwrap_or_default()}</code>
-                                " überschrieben."
-                            </span>
-                        </p>
-                        <div class="flex justify-end gap-2">
-                            <Button variant=ButtonVariant::Outline on_click=move |_| s.save_confirm.set(false)>
-                                "Abbrechen"
-                            </Button>
-                            <Button on_click=move |_| spawn_local(s.save_namespace())>"Speichern"</Button>
-                        </div>
+                <crate::components::Modal class="w-96 space-y-3 rounded-lg border border-border bg-card p-4">
+                    <p class="flex items-start gap-2 text-sm">
+                        <Icon name="AlertTriangle" class="mt-0.5 size-4 shrink-0 text-destructive"/>
+                        <span>
+                            <code>"translate.lua"</code>
+                            " wird gesichert, danach werden nur die Zeilen von "
+                            <code>"gameforge." {move || s.selected.get().unwrap_or_default()}</code>
+                            " überschrieben."
+                        </span>
+                    </p>
+                    <div class="flex justify-end gap-2">
+                        <Button variant=ButtonVariant::Outline on_click=move |_| s.save_confirm.set(false)>
+                            "Abbrechen"
+                        </Button>
+                        <Button on_click=move |_| spawn_local(s.save_namespace())>"Speichern"</Button>
                     </div>
-                </div>
+                </crate::components::Modal>
             </Show>
         </div>
     }

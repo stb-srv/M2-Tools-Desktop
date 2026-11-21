@@ -2,11 +2,10 @@ use super::shared::SettingsCard;
 use crate::components::{toast, Button, ButtonSize, ButtonVariant, Icon};
 use crate::features::connection::fields::ConnectionTest;
 use crate::features::connection::{MysqlFields, NewProfileDialog, SshFields, TestResult, TestState};
-use crate::util::connection::{
-    connect_mysql, load_stored_connection, mysql_complete, save_mysql, save_ssh, ssh_complete, test_mysql, test_ssh,
-    MysqlValues, SshValues,
-};
 use crate::store::connection_profiles::{connection_profiles, ConnectionProfile};
+use crate::util::connection::{
+    connect_mysql, load_stored_connection, mysql_complete, save_mysql, save_ssh, ssh_complete, test_mysql, test_ssh, MysqlValues, SshValues,
+};
 use leptos::prelude::*;
 use leptos::task::spawn_local;
 
@@ -38,7 +37,8 @@ pub fn ConnectionTab() -> impl IntoView {
         busy_id.set(Some(profile.id));
         spawn_local(async move {
             match store.activate(profile.id).await {
-                Ok(()) => toast::success(&format!("Verbunden mit „{}“", profile.name)),
+                Ok(true) => toast::success(&format!("Verbunden mit „{}“", profile.name)),
+                Ok(false) => {}
                 Err(e) => toast::error(&e),
             }
             busy_id.set(None);
@@ -192,6 +192,8 @@ pub fn ConnectionTab() -> impl IntoView {
                 />
             </div>
 
+            <super::known_hosts_card::KnownHostsCard/>
+
             <Show when=move || dialog_open.get()>
                 <NewProfileDialog on_close=move |_| dialog_open.set(false)/>
             </Show>
@@ -206,12 +208,7 @@ enum EditorKind {
 }
 
 #[component]
-fn ConnectionEditor(
-    title: &'static str,
-    icon: &'static str,
-    #[prop(into)] description: Signal<String>,
-    kind: EditorKind,
-) -> impl IntoView {
+fn ConnectionEditor(title: &'static str, icon: &'static str, #[prop(into)] description: Signal<String>, kind: EditorKind) -> impl IntoView {
     // Zustand geht bei jeder Änderung an den Feldern zurück auf "idle".
     let fingerprint = Signal::derive(move || match kind {
         EditorKind::Ssh(s) => format!("{:?}", s.get()),
@@ -228,7 +225,7 @@ fn ConnectionEditor(
             test.run(async move {
                 test_ssh(&v).await?;
                 save_ssh(&v).await?;
-                connection_profiles().sync_active().await
+                connection_profiles().sync_active().await.map(|_| ())
             });
         }
         EditorKind::Mysql(m) => {
@@ -237,7 +234,7 @@ fn ConnectionEditor(
                 test_mysql(&v).await?;
                 connect_mysql(&v).await?;
                 save_mysql(&v).await?;
-                connection_profiles().sync_active().await
+                connection_profiles().sync_active().await.map(|_| ())
             });
         }
     };

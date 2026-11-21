@@ -277,10 +277,7 @@ fn kill_template(form: &QuestFormState) -> String {
     let mob = num_str(number_or0(&form.mob_vnum));
     let kills = num_str(max_or(1.0, &form.required_kills, 1.0));
     let title = format!("say_title({})", lua_string(&form.npc_title));
-    let progress = [
-        title.clone(),
-        format!("say(string.format({}, pc.getqf(\"kill_count\"), {kills}))", lua_string(&form.progress_text)),
-    ];
+    let progress = [title.clone(), format!("say(string.format({}, pc.getqf(\"kill_count\"), {kills}))", lua_string(&form.progress_text))];
     let mut success = vec![title, format!("say({})", lua_string(&form.success_text))];
     success.extend(reward_lines(form));
     success.push(s("pc.setqf(\"kill_count\", 0)"));
@@ -467,10 +464,8 @@ pub fn generate_dungeon_quest(quest_name: &str, form: &DungeonFormState) -> Stri
             "\t\t-- Etage {level}: {}",
             if is_last { "Boss besiegen -> Run abschließen." } else { "Boss besiegen -> nächste Etage." }
         ));
-        lines.push(format!(
-            "\t\twhen {boss}.kill with pc.in_dungeon() and {} and d.getf(\"level\") == {level} begin",
-            in_range_guard(form)
-        ));
+        lines
+            .push(format!("\t\twhen {boss}.kill with pc.in_dungeon() and {} and d.getf(\"level\") == {level} begin", in_range_guard(form)));
         let mut body = vec![s("d.clear_regen()")];
         if !is_last {
             let next = &floors[index + 1];
@@ -647,10 +642,7 @@ fn step_reward_lines(step: &QuestStep) -> Vec<String> {
 
 /// Cooldown-Bedingung für den Eintritt in Schritt 0 einer wiederholbaren Quest.
 fn cooldown_guard_expr(days: f64) -> String {
-    format!(
-        "pc.getqf(\"last_complete\") == 0 or get_time() - pc.getqf(\"last_complete\") >= {}",
-        num_str(0f64.max(days) * 86400.0)
-    )
+    format!("pc.getqf(\"last_complete\") == 0 or get_time() - pc.getqf(\"last_complete\") >= {}", num_str(0f64.max(days) * 86400.0))
 }
 
 fn cooldown_wait_block(trigger: &str, guard: &str) -> Vec<String> {
@@ -934,7 +926,8 @@ mod tests {
 
     #[test]
     fn escapes_quotes_and_newlines() {
-        let lua = generate_quest_lua("escape_quest", TemplateType::Dialog, &with_npc(|f| f.dialog_text = s("Er sagt \"Hallo\"\nund geht.")));
+        let lua =
+            generate_quest_lua("escape_quest", TemplateType::Dialog, &with_npc(|f| f.dialog_text = s("Er sagt \"Hallo\"\nund geht.")));
         assert!(lua.contains("say(\"Er sagt \\\"Hallo\\\"[ENTER]und geht.\")"));
     }
 

@@ -38,22 +38,13 @@ pub async fn count_accounts(state: State<'_, AppState>, search: String) -> Resul
 }
 
 #[tauri::command]
-pub async fn create_account(
-    state: State<'_, AppState>,
-    login: String,
-    password: String,
-    empire: Option<i8>,
-) -> Result<(), String> {
+pub async fn create_account(state: State<'_, AppState>, login: String, password: String, empire: Option<i8>) -> Result<(), String> {
     let pool = require_pool(&state).await?;
     account::create_account(&pool, &login, &password, empire).await
 }
 
 #[tauri::command]
-pub async fn reset_account_password(
-    state: State<'_, AppState>,
-    id: i32,
-    new_password: String,
-) -> Result<(), String> {
+pub async fn reset_account_password(state: State<'_, AppState>, id: i32, new_password: String) -> Result<(), String> {
     let pool = require_pool(&state).await?;
     account::reset_password(&pool, id, &new_password).await
 }
@@ -66,19 +57,9 @@ async fn validate_status_length(pool: &sqlx::MySqlPool, value: &str) -> Result<(
     let Some(status_col) = columns.iter().find(|c| c.name == "status") else {
         return Ok(());
     };
-    if let Some(max) = status_col
-        .data_type
-        .split('(')
-        .nth(1)
-        .and_then(|s| s.split(')').next())
-        .and_then(|s| s.parse::<usize>().ok())
-    {
+    if let Some(max) = status_col.data_type.split('(').nth(1).and_then(|s| s.split(')').next()).and_then(|s| s.parse::<usize>().ok()) {
         if value.chars().count() > max {
-            return Err(format!(
-                "Nachricht ist zu lang ({} Zeichen, die Spalte erlaubt maximal {}).",
-                value.chars().count(),
-                max
-            ));
+            return Err(format!("Nachricht ist zu lang ({} Zeichen, die Spalte erlaubt maximal {}).", value.chars().count(), max));
         }
     }
     Ok(())
@@ -114,7 +95,7 @@ pub async fn unban_account(state: State<'_, AppState>, account_id: i32, ban_id: 
     Ok(())
 }
 
-#[tauri::command]
+#[tauri::command(async)]
 pub fn list_account_bans(state: State<'_, AppState>) -> Result<Vec<bans::BanRecord>, String> {
     let conn = state.settings_db.lock().map_err(|e| e.to_string())?;
     bans::list_bans(&conn)
@@ -150,20 +131,13 @@ pub async fn adjust_player_gold(state: State<'_, AppState>, player_id: i32, delt
 /// geholte, echte Spaltenliste von `account.account` geprüft (Name UND
 /// numerischer Typ), bevor sie in SQL interpoliert wird.
 #[tauri::command]
-pub async fn adjust_account_numeric_column(
-    state: State<'_, AppState>,
-    account_id: i32,
-    column: String,
-    delta: i64,
-) -> Result<i64, String> {
+pub async fn adjust_account_numeric_column(state: State<'_, AppState>, account_id: i32, column: String, delta: i64) -> Result<i64, String> {
     let pool = require_pool(&state).await?;
     let columns = explorer::get_columns(&pool, "account", "account").await?;
     const NUMERIC_TYPE_PREFIXES: &[&str] = &["int", "tinyint", "smallint", "mediumint", "bigint", "decimal", "float", "double"];
-    let is_valid = columns.iter().any(|c| {
-        c.name == column
-            && !c.is_primary_key
-            && NUMERIC_TYPE_PREFIXES.iter().any(|p| c.data_type.to_lowercase().starts_with(p))
-    });
+    let is_valid = columns
+        .iter()
+        .any(|c| c.name == column && !c.is_primary_key && NUMERIC_TYPE_PREFIXES.iter().any(|p| c.data_type.to_lowercase().starts_with(p)));
     if !is_valid {
         return Err(format!("Spalte '{column}' existiert nicht oder ist nicht numerisch."));
     }

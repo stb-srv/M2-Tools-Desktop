@@ -3,9 +3,9 @@
 
 use crate::components::markdown::{Markdown, COMPACT_STYLE};
 use crate::components::{Button, ButtonVariant};
-use crate::util::release_notes;
 use crate::store::update::update_store;
 use crate::tauri::{app_version, relaunch, update_check, DownloadEvent, UpdateInfo};
+use crate::util::release_notes;
 use leptos::prelude::*;
 use leptos::task::spawn_local;
 

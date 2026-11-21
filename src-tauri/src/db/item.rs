@@ -76,15 +76,8 @@ pub struct ItemProtoInput {
 // PARA/SLEEP), so it isn't a mirror of that enum, just this DB schema's own
 // simplified set. Bit order below matches the SET's declaration order,
 // which is what determines MySQL's own internal bit assignment.
-const IMMUNE_SET_MEMBERS: [(&str, u32); 7] = [
-    ("PARA", 1 << 0),
-    ("CURSE", 1 << 1),
-    ("STUN", 1 << 2),
-    ("SLEEP", 1 << 3),
-    ("SLOW", 1 << 4),
-    ("POISON", 1 << 5),
-    ("TERROR", 1 << 6),
-];
+const IMMUNE_SET_MEMBERS: [(&str, u32); 7] =
+    [("PARA", 1 << 0), ("CURSE", 1 << 1), ("STUN", 1 << 2), ("SLEEP", 1 << 3), ("SLOW", 1 << 4), ("POISON", 1 << 5), ("TERROR", 1 << 6)];
 
 fn immuneflag_set_to_bits(set_value: &str) -> u32 {
     let mut bits = 0u32;
@@ -97,12 +90,7 @@ fn immuneflag_set_to_bits(set_value: &str) -> u32 {
 }
 
 fn immuneflag_bits_to_set(bits: u32) -> String {
-    IMMUNE_SET_MEMBERS
-        .iter()
-        .filter(|(_, bit)| bits & bit != 0)
-        .map(|(name, _)| *name)
-        .collect::<Vec<_>>()
-        .join(",")
+    IMMUNE_SET_MEMBERS.iter().filter(|(_, bit)| bits & bit != 0).map(|(name, _)| *name).collect::<Vec<_>>().join(",")
 }
 
 pub type ItemProtoFull = ItemProtoInput;
@@ -135,19 +123,12 @@ async fn range_owning_rows(pool: &MySqlPool) -> Result<Vec<(u32, u32)>, String> 
         .map_err(|e| e.to_string())?;
     Ok(rows
         .into_iter()
-        .map(|row| {
-            (
-                super::get_vnum(&row, "vnum").unwrap_or_default(),
-                row.try_get::<u32, _>("vnum_range").unwrap_or_default(),
-            )
-        })
+        .map(|row| (super::get_vnum(&row, "vnum").unwrap_or_default(), row.try_get::<u32, _>("vnum_range").unwrap_or_default()))
         .collect())
 }
 
 fn is_range_aliased(candidate: u32, ranges: &[(u32, u32)]) -> bool {
-    ranges
-        .iter()
-        .any(|&(base, range)| candidate > base && candidate < base + range)
+    ranges.iter().any(|&(base, range)| candidate > base && candidate < base + range)
 }
 
 pub async fn vnum_exists(pool: &MySqlPool, vnum: u32) -> Result<bool, String> {
@@ -170,10 +151,7 @@ pub async fn next_free_vnum(pool: &MySqlPool, range_start: u32) -> Result<u32, S
         .fetch_all(pool)
         .await
         .map_err(|e| e.to_string())?;
-    let taken: HashSet<u32> = rows
-        .into_iter()
-        .map(|row| super::get_vnum(&row, "vnum").unwrap_or_default())
-        .collect();
+    let taken: HashSet<u32> = rows.into_iter().map(|row| super::get_vnum(&row, "vnum").unwrap_or_default()).collect();
     let ranges = range_owning_rows(pool).await?;
     let mut candidate = range_start;
     while taken.contains(&candidate) || is_range_aliased(candidate, &ranges) {
@@ -330,19 +308,13 @@ pub async fn update_item_proto(pool: &MySqlPool, item: &ItemProtoInput) -> Resul
 /// silently reusing (and thus visually colliding with) an existing item's
 /// body shape.
 pub async fn max_armor_value3(pool: &MySqlPool) -> Result<u32, String> {
-    let row = sqlx::query("SELECT MAX(value3) AS m FROM player.item_proto WHERE type = 2")
-        .fetch_one(pool)
-        .await
-        .map_err(|e| e.to_string())?;
+    let row =
+        sqlx::query("SELECT MAX(value3) AS m FROM player.item_proto WHERE type = 2").fetch_one(pool).await.map_err(|e| e.to_string())?;
     Ok(row.try_get::<Option<u32>, _>("m").unwrap_or_default().unwrap_or(0))
 }
 
 pub async fn delete_item_proto(pool: &MySqlPool, vnum: u32) -> Result<(), String> {
-    sqlx::query("DELETE FROM player.item_proto WHERE vnum = ?")
-        .bind(vnum)
-        .execute(pool)
-        .await
-        .map_err(|e| e.to_string())?;
+    sqlx::query("DELETE FROM player.item_proto WHERE vnum = ?").bind(vnum).execute(pool).await.map_err(|e| e.to_string())?;
     Ok(())
 }
 
@@ -390,10 +362,7 @@ pub async fn find_item_by_internal_name(pool: &MySqlPool, name: &str) -> Result<
         return Ok(None);
     };
     let locale_name_raw: Vec<u8> = row.try_get("locale_name").unwrap_or_default();
-    Ok(Some(ItemBrief {
-        vnum: super::get_vnum(&row, "vnum").unwrap_or_default(),
-        locale_name: decode_name(&locale_name_raw),
-    }))
+    Ok(Some(ItemBrief { vnum: super::get_vnum(&row, "vnum").unwrap_or_default(), locale_name: decode_name(&locale_name_raw) }))
 }
 
 /// vnum + locale_name of one item, `None` if there is no row with exactly
@@ -441,16 +410,11 @@ pub async fn existing_item_vnums(pool: &MySqlPool, vnums: &[u32]) -> Result<std:
 /// Items whose internal `item_proto.name` equals one of `names` (compared
 /// the way MySQL compares, then mapped back by lower-case name). Returns
 /// lower-cased name -> (vnum, locale_name) of the first match.
-pub async fn items_by_internal_names(
-    pool: &MySqlPool,
-    names: &[String],
-) -> Result<std::collections::HashMap<String, ItemBrief>, String> {
+pub async fn items_by_internal_names(pool: &MySqlPool, names: &[String]) -> Result<std::collections::HashMap<String, ItemBrief>, String> {
     let mut out = std::collections::HashMap::new();
     for chunk in names.chunks(500) {
         let placeholders = vec!["?"; chunk.len()].join(",");
-        let sql = format!(
-            "SELECT vnum, name, locale_name FROM player.item_proto WHERE name IN ({placeholders}) ORDER BY vnum"
-        );
+        let sql = format!("SELECT vnum, name, locale_name FROM player.item_proto WHERE name IN ({placeholders}) ORDER BY vnum");
         let mut q = sqlx::query(&sql);
         for n in chunk {
             q = q.bind(encode_name(n));
@@ -458,20 +422,15 @@ pub async fn items_by_internal_names(
         for row in q.fetch_all(pool).await.map_err(|e| e.to_string())? {
             let name_raw: Vec<u8> = row.try_get("name").unwrap_or_default();
             let locale_raw: Vec<u8> = row.try_get("locale_name").unwrap_or_default();
-            out.entry(decode_name(&name_raw).to_lowercase()).or_insert(ItemBrief {
-                vnum: super::get_vnum(&row, "vnum").unwrap_or_default(),
-                locale_name: decode_name(&locale_raw),
-            });
+            out.entry(decode_name(&name_raw).to_lowercase())
+                .or_insert(ItemBrief { vnum: super::get_vnum(&row, "vnum").unwrap_or_default(), locale_name: decode_name(&locale_raw) });
         }
     }
     Ok(out)
 }
 
 /// locale_name per vnum, for labels in reports.
-pub async fn item_locale_names(
-    pool: &MySqlPool,
-    vnums: &[u32],
-) -> Result<std::collections::HashMap<u32, String>, String> {
+pub async fn item_locale_names(pool: &MySqlPool, vnums: &[u32]) -> Result<std::collections::HashMap<u32, String>, String> {
     let mut out = std::collections::HashMap::new();
     for chunk in vnums.chunks(500) {
         let placeholders = vec!["?"; chunk.len()].join(",");
@@ -525,9 +484,7 @@ pub async fn get_item_proto(pool: &MySqlPool, vnum: u32) -> Result<Option<ItemPr
         antiflag: row.try_get("antiflag").unwrap_or_default(),
         flag: row.try_get("flag").unwrap_or_default(),
         wearflag: row.try_get("wearflag").unwrap_or_default(),
-        immuneflag: immuneflag_set_to_bits(
-            &row.try_get::<String, _>("immuneflag").unwrap_or_default(),
-        ),
+        immuneflag: immuneflag_set_to_bits(&row.try_get::<String, _>("immuneflag").unwrap_or_default()),
         gold: row.try_get("gold").unwrap_or_default(),
         shop_buy_price: row.try_get("shop_buy_price").unwrap_or_default(),
         refined_vnum: row.try_get("refined_vnum").unwrap_or_default(),
@@ -587,10 +544,7 @@ mod tests {
     async fn get_item_proto_reads_real_nonzero_values() {
         let pool = crate::test_support::mysql_pool().await;
 
-        let item = get_item_proto(&pool, 3219)
-            .await
-            .expect("query failed")
-            .expect("vnum 3219 should exist on the dev server");
+        let item = get_item_proto(&pool, 3219).await.expect("query failed").expect("vnum 3219 should exist on the dev server");
 
         assert_ne!(item.r#type, 0, "type decoded as 0 - signed/unsigned mismatch regressed");
         assert!(!item.name.is_empty(), "name should not be empty for a real item");
@@ -670,9 +624,7 @@ mod tests {
             let _ = delete_item_proto(&pool, v).await;
         }
 
-        create_item_proto(&pool, &minimal_item(base, 10, "test_vnum_range_owner"))
-            .await
-            .expect("create range-owning item");
+        create_item_proto(&pool, &minimal_item(base, 10, "test_vnum_range_owner")).await.expect("create range-owning item");
 
         // Base vnum itself: a real literal row.
         assert!(vnum_exists(&pool, base).await.unwrap());
@@ -683,11 +635,7 @@ mod tests {
         assert!(!vnum_exists(&pool, base + 10).await.unwrap());
 
         let next = next_free_vnum(&pool, base).await.unwrap();
-        assert_eq!(
-            next,
-            base + 10,
-            "must skip both the literal row and its entire aliased range"
-        );
+        assert_eq!(next, base + 10, "must skip both the literal row and its entire aliased range");
 
         delete_item_proto(&pool, base).await.expect("cleanup");
     }

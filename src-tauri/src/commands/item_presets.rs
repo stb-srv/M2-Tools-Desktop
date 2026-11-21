@@ -4,11 +4,7 @@ use crate::state::AppState;
 use tauri::State;
 
 #[tauri::command]
-pub async fn save_item_preset(
-    state: State<'_, AppState>,
-    name: String,
-    item: ItemProtoInput,
-) -> Result<i64, String> {
+pub async fn save_item_preset(state: State<'_, AppState>, name: String, item: ItemProtoInput) -> Result<i64, String> {
     let name = name.trim();
     if name.is_empty() {
         return Err("Vorlagenname darf nicht leer sein.".to_string());

@@ -37,15 +37,21 @@ pub fn VnumInput(
 #[component]
 pub fn Modal(#[prop(into)] on_close: Callback<()>, #[prop(optional)] wide: bool, children: Children) -> impl IntoView {
     view! {
-        <div class="fixed inset-0 flex items-center justify-center bg-black/50">
-            <div class=if wide { "rounded-lg border border-border bg-card p-4 w-[48rem]" } else { "rounded-lg border border-border bg-card p-4 w-96" }>
-                <div class="mb-2 flex justify-end">
-                    <button on:click=move |_| on_close.run(()) class="text-muted-foreground hover:text-foreground">
-                        <Icon name="X" class="size-4"/>
-                    </button>
-                </div>
-                {children()}
+        <crate::components::Modal
+            class=if wide { "rounded-lg border border-border bg-card p-4 w-[48rem]" } else { "rounded-lg border border-border bg-card p-4 w-96" }
+            on_close=on_close
+        >
+            <div class="mb-2 flex justify-end">
+                <button
+                    on:click=move |_| on_close.run(())
+                    class="text-muted-foreground hover:text-foreground"
+                    title="Schließen"
+                    aria-label="Schließen"
+                >
+                    <Icon name="X" class="size-4"/>
+                </button>
             </div>
-        </div>
+            {children()}
+        </crate::components::Modal>
     }
 }

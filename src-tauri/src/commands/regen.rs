@@ -20,16 +20,11 @@ use tauri::{AppHandle, Manager, State};
 
 fn regen_base_dir(state: &State<'_, AppState>) -> Result<String, String> {
     let conn = state.settings_db.lock().map_err(|e| e.to_string())?;
-    Ok(settings::get_path(&conn, "regen_base_dir")?
-        .filter(|v| !v.is_empty())
-        .unwrap_or_else(|| "/usr/home/game/share".to_string()))
+    Ok(settings::get_path(&conn, "regen_base_dir")?.filter(|v| !v.is_empty()).unwrap_or_else(|| "/usr/home/game/share".to_string()))
 }
 
 #[tauri::command]
-pub async fn read_regen_file(
-    state: State<'_, AppState>,
-    relative_path: String,
-) -> Result<Vec<regen::RegenLine>, String> {
+pub async fn read_regen_file(state: State<'_, AppState>, relative_path: String) -> Result<Vec<regen::RegenLine>, String> {
     let relative_path = safe_relative_path(&relative_path)?;
     let (config, auth) = stored_ssh_auth(&state)?;
     let base = regen_base_dir(&state)?;
@@ -49,8 +44,7 @@ pub async fn write_regen_file(
     let content = regen::serialize(&lines);
     // Round-trip-check before writing, same principle as the Mob Drop Editor.
     regen::parse(&content)?;
-    ssh::write_remote_file_with_backup(&config, &auth, &format!("{base}/{relative_path}"), &content)
-        .await
+    ssh::write_remote_file_with_backup(&config, &auth, &format!("{base}/{relative_path}"), &content).await
 }
 
 // ---- Regen-Karteneditor (Karten-Ansicht) ----
@@ -58,15 +52,13 @@ pub async fn write_regen_file(
 // Reuses the existing, already-validated `client_path` setting (see
 // check_client_path) rather than adding a separate one.
 
-#[tauri::command]
-pub fn list_client_map_folders(
-    state: State<'_, AppState>,
-) -> Result<Vec<mapdata::MapFolderInfo>, String> {
+#[tauri::command(async)]
+pub fn list_client_map_folders(state: State<'_, AppState>) -> Result<Vec<mapdata::MapFolderInfo>, String> {
     let client_path = client_path_setting(&state)?;
     mapdata::list_map_folders(&client_path)
 }
 
-#[tauri::command]
+#[tauri::command(async)]
 pub fn get_regen_map_image(
     app: AppHandle,
     state: State<'_, AppState>,
@@ -75,15 +67,6 @@ pub fn get_regen_map_image(
     force_rebuild: bool,
 ) -> Result<mapdata::RegenMapImage, String> {
     let client_path = client_path_setting(&state)?;
-    let app_data_dir = app
-        .path()
-        .app_data_dir()
-        .map_err(|e| format!("App-Datenordner nicht auffindbar: {e}"))?;
-    mapdata::render_map(
-        &app_data_dir,
-        &client_path,
-        &category,
-        &folder_name,
-        force_rebuild,
-    )
+    let app_data_dir = app.path().app_data_dir().map_err(|e| format!("App-Datenordner nicht auffindbar: {e}"))?;
+    mapdata::render_map(&app_data_dir, &client_path, &category, &folder_name, force_rebuild)
 }

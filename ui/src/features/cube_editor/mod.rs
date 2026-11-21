@@ -4,14 +4,18 @@
 use crate::components::{toast, Button, ButtonSize, ButtonVariant, Icon, PageHeader};
 use crate::features::regen_editor::num_input::{js_number_string, NumInput};
 use crate::features::shared::{EntityBrowser, EntityKind, EntityRow};
-use crate::util::{log_activity, use_save_shortcut};
 use crate::store::navigation::{report_section_dirty, Section};
 use crate::tauri::{invoke, invoke0};
+use crate::util::confirm::confirm_discard_if;
+use crate::util::{log_activity, use_save_shortcut};
 use leptos::prelude::*;
 use leptos::task::spawn_local;
 use serde::{Deserialize, Serialize};
 use serde_json::json;
 use std::collections::HashMap;
+
+/// Änderung an einem Rezept, die der Editor auf den aktuellen Stand anwendet.
+type RecipeUpdate = Box<dyn FnOnce(&mut CubeRecipe) + Send + Sync>;
 
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
 struct CubeValue {
@@ -30,17 +34,10 @@ struct CubeRecipe {
 
 type Icons = RwSignal<HashMap<i64, Option<String>>>;
 
-fn ensure_icon(icons: Icons, vnum: f64, kind: EntityKind) {
-    let key = vnum as i64;
-    if kind != EntityKind::Item || icons.with_untracked(|m| m.contains_key(&key)) {
-        return;
+fn ensure_icon(vnum: f64, kind: EntityKind) {
+    if kind == EntityKind::Item {
+        crate::store::icons::ensure_icons([vnum as i64]);
     }
-    spawn_local(async move {
-        let url = invoke::<Option<String>>("get_item_icon", &json!({ "vnum": vnum })).await.ok().flatten();
-        icons.update(|m| {
-            m.insert(key, url);
-        });
-    });
 }
 
 #[component]
@@ -55,7 +52,7 @@ fn Field(label: &'static str, children: Children) -> impl IntoView {
 
 #[component]
 fn EntityLabel(#[prop(into)] vnum: Signal<f64>, kind: EntityKind, icons: Icons) -> impl IntoView {
-    Effect::new(move |_| ensure_icon(icons, vnum.get(), kind));
+    Effect::new(move |_| ensure_icon(vnum.get(), kind));
     view! {
         <span class="flex items-center gap-1.5">
             {move || {
@@ -129,7 +126,7 @@ fn ValueListEditor(
     title: &'static str,
     list: ValueList,
     selected: Memo<Option<CubeRecipe>>,
-    #[prop(into)] update: Callback<Box<dyn FnOnce(&mut CubeRecipe) + Send + Sync>>,
+    #[prop(into)] update: Callback<RecipeUpdate>,
     icons: Icons,
 ) -> impl IntoView {
     let len = Memo::new(move |_| selected.with(|s| s.as_ref().map(|r| list.get(r).len()).unwrap_or(0)));
@@ -189,7 +186,7 @@ pub fn CubeEditor() -> impl IntoView {
     let loading = RwSignal::new(false);
     let load_error = RwSignal::new(None::<String>);
     let selected_index = RwSignal::new(None::<usize>);
-    let icons: Icons = RwSignal::new(HashMap::new());
+    let icons: Icons = crate::store::icons::icons();
 
     let delete_confirm = RwSignal::new(None::<usize>);
     let saving = RwSignal::new(false);
@@ -198,9 +195,7 @@ pub fn CubeEditor() -> impl IntoView {
     let undoing = RwSignal::new(false);
 
     let loaded_snapshot = RwSignal::new(None::<Vec<CubeRecipe>>);
-    let dirty = Memo::new(move |_| {
-        recipes.with(|r| r.is_some()) && recipes.with(|r| loaded_snapshot.with(|s| r != s))
-    });
+    let dirty = Memo::new(move |_| recipes.with(|r| r.is_some()) && recipes.with(|r| loaded_snapshot.with(|s| r != s)));
     Effect::new(move |_| report_section_dirty(Section::CubeEditor, dirty.get()));
     on_cleanup(|| report_section_dirty(Section::CubeEditor, false));
 
@@ -221,7 +216,7 @@ pub fn CubeEditor() -> impl IntoView {
     };
     load();
 
-    let update_recipe = move |index: usize, f: Box<dyn FnOnce(&mut CubeRecipe) + Send + Sync>| {
+    let update_recipe = move |index: usize, f: RecipeUpdate| {
         recipes.update(|r| {
             if let Some(rec) = r.as_mut().and_then(|v| v.get_mut(index)) {
                 f(rec);
@@ -232,13 +227,7 @@ pub fn CubeEditor() -> impl IntoView {
     let add_recipe = move || {
         let len = recipes.with_untracked(|r| r.as_ref().map(|v| v.len()).unwrap_or(0));
         recipes.update(|r| {
-            r.get_or_insert_with(Vec::new).push(CubeRecipe {
-                npc_vnums: vec![],
-                items: vec![],
-                rewards: vec![],
-                percent: 100.0,
-                gold: 0.0,
-            })
+            r.get_or_insert_with(Vec::new).push(CubeRecipe { npc_vnums: vec![], items: vec![], rewards: vec![], percent: 100.0, gold: 0.0 })
         });
         selected_index.set(Some(len));
     };
@@ -268,13 +257,7 @@ pub fn CubeEditor() -> impl IntoView {
                     });
                     let n = current.as_ref().map(|v| v.len()).unwrap_or(0);
                     loaded_snapshot.set(current);
-                    log_activity(
-                        Section::CubeEditor.into(),
-                        "save",
-                        &format!("cube.txt gespeichert ({n} Rezept(e))"),
-                        Some("file"),
-                        None,
-                    );
+                    log_activity(Section::CubeEditor.into(), "save", &format!("cube.txt gespeichert ({n} Rezept(e))"), Some("file"), None);
                 }
                 Err(e) => toast::error(&e),
             }
@@ -309,10 +292,8 @@ pub fn CubeEditor() -> impl IntoView {
         });
     };
 
-    let selected = Memo::new(move |_| {
-        selected_index.get().and_then(|i| recipes.with(|r| r.as_ref().and_then(|v| v.get(i).cloned())))
-    });
-    let update_selected = Callback::new(move |f: Box<dyn FnOnce(&mut CubeRecipe) + Send + Sync>| {
+    let selected = Memo::new(move |_| selected_index.get().and_then(|i| recipes.with(|r| r.as_ref().and_then(|v| v.get(i).cloned()))));
+    let update_selected = Callback::new(move |f: RecipeUpdate| {
         if let Some(i) = selected_index.get_untracked() {
             update_recipe(i, f);
         }
@@ -340,7 +321,7 @@ pub fn CubeEditor() -> impl IntoView {
             </p>
 
             <div class="flex items-center gap-2">
-                <Button variant=ButtonVariant::Outline on_click=move |_| load() disabled=loading>
+                <Button variant=ButtonVariant::Outline on_click=move |_| confirm_discard_if(dirty.get_untracked(), "Ungespeicherte Änderungen verwerfen und neu laden?", load) disabled=loading>
                     <Icon
                         name="RefreshCw"
                         class=Signal::derive(move || format!("size-4 {}", if loading.get() { "animate-spin" } else { "" }))
@@ -471,54 +452,48 @@ pub fn CubeEditor() -> impl IntoView {
             </Show>
 
             {move || delete_confirm.get().map(|idx| view! {
-                <div class="fixed inset-0 flex items-center justify-center bg-black/50">
-                    <div class="w-96 space-y-3 rounded-lg border border-border bg-card p-4">
-                        <p class="flex items-center gap-2 text-sm font-medium">
-                            <Icon name="AlertTriangle" class="size-4 text-destructive"/>
-                            {format!(" Rezept #{} wirklich entfernen?", idx + 1)}
-                        </p>
-                        <p class="text-xs text-muted-foreground">
-                            "Wird erst beim \"Speichern\" wirklich auf den Server geschrieben - bis dahin rückgängig machbar durch nicht speichern/neu laden."
-                        </p>
-                        <div class="flex justify-end gap-2">
-                            <Button variant=ButtonVariant::Outline on_click=move |_| delete_confirm.set(None)>"Abbrechen"</Button>
-                            <Button variant=ButtonVariant::Destructive on_click=move |_| delete_recipe(idx)>"Entfernen"</Button>
-                        </div>
+                <crate::components::Modal class="w-96 space-y-3 rounded-lg border border-border bg-card p-4">
+                    <p class="flex items-center gap-2 text-sm font-medium">
+                        <Icon name="AlertTriangle" class="size-4 text-destructive"/>
+                        {format!(" Rezept #{} wirklich entfernen?", idx + 1)}
+                    </p>
+                    <p class="text-xs text-muted-foreground">
+                        "Wird erst beim \"Speichern\" wirklich auf den Server geschrieben - bis dahin rückgängig machbar durch nicht speichern/neu laden."
+                    </p>
+                    <div class="flex justify-end gap-2">
+                        <Button variant=ButtonVariant::Outline on_click=move |_| delete_confirm.set(None)>"Abbrechen"</Button>
+                        <Button variant=ButtonVariant::Destructive on_click=move |_| delete_recipe(idx)>"Entfernen"</Button>
                     </div>
-                </div>
+                </crate::components::Modal>
             })}
 
             <Show when=move || save_confirm.get()>
-                <div class="fixed inset-0 flex items-center justify-center bg-black/50">
-                    <div class="w-96 space-y-3 rounded-lg border border-border bg-card p-4">
-                        <p class="text-sm font-medium">"cube.txt jetzt überschreiben?"</p>
-                        <p class="text-xs text-muted-foreground">"Ein Backup der aktuellen Datei wird vorher auf dem Server angelegt."</p>
-                        <div class="flex justify-end gap-2">
-                            <Button variant=ButtonVariant::Outline on_click=move |_| save_confirm.set(false)>"Abbrechen"</Button>
-                            <Button on_click=move |_| save()>"Speichern"</Button>
-                        </div>
+                <crate::components::Modal class="w-96 space-y-3 rounded-lg border border-border bg-card p-4">
+                    <p class="text-sm font-medium">"cube.txt jetzt überschreiben?"</p>
+                    <p class="text-xs text-muted-foreground">"Ein Backup der aktuellen Datei wird vorher auf dem Server angelegt."</p>
+                    <div class="flex justify-end gap-2">
+                        <Button variant=ButtonVariant::Outline on_click=move |_| save_confirm.set(false)>"Abbrechen"</Button>
+                        <Button on_click=move |_| save()>"Speichern"</Button>
                     </div>
-                </div>
+                </crate::components::Modal>
             </Show>
 
             <Show when=move || undo_confirm.get()>
-                <div class="fixed inset-0 flex items-center justify-center bg-black/50">
-                    <div class="w-96 space-y-3 rounded-lg border border-border bg-card p-4">
-                        <p class="flex items-start gap-2 text-sm font-medium">
-                            <Icon name="AlertTriangle" class="mt-0.5 size-4 shrink-0 text-destructive"/>
-                            "Letzte gespeicherte Änderung an cube.txt rückgängig machen?"
-                        </p>
-                        <p class="text-xs text-muted-foreground">
-                            "Stellt die zuletzt gesicherte Vorgängerversion wieder her (der aktuelle Stand wird dabei selbst zuerst gesichert). Betrifft nur, was zuletzt tatsächlich gespeichert wurde - nicht unfertige, noch ungespeicherte Eingaben hier im Editor."
-                        </p>
-                        <div class="flex justify-end gap-2">
-                            <Button variant=ButtonVariant::Outline on_click=move |_| undo_confirm.set(false)>"Abbrechen"</Button>
-                            <Button variant=ButtonVariant::Destructive on_click=move |_| undo() disabled=undoing>
-                                {move || if undoing.get() { "Setze zurück…" } else { "Rückgängig machen" }}
-                            </Button>
-                        </div>
+                <crate::components::Modal class="w-96 space-y-3 rounded-lg border border-border bg-card p-4">
+                    <p class="flex items-start gap-2 text-sm font-medium">
+                        <Icon name="AlertTriangle" class="mt-0.5 size-4 shrink-0 text-destructive"/>
+                        "Letzte gespeicherte Änderung an cube.txt rückgängig machen?"
+                    </p>
+                    <p class="text-xs text-muted-foreground">
+                        "Stellt die zuletzt gesicherte Vorgängerversion wieder her (der aktuelle Stand wird dabei selbst zuerst gesichert). Betrifft nur, was zuletzt tatsächlich gespeichert wurde - nicht unfertige, noch ungespeicherte Eingaben hier im Editor."
+                    </p>
+                    <div class="flex justify-end gap-2">
+                        <Button variant=ButtonVariant::Outline on_click=move |_| undo_confirm.set(false)>"Abbrechen"</Button>
+                        <Button variant=ButtonVariant::Destructive on_click=move |_| undo() disabled=undoing>
+                            {move || if undoing.get() { "Setze zurück…" } else { "Rückgängig machen" }}
+                        </Button>
                     </div>
-                </div>
+                </crate::components::Modal>
             </Show>
         </div>
     }

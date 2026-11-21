@@ -6,16 +6,15 @@
 use crate::components::{Button, ButtonSize, ButtonVariant, Icon, PageHeader};
 use crate::features::item_editor::item_flags::{item_type_label, ITEM_TYPES};
 use crate::features::shared::ItemUsageModal;
+use crate::store::navigation::{nav, Section};
+use crate::tauri::invoke;
 use crate::util::csv::export_rows_as_csv;
 use crate::util::format::de_int;
 use crate::util::storage;
-use crate::store::navigation::{nav, Section};
-use crate::tauri::invoke;
 use leptos::prelude::*;
 use leptos::task::spawn_local;
 use serde::Deserialize;
 use serde_json::json;
-use std::collections::{HashMap, HashSet};
 
 #[derive(Clone, Debug, PartialEq, Deserialize)]
 struct ItemProtoSummary {
@@ -56,6 +55,9 @@ fn type_label(t: i64) -> String {
 pub fn ItemProtoExplorer() -> impl IntoView {
     let view_mode = RwSignal::new(load_view_mode());
     let query = RwSignal::new(String::new());
+    // Nach Entprellung übernommene Suche - nur sie löst die Abfrage aus.
+    let applied_query = RwSignal::new(String::new());
+    let debounce_id = StoredValue::new(0u64);
     let type_filter = RwSignal::new(String::new());
     let page = RwSignal::new(0i64);
     let page_size = RwSignal::new(48i64);
@@ -64,7 +66,7 @@ pub fn ItemProtoExplorer() -> impl IntoView {
     let data = RwSignal::new(None::<ItemProtoPage>);
     let loading = RwSignal::new(false);
     let error = RwSignal::new(None::<String>);
-    let icons = RwSignal::new(HashMap::<i64, Option<String>>::new());
+    let icons = crate::store::icons::icons();
 
     let exporting = RwSignal::new(false);
     let export_error = RwSignal::new(None::<String>);
@@ -73,7 +75,7 @@ pub fn ItemProtoExplorer() -> impl IntoView {
     let request_id = StoredValue::new(0u64);
 
     let filter_args = move |offset: i64, limit: i64| {
-        let q = query.get_untracked().trim().to_string();
+        let q = applied_query.get_untracked().trim().to_string();
         let tf = type_filter.get_untracked();
         json!({
             "query": if q.is_empty() { None } else { Some(q) },
@@ -83,9 +85,8 @@ pub fn ItemProtoExplorer() -> impl IntoView {
         })
     };
 
-    // Im TS hängt die Abfrage auch direkt an `query` - jede Eingabe lädt neu.
     Effect::new(move |_| {
-        query.track();
+        applied_query.track();
         type_filter.track();
         refresh_key.track();
         let p = page.get();
@@ -115,22 +116,13 @@ pub fn ItemProtoExplorer() -> impl IntoView {
         let Some(vnums) = data.with(|d| d.as_ref().map(|d| d.rows.iter().map(|r| r.vnum).collect::<Vec<_>>())) else {
             return;
         };
-        let mut seen = HashSet::new();
-        for vnum in vnums {
-            if !seen.insert(vnum) || icons.with_untracked(|i| i.contains_key(&vnum)) {
-                continue;
-            }
-            spawn_local(async move {
-                let url = invoke::<Option<String>>("get_item_icon", &json!({ "vnum": vnum })).await.ok().flatten();
-                icons.update(|i| {
-                    i.insert(vnum, url);
-                });
-            });
-        }
+        crate::store::icons::ensure_icons(vnums);
     });
 
     let run_search = move || {
         page.set(0);
+        debounce_id.update_value(|d| *d += 1);
+        applied_query.set(query.get_untracked());
         refresh_key.update(|k| *k += 1);
     };
 
@@ -156,12 +148,8 @@ pub fn ItemProtoExplorer() -> impl IntoView {
                     .iter()
                     .map(|r| vec![r.vnum.to_string(), r.name.clone(), type_label(r.item_type), r.subtype.to_string()])
                     .collect();
-                export_rows_as_csv(
-                    "item_proto_export.csv",
-                    vec!["VNUM".into(), "Name".into(), "Typ".into(), "Subtyp".into()],
-                    rows,
-                )
-                .await?;
+                export_rows_as_csv("item_proto_export.csv", vec!["VNUM".into(), "Name".into(), "Typ".into(), "Subtyp".into()], rows)
+                    .await?;
                 Ok(())
             }
             .await;
@@ -172,9 +160,7 @@ pub fn ItemProtoExplorer() -> impl IntoView {
         });
     };
 
-    let total_pages = move || {
-        data.with(|d| d.as_ref().map(|d| ((d.total + page_size.get() - 1) / page_size.get()).max(1)).unwrap_or(1))
-    };
+    let total_pages = move || data.with(|d| d.as_ref().map(|d| ((d.total + page_size.get() - 1) / page_size.get()).max(1)).unwrap_or(1));
     let rows = move || data.with(|d| d.as_ref().map(|d| d.rows.clone()).unwrap_or_default());
     let icon_of = move |vnum: i64| icons.with(|i| i.get(&vnum).cloned().flatten());
     let open_editor = move || nav().set_section(Section::ItemEditor);
@@ -313,7 +299,20 @@ pub fn ItemProtoExplorer() -> impl IntoView {
                     <Icon name="Search" class="absolute left-2 top-1/2 size-3.5 -translate-y-1/2 text-muted-foreground"/>
                     <input
                         prop:value=move || query.get()
-                        on:input=move |e| query.set(event_target_value(&e))
+                        on:input=move |e| {
+                            query.set(event_target_value(&e));
+                            page.set(0);
+                            debounce_id.update_value(|d| *d += 1);
+                            let id = debounce_id.get_value();
+                            set_timeout(
+                                move || {
+                                    if debounce_id.try_get_value() == Some(id) {
+                                        applied_query.set(query.get_untracked());
+                                    }
+                                },
+                                std::time::Duration::from_millis(250),
+                            );
+                        }
                         on:keydown=move |e| {
                             if e.key() == "Enter" {
                                 run_search()

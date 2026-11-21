@@ -55,13 +55,13 @@ pub enum RegenLine {
     Exception(RegenException),
     /// Blank line or a `//`-comment line, preserved verbatim so editing one
     /// entry in a file doesn't strip the layout notes around it.
-    Raw { text: String },
+    Raw {
+        text: String,
+    },
 }
 
 fn parse_i32(token: &str, line_no: usize, field: &str) -> Result<i32, String> {
-    token
-        .parse::<i32>()
-        .map_err(|_| format!("Zeile {}: ungültiger Wert für {field}: '{token}'", line_no + 1))
+    token.parse::<i32>().map_err(|_| format!("Zeile {}: ungültiger Wert für {field}: '{token}'", line_no + 1))
 }
 
 pub fn parse(content: &str) -> Result<Vec<RegenLine>, String> {
@@ -114,10 +114,7 @@ pub fn parse(content: &str) -> Result<Vec<RegenLine>, String> {
                 vnum: parse_i32(tokens[10], line_no, "vnum")?,
             }));
         } else {
-            return Err(format!(
-                "Zeile {}: unbekannter Regen-Typ '{spawn_type}' (erwartet m/g/ga/r/s/e)",
-                line_no + 1
-            ));
+            return Err(format!("Zeile {}: unbekannter Regen-Typ '{spawn_type}' (erwartet m/g/ga/r/s/e)", line_no + 1));
         }
     }
     Ok(out)
@@ -132,10 +129,7 @@ pub fn serialize(lines: &[RegenLine]) -> String {
                 out.push('\n');
             }
             RegenLine::Exception(e) => {
-                out.push_str(&format!(
-                    "e\t{}\t{}\t{}\t{}\t{}\n",
-                    e.center_x, e.center_y, e.radius_x, e.radius_y, e.z_section
-                ));
+                out.push_str(&format!("e\t{}\t{}\t{}\t{}\t{}\n", e.center_x, e.center_y, e.radius_x, e.radius_y, e.z_section));
             }
             RegenLine::Spawn(s) => {
                 out.push_str(&format!(
@@ -186,16 +180,7 @@ mod tests {
             })
         );
         assert_eq!(lines[2], RegenLine::Raw { text: String::new() });
-        assert_eq!(
-            lines[3],
-            RegenLine::Exception(RegenException {
-                center_x: 100,
-                center_y: 100,
-                radius_x: 5,
-                radius_y: 5,
-                z_section: 0,
-            })
-        );
+        assert_eq!(lines[3], RegenLine::Exception(RegenException { center_x: 100, center_y: 100, radius_x: 5, radius_y: 5, z_section: 0 }));
     }
 
     #[test]

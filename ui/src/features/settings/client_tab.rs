@@ -1,19 +1,10 @@
-use super::shared::{PathSetting, PathSettingDef, SettingsCard};
+use super::shared::{CodepageSetting, PathSetting, PathSettingDef, SettingsCard};
 use crate::features::shared::ClientUnpackPanel;
 use crate::tauri::DialogFilter;
 use leptos::prelude::*;
 
 fn def(key: &'static str, label: &'static str, dialog_title: &'static str) -> PathSettingDef {
-    PathSettingDef {
-        key,
-        label,
-        hint: None,
-        directory: false,
-        dialog_title,
-        filters: vec![],
-        empty_text: None,
-        clearable: false,
-    }
+    PathSettingDef { key, label, hint: None, directory: false, dialog_title, filters: vec![], empty_text: None, clearable: false }
 }
 
 #[component]
@@ -33,6 +24,11 @@ pub fn ClientTab() -> impl IntoView {
                     hint: Some("Normalerweise nicht nötig: M2Manager sucht zuerst unter <code>root\\npclist.txt</code> und sonst im ganzen Client-Ordner. Nur setzen, wenn die Datei umbenannt wurde oder außerhalb des Clients liegt."),
                     ..def("npclist_path", "NPC-Liste (npclist.txt)", "npclist.txt auswählen")
                 }/>
+                <CodepageSetting
+                    key="client_codepage"
+                    label="Codepage Client-Dateien"
+                    hint="Zeichenkodierung von <code>item_list.txt</code>, <code>itemdesc.txt</code> und Co. im Client. Standard ist Windows-1252; für polnische/tschechische, türkische, kyrillische, koreanische oder griechische Clients die passende Codepage wählen."
+                />
             </SettingsCard>
 
             <SettingsCard

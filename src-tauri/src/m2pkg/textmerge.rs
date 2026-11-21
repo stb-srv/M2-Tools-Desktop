@@ -35,10 +35,7 @@ fn split_lines(data: &[u8]) -> Split {
         b"\r\n"
     };
     let trailing_eol = data.is_empty() || data.ends_with(b"\n");
-    let mut lines: Vec<Vec<u8>> = data
-        .split(|b| *b == b'\n')
-        .map(|l| l.strip_suffix(b"\r").unwrap_or(l).to_vec())
-        .collect();
+    let mut lines: Vec<Vec<u8>> = data.split(|b| *b == b'\n').map(|l| l.strip_suffix(b"\r").unwrap_or(l).to_vec()).collect();
     if trailing_eol {
         lines.pop();
     }
@@ -76,11 +73,7 @@ fn cp1252_encode(text: &str) -> Vec<u8> {
 /// Zeilen eines Pakets (`client/item_list.txt`):
 /// ohne Kopfzeile und leere Zeilen, nur die gewählten Vnum.
 pub fn package_lines(data: &[u8], wanted: &dyn Fn(u32) -> bool) -> Vec<(u32, Vec<u8>)> {
-    split_lines(data)
-        .lines
-        .into_iter()
-        .filter_map(|l| line_vnum(&l).filter(|v| wanted(*v)).map(|v| (v, l)))
-        .collect()
+    split_lines(data).lines.into_iter().filter_map(|l| line_vnum(&l).filter(|v| wanted(*v)).map(|v| (v, l))).collect()
 }
 
 /// Fügt `new_lines` in `existing` ein. Vorhandene Vnum werden je nach

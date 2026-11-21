@@ -84,17 +84,11 @@ fn walk(dir: &Path, out: &mut Vec<PathBuf>) {
 }
 
 fn ext_lower(path: &Path) -> String {
-    path.extension()
-        .and_then(|e| e.to_str())
-        .unwrap_or_default()
-        .to_lowercase()
+    path.extension().and_then(|e| e.to_str()).unwrap_or_default().to_lowercase()
 }
 
 fn stem_lower(path: &Path) -> String {
-    path.file_stem()
-        .and_then(|s| s.to_str())
-        .unwrap_or_default()
-        .to_lowercase()
+    path.file_stem().and_then(|s| s.to_str()).unwrap_or_default().to_lowercase()
 }
 
 /// Normalized comparison form: lowercase, non-alphanumeric stripped, and a
@@ -102,9 +96,7 @@ fn stem_lower(path: &Path) -> String {
 /// `fan` compare equal.
 fn normalize(stem: &str) -> String {
     let lower = stem.to_lowercase();
-    let trimmed = lower
-        .trim_end_matches(|c: char| c.is_ascii_digit())
-        .trim_end_matches(['v', '_', '-', ' ']);
+    let trimmed = lower.trim_end_matches(|c: char| c.is_ascii_digit()).trim_end_matches(['v', '_', '-', ' ']);
     trimmed.chars().filter(|c| c.is_ascii_alphanumeric()).collect()
 }
 
@@ -145,12 +137,7 @@ fn race_from_path(path: &Path) -> Option<(String, bool)> {
 }
 
 fn is_under_dir_named(path: &Path, name: &str) -> bool {
-    path.ancestors().skip(1).any(|a| {
-        a.file_name()
-            .and_then(|f| f.to_str())
-            .map(|f| f.to_lowercase() == name)
-            .unwrap_or(false)
-    })
+    path.ancestors().skip(1).any(|a| a.file_name().and_then(|f| f.to_str()).map(|f| f.to_lowercase() == name).unwrap_or(false))
 }
 
 fn sibling_textures(model_path: &Path) -> Vec<String> {
@@ -160,12 +147,7 @@ fn sibling_textures(model_path: &Path) -> Vec<String> {
     let Ok(entries) = std::fs::read_dir(dir) else {
         return Vec::new();
     };
-    entries
-        .flatten()
-        .map(|e| e.path())
-        .filter(|p| p.is_file() && ext_lower(p) == "dds")
-        .map(|p| p.display().to_string())
-        .collect()
+    entries.flatten().map(|e| e.path()).filter(|p| p.is_file() && ext_lower(p) == "dds").map(|p| p.display().to_string()).collect()
 }
 
 /// Scores how well an icon filename fits a weapon variant; higher is
@@ -203,12 +185,7 @@ pub fn scan_icon_folder(root: &Path) -> Result<Vec<String>, String> {
 
     let mut icons: Vec<String> = all_files
         .into_iter()
-        .filter(|p| {
-            p.extension()
-                .and_then(|e| e.to_str())
-                .map(|e| IMAGE_EXTS.contains(&e.to_lowercase().as_str()))
-                .unwrap_or(false)
-        })
+        .filter(|p| p.extension().and_then(|e| e.to_str()).map(|e| IMAGE_EXTS.contains(&e.to_lowercase().as_str())).unwrap_or(false))
         .map(|p| p.display().to_string())
         .collect();
     icons.sort();
@@ -219,11 +196,7 @@ pub fn scan_module(root: &Path) -> Result<ScannedModule, String> {
     if !root.is_dir() {
         return Err(format!("Ordner nicht gefunden: {}", root.display()));
     }
-    let module_name = root
-        .file_name()
-        .and_then(|n| n.to_str())
-        .unwrap_or("Modul")
-        .to_string();
+    let module_name = root.file_name().and_then(|n| n.to_str()).unwrap_or("Modul").to_string();
 
     let mut all_files = Vec::new();
     walk(root, &mut all_files);
@@ -268,9 +241,7 @@ pub fn scan_module(root: &Path) -> Result<ScannedModule, String> {
     }
 
     if hair_count > 0 {
-        notices.push(format!(
-            "{hair_count} Haar-Modell(e) gefunden - Haar-Import (HairData) wird noch nicht unterstützt."
-        ));
+        notices.push(format!("{hair_count} Haar-Modell(e) gefunden - Haar-Import (HairData) wird noch nicht unterstützt."));
     }
     if wolfman_count > 0 {
         notices.push(format!(
@@ -319,29 +290,16 @@ pub fn scan_module(root: &Path) -> Result<ScannedModule, String> {
     // ---- armor (one piece per race, pairing male/female trees) ----
     let mut armors: Vec<ArmorPiece> = Vec::new();
     for race in RACES {
-        let male: Vec<&PathBuf> = body_models
-            .iter()
-            .filter(|(r, f, _)| r == race && !*f)
-            .map(|(_, _, p)| p)
-            .collect();
-        let female: Vec<&PathBuf> = body_models
-            .iter()
-            .filter(|(r, f, _)| r == race && *f)
-            .map(|(_, _, p)| p)
-            .collect();
+        let male: Vec<&PathBuf> = body_models.iter().filter(|(r, f, _)| r == race && !*f).map(|(_, _, p)| p).collect();
+        let female: Vec<&PathBuf> = body_models.iter().filter(|(r, f, _)| r == race && *f).map(|(_, _, p)| p).collect();
         if male.is_empty() && female.is_empty() {
             continue;
         }
         if male.len() > 1 || female.len() > 1 {
-            notices.push(format!(
-                "Mehrere Körper-Modelle für {race} gefunden - nur das jeweils erste wird angeboten."
-            ));
+            notices.push(format!("Mehrere Körper-Modelle für {race} gefunden - nur das jeweils erste wird angeboten."));
         }
 
-        let icon = icon_pool
-            .iter()
-            .filter(|p| !used_icons.contains(*p))
-            .find(|p| stem_lower(p).contains(race));
+        let icon = icon_pool.iter().filter(|p| !used_icons.contains(*p)).find(|p| stem_lower(p).contains(race));
         if let Some(icon_path) = icon {
             used_icons.insert((*icon_path).clone());
         }
@@ -350,11 +308,7 @@ pub fn scan_module(root: &Path) -> Result<ScannedModule, String> {
         let female_model = female.first().map(|p| (*p).clone());
         armors.push(ArmorPiece {
             race: race.to_string(),
-            label: male_model
-                .as_ref()
-                .or(female_model.as_ref())
-                .map(|p| stem_lower(p))
-                .unwrap_or_else(|| race.to_string()),
+            label: male_model.as_ref().or(female_model.as_ref()).map(|p| stem_lower(p)).unwrap_or_else(|| race.to_string()),
             male_textures_abs: male_model.as_deref().map(sibling_textures).unwrap_or_default(),
             female_textures_abs: female_model.as_deref().map(sibling_textures).unwrap_or_default(),
             male_model_abs: male_model.map(|p| p.display().to_string()),
@@ -422,10 +376,7 @@ mod tests {
     // scanner.
     #[test]
     fn scans_real_frostedge_module() {
-        let root = Path::new(env!("CARGO_MANIFEST_DIR"))
-            .join("..")
-            .join("beispiel_neues_modul")
-            .join("FrostEdge");
+        let root = Path::new(env!("CARGO_MANIFEST_DIR")).join("tests").join("fixtures").join("beispiel_neues_modul").join("FrostEdge");
         if !root.is_dir() {
             eprintln!("skipping: fixture not present at {root:?}");
             return;
@@ -434,16 +385,8 @@ mod tests {
         assert_eq!(result.weapons.len(), 7, "FrostEdge ships 7 weapon models");
         assert!(result.armors.is_empty());
         for variant in &result.weapons {
-            assert!(
-                variant.icon_source_abs.is_some(),
-                "every FrostEdge variant has a matching icon, missing for {}",
-                variant.key
-            );
-            assert!(
-                !variant.texture_sources_abs.is_empty(),
-                "FrostEdge models ship sibling .dds textures, none found for {}",
-                variant.key
-            );
+            assert!(variant.icon_source_abs.is_some(), "every FrostEdge variant has a matching icon, missing for {}", variant.key);
+            assert!(!variant.texture_sources_abs.is_empty(), "FrostEdge models ship sibling .dds textures, none found for {}", variant.key);
             assert_ne!(variant.subtype, -1, "all FrostEdge suffixes are known: {}", variant.key);
         }
         assert!(!result.effect_dirs.is_empty(), "FrostEdge ships glow effect dirs");

@@ -3,9 +3,9 @@
 use crate::components::{Button, ButtonSize, ButtonVariant, Icon};
 use crate::features::connection::{MysqlFields, MysqlTestButton, SshFields, SshTestButton, TestResult, TestState, TextField};
 use crate::features::shared::client_unpack_panel::{load_unpack_status, ClientUnpackPanel};
-use crate::util::connection::{get_setting, set_setting, ssh_complete, MysqlValues, SshValues};
 use crate::store::connection_profiles::connection_profiles;
 use crate::tauri::{dialog_open_one, invoke, OpenDialogOptions};
+use crate::util::connection::{get_setting, set_setting, ssh_complete, MysqlValues, SshValues};
 use leptos::prelude::*;
 use leptos::task::spawn_local;
 use serde_json::json;
@@ -50,11 +50,7 @@ pub fn SetupWizard(#[prop(into)] on_complete: Callback<()>) -> impl IntoView {
 
     let pick_client_path = move |_| {
         spawn_local(async move {
-            let opts = OpenDialogOptions {
-                directory: true,
-                title: Some("Metin2-Client-Ordner auswählen".into()),
-                ..Default::default()
-            };
+            let opts = OpenDialogOptions { directory: true, title: Some("Metin2-Client-Ordner auswählen".into()), ..Default::default() };
             if let Ok(Some(selected)) = dialog_open_one(&opts).await {
                 client_path.set(selected);
                 client_test.set(TestState::Idle);

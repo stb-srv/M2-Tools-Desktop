@@ -4,11 +4,12 @@
 
 use crate::components::{toast, Button, ButtonSize, ButtonVariant, Icon, PageHeader};
 use crate::features::mob_drop_editor::components::shared::{fmt_num, js_number, js_number_or, Field, NumInput};
-use crate::features::mob_drop_editor::{ensure_icons, IconMap};
 use crate::features::shared::{ChangePreview, EntityBrowser, EntityKind, EntityRow, RestartServerButton, RowRenderer};
-use crate::util::{log_activity, use_save_shortcut};
-use crate::store::navigation::{nav, report_section_dirty, EmbeddedModule, Section};
+use crate::store::icons::{ensure_icons, icons as icon_cache, IconMap};
+use crate::store::navigation::{nav, use_section_dirty, EmbeddedModule, Section};
 use crate::tauri::invoke;
+use crate::util::confirm::confirm_discard_if;
+use crate::util::{log_activity, use_save_shortcut};
 use leptos::prelude::*;
 use leptos::task::spawn_local;
 use serde::{Deserialize, Serialize};
@@ -264,32 +265,30 @@ fn BoxItemPicker(#[prop(into)] on_pick: Callback<i64>) -> impl IntoView {
                 </div>
             </Show>
             {move || confirm_target.get().map(|(vnum, proto)| view! {
-                <div class="fixed inset-0 z-10 flex items-center justify-center bg-black/50">
-                    <div class="w-96 space-y-3 rounded-lg border border-border bg-card p-4">
-                        <p class="flex items-start gap-2 text-sm">
-                            <Icon name="AlertTriangle" class="mt-0.5 size-4 shrink-0 text-destructive"/>
-                            <span>
-                                {format!(
-                                    "\"{}\" hat aktuell nicht den Typ GIFTBOX (Typ {}). Wird jetzt auf GIFTBOX (23) + Stapelbar umgestellt - das ändert, wie sich dieses Item im Spiel verhält. Wirklich fortfahren?",
-                                    proto.display_name(),
-                                    fmt_num(proto.item_type),
-                                )}
-                            </span>
-                        </p>
-                        <div class="flex justify-end gap-2">
-                            <Button variant=ButtonVariant::Outline on_click=move |_| confirm_target.set(None)>
-                                "Abbrechen"
-                            </Button>
-                            <Button
-                                variant=ButtonVariant::Destructive
-                                on_click=move |_| apply(vnum)
-                                disabled=Signal::derive(move || busy_vnum.get() == Some(vnum))
-                            >
-                                "Umstellen"
-                            </Button>
-                        </div>
+                <crate::components::Modal class="w-96 space-y-3 rounded-lg border border-border bg-card p-4" overlay_class="z-10">
+                    <p class="flex items-start gap-2 text-sm">
+                        <Icon name="AlertTriangle" class="mt-0.5 size-4 shrink-0 text-destructive"/>
+                        <span>
+                            {format!(
+                                "\"{}\" hat aktuell nicht den Typ GIFTBOX (Typ {}). Wird jetzt auf GIFTBOX (23) + Stapelbar umgestellt - das ändert, wie sich dieses Item im Spiel verhält. Wirklich fortfahren?",
+                                proto.display_name(),
+                                fmt_num(proto.item_type),
+                            )}
+                        </span>
+                    </p>
+                    <div class="flex justify-end gap-2">
+                        <Button variant=ButtonVariant::Outline on_click=move |_| confirm_target.set(None)>
+                            "Abbrechen"
+                        </Button>
+                        <Button
+                            variant=ButtonVariant::Destructive
+                            on_click=move |_| apply(vnum)
+                            disabled=Signal::derive(move || busy_vnum.get() == Some(vnum))
+                        >
+                            "Umstellen"
+                        </Button>
                     </div>
-                </div>
+                </crate::components::Modal>
             })}
         </div>
     }
@@ -364,7 +363,7 @@ fn ItemRefEditor(
     });
     Effect::new(move |_| {
         if let Some(v) = numeric_vnum.get() {
-            ensure_icons(icons, [v as i64]);
+            ensure_icons([v as i64]);
         }
     });
     let icon = move || {
@@ -428,7 +427,7 @@ pub fn BoxEditor() -> impl IntoView {
     let loading = RwSignal::new(false);
     let load_error = RwSignal::new(None::<String>);
     let selected_index = RwSignal::new(None::<usize>);
-    let icons = RwSignal::new(IconMap::new());
+    let icons = icon_cache();
 
     let creating = RwSignal::new(false);
     let new_name = RwSignal::new(String::new());
@@ -445,8 +444,7 @@ pub fn BoxEditor() -> impl IntoView {
 
     let loaded_snapshot = RwSignal::new(None::<Vec<SpecialItemGroup>>);
     let dirty = Memo::new(move |_| groups.with(|g| g.is_some() && loaded_snapshot.with(|s| s != g)));
-    Effect::new(move |_| report_section_dirty(Section::DropGenerator, dirty.get()));
-    on_cleanup(move || report_section_dirty(Section::DropGenerator, false));
+    use_section_dirty(Section::DropGenerator, move || dirty.get());
 
     let load = move || {
         selected_index.set(None);
@@ -520,9 +518,7 @@ pub fn BoxEditor() -> impl IntoView {
         }
         let vnum = js_number_or(&new_vnum.get_untracked(), 0.0);
         let len = groups.with_untracked(|g| g.as_ref().map(|g| g.len()).unwrap_or(0));
-        groups.update(|g| {
-            g.get_or_insert_with(Vec::new).push(SpecialItemGroup { name: preview, vnum, group_type: None, entries: vec![] })
-        });
+        groups.update(|g| g.get_or_insert_with(Vec::new).push(SpecialItemGroup { name: preview, vnum, group_type: None, entries: vec![] }));
         selected_index.set(Some(len));
         creating.set(false);
         new_name.set(String::new());
@@ -569,11 +565,7 @@ pub fn BoxEditor() -> impl IntoView {
         });
     };
 
-    use_save_shortcut(
-        Section::DropGenerator,
-        move || dirty.get_untracked() && !saving.get_untracked(),
-        move || save_confirm.set(true),
-    );
+    use_save_shortcut(Section::DropGenerator, move || dirty.get_untracked() && !saving.get_untracked(), move || save_confirm.set(true));
 
     // "Letzte Änderung rückgängig machen" - jedes Speichern legt serverseitig
     // schon ein Backup an, das undo_special_item_group_write nur restauriert.
@@ -601,7 +593,9 @@ pub fn BoxEditor() -> impl IntoView {
 
     let has_groups = Memo::new(move |_| groups.with(|g| g.is_some()));
     let group_count = move || groups.with(|g| g.as_ref().map(|g| g.len()).unwrap_or(0));
-    let gread = move |i: usize| groups.with(|g| g.as_ref().and_then(|g| g.get(i)).map(|g| (g.name.clone(), g.vnum, g.group_type.clone(), g.entries.len())));
+    let gread = move |i: usize| {
+        groups.with(|g| g.as_ref().and_then(|g| g.get(i)).map(|g| (g.name.clone(), g.vnum, g.group_type.clone(), g.entries.len())))
+    };
     let eread = move |gi: usize, ei: usize| groups.with(|g| g.as_ref().and_then(|g| g.get(gi)).and_then(|g| g.entries.get(ei)).cloned());
     let selected = Memo::new(move |_| selected_index.get().filter(|i| groups.with(|g| g.as_ref().is_some_and(|g| *i < g.len()))));
 
@@ -636,7 +630,7 @@ pub fn BoxEditor() -> impl IntoView {
             </div>
 
             <div class="flex items-center gap-2">
-                <Button variant=ButtonVariant::Outline on_click=move |_| load() disabled=loading>
+                <Button variant=ButtonVariant::Outline on_click=move |_| confirm_discard_if(dirty.get_untracked(), "Ungespeicherte Änderungen verwerfen und neu laden?", load) disabled=loading>
                     <Icon
                         name="RefreshCw"
                         class=Signal::derive(move || if loading.get() { "size-4 animate-spin".to_string() } else { "size-4 ".to_string() })
@@ -664,40 +658,38 @@ pub fn BoxEditor() -> impl IntoView {
             </Show>
 
             <Show when=move || creating.get()>
-                <div class="fixed inset-0 flex items-center justify-center bg-black/50">
-                    <div class="w-96 space-y-3 rounded-lg border border-border bg-card p-4">
-                        <p class="text-sm font-medium">"Neue Kisten-Gruppe"</p>
-                        <Field label="Name (wird bereinigt: keine Leerzeichen/Umlaute)">
-                            <input
-                                autofocus
-                                prop:value=move || new_name.get()
-                                on:input=move |e| new_name.set(event_target_value(&e))
-                                class="rounded-md border border-border bg-background px-2 py-1 text-sm"
-                            />
-                        </Field>
-                        <Show when=move || !new_name_preview.with(|p| p.is_empty())>
-                            <p class="text-xs text-muted-foreground">"Wird zu: " <code>{move || new_name_preview.get()}</code></p>
-                        </Show>
-                        <Field label="Kisten-Item-VNUM">
-                            <input
-                                type="number"
-                                prop:value=move || new_vnum.get()
-                                on:input=move |e| new_vnum.set(event_target_value(&e))
-                                class="rounded-md border border-border bg-background px-2 py-1 text-sm"
-                            />
-                        </Field>
-                        <BoxItemPicker on_pick=move |v: i64| new_vnum.set(v.to_string())/>
-                        <BoxVnumHint vnum=Signal::derive(move || js_number_or(&new_vnum.get(), 0.0))/>
-                        <div class="flex justify-end gap-2">
-                            <Button variant=ButtonVariant::Outline on_click=move |_| creating.set(false)>
-                                "Abbrechen"
-                            </Button>
-                            <Button disabled=Signal::derive(move || new_name_preview.with(|p| p.is_empty())) on_click=move |_| create_group()>
-                                "Anlegen"
-                            </Button>
-                        </div>
+                <crate::components::Modal class="w-96 space-y-3 rounded-lg border border-border bg-card p-4">
+                    <p class="text-sm font-medium">"Neue Kisten-Gruppe"</p>
+                    <Field label="Name (wird bereinigt: keine Leerzeichen/Umlaute)">
+                        <input
+                            autofocus
+                            prop:value=move || new_name.get()
+                            on:input=move |e| new_name.set(event_target_value(&e))
+                            class="rounded-md border border-border bg-background px-2 py-1 text-sm"
+                        />
+                    </Field>
+                    <Show when=move || !new_name_preview.with(|p| p.is_empty())>
+                        <p class="text-xs text-muted-foreground">"Wird zu: " <code>{move || new_name_preview.get()}</code></p>
+                    </Show>
+                    <Field label="Kisten-Item-VNUM">
+                        <input
+                            type="number"
+                            prop:value=move || new_vnum.get()
+                            on:input=move |e| new_vnum.set(event_target_value(&e))
+                            class="rounded-md border border-border bg-background px-2 py-1 text-sm"
+                        />
+                    </Field>
+                    <BoxItemPicker on_pick=move |v: i64| new_vnum.set(v.to_string())/>
+                    <BoxVnumHint vnum=Signal::derive(move || js_number_or(&new_vnum.get(), 0.0))/>
+                    <div class="flex justify-end gap-2">
+                        <Button variant=ButtonVariant::Outline on_click=move |_| creating.set(false)>
+                            "Abbrechen"
+                        </Button>
+                        <Button disabled=Signal::derive(move || new_name_preview.with(|p| p.is_empty())) on_click=move |_| create_group()>
+                            "Anlegen"
+                        </Button>
                     </div>
-                </div>
+                </crate::components::Modal>
             </Show>
 
             <Show when=move || has_groups.get()>
@@ -840,65 +832,59 @@ pub fn BoxEditor() -> impl IntoView {
             </Show>
 
             {move || delete_confirm.get().map(|dc| view! {
-                <div class="fixed inset-0 flex items-center justify-center bg-black/50">
-                    <div class="w-96 space-y-3 rounded-lg border border-border bg-card p-4">
-                        <p class="flex items-center gap-2 text-sm font-medium">
-                            <Icon name="AlertTriangle" class="size-4 text-destructive"/>
-                            {move || format!(" Gruppe „{}\" wirklich entfernen?", gread(dc).map(|g| g.0).unwrap_or_default())}
-                        </p>
-                        <p class="text-xs text-muted-foreground">
-                            "Wird erst beim „Speichern\" wirklich auf den Server geschrieben - bis dahin rückgängig machbar durch nicht speichern/neu laden."
-                        </p>
-                        <div class="flex justify-end gap-2">
-                            <Button variant=ButtonVariant::Outline on_click=move |_| delete_confirm.set(None)>
-                                "Abbrechen"
-                            </Button>
-                            <Button variant=ButtonVariant::Destructive on_click=move |_| delete_group(dc)>
-                                "Entfernen"
-                            </Button>
-                        </div>
+                <crate::components::Modal class="w-96 space-y-3 rounded-lg border border-border bg-card p-4">
+                    <p class="flex items-center gap-2 text-sm font-medium">
+                        <Icon name="AlertTriangle" class="size-4 text-destructive"/>
+                        {move || format!(" Gruppe „{}\" wirklich entfernen?", gread(dc).map(|g| g.0).unwrap_or_default())}
+                    </p>
+                    <p class="text-xs text-muted-foreground">
+                        "Wird erst beim „Speichern\" wirklich auf den Server geschrieben - bis dahin rückgängig machbar durch nicht speichern/neu laden."
+                    </p>
+                    <div class="flex justify-end gap-2">
+                        <Button variant=ButtonVariant::Outline on_click=move |_| delete_confirm.set(None)>
+                            "Abbrechen"
+                        </Button>
+                        <Button variant=ButtonVariant::Destructive on_click=move |_| delete_group(dc)>
+                            "Entfernen"
+                        </Button>
                     </div>
-                </div>
+                </crate::components::Modal>
             })}
 
             <Show when=move || save_confirm.get()>
-                <div class="fixed inset-0 flex items-center justify-center bg-black/50">
-                    <div class="max-h-[85vh] w-[40rem] space-y-3 overflow-y-auto rounded-lg border border-border bg-card p-4">
-                        <p class="text-sm font-medium">"special_item_group.txt jetzt überschreiben?"</p>
-                        <p class="text-xs text-muted-foreground">"Ein Backup der aktuellen Datei wird vorher auf dem Server angelegt."</p>
-                        {groups.get_untracked().map(|d| view! {
-                            <ChangePreview kind="special_item_group" data=serde_json::to_value(&d).unwrap_or_default()/>
-                        })}
-                        <div class="flex justify-end gap-2">
-                            <Button variant=ButtonVariant::Outline on_click=move |_| save_confirm.set(false)>
-                                "Abbrechen"
-                            </Button>
-                            <Button on_click=move |_| save()>"Speichern"</Button>
-                        </div>
+                <crate::components::Modal class="max-h-[85vh] w-[40rem] space-y-3 overflow-y-auto rounded-lg border border-border bg-card p-4">
+                    <p class="text-sm font-medium">"special_item_group.txt jetzt überschreiben?"</p>
+                    <p class="text-xs text-muted-foreground">"Ein Backup der aktuellen Datei wird vorher auf dem Server angelegt."</p>
+                    {groups.get_untracked().map(|d| view! {
+                        <ChangePreview kind="special_item_group" data=serde_json::to_value(&d).unwrap_or_default()/>
+                    })}
+                    <div class="flex justify-end gap-2">
+                        <Button variant=ButtonVariant::Outline on_click=move |_| save_confirm.set(false)>
+                            "Abbrechen"
+                        </Button>
+                        <Button on_click=move |_| save()>"Speichern"</Button>
                     </div>
-                </div>
+                </crate::components::Modal>
             </Show>
 
             <Show when=move || undo_confirm.get()>
-                <div class="fixed inset-0 flex items-center justify-center bg-black/50">
-                    <div class="w-96 space-y-3 rounded-lg border border-border bg-card p-4">
-                        <p class="flex items-start gap-2 text-sm font-medium">
-                            <Icon name="AlertTriangle" class="mt-0.5 size-4 shrink-0 text-destructive"/>
-                            "Letzte gespeicherte Änderung an special_item_group.txt rückgängig machen?"
-                        </p>
-                        <p class="text-xs text-muted-foreground">
-                            "Stellt die zuletzt gesicherte Vorgängerversion wieder her (der aktuelle Stand wird dabei selbst zuerst gesichert). Betrifft nur, was zuletzt tatsächlich gespeichert wurde - nicht unfertige, noch ungespeicherte Eingaben hier im Editor."
-                        </p>
-                        <div class="flex justify-end gap-2">
-                            <Button variant=ButtonVariant::Outline on_click=move |_| undo_confirm.set(false)>
-                                "Abbrechen"
-                            </Button>
-                            <Button variant=ButtonVariant::Destructive on_click=move |_| undo() disabled=undoing>
-                                {move || if undoing.get() { "Setze zurück…" } else { "Rückgängig machen" }}
-                            </Button>
-                        </div>
+                <crate::components::Modal class="w-96 space-y-3 rounded-lg border border-border bg-card p-4">
+                    <p class="flex items-start gap-2 text-sm font-medium">
+                        <Icon name="AlertTriangle" class="mt-0.5 size-4 shrink-0 text-destructive"/>
+                        "Letzte gespeicherte Änderung an special_item_group.txt rückgängig machen?"
+                    </p>
+                    <p class="text-xs text-muted-foreground">
+                        "Stellt die zuletzt gesicherte Vorgängerversion wieder her (der aktuelle Stand wird dabei selbst zuerst gesichert). Betrifft nur, was zuletzt tatsächlich gespeichert wurde - nicht unfertige, noch ungespeicherte Eingaben hier im Editor."
+                    </p>
+                    <div class="flex justify-end gap-2">
+                        <Button variant=ButtonVariant::Outline on_click=move |_| undo_confirm.set(false)>
+                            "Abbrechen"
+                        </Button>
+                        <Button variant=ButtonVariant::Destructive on_click=move |_| undo() disabled=undoing>
+                            {move || if undoing.get() { "Setze zurück…" } else { "Rückgängig machen" }}
+                        </Button>
                     </div>
-                </div>
+                </crate::components::Modal>
             </Show>
         </div>
     }

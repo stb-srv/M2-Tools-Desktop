@@ -20,10 +20,7 @@ use super::support::{notify_webhook_best_effort, require_pool, stored_ssh_auth, 
 /// DB-backup failures, the frontend crash-watch) all go through this rather
 /// than each having their own webhook wiring.
 #[tauri::command]
-pub async fn notify_webhook_message(
-    state: State<'_, AppState>,
-    message: String,
-) -> Result<(), String> {
+pub async fn notify_webhook_message(state: State<'_, AppState>, message: String) -> Result<(), String> {
     let url = webhook_url(&state)?.ok_or_else(|| "Keine Webhook-URL konfiguriert.".to_string())?;
     webhook::send_webhook_message(&url, &message).await
 }
@@ -56,16 +53,42 @@ fn db_backup_settings(state: &State<'_, AppState>) -> Result<(String, Vec<String
     Ok((dir, databases))
 }
 
+/// Pfad (Unix-Stil, Server) muss unterhalb von `dir` liegen und darf keine
+/// `..`-Segmente enthalten - sonst könnte ein manipulierter Aufruf beliebige
+/// Dateien löschen/lesen.
+fn ensure_under_dir(path: &str, dir: &str) -> Result<(), String> {
+    if path.split('/').any(|seg| seg == "..") || dir.split('/').any(|seg| seg == "..") {
+        return Err("Ungültiger Pfad: '..' ist nicht erlaubt.".to_string());
+    }
+    let base = dir.trim_end_matches('/');
+    if base.is_empty() || !path.starts_with(&format!("{base}/")) || path.len() == base.len() + 1 {
+        return Err(format!("Der Pfad liegt nicht im Backup-Ordner '{dir}'."));
+    }
+    Ok(())
+}
+
+/// Backup-Dateien des Datei-Editors liegen immer in einem Ordner namens
+/// `m2manager_backups`.
+fn ensure_in_backup_folder(path: &str) -> Result<(), String> {
+    if path.split('/').any(|seg| seg == "..") {
+        return Err("Ungültiger Pfad: '..' ist nicht erlaubt.".to_string());
+    }
+    let mut parts = path.rsplit('/');
+    let _file = parts.next();
+    if parts.next() != Some("m2manager_backups") {
+        return Err("Der Pfad liegt nicht in einem 'm2manager_backups'-Ordner.".to_string());
+    }
+    Ok(())
+}
+
 fn mysql_connection_settings(state: &State<'_, AppState>) -> Result<(String, u16, String), String> {
     let conn = state.settings_db.lock().map_err(|e| e.to_string())?;
-    let host = settings::get_path(&conn, "mysql_host")?
-        .ok_or_else(|| "Keine MySQL-Verbindung konfiguriert.".to_string())?;
+    let host = settings::get_path(&conn, "mysql_host")?.ok_or_else(|| "Keine MySQL-Verbindung konfiguriert.".to_string())?;
     let port: u16 = settings::get_path(&conn, "mysql_port")?
         .unwrap_or_else(|| "3306".to_string())
         .parse()
         .map_err(|_| "Ungültiger MySQL-Port.".to_string())?;
-    let username = settings::get_path(&conn, "mysql_username")?
-        .ok_or_else(|| "Keine MySQL-Verbindung konfiguriert.".to_string())?;
+    let username = settings::get_path(&conn, "mysql_username")?.ok_or_else(|| "Keine MySQL-Verbindung konfiguriert.".to_string())?;
     Ok((host, port, username))
 }
 
@@ -78,8 +101,8 @@ pub async fn create_database_backup(state: State<'_, AppState>) -> Result<String
     let (config, auth) = stored_ssh_auth(&state)?;
     let (dir, configured_databases) = db_backup_settings(&state)?;
     let (host, port, username) = mysql_connection_settings(&state)?;
-    let password = credentials::get_secret("mysql_password")
-        .map_err(|_| "Kein MySQL-Passwort im Credential-Manager gefunden.".to_string())?;
+    let password =
+        credentials::get_secret("mysql_password").map_err(|_| "Kein MySQL-Passwort im Credential-Manager gefunden.".to_string())?;
 
     // mysqldump --databases aborts the *entire* dump the moment even one
     // named database doesn't exist (real live failure: the default guess
@@ -88,19 +111,13 @@ pub async fn create_database_backup(state: State<'_, AppState>) -> Result<String
     // database instead of failing the whole backup.
     let pool = require_pool(&state).await?;
     let real_databases = crate::db::explorer::list_databases(&pool).await?;
-    let (databases, skipped) =
-        db_backup::split_existing_databases(&configured_databases, &real_databases);
+    let (databases, skipped) = db_backup::split_existing_databases(&configured_databases, &real_databases);
     if databases.is_empty() {
-        return Err(format!(
-            "Keine der konfigurierten Datenbanken existiert auf diesem Server: {}",
-            configured_databases.join(", ")
-        ));
+        return Err(format!("Keine der konfigurierten Datenbanken existiert auf diesem Server: {}", configured_databases.join(", ")));
     }
 
     let filename = db_backup::backup_filename(chrono::Local::now());
-    let command = db_backup::build_dump_command(
-        &host, port, &username, &password, &databases, &dir, &filename,
-    );
+    let command = db_backup::build_dump_command(&host, port, &username, &password, &databases, &dir, &filename);
 
     let result = ssh::run_command_streaming(&config, &auth, &command, |_| {}).await;
     match result {
@@ -109,17 +126,11 @@ pub async fn create_database_backup(state: State<'_, AppState>) -> Result<String
             if skipped.is_empty() {
                 Ok(path)
             } else {
-                Ok(format!(
-                    "{path} (übersprungen, da auf diesem Server nicht vorhanden: {})",
-                    skipped.join(", ")
-                ))
+                Ok(format!("{path} (übersprungen, da auf diesem Server nicht vorhanden: {})", skipped.join(", ")))
             }
         }
         Ok(r) => {
-            let message = format!(
-                "M2Manager: Datenbank-Backup fehlgeschlagen (Exit-Code {:?}):\n{}",
-                r.exit_status, r.output
-            );
+            let message = format!("M2Manager: Datenbank-Backup fehlgeschlagen (Exit-Code {:?}):\n{}", r.exit_status, r.output);
             notify_webhook_best_effort(&state, &message).await;
             Err(message)
         }
@@ -135,32 +146,27 @@ pub async fn create_database_backup(state: State<'_, AppState>) -> Result<String
 /// `create_database_backup` or dropped in manually) - overwrites the current
 /// contents of every database in the dump, hence the confirmation-heavy UI.
 #[tauri::command]
-pub async fn restore_database_backup(
-    state: State<'_, AppState>,
-    backup_path: String,
-) -> Result<(), String> {
+pub async fn restore_database_backup(state: State<'_, AppState>, backup_path: String) -> Result<(), String> {
+    let (dir, _) = db_backup_settings(&state)?;
+    ensure_under_dir(&backup_path, &dir)?;
     let (config, auth) = stored_ssh_auth(&state)?;
     let (host, port, username) = mysql_connection_settings(&state)?;
-    let password = credentials::get_secret("mysql_password")
-        .map_err(|_| "Kein MySQL-Passwort im Credential-Manager gefunden.".to_string())?;
+    let password =
+        credentials::get_secret("mysql_password").map_err(|_| "Kein MySQL-Passwort im Credential-Manager gefunden.".to_string())?;
 
     let command = db_backup::build_restore_command(&host, port, &username, &password, &backup_path);
     let result = ssh::run_command_streaming(&config, &auth, &command, |_| {}).await?;
     if result.exit_status != Some(0) {
-        return Err(format!(
-            "Wiederherstellung fehlgeschlagen (Exit-Code {:?}):\n{}",
-            result.exit_status, result.output
-        ));
+        return Err(format!("Wiederherstellung fehlgeschlagen (Exit-Code {:?}):\n{}", result.exit_status, result.output));
     }
     Ok(())
 }
 
 /// Permanent delete (no backup-of-backup) - see `ssh::delete_remote_file`.
 #[tauri::command]
-pub async fn delete_database_backup(
-    state: State<'_, AppState>,
-    backup_path: String,
-) -> Result<(), String> {
+pub async fn delete_database_backup(state: State<'_, AppState>, backup_path: String) -> Result<(), String> {
+    let (dir, _) = db_backup_settings(&state)?;
+    ensure_under_dir(&backup_path, &dir)?;
     let (config, auth) = stored_ssh_auth(&state)?;
     ssh::delete_remote_file(&config, &auth, &backup_path).await
 }
@@ -168,10 +174,7 @@ pub async fn delete_database_backup(
 // ---- Remote directory browsing (shared by Regen-Datei-Editor + Backup-Browser) ----
 
 #[tauri::command]
-pub async fn list_remote_dir(
-    state: State<'_, AppState>,
-    path: String,
-) -> Result<Vec<ssh::RemoteEntry>, String> {
+pub async fn list_remote_dir(state: State<'_, AppState>, path: String) -> Result<Vec<ssh::RemoteEntry>, String> {
     let (config, auth) = stored_ssh_auth(&state)?;
     ssh::list_remote_dir(&config, &auth, &path).await
 }
@@ -182,10 +185,7 @@ pub async fn list_remote_dir(
 /// used by Regen-Datei-Editor/Backup-Browser where a missing user-configured
 /// path really could be a typo worth surfacing).
 #[tauri::command]
-pub async fn list_backup_dir(
-    state: State<'_, AppState>,
-    path: String,
-) -> Result<Vec<ssh::RemoteEntry>, String> {
+pub async fn list_backup_dir(state: State<'_, AppState>, path: String) -> Result<Vec<ssh::RemoteEntry>, String> {
     let (config, auth) = stored_ssh_auth(&state)?;
     ssh::list_remote_dir_or_empty(&config, &auth, &path).await
 }
@@ -196,10 +196,8 @@ pub async fn list_backup_dir(
 /// restore can never destroy whatever was there without leaving its own
 /// recovery trail.
 #[tauri::command]
-pub async fn restore_remote_backup(
-    state: State<'_, AppState>,
-    backup_path: String,
-) -> Result<String, String> {
+pub async fn restore_remote_backup(state: State<'_, AppState>, backup_path: String) -> Result<String, String> {
+    ensure_in_backup_folder(&backup_path)?;
     let (config, auth) = stored_ssh_auth(&state)?;
     let target_path = backups::target_path_for_backup(&backup_path)?;
 
@@ -216,18 +214,15 @@ pub async fn restore_remote_backup(
 /// Lets the Backup-Browser show what a restore would actually change before
 /// the user commits to it, instead of restoring blind.
 #[tauri::command]
-pub async fn diff_remote_backup(
-    state: State<'_, AppState>,
-    backup_path: String,
-) -> Result<backups::BackupDiff, String> {
+pub async fn diff_remote_backup(state: State<'_, AppState>, backup_path: String) -> Result<backups::BackupDiff, String> {
+    ensure_in_backup_folder(&backup_path)?;
     let (config, auth) = stored_ssh_auth(&state)?;
     let target_path = backups::target_path_for_backup(&backup_path)?;
 
     let backup_bytes = ssh::read_remote_file_bytes(&config, &auth, &backup_path).await?;
     let current_bytes = ssh::read_remote_file_bytes_if_exists(&config, &auth, &target_path).await?;
 
-    let is_binary = ssh::looks_binary(&backup_bytes)
-        || current_bytes.as_deref().is_some_and(ssh::looks_binary);
+    let is_binary = ssh::looks_binary(&backup_bytes) || current_bytes.as_deref().is_some_and(ssh::looks_binary);
 
     Ok(backups::BackupDiff {
         target_path,
@@ -235,4 +230,31 @@ pub async fn diff_remote_backup(
         current_content: current_bytes.map(ssh::decode_bytes),
         is_binary,
     })
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn accepts_files_below_the_backup_dir() {
+        assert!(ensure_under_dir("/b/dir/x.sql", "/b/dir").is_ok());
+        assert!(ensure_under_dir("/b/dir/x.sql", "/b/dir/").is_ok());
+    }
+
+    #[test]
+    fn rejects_paths_outside_or_with_traversal() {
+        assert!(ensure_under_dir("/etc/passwd", "/b/dir").is_err());
+        assert!(ensure_under_dir("/b/dir/../etc/passwd", "/b/dir").is_err());
+        assert!(ensure_under_dir("/b/dir2/x.sql", "/b/dir").is_err());
+        assert!(ensure_under_dir("/b/dir/", "/b/dir").is_err());
+        assert!(ensure_under_dir("/x", "/").is_err());
+    }
+
+    #[test]
+    fn backup_folder_check() {
+        assert!(ensure_in_backup_folder("/a/m2manager_backups/f.1.bak").is_ok());
+        assert!(ensure_in_backup_folder("/a/other/f.1.bak").is_err());
+        assert!(ensure_in_backup_folder("/a/m2manager_backups/../../etc/x.bak").is_err());
+    }
 }

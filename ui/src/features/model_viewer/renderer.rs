@@ -11,8 +11,8 @@ use glam::{Mat3, Mat4, Vec3};
 use wasm_bindgen::prelude::*;
 use wasm_bindgen::JsCast;
 use web_sys::{
-    HtmlCanvasElement, HtmlImageElement, WebGl2RenderingContext as GL, WebGlBuffer, WebGlProgram, WebGlShader,
-    WebGlTexture, WebGlUniformLocation, WebGlVertexArrayObject,
+    HtmlCanvasElement, HtmlImageElement, WebGl2RenderingContext as GL, WebGlBuffer, WebGlProgram, WebGlShader, WebGlTexture,
+    WebGlUniformLocation, WebGlVertexArrayObject,
 };
 
 const MESH_VS: &str = r#"#version 300 es
@@ -312,7 +312,9 @@ impl Renderer {
                 mesh.indices.clone()
             } else {
                 mesh.indices
-                    .chunks_exact(3)
+                    .as_chunks::<3>()
+                    .0
+                    .iter()
                     .filter(|t| t.iter().all(|&i| (i as usize) < vertex_count))
                     .flatten()
                     .copied()

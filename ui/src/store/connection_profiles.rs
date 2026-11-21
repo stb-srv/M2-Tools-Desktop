@@ -2,8 +2,8 @@
 //! zählt bei jedem Wechsel der aktiven Verbindung hoch, damit z.B. das
 //! Dashboard seinen Status neu prüft.
 
-use crate::util::connection::{connect_mysql, load_stored_connection, save_mysql, save_ssh, MysqlValues, SshValues};
 use crate::tauri::{invoke0, invoke_unit};
+use crate::util::connection::{connect_mysql, load_stored_connection, save_mysql, save_ssh, MysqlValues, SshValues};
 use leptos::prelude::*;
 use serde::Deserialize;
 use serde_json::json;
@@ -48,6 +48,7 @@ pub fn connection_profiles() -> ConnectionProfiles {
 
 impl ConnectionProfiles {
     fn bump(&self) {
+        crate::store::icons::clear();
         self.revision.update(|r| *r += 1);
     }
 
@@ -60,27 +61,41 @@ impl ConnectionProfiles {
         Ok(())
     }
 
-    pub async fn activate(&self, id: i64) -> Result<(), String> {
+    /// Wechselt den Server. Meldet ein Bereich ungespeicherte Änderungen,
+    /// wird vorher nachgefragt; `Ok(false)` = Nutzer hat abgebrochen.
+    pub async fn activate(&self, id: i64) -> Result<bool, String> {
+        if !crate::util::confirm::confirm_discard_all("Server wechseln").await {
+            return Ok(false);
+        }
         invoke_unit("activate_connection_profile", &json!({ "id": id })).await?;
         // SSH liest seine Einstellungen bei jedem Befehl frisch, der MySQL-Pool
         // bleibt dagegen bis zum Neuverbinden am alten Server.
         let (_, mysql) = load_stored_connection().await;
-        if !mysql.host.is_empty() && !mysql.username.is_empty() && !mysql.password.is_empty() {
-            let _ = connect_mysql(&mysql).await;
+        let mut mysql_error = None;
+        if !mysql.host.is_empty() && !mysql.username.is_empty() && mysql.password_saved {
+            if let Err(e) = connect_mysql(&mysql).await {
+                mysql_error = Some(e);
+            }
         }
         self.reload().await?;
         self.bump();
-        Ok(())
+        match mysql_error {
+            Some(e) => Err(format!("Server gewechselt, aber die MySQL-Verbindung ist fehlgeschlagen: {e}")),
+            None => Ok(true),
+        }
     }
 
     pub async fn create(&self, name: &str, ssh: &SshValues, mysql: &MysqlValues) -> Result<(), String> {
         save_ssh(ssh).await?;
         save_mysql(mysql).await?;
         invoke_unit("save_connection_profile", &json!({ "name": name })).await?;
-        let _ = connect_mysql(mysql).await;
+        let mysql_error = connect_mysql(mysql).await.err();
         self.reload().await?;
         self.bump();
-        Ok(())
+        match mysql_error {
+            Some(e) => Err(format!("Profil angelegt, aber die MySQL-Verbindung ist fehlgeschlagen: {e}")),
+            None => Ok(()),
+        }
     }
 
     pub async fn remove(&self, id: i64) -> Result<(), String> {
@@ -88,16 +103,22 @@ impl ConnectionProfiles {
         self.reload().await
     }
 
-    /// Nach einer Änderung an SSH/MySQL das aktive Profil mitziehen.
-    pub async fn sync_active(&self) -> Result<(), String> {
+    /// Nach einer Änderung an SSH/MySQL das aktive Profil mitziehen. Das
+    /// Hochzählen von `revision` mountet offene Editoren neu; meldet ein
+    /// Bereich ungespeicherte Änderungen, wird vorher nachgefragt.
+    /// `Ok(false)` = Nutzer hat abgebrochen (die Einstellungen sind dann
+    /// schon gespeichert, die Ansicht wird aber nicht neu aufgebaut).
+    pub async fn sync_active(&self) -> Result<bool, String> {
         let active = self.active_id.get_untracked();
         let name = self.profiles.with_untracked(|p| p.iter().find(|x| Some(x.id) == active).map(|x| x.name.clone()));
         if let Some(name) = name {
             invoke_unit("save_connection_profile", &json!({ "name": name })).await?;
         }
         self.reload().await?;
+        if !crate::util::confirm::confirm_discard_all("Ansichten jetzt neu laden").await {
+            return Ok(false);
+        }
         self.bump();
-        Ok(())
+        Ok(true)
     }
 }
-

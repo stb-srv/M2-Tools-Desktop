@@ -18,9 +18,7 @@ fn special_item_group_file_path(state: &State<'_, AppState>) -> Result<String, S
 }
 
 #[tauri::command]
-pub async fn read_special_item_group_file(
-    state: State<'_, AppState>,
-) -> Result<Vec<special_item_group::SpecialItemGroup>, String> {
+pub async fn read_special_item_group_file(state: State<'_, AppState>) -> Result<Vec<special_item_group::SpecialItemGroup>, String> {
     let (config, auth) = stored_ssh_auth(&state)?;
     let path = special_item_group_file_path(&state)?;
     let content = ssh::read_remote_file(&config, &auth, &path).await?;
@@ -92,10 +90,7 @@ pub async fn read_cube_file(state: State<'_, AppState>) -> Result<Vec<cube::Cube
 }
 
 #[tauri::command]
-pub async fn write_cube_file(
-    state: State<'_, AppState>,
-    recipes: Vec<cube::CubeRecipe>,
-) -> Result<Option<String>, String> {
+pub async fn write_cube_file(state: State<'_, AppState>, recipes: Vec<cube::CubeRecipe>) -> Result<Option<String>, String> {
     let (config, auth) = stored_ssh_auth(&state)?;
     let path = cube_file_path(&state)?;
     let content = cube::serialize(&recipes);
@@ -111,9 +106,8 @@ pub async fn write_cube_file(
 pub async fn undo_cube_write(state: State<'_, AppState>) -> Result<String, String> {
     let path = cube_file_path(&state)?;
     let (config, auth) = stored_ssh_auth(&state)?;
-    let backup_path = ssh::latest_own_backup(&config, &auth, &path)
-        .await?
-        .ok_or_else(|| "Keine frühere Sicherung von cube.txt gefunden.".to_string())?;
+    let backup_path =
+        ssh::latest_own_backup(&config, &auth, &path).await?.ok_or_else(|| "Keine frühere Sicherung von cube.txt gefunden.".to_string())?;
     super::backups::restore_remote_backup(state, backup_path.clone()).await?;
     Ok(backup_path)
 }

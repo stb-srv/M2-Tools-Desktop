@@ -8,12 +8,13 @@ pub mod item_flags;
 pub mod types;
 
 use crate::components::{Button, ButtonSize, ButtonVariant, Icon, PageHeader};
-use crate::features::shared::{EntityBrowser, EntityKind, EntityRow, ItemUsageModal};
-use crate::util::{log_activity, use_save_shortcut};
-use crate::store::navigation::{nav, report_section_dirty, Section};
-use crate::tauri::{dialog_open_one, invoke, invoke_unit, listen, DialogFilter, OpenDialogOptions, Unlisten};
-use components::confirm_pipeline_dialog::ConfirmPipelineDialog;
 use crate::features::icon_browser::IconBrowserModal;
+use crate::features::shared::{EntityBrowser, EntityKind, EntityRow, ItemUsageModal};
+use crate::store::navigation::{report_section_dirty, use_pending_selection, Section};
+use crate::tauri::{dialog_open_one, invoke, invoke_unit, listen, DialogFilter, OpenDialogOptions, Unlisten};
+use crate::util::confirm::confirm_discard_if;
+use crate::util::{log_activity, use_save_shortcut};
+use components::confirm_pipeline_dialog::ConfirmPipelineDialog;
 use components::item_flags_section::ItemFlagsSection;
 use components::item_presets_section::ItemPresetsSection;
 use components::shared::{Field, FlagSelect, NumInput, StepRow};
@@ -28,10 +29,7 @@ use types::{empty_item, js_number, num, pad5, ItemDescEntry, ItemProtoInput, Mod
 
 /// `Number((await get_setting(...).catch(() => null)) ?? "500000")`.
 async fn vnum_range_start() -> i64 {
-    let v = invoke::<Option<String>>("get_setting", &json!({ "key": "item_vnum_range_start" }))
-        .await
-        .ok()
-        .flatten();
+    let v = invoke::<Option<String>>("get_setting", &json!({ "key": "item_vnum_range_start" })).await.ok().flatten();
     js_number(v.as_deref().unwrap_or("500000")) as i64
 }
 
@@ -39,8 +37,13 @@ async fn next_free_item_vnum(start: i64) -> Result<i64, String> {
     invoke::<i64>("next_free_item_vnum", &json!({ "rangeStart": start })).await
 }
 
+/// Frisch abfragen und den geteilten Cache aktualisieren (Icon kann sich geändert haben).
 async fn get_item_icon(vnum: i64) -> Option<String> {
-    invoke::<Option<String>>("get_item_icon", &json!({ "vnum": vnum })).await.ok().flatten()
+    let icon = crate::store::icons::fetch_icon(vnum).await;
+    crate::store::icons::icons().update(|m| {
+        m.insert(vnum, icon.clone());
+    });
+    icon
 }
 
 type Steps = RwSignal<HashMap<&'static str, StepStatus>>;
@@ -169,11 +172,29 @@ pub fn ItemEditor() -> impl IntoView {
         });
     };
 
+    let load_seq = StoredValue::new(0u64);
     let load_for_edit = move |vnum: i64| {
+        let seq = load_seq.get_value() + 1;
+        load_seq.set_value(seq);
         spawn_local(async move {
-            let Ok(Some(full)) = invoke::<Option<ItemProtoInput>>("get_item_proto", &json!({ "vnum": vnum })).await else {
-                return;
+            let full = match invoke::<Option<ItemProtoInput>>("get_item_proto", &json!({ "vnum": vnum })).await {
+                Ok(Some(full)) => full,
+                Ok(None) => {
+                    if load_seq.get_value() == seq {
+                        crate::components::toast::error(&format!("Item {vnum} wurde nicht gefunden."));
+                    }
+                    return;
+                }
+                Err(e) => {
+                    if load_seq.get_value() == seq {
+                        crate::components::toast::error(&format!("Item {vnum} konnte nicht geladen werden: {e}"));
+                    }
+                    return;
+                }
             };
+            if load_seq.get_value() != seq {
+                return;
+            }
             mode.set(Mode::Edit);
             item.set(full.clone());
             original_item.set(Some(full));
@@ -182,8 +203,19 @@ pub fn ItemEditor() -> impl IntoView {
             done.set(false);
             pipeline_error.set(None);
             steps.set(HashMap::new());
-            icon_preview.set(get_item_icon(vnum).await);
-            let desc = invoke::<Option<ItemDescEntry>>("get_item_desc", &json!({ "vnum": vnum })).await.ok().flatten();
+            let icon = get_item_icon(vnum).await;
+            let desc = invoke::<Option<ItemDescEntry>>("get_item_desc", &json!({ "vnum": vnum })).await;
+            if load_seq.get_value() != seq {
+                return;
+            }
+            icon_preview.set(icon);
+            let desc = match desc {
+                Ok(d) => d,
+                Err(e) => {
+                    crate::components::toast::error(&format!("Beschreibung konnte nicht geladen werden: {e}"));
+                    None
+                }
+            };
             let (d, s) = desc.map(|d| (d.description, d.summary)).unwrap_or_default();
             description.set(d.clone());
             summary.set(s.clone());
@@ -195,9 +227,7 @@ pub fn ItemEditor() -> impl IntoView {
 
     // Globale Suche (Strg+Umschalt+F) springt mit einer vnum hierher -
     // Konsumieren-beim-Lesen verhindert erneutes Auslösen.
-    if let Some(target) = nav().consume_pending_selection(Section::ItemEditor) {
-        load_for_edit(js_number(&target) as i64);
-    }
+    use_pending_selection(Section::ItemEditor, move |target| load_for_edit(js_number(&target) as i64));
 
     // Ausgabe der Pipeline-Werkzeuge mitschreiben.
     let unlisten = StoredValue::new_local(None::<Unlisten>);
@@ -302,8 +332,7 @@ pub fn ItemEditor() -> impl IntoView {
     };
 
     let has_new_icon = Memo::new(move |_| !icon_source_path.with(|p| p.is_empty()));
-    let has_model_copy =
-        Memo::new(move |_| copy_model.get() && ref_model_vnum.get().is_some() && item.with(|i| i.r#type == 1));
+    let has_model_copy = Memo::new(move |_| copy_model.get() && ref_model_vnum.get().is_some() && item.with(|i| i.r#type == 1));
     let has_desc_change = Memo::new(move |_| description.get() != orig_description.get() || summary.get() != orig_summary.get());
     let can_create = Memo::new(move |_| {
         item.with(|i| i.vnum > 0 && !i.name.trim().is_empty() && !i.locale_name.trim().is_empty())
@@ -425,12 +454,7 @@ pub fn ItemEditor() -> impl IntoView {
                     log_activity(
                         Section::ItemEditor.into(),
                         if md == Mode::Create { "create" } else { "update" },
-                        &format!(
-                            "Item {} ('{}') {}",
-                            vnum,
-                            name,
-                            if md == Mode::Create { "angelegt" } else { "aktualisiert" }
-                        ),
+                        &format!("Item {} ('{}') {}", vnum, name, if md == Mode::Create { "angelegt" } else { "aktualisiert" }),
                         Some("item"),
                         Some(&vnum.to_string()),
                     );
@@ -505,7 +529,7 @@ pub fn ItemEditor() -> impl IntoView {
         <section class="space-y-2 rounded-lg border border-border p-4">
             <div class="flex overflow-hidden rounded-md border border-border text-sm w-fit">
                 <button
-                    on:click=move |_| start_create_mode()
+                    on:click=move |_| confirm_discard_if(dirty.get_untracked(), "Ungespeicherte Änderungen verwerfen und ein neues Item anlegen?", start_create_mode)
                     class=move || if is_create() { "px-3 py-1 bg-primary text-primary-foreground" } else { "px-3 py-1 " }
                 >
                     "Neues Item"
@@ -519,7 +543,7 @@ pub fn ItemEditor() -> impl IntoView {
             </div>
 
             <Show when=move || !is_create() && original_item.with(|o| o.is_none())>
-                <EntityBrowser kind=EntityKind::Item pick_label="Laden" on_pick=Callback::new(move |r: EntityRow| load_for_edit(r.vnum))/>
+                <EntityBrowser kind=EntityKind::Item pick_label="Laden" on_pick=Callback::new(move |r: EntityRow| confirm_discard_if(dirty.get_untracked(), "Ungespeicherte Änderungen verwerfen und das Item laden?", move || load_for_edit(r.vnum)))/>
             </Show>
 
             <Show when=move || !is_create() && original_item.with(|o| o.is_some())>

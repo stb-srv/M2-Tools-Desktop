@@ -19,9 +19,7 @@ use tauri::State;
 
 pub(super) fn drop_file_path(state: &State<'_, AppState>, kind: DropFileKind) -> Result<String, String> {
     let conn = state.settings_db.lock().map_err(|e| e.to_string())?;
-    Ok(settings::get_path(&conn, kind.settings_key())?
-        .filter(|v| !v.is_empty())
-        .unwrap_or_else(|| kind.default_path()))
+    Ok(settings::get_path(&conn, kind.settings_key())?.filter(|v| !v.is_empty()).unwrap_or_else(|| kind.default_path()))
 }
 
 /// Fragt die Datenbank nach allem, was `refs` braucht.
@@ -34,10 +32,8 @@ async fn db_facts(pool: &sqlx::MySqlPool, refs: &[DropRef]) -> Result<DbFacts, S
         let as_names: Vec<String> = vnums.iter().map(|v| v.to_string()).collect();
         let collisions = item::items_by_internal_names(pool, &as_names).await?;
         for v in vnums {
-            let name_collision = collisions
-                .get(&v.to_string())
-                .filter(|other| other.vnum != v)
-                .map(|other| (other.vnum, other.locale_name.clone()));
+            let name_collision =
+                collisions.get(&v.to_string()).filter(|other| other.vnum != v).map(|other| (other.vnum, other.locale_name.clone()));
             facts.items.insert(v, ItemFacts { exists: existing.contains(&v), name_collision });
         }
     }
@@ -139,10 +135,12 @@ pub(super) async fn build_drop_check_report(
     let mut issues = Vec::new();
     let mut per_file_refs = Vec::new();
 
+    // Eine SFTP-Sitzung für alle Dateien statt einer Verbindung pro Datei.
+    let sftp = ssh::open_sftp(config, auth).await?;
     for kind in DropFileKind::ALL {
         let path = drop_file_path(state, kind)?;
         let mut status = DropFileStatus { kind, file: kind.file_name().into(), state: "ok".into(), detail: None, entries: 0 };
-        match ssh::read_remote_file_if_exists(config, auth, &path).await {
+        match ssh::read_file_if_exists_via(&sftp, &path).await {
             Ok(None) => {
                 status.state = "missing".into();
                 status.detail = Some(format!("{path} gibt es nicht."));
@@ -209,25 +207,19 @@ pub struct FilePreview {
 /// Erzeugt die Datei, so wie das Speichern sie schreiben würde, und liest
 /// die aktuelle Fassung vom Server - ohne etwas zu schreiben.
 #[tauri::command]
-pub async fn preview_drop_file(
-    state: State<'_, AppState>,
-    kind: String,
-    data: serde_json::Value,
-) -> Result<FilePreview, String> {
+pub async fn preview_drop_file(state: State<'_, AppState>, kind: String, data: serde_json::Value) -> Result<FilePreview, String> {
     let kind = DropFileKind::from_id(&kind).ok_or_else(|| format!("Unbekannte Datei-Art: {kind}"))?;
     let bad = |e: serde_json::Error| format!("Ungültige Daten: {e}");
     let new = match kind {
         DropFileKind::MobDrop => mobdrop::serialize(&serde_json::from_value::<Vec<mobdrop::MobDropGroup>>(data).map_err(bad)?),
-        DropFileKind::CommonDrop => {
-            common_drop::serialize(&serde_json::from_value::<common_drop::CommonDropFile>(data).map_err(bad)?)?
-        }
+        DropFileKind::CommonDrop => common_drop::serialize(&serde_json::from_value::<common_drop::CommonDropFile>(data).map_err(bad)?)?,
         DropFileKind::EtcDrop => etc_drop::serialize(&serde_json::from_value::<Vec<etc_drop::EtcDropEntry>>(data).map_err(bad)?),
-        DropFileKind::SpecialItemGroup => special_item_group::serialize(
-            &serde_json::from_value::<Vec<special_item_group::SpecialItemGroup>>(data).map_err(bad)?,
-        ),
-        DropFileKind::DropItemGroup => drop_item_group::serialize(
-            &serde_json::from_value::<Vec<drop_item_group::DropItemGroup>>(data).map_err(bad)?,
-        ),
+        DropFileKind::SpecialItemGroup => {
+            special_item_group::serialize(&serde_json::from_value::<Vec<special_item_group::SpecialItemGroup>>(data).map_err(bad)?)
+        }
+        DropFileKind::DropItemGroup => {
+            drop_item_group::serialize(&serde_json::from_value::<Vec<drop_item_group::DropItemGroup>>(data).map_err(bad)?)
+        }
     };
     let (config, auth) = stored_ssh_auth(&state)?;
     let path = drop_file_path(&state, kind)?;

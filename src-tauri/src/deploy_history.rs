@@ -48,11 +48,8 @@ pub fn record_deploy(
 }
 
 pub fn update_deploy_success(conn: &Connection, id: i64, success: bool) -> Result<(), String> {
-    conn.execute(
-        "UPDATE deploy_history SET success = ?1 WHERE id = ?2",
-        rusqlite::params![success as i32, id],
-    )
-    .map_err(|e| e.to_string())?;
+    conn.execute("UPDATE deploy_history SET success = ?1 WHERE id = ?2", rusqlite::params![success as i32, id])
+        .map_err(|e| e.to_string())?;
     Ok(())
 }
 
@@ -121,8 +118,7 @@ mod tests {
     fn records_lists_and_updates_success() {
         let conn = scratch_conn();
         let targets = vec!["game".to_string()];
-        let id = record_deploy(&conn, "deploy", &targets, Some("/backup/game.bak"), None, "test note", None)
-            .expect("record failed");
+        let id = record_deploy(&conn, "deploy", &targets, Some("/backup/game.bak"), None, "test note", None).expect("record failed");
 
         let deploys = list_deploys(&conn).expect("list failed");
         assert_eq!(deploys.len(), 1);

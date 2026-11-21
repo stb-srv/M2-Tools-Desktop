@@ -5,9 +5,9 @@ use crate::components::{Button, ButtonSize, ButtonVariant, Icon};
 use crate::features::mob_drop_editor::components::shared::{js_number, num_sig, NumInput};
 use crate::features::shared::drop_chance::format_real_drop_chance;
 use crate::features::shared::{ChangePreview, EntityBrowser, EntityKind, EntityRow, RestartServerButton};
-use crate::util::{log_activity, use_save_shortcut};
-use crate::store::navigation::{report_section_dirty, Section};
+use crate::store::navigation::{use_section_dirty, Section};
 use crate::tauri::invoke;
+use crate::util::{log_activity, use_save_shortcut};
 use leptos::prelude::*;
 use leptos::task::spawn_local;
 use serde::{Deserialize, Serialize};
@@ -45,8 +45,7 @@ pub fn EtcDropEditor() -> impl IntoView {
 
     let loaded_snapshot = RwSignal::new(None::<Vec<EtcDropEntry>>);
     let dirty = Memo::new(move |_| entries.with(|e| e.is_some() && loaded_snapshot.with(|s| s != e)));
-    Effect::new(move |_| report_section_dirty(Section::DropGenerator, dirty.get()));
-    on_cleanup(move || report_section_dirty(Section::DropGenerator, false));
+    use_section_dirty(Section::DropGenerator, move || dirty.get());
 
     let resolve_labels = move |list: Vec<EtcDropEntry>| async move {
         let resolved = join_all(list.into_iter().map(|e| async move {
@@ -283,39 +282,35 @@ pub fn EtcDropEditor() -> impl IntoView {
             </Show>
 
             <Show when=move || picker_for.with(|p| p.is_some())>
-                <div class="fixed inset-0 z-50 flex items-center justify-center bg-black/50">
-                    <div class="max-h-[85vh] w-[32rem] space-y-2 overflow-y-auto rounded-lg border border-border bg-card p-4">
-                        <div class="flex items-center justify-between">
-                            <p class="text-sm font-medium">"Item wählen"</p>
-                            <Button variant=ButtonVariant::Ghost size=ButtonSize::Sm on_click=move |_| picker_for.set(None)>
-                                "Schließen"
-                            </Button>
-                        </div>
-                        <EntityBrowser kind=EntityKind::Item auto_focus=true on_pick=on_pick/>
+                <crate::components::Modal class="max-h-[85vh] w-[32rem] space-y-2 overflow-y-auto rounded-lg border border-border bg-card p-4" overlay_class="z-50">
+                    <div class="flex items-center justify-between">
+                        <p class="text-sm font-medium">"Item wählen"</p>
+                        <Button variant=ButtonVariant::Ghost size=ButtonSize::Sm on_click=move |_| picker_for.set(None)>
+                            "Schließen"
+                        </Button>
                     </div>
-                </div>
+                    <EntityBrowser kind=EntityKind::Item auto_focus=true on_pick=on_pick/>
+                </crate::components::Modal>
             </Show>
 
             <Show when=move || confirm_open.get()>
-                <div class="fixed inset-0 z-50 flex items-center justify-center bg-black/50">
-                    <div class="max-h-[85vh] w-[40rem] space-y-3 overflow-y-auto rounded-lg border border-border bg-card p-4">
-                        <p class="flex items-start gap-2 text-sm">
-                            <Icon name="AlertTriangle" class="mt-0.5 size-4 shrink-0 text-destructive"/>
-                            <span>
-                                "etc_drop_item.txt wird komplett überschrieben (Backup wird vorher angelegt). Wirkt erst nach einem Server-Neustart."
-                            </span>
-                        </p>
-                        {entries.get_untracked().map(|d| view! {
-                            <ChangePreview kind="etc_drop" data=serde_json::to_value(&d).unwrap_or_default()/>
-                        })}
-                        <div class="flex justify-end gap-2">
-                            <Button variant=ButtonVariant::Outline on_click=move |_| confirm_open.set(false)>
-                                "Abbrechen"
-                            </Button>
-                            <Button on_click=move |_| save()>"Speichern"</Button>
-                        </div>
+                <crate::components::Modal class="max-h-[85vh] w-[40rem] space-y-3 overflow-y-auto rounded-lg border border-border bg-card p-4" overlay_class="z-50">
+                    <p class="flex items-start gap-2 text-sm">
+                        <Icon name="AlertTriangle" class="mt-0.5 size-4 shrink-0 text-destructive"/>
+                        <span>
+                            "etc_drop_item.txt wird komplett überschrieben (Backup wird vorher angelegt). Wirkt erst nach einem Server-Neustart."
+                        </span>
+                    </p>
+                    {entries.get_untracked().map(|d| view! {
+                        <ChangePreview kind="etc_drop" data=serde_json::to_value(&d).unwrap_or_default()/>
+                    })}
+                    <div class="flex justify-end gap-2">
+                        <Button variant=ButtonVariant::Outline on_click=move |_| confirm_open.set(false)>
+                            "Abbrechen"
+                        </Button>
+                        <Button on_click=move |_| save()>"Speichern"</Button>
                     </div>
-                </div>
+                </crate::components::Modal>
             </Show>
         </div>
     }

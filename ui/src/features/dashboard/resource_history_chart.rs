@@ -2,8 +2,8 @@
 //! keine Diagramm-Bibliothek, wie im alten Frontend.
 
 use crate::i18n::{t, t_with};
-use crate::util::format::de_time;
 use crate::tauri::invoke;
+use crate::util::format::de_time;
 use leptos::prelude::*;
 use leptos::task::spawn_local;
 use serde::Deserialize;
@@ -45,9 +45,7 @@ pub fn to_polyline(values: &[Option<f64>], width: f64, height: f64) -> String {
     values
         .iter()
         .enumerate()
-        .filter_map(|(i, v)| {
-            v.map(|v| format!("{},{}", js_num(i as f64 * step), js_num(height - (v.clamp(0.0, 100.0) / 100.0) * height)))
-        })
+        .filter_map(|(i, v)| v.map(|v| format!("{},{}", js_num(i as f64 * step), js_num(height - (v.clamp(0.0, 100.0) / 100.0) * height))))
         .collect::<Vec<_>>()
         .join(" ")
 }

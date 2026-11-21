@@ -1,6 +1,7 @@
 //! Backups: Datei-Backups der Editoren (`m2manager_backups`-Ordner) und
 //! komplette Datenbank-Sicherungen unter einem gemeinsamen Sidebar-Punkt.
 
+#[allow(clippy::module_inception)] // Untermodul trägt bewusst den Namen des Features
 mod backup_browser;
 pub mod diff;
 

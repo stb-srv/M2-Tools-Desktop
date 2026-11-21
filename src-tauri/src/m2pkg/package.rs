@@ -6,7 +6,7 @@ use sha2::{Digest, Sha256};
 use std::collections::BTreeMap;
 use std::fs::File;
 use std::io::{Read, Write};
-use std::path::{Path, PathBuf};
+use std::path::Path;
 use std::sync::Mutex;
 
 pub const SUPPORTED_FORMAT_VERSION: u64 = 1;
@@ -121,6 +121,11 @@ pub fn sha256_reader(r: &mut impl Read) -> Result<String, String> {
     Ok(hasher.finalize().iter().map(|b| format!("{b:02x}")).collect())
 }
 
+pub fn sha256_bytes(bytes: &[u8]) -> String {
+    let mut r = bytes;
+    sha256_reader(&mut r).unwrap_or_default()
+}
+
 pub fn sha256_file(path: &Path) -> Result<String, String> {
     let mut f = File::open(path).map_err(|e| format!("{}: {e}", path.display()))?;
     sha256_reader(&mut f)
@@ -140,9 +145,8 @@ fn parse_checksums(text: &str) -> Result<Vec<(String, String)>, String> {
         if line.trim().is_empty() {
             continue;
         }
-        let (hash, rest) = line
-            .split_once(' ')
-            .ok_or_else(|| format!("checksums.sha256, Zeile {}: Format „Prüfsumme  Pfad“ erwartet", i + 1))?;
+        let (hash, rest) =
+            line.split_once(' ').ok_or_else(|| format!("checksums.sha256, Zeile {}: Format „Prüfsumme  Pfad“ erwartet", i + 1))?;
         let path = rest.trim_start_matches([' ', '*']);
         if hash.len() != 64 || !hash.chars().all(|c| c.is_ascii_hexdigit()) || path.is_empty() {
             return Err(format!("checksums.sha256, Zeile {}: ungültige Prüfsumme oder Pfad", i + 1));
@@ -179,10 +183,8 @@ impl Package {
         if raw.get("format").and_then(|v| v.as_str()) != Some("m2pkg") {
             return Err("Das ist kein Import-Paket (format ist nicht „m2pkg“).".into());
         }
-        let version = raw
-            .get("format_version")
-            .and_then(|v| v.as_u64())
-            .ok_or("manifest.json: format_version fehlt oder ist keine Zahl.")?;
+        let version =
+            raw.get("format_version").and_then(|v| v.as_u64()).ok_or("manifest.json: format_version fehlt oder ist keine Zahl.")?;
         if version > SUPPORTED_FORMAT_VERSION {
             return Err(format!(
                 "Das Paket hat die Format-Version {version}, diese App kennt nur Version {SUPPORTED_FORMAT_VERSION}. \
@@ -195,12 +197,7 @@ impl Package {
         let manifest: Manifest =
             serde_json::from_value(raw).map_err(|e| format!("manifest.json ist unvollständig oder fehlerhaft: {e}"))?;
 
-        let mut pkg = Package {
-            manifest,
-            entries,
-            hashes: BTreeMap::new(),
-            archive: Mutex::new(ar),
-        };
+        let mut pkg = Package { manifest, entries, hashes: BTreeMap::new(), archive: Mutex::new(ar) };
         pkg.verify_checksums()?;
         pkg.verify_manifest_files()?;
         Ok(pkg)
@@ -210,8 +207,8 @@ impl Package {
         if !self.entries.contains_key("checksums.sha256") {
             return Err("checksums.sha256 fehlt im Paket. Ohne Prüfsummen wird nicht importiert.".into());
         }
-        let text = String::from_utf8(self.read("checksums.sha256")?)
-            .map_err(|_| "checksums.sha256 ist kein gültiger UTF-8-Text".to_string())?;
+        let text =
+            String::from_utf8(self.read("checksums.sha256")?).map_err(|_| "checksums.sha256 ist kein gültiger UTF-8-Text".to_string())?;
         let listed = parse_checksums(&text)?;
         let mut problems: Vec<String> = Vec::new();
         let mut seen = std::collections::HashSet::new();
@@ -242,10 +239,7 @@ impl Package {
         let total = problems.len();
         problems.truncate(8);
         let more = if total > 8 { format!("\n… und {} weitere", total - 8) } else { String::new() };
-        Err(format!(
-            "Prüfsummen-Fehler, das Paket ist beschädigt oder verändert ({total} Problem(e)):\n{}{more}",
-            problems.join("\n")
-        ))
+        Err(format!("Prüfsummen-Fehler, das Paket ist beschädigt oder verändert ({total} Problem(e)):\n{}{more}", problems.join("\n")))
     }
 
     /// Die im Manifest genannten Dateien müssen da sein, unter `client/` liegen
@@ -305,6 +299,7 @@ impl Package {
             out.write_all(&buf[..n]).map_err(|e| format!("{}: {e}", dest.display()))?;
         }
         out.flush().map_err(|e| e.to_string())?;
+        out.sync_all().map_err(|e| format!("{}: {e}", dest.display()))?;
         Ok(hasher.finalize().iter().map(|b| format!("{b:02x}")).collect())
     }
 }
@@ -320,6 +315,7 @@ fn read_entry(ar: &mut Archive, name: &str) -> Result<Vec<u8>, String> {
 pub(crate) mod test_pkg {
     use super::*;
     use std::io::Write;
+    use std::path::PathBuf;
     use zip::write::SimpleFileOptions;
 
     pub fn sha(data: &[u8]) -> String {
@@ -362,11 +358,7 @@ pub(crate) mod test_pkg {
             files: vec![
                 mk("client/icon/item/00300.tga", &icon),
                 ManifestFile { role: "model".into(), ..mk("client/d_/ymir work/item/weapon/00300.gr2", &model) },
-                ManifestFile {
-                    role: "texture".into(),
-                    guessed: true,
-                    ..mk("client/d_/ymir work/item/weapon/00300.dds", b"TEX")
-                },
+                ManifestFile { role: "texture".into(), guessed: true, ..mk("client/d_/ymir work/item/weapon/00300.dds", b"TEX") },
             ],
             assumed_antiflags: vec![AssumedFlag { name: "ANTI_GIVE".into(), bit: 8192 }],
         };

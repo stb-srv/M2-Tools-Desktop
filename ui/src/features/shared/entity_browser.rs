@@ -2,8 +2,8 @@
 //! Bestand nach vnum sortiert), optional aus dem lokalen Cache.
 
 use crate::components::{Button, ButtonSize, ButtonVariant, Icon};
-use crate::util::format::{de_int, de_time};
 use crate::tauri::invoke;
+use crate::util::format::{de_int, de_time};
 use leptos::prelude::*;
 use leptos::task::spawn_local;
 use serde::{Deserialize, Serialize};
@@ -60,13 +60,17 @@ pub fn EntityBrowser(
     #[prop(optional)] auto_focus: bool,
     #[prop(into, optional)] max_height_class: Option<String>,
     /// Wird beim Mounten vorbelegt und sofort gesucht.
-    #[prop(into, optional)] initial_query: Option<String>,
+    #[prop(into, optional)]
+    initial_query: Option<String>,
     /// Feuert, wenn sich die angezeigte Seite ändert.
-    #[prop(into, optional)] on_rows_change: Option<Callback<Vec<EntityRow>>>,
+    #[prop(into, optional)]
+    on_rows_change: Option<Callback<Vec<EntityRow>>>,
     /// Vor dem Namen einer Zeile (z.B. Item-Icon).
-    #[prop(optional)] render_leading: Option<RowRenderer>,
+    #[prop(optional)]
+    render_leading: Option<RowRenderer>,
     /// Nach Name/vnum, vor dem Auswählen-Knopf (z.B. Status-Badge).
-    #[prop(optional)] render_trailing: Option<RowRenderer>,
+    #[prop(optional)]
+    render_trailing: Option<RowRenderer>,
 ) -> impl IntoView {
     let pick_label = pick_label.unwrap_or_else(|| "Auswählen".into());
     let max_height_class = max_height_class.unwrap_or_else(|| "max-h-64".into());

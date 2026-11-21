@@ -2,9 +2,9 @@
 
 use crate::components::{Button, ButtonSize, ButtonVariant, Icon, PageHeader};
 use crate::i18n::t;
-use crate::util::format::{de_datetime, de_int};
 use crate::store::navigation::{nav, EmbeddedModule, Section};
 use crate::tauri::{invoke, invoke_unit};
+use crate::util::format::{de_datetime, de_int};
 use leptos::prelude::*;
 use leptos::task::spawn_local;
 use serde::Deserialize;
@@ -43,11 +43,7 @@ const NON_ACTIVITY_SECTIONS: [Section; 3] = [Section::Dashboard, Section::Settin
 
 /// (Kennung, Übersetzungsschlüssel) aller Module: Sidebar-Bereiche, dann eingebettete Module.
 fn all_modules() -> Vec<(&'static str, &'static str)> {
-    Section::ALL
-        .iter()
-        .map(|s| (s.id(), s.label_key()))
-        .chain(EmbeddedModule::ALL.iter().map(|e| (e.id(), e.label_key())))
-        .collect()
+    Section::ALL.iter().map(|s| (s.id(), s.label_key())).chain(EmbeddedModule::ALL.iter().map(|e| (e.id(), e.label_key()))).collect()
 }
 
 fn module_label(module: &str) -> String {
@@ -112,7 +108,10 @@ pub fn ActivityLog() -> impl IntoView {
         undo_error.set(None);
         spawn_local(async move {
             match invoke_unit("undo_import_batch", &json!({ "id": undo.id })).await {
-                Ok(()) => refresh_key.update(|k| *k += 1),
+                Ok(()) => {
+                    crate::store::icons::clear();
+                    refresh_key.update(|k| *k += 1)
+                }
                 Err(e) => undo_error.set(Some(e)),
             }
             undoing_id.set(None);
@@ -249,22 +248,20 @@ pub fn ActivityLog() -> impl IntoView {
             </Show>
 
             {move || confirm_undo.get().map(|entry| view! {
-                <div class="fixed inset-0 flex items-center justify-center bg-black/50">
-                    <div class="w-96 space-y-3 rounded-lg border border-border bg-card p-4">
-                        <p class="flex items-start gap-2 text-sm">
-                            <Icon name="AlertTriangle" class="mt-0.5 size-4 shrink-0 text-destructive"/>
-                            <span>{format!("{} - endgültig rückgängig machen?", entry.summary)}</span>
-                        </p>
-                        <div class="flex justify-end gap-2">
-                            <Button variant=ButtonVariant::Outline on_click=move |_| confirm_undo.set(None)>
-                                "Abbrechen"
-                            </Button>
-                            <Button variant=ButtonVariant::Destructive on_click=move |_| confirm_import_undo()>
-                                "Endgültig entfernen"
-                            </Button>
-                        </div>
+                <crate::components::Modal class="w-96 space-y-3 rounded-lg border border-border bg-card p-4">
+                    <p class="flex items-start gap-2 text-sm">
+                        <Icon name="AlertTriangle" class="mt-0.5 size-4 shrink-0 text-destructive"/>
+                        <span>{format!("{} - endgültig rückgängig machen?", entry.summary)}</span>
+                    </p>
+                    <div class="flex justify-end gap-2">
+                        <Button variant=ButtonVariant::Outline on_click=move |_| confirm_undo.set(None)>
+                            "Abbrechen"
+                        </Button>
+                        <Button variant=ButtonVariant::Destructive on_click=move |_| confirm_import_undo()>
+                            "Endgültig entfernen"
+                        </Button>
                     </div>
-                </div>
+                </crate::components::Modal>
             })}
         </div>
     }

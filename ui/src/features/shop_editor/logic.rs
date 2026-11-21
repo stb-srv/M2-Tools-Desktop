@@ -88,30 +88,7 @@ pub fn update_rows(next: i64, columns: i64) -> (i64, i64) {
     (new_cols, clamped)
 }
 
-/// Verhält sich wie JavaScripts `Number(s)`: Leerraum wird ignoriert, ein
-/// leerer String ist 0, `0x`/`0o`/`0b`-Präfixe sind erlaubt, alles andere
-/// Ungültige ergibt NaN.
-pub fn js_number(s: &str) -> f64 {
-    let t = s.trim();
-    if t.is_empty() {
-        return 0.0;
-    }
-    for (prefix, radix) in [("0x", 16), ("0X", 16), ("0o", 8), ("0O", 8), ("0b", 2), ("0B", 2)] {
-        if let Some(rest) = t.strip_prefix(prefix) {
-            return u64::from_str_radix(rest, radix).map(|v| v as f64).unwrap_or(f64::NAN);
-        }
-    }
-    match t {
-        "Infinity" | "+Infinity" => return f64::INFINITY,
-        "-Infinity" => return f64::NEG_INFINITY,
-        _ => {}
-    }
-    // Rust akzeptiert zusätzlich "inf"/"nan" - JS nicht.
-    if t.chars().any(|c| c.is_ascii_alphabetic() && c != 'e' && c != 'E') {
-        return f64::NAN;
-    }
-    t.parse::<f64>().unwrap_or(f64::NAN)
-}
+pub use crate::util::num::js_number;
 
 /// JSON-Wert einer JS-Zahl (NaN/Infinity werden wie bei `JSON.stringify` zu null).
 pub fn js_number_json(x: f64) -> serde_json::Value {

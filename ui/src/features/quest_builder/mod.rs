@@ -18,9 +18,9 @@ pub mod wiki;
 pub use wiki::QuestWiki;
 
 use crate::components::{toast, Button, ButtonSize, ButtonVariant, Icon, PageHeader};
-use crate::util::log_activity;
-use crate::store::navigation::{nav, report_section_dirty, Section};
+use crate::store::navigation::{report_section_dirty, use_pending_selection, Section};
 use crate::tauri::{invoke, invoke0, invoke_unit, listen, Unlisten};
+use crate::util::log_activity;
 use code_editor::{CodeEditor, CodeEditorHandle};
 use components::CreateQuestModal;
 use leptos::prelude::*;
@@ -170,9 +170,7 @@ pub fn QuestBuilder() -> impl IntoView {
     load_files();
     // Globale Suche (Strg+Umschalt+F) springt hierher mit dem relative_path
     // eines Quest-Treffers.
-    if let Some(target) = nav().consume_pending_selection(Section::QuestBuilder) {
-        open_file(target);
-    }
+    use_pending_selection(Section::QuestBuilder, open_file);
 
     // Ausgabe des Kompilier-Befehls mitschreiben.
     let unlisten = StoredValue::new_local(None::<Unlisten>);
@@ -233,7 +231,13 @@ pub fn QuestBuilder() -> impl IntoView {
                         _ => "Gespeichert.".to_string(),
                     }));
                     dirty.try_set(false);
-                    log_activity(Section::QuestBuilder.into(), "update", &format!("Quest '{path}' gespeichert"), Some("quest"), Some(&path));
+                    log_activity(
+                        Section::QuestBuilder.into(),
+                        "update",
+                        &format!("Quest '{path}' gespeichert"),
+                        Some("quest"),
+                        Some(&path),
+                    );
                 }
                 Err(e) => {
                     save_error.try_set(Some(e));
@@ -304,8 +308,7 @@ pub fn QuestBuilder() -> impl IntoView {
                 invoke::<Option<String>>("get_setting", &json!({ "key": key })).await.ok().flatten().filter(|s| !s.is_empty())
             };
             let workdir = setting("server_workdir").await.unwrap_or_else(|| "/usr/home/game".to_string());
-            let command =
-                setting("server_cmd_reload_quests").await.unwrap_or_else(|| format!("cd {workdir} && echo 4 | sh index.sh"));
+            let command = setting("server_cmd_reload_quests").await.unwrap_or_else(|| crate::util::shell::index_sh_command(&workdir, 4));
             match invoke::<CommandResult>("run_server_command", &json!({ "command": command })).await {
                 Ok(r) => {
                     if let Some(code) = r.exit_status.filter(|c| *c != 0) {
@@ -448,7 +451,21 @@ pub fn QuestBuilder() -> impl IntoView {
                                             let p2 = path.clone();
                                             view! {
                                                 <div
-                                                    on:click=move |_| open_file(path.clone())
+                                                    role="button"
+                                                    tabindex="0"
+                                                    on:click={
+                                                        let path = path.clone();
+                                                        move |_| open_file(path.clone())
+                                                    }
+                                                    on:keydown={
+                                                        let path = path.clone();
+                                                        move |e| {
+                                                            if e.key() == "Enter" || e.key() == " " {
+                                                                e.prevent_default();
+                                                                open_file(path.clone());
+                                                            }
+                                                        }
+                                                    }
                                                     class=move || {
                                                         if selected_path.with(|s| s.as_deref() == Some(p2.as_str())) {
                                                             "cursor-pointer rounded-md border border-border p-2 text-sm hover:bg-muted bg-muted"
@@ -648,43 +665,39 @@ pub fn QuestBuilder() -> impl IntoView {
                 </Show>
 
                 <Show when=move || delete_confirm.get()>
-                    <div class="fixed inset-0 flex items-center justify-center bg-black/50">
-                        <div class="w-96 space-y-3 rounded-lg border border-border bg-card p-4">
-                            <p class="flex items-start gap-2 text-sm">
-                                <Icon name="AlertTriangle" class="mt-0.5 size-4 shrink-0 text-destructive"/>
-                                <span>
-                                    <code>{move || selected_path.get().unwrap_or_default()}</code>
-                                    " wird aus "
-                                    <code>"quest_list"</code>
-                                    " entfernt und die Quelldatei ins Backup-Verzeichnis verschoben (kein endgültiges Löschen)."
-                                </span>
-                            </p>
-                            <div class="flex justify-end gap-2">
-                                <Button variant=ButtonVariant::Outline on_click=move |_| delete_confirm.set(false)>
-                                    "Abbrechen"
-                                </Button>
-                                <Button variant=ButtonVariant::Destructive on_click=move |_| confirm_delete()>
-                                    "Entfernen"
-                                </Button>
-                            </div>
+                    <crate::components::Modal class="w-96 space-y-3 rounded-lg border border-border bg-card p-4">
+                        <p class="flex items-start gap-2 text-sm">
+                            <Icon name="AlertTriangle" class="mt-0.5 size-4 shrink-0 text-destructive"/>
+                            <span>
+                                <code>{move || selected_path.get().unwrap_or_default()}</code>
+                                " wird aus "
+                                <code>"quest_list"</code>
+                                " entfernt und die Quelldatei ins Backup-Verzeichnis verschoben (kein endgültiges Löschen)."
+                            </span>
+                        </p>
+                        <div class="flex justify-end gap-2">
+                            <Button variant=ButtonVariant::Outline on_click=move |_| delete_confirm.set(false)>
+                                "Abbrechen"
+                            </Button>
+                            <Button variant=ButtonVariant::Destructive on_click=move |_| confirm_delete()>
+                                "Entfernen"
+                            </Button>
                         </div>
-                    </div>
+                    </crate::components::Modal>
                 </Show>
 
                 <Show when=move || deploy_open.get()>
-                    <div class="fixed inset-0 flex items-center justify-center bg-black/50">
-                        <div class="flex max-h-[70vh] w-[36rem] flex-col gap-3 rounded-lg border border-border bg-card p-4">
-                            <div class="flex items-center justify-between">
-                                <p class="text-sm font-medium">"Quests kompilieren & neu laden"</p>
-                                <button on:click=move |_| deploy_open.set(false) class="text-muted-foreground hover:text-foreground">
-                                    <Icon name="X" class="size-4"/>
-                                </button>
-                            </div>
-                            <pre class="min-h-0 flex-1 overflow-auto whitespace-pre-wrap rounded-md border border-border bg-muted/30 p-2 font-mono text-xs">
-                                {move || deploy_log.with(|l| if l.is_empty() { "…".to_string() } else { l.concat() })}
-                            </pre>
+                    <crate::components::Modal class="flex max-h-[70vh] w-[36rem] flex-col gap-3 rounded-lg border border-border bg-card p-4">
+                        <div class="flex items-center justify-between">
+                            <p class="text-sm font-medium">"Quests kompilieren & neu laden"</p>
+                            <button on:click=move |_| deploy_open.set(false) class="text-muted-foreground hover:text-foreground">
+                                <Icon name="X" class="size-4"/>
+                            </button>
                         </div>
-                    </div>
+                        <pre class="min-h-0 flex-1 overflow-auto whitespace-pre-wrap rounded-md border border-border bg-muted/30 p-2 font-mono text-xs">
+                            {move || deploy_log.with(|l| if l.is_empty() { "…".to_string() } else { l.concat() })}
+                        </pre>
+                    </crate::components::Modal>
                 </Show>
             </div>
         }

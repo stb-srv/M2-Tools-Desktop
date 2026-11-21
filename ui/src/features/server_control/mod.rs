@@ -48,7 +48,13 @@ struct ServerAction {
 }
 
 const ACTIONS: [ServerAction; 4] = [
-    ServerAction { id: ActionId::Start, label_key: "serverControl.startServer", icon: "Play", variant: ButtonVariant::Default, confirm: None },
+    ServerAction {
+        id: ActionId::Start,
+        label_key: "serverControl.startServer",
+        icon: "Play",
+        variant: ButtonVariant::Default,
+        confirm: None,
+    },
     ServerAction {
         id: ActionId::Stop,
         label_key: "serverControl.stopServer",
@@ -63,7 +69,13 @@ const ACTIONS: [ServerAction; 4] = [
         variant: ButtonVariant::Destructive,
         confirm: Some("Alle Logdateien werden unwiderruflich gelöscht."),
     },
-    ServerAction { id: ActionId::ReloadQuests, label_key: "serverControl.reloadQuests", icon: "RefreshCw", variant: ButtonVariant::Outline, confirm: None },
+    ServerAction {
+        id: ActionId::ReloadQuests,
+        label_key: "serverControl.reloadQuests",
+        icon: "RefreshCw",
+        variant: ButtonVariant::Outline,
+        confirm: None,
+    },
 ];
 
 impl ActionId {
@@ -101,7 +113,7 @@ const DEFAULT_WORKDIR: &str = "/usr/home/game";
 /// Das typische Metin2-Steuerskript zeigt ein Menü und liest eine Zahl von
 /// stdin - jede Aktion ist also dieses Skript mit der passenden Menüauswahl.
 fn default_command(workdir: &str, choice: u32) -> String {
-    format!("cd {workdir} && echo {choice} | sh index.sh")
+    crate::util::shell::index_sh_command(workdir, choice)
 }
 
 #[derive(Clone, Copy, PartialEq, Eq, Debug)]
@@ -175,7 +187,8 @@ pub fn ServerControl() -> impl IntoView {
     Effect::new(move |_| {
         profiles.revision.track();
         spawn_local(async move {
-            let saved_workdir = get_setting("server_workdir").await.filter(|s| !s.is_empty()).unwrap_or_else(|| DEFAULT_WORKDIR.to_string());
+            let saved_workdir =
+                get_setting("server_workdir").await.filter(|s| !s.is_empty()).unwrap_or_else(|| DEFAULT_WORKDIR.to_string());
             workdir.set(saved_workdir.clone());
 
             let mut loaded: [String; 4] = Default::default();
@@ -481,49 +494,45 @@ pub fn ServerControl() -> impl IntoView {
                 let action = id.action();
                 let label_key = action.label_key;
                 view! {
-                    <div class="fixed inset-0 flex items-center justify-center bg-black/50">
-                        <div class="w-96 space-y-3 rounded-lg border border-border bg-card p-4">
-                            <p class="text-sm font-medium">{move || t(label_key)}</p>
-                            <p class="text-sm text-muted-foreground">{action.confirm.unwrap_or_default()}</p>
-                            <pre class="overflow-x-auto rounded-md bg-muted/50 p-2 font-mono text-xs">{move || cmd(id)}</pre>
-                            <div class="flex justify-end gap-2">
-                                <Button variant=ButtonVariant::Outline on_click=move |_| confirm_action.set(None)>
-                                    {move || t("common.cancel")}
-                                </Button>
-                                <Button variant=ButtonVariant::Destructive on_click=move |_| execute(id)>
-                                    "Ausführen"
-                                </Button>
-                            </div>
+                    <crate::components::Modal class="w-96 space-y-3 rounded-lg border border-border bg-card p-4">
+                        <p class="text-sm font-medium">{move || t(label_key)}</p>
+                        <p class="text-sm text-muted-foreground">{action.confirm.unwrap_or_default()}</p>
+                        <pre class="overflow-x-auto rounded-md bg-muted/50 p-2 font-mono text-xs">{move || cmd(id)}</pre>
+                        <div class="flex justify-end gap-2">
+                            <Button variant=ButtonVariant::Outline on_click=move |_| confirm_action.set(None)>
+                                {move || t("common.cancel")}
+                            </Button>
+                            <Button variant=ButtonVariant::Destructive on_click=move |_| execute(id)>
+                                "Ausführen"
+                            </Button>
                         </div>
-                    </div>
+                    </crate::components::Modal>
                 }
             })}
 
             <Show when=move || restart_confirm.get()>
-                <div class="fixed inset-0 flex items-center justify-center bg-black/50">
-                    <div class="w-96 space-y-3 rounded-lg border border-border bg-card p-4">
-                        <p class="text-sm font-medium">"Neustarten"</p>
-                        <p class="text-sm text-muted-foreground">
-                            "Der Server wird heruntergefahren, alle Spieler werden getrennt, und nach "
-                            {move || {
-                                let d = restart_delay.get();
-                                if d.is_empty() { "0".to_string() } else { d }
-                            }}
-                            "s wieder gestartet."
-                        </p>
-                        <pre class="overflow-x-auto rounded-md bg-muted/50 p-2 font-mono text-xs">
-                            {move || format!("{}\n{}", cmd(ActionId::Stop), cmd(ActionId::Start))}
-                        </pre>
-                        <div class="flex justify-end gap-2">
-                            <Button variant=ButtonVariant::Outline on_click=move |_| restart_confirm.set(false)>
-                                {move || t("common.cancel")}
-                            </Button>
-                            <Button variant=ButtonVariant::Destructive on_click=move |_| execute_restart()>
-                                "Ausführen"
-                            </Button>
-                        </div>
+                <crate::components::Modal class="w-96 space-y-3 rounded-lg border border-border bg-card p-4">
+                    <p class="text-sm font-medium">"Neustarten"</p>
+                    <p class="text-sm text-muted-foreground">
+                        "Der Server wird heruntergefahren, alle Spieler werden getrennt, und nach "
+                        {move || {
+                            let d = restart_delay.get();
+                            if d.is_empty() { "0".to_string() } else { d }
+                        }}
+                        "s wieder gestartet."
+                    </p>
+                    <pre class="overflow-x-auto rounded-md bg-muted/50 p-2 font-mono text-xs">
+                        {move || format!("{}\n{}", cmd(ActionId::Stop), cmd(ActionId::Start))}
+                    </pre>
+                    <div class="flex justify-end gap-2">
+                        <Button variant=ButtonVariant::Outline on_click=move |_| restart_confirm.set(false)>
+                            {move || t("common.cancel")}
+                        </Button>
+                        <Button variant=ButtonVariant::Destructive on_click=move |_| execute_restart()>
+                            "Ausführen"
+                        </Button>
                     </div>
-                </div>
+                </crate::components::Modal>
             </Show>
         </div>
     }
@@ -535,7 +544,7 @@ mod tests {
 
     #[test]
     fn default_commands() {
-        assert_eq!(default_command("/usr/home/game", 1), "cd /usr/home/game && echo 1 | sh index.sh");
+        assert_eq!(default_command("/usr/home/game", 1), "cd '/usr/home/game' && echo 1 | sh index.sh");
         assert_eq!(ActionId::ReloadQuests.default_choice(), 4);
     }
 

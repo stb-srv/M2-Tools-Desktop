@@ -8,12 +8,8 @@ use serde_json::json;
 /// frontend crash-watch) all just call this with their own message.
 pub async fn send_webhook_message(url: &str, content: &str) -> Result<(), String> {
     let client = reqwest::Client::new();
-    let response = client
-        .post(url)
-        .json(&json!({ "content": content }))
-        .send()
-        .await
-        .map_err(|e| format!("Webhook-Anfrage fehlgeschlagen: {e}"))?;
+    let response =
+        client.post(url).json(&json!({ "content": content })).send().await.map_err(|e| format!("Webhook-Anfrage fehlgeschlagen: {e}"))?;
     if !response.status().is_success() {
         return Err(format!("Webhook antwortete mit Status {}", response.status()));
     }

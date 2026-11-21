@@ -3,9 +3,9 @@
 
 use crate::components::{Button, ButtonSize, ButtonVariant, Icon, PageHeader};
 use crate::features::server_control::util::{auto_scroll, listen_while_mounted};
-use crate::util::format::de_datetime;
 use crate::store::navigation::Section;
 use crate::tauri::{invoke, invoke0};
+use crate::util::format::de_datetime;
 use leptos::prelude::*;
 use leptos::task::spawn_local;
 use serde::Deserialize;
@@ -180,7 +180,8 @@ pub fn BuildDeploy() -> impl IntoView {
         push_log("\n[Baue Server-Quellcode (Arbeitskopie — Live-Server bleibt unberührt)…]\n".into());
         // Bibliotheken immer vor den Programmdateien, die sie brauchen -
         // Reihenfolge unabhängig von der Klick-Reihenfolge des Nutzers.
-        let ordered: Vec<String> = selected.with_untracked(|sel| t.libs.iter().chain(t.bins.iter()).filter(|x| sel.contains(*x)).cloned().collect());
+        let ordered: Vec<String> =
+            selected.with_untracked(|sel| t.libs.iter().chain(t.bins.iter()).filter(|x| sel.contains(*x)).cloned().collect());
         let source_root = setting("build_scratch_source_root");
         let clean = clean_build.get_untracked();
         spawn_local(async move {
@@ -532,78 +533,74 @@ pub fn BuildDeploy() -> impl IntoView {
 
             // Einspiel-Bestätigung
             <Show when=move || deploy_confirming.get()>
-                <div class="fixed inset-0 z-10 flex items-center justify-center bg-black/50">
-                    <div class="w-[28rem] space-y-3 rounded-lg border border-border bg-card p-4">
-                        <p class="flex items-start gap-2 text-sm font-medium">
-                            <Icon name="AlertTriangle" class="mt-0.5 size-4 shrink-0 text-destructive"/>
-                            "Live-Server ersetzen"
-                        </p>
-                        <p class="text-sm text-muted-foreground">
-                            "Dies stoppt Server/Channel + Login-Server, sichert die aktuelle(n) Programmdatei(en) ("
-                            {move || deploy_targets().join(", ")}
-                            ") und ersetzt sie live. Danach wird automatisch neu gestartet."
-                        </p>
-                        <p class="text-sm">
-                            "Tippe zum Bestätigen exakt: "<code class="rounded bg-muted px-1">{DEPLOY_PHRASE}</code>
-                        </p>
-                        <input
-                            node_ref=deploy_input
-                            prop:value=move || deploy_confirm_text.get()
-                            on:input=move |e| deploy_confirm_text.set(event_target_value(&e))
-                            class=MODAL_INPUT
-                        />
-                        <div class="flex justify-end gap-2">
-                            <Button variant=ButtonVariant::Outline on_click=move |_| deploy_confirming.set(false)>
-                                "Abbrechen"
-                            </Button>
-                            <Button
-                                variant=ButtonVariant::Destructive
-                                disabled=Signal::derive(move || deploy_confirm_text.get() != DEPLOY_PHRASE)
-                                on_click=move |_| run_deploy()
-                            >
-                                "Einspielen"
-                            </Button>
-                        </div>
+                <crate::components::Modal class="w-[28rem] space-y-3 rounded-lg border border-border bg-card p-4" overlay_class="z-10">
+                    <p class="flex items-start gap-2 text-sm font-medium">
+                        <Icon name="AlertTriangle" class="mt-0.5 size-4 shrink-0 text-destructive"/>
+                        "Live-Server ersetzen"
+                    </p>
+                    <p class="text-sm text-muted-foreground">
+                        "Dies stoppt Server/Channel + Login-Server, sichert die aktuelle(n) Programmdatei(en) ("
+                        {move || deploy_targets().join(", ")}
+                        ") und ersetzt sie live. Danach wird automatisch neu gestartet."
+                    </p>
+                    <p class="text-sm">
+                        "Tippe zum Bestätigen exakt: "<code class="rounded bg-muted px-1">{DEPLOY_PHRASE}</code>
+                    </p>
+                    <input
+                        node_ref=deploy_input
+                        prop:value=move || deploy_confirm_text.get()
+                        on:input=move |e| deploy_confirm_text.set(event_target_value(&e))
+                        class=MODAL_INPUT
+                    />
+                    <div class="flex justify-end gap-2">
+                        <Button variant=ButtonVariant::Outline on_click=move |_| deploy_confirming.set(false)>
+                            "Abbrechen"
+                        </Button>
+                        <Button
+                            variant=ButtonVariant::Destructive
+                            disabled=Signal::derive(move || deploy_confirm_text.get() != DEPLOY_PHRASE)
+                            on_click=move |_| run_deploy()
+                        >
+                            "Einspielen"
+                        </Button>
                     </div>
-                </div>
+                </crate::components::Modal>
             </Show>
 
             // Rückgängig-machen-Bestätigung
             <Show when=move || rollback_confirming.with(|r| r.is_some())>
-                <div class="fixed inset-0 z-10 flex items-center justify-center bg-black/50">
-                    <div class="w-[28rem] space-y-3 rounded-lg border border-border bg-card p-4">
-                        <p class="flex items-start gap-2 text-sm font-medium">
-                            <Icon name="AlertTriangle" class="mt-0.5 size-4 shrink-0 text-destructive"/>
-                            "Rückgängig machen"
-                        </p>
-                        <p class="text-sm text-muted-foreground">
-                            "Stellt die gesicherte(n) Programmdatei(en) von "
-                            {rollback_target_label}
-                            " wieder her und startet den Server neu."
-                        </p>
-                        <p class="text-sm">
-                            "Tippe zum Bestätigen exakt: "<code class="rounded bg-muted px-1">{ROLLBACK_PHRASE}</code>
-                        </p>
-                        <input
-                            node_ref=rollback_input
-                            prop:value=move || rollback_confirm_text.get()
-                            on:input=move |e| rollback_confirm_text.set(event_target_value(&e))
-                            class=MODAL_INPUT
-                        />
-                        <div class="flex justify-end gap-2">
-                            <Button variant=ButtonVariant::Outline on_click=move |_| rollback_confirming.set(None)>
-                                "Abbrechen"
-                            </Button>
-                            <Button
-                                variant=ButtonVariant::Destructive
-                                disabled=Signal::derive(move || rollback_confirm_text.get() != ROLLBACK_PHRASE)
-                                on_click=move |_| run_rollback()
-                            >
-                                "Zurückrollen"
-                            </Button>
-                        </div>
+                <crate::components::Modal class="w-[28rem] space-y-3 rounded-lg border border-border bg-card p-4" overlay_class="z-10">
+                    <p class="flex items-start gap-2 text-sm font-medium">
+                        <Icon name="AlertTriangle" class="mt-0.5 size-4 shrink-0 text-destructive"/>
+                        "Rückgängig machen"
+                    </p>
+                    <p class="text-sm text-muted-foreground">
+                        "Stellt die gesicherte(n) Programmdatei(en) von "
+                        {rollback_target_label}
+                        " wieder her und startet den Server neu."
+                    </p>
+                    <p class="text-sm">
+                        "Tippe zum Bestätigen exakt: "<code class="rounded bg-muted px-1">{ROLLBACK_PHRASE}</code>
+                    </p>
+                    <input
+                        node_ref=rollback_input
+                        prop:value=move || rollback_confirm_text.get()
+                        on:input=move |e| rollback_confirm_text.set(event_target_value(&e))
+                        class=MODAL_INPUT
+                    />
+                    <div class="flex justify-end gap-2">
+                        <Button variant=ButtonVariant::Outline on_click=move |_| rollback_confirming.set(None)>
+                            "Abbrechen"
+                        </Button>
+                        <Button
+                            variant=ButtonVariant::Destructive
+                            disabled=Signal::derive(move || rollback_confirm_text.get() != ROLLBACK_PHRASE)
+                            on_click=move |_| run_rollback()
+                        >
+                            "Zurückrollen"
+                        </Button>
                     </div>
-                </div>
+                </crate::components::Modal>
             </Show>
         </div>
     }

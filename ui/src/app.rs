@@ -6,9 +6,10 @@
 use crate::components::{command_palette::CommandPalette, crash_watch::CrashWatch, global_search::GlobalSearch, whats_new::WhatsNewDialog};
 use crate::features as f;
 use crate::layout::Sidebar;
-use crate::util::connection::{auto_connect_mysql, get_setting};
+use crate::store::connection_profiles::connection_profiles;
 use crate::store::navigation::{nav, Section};
 use crate::store::update::update_store;
+use crate::util::connection::{auto_connect_mysql, get_setting};
 use leptos::prelude::*;
 use leptos::task::spawn_local;
 
@@ -49,7 +50,15 @@ fn SectionSlot(section: Section, visited: RwSignal<Vec<Section>>) -> impl IntoVi
     view! {
         <Show when=move || visited.with(|v| v.contains(&section))>
             <div class=move || if n.section.get() == section { "h-full" } else { "h-full hidden" }>
-                {section_view(section)}
+                {move || {
+                    // Nach einem Serverwechsel verwerfen alle Bereiche ihren
+                    // geladenen Stand (neu mounten). Die Einstellungen bleiben
+                    // stehen: dort läuft der Wechsel selbst ab.
+                    if section != Section::Settings {
+                        connection_profiles().revision.track();
+                    }
+                    section_view(section)
+                }}
             </div>
         </Show>
     }
@@ -64,6 +73,26 @@ pub fn App() -> impl IntoView {
         if !visited.with_untracked(|v| v.contains(&s)) {
             visited.update(|v| v.push(s));
         }
+    });
+
+    // Close-Guard: das Backend hält das Schließen an und fragt hier nach.
+    spawn_local(async move {
+        let busy = std::rc::Rc::new(std::cell::Cell::new(false));
+        let _ = crate::tauri::listen::<serde_json::Value>("close-requested", move |_| {
+            if busy.replace(true) {
+                return;
+            }
+            let busy = busy.clone();
+            spawn_local(async move {
+                // Sofort bestätigen, damit das Backend nicht per Timeout schließt.
+                let _ = crate::tauri::invoke_unit("ack_close_request", &serde_json::json!({})).await;
+                if crate::util::confirm::confirm_discard_all("Anwendung schließen").await {
+                    let _ = crate::tauri::invoke_unit("close_window_now", &serde_json::json!({})).await;
+                }
+                busy.set(false);
+            });
+        })
+        .await;
     });
 
     let setup_checked = RwSignal::new(false);

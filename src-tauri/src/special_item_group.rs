@@ -102,21 +102,17 @@ pub fn parse(content: &str) -> Result<Vec<SpecialItemGroup>, String> {
         }
         let name = tokens[1].to_string();
 
-        let (line_no, line) =
-            next_nonblank(&mut lines).ok_or_else(|| format!("Unerwartetes Dateiende nach 'Group {name}'"))?;
+        let (line_no, line) = next_nonblank(&mut lines).ok_or_else(|| format!("Unerwartetes Dateiende nach 'Group {name}'"))?;
         if line.trim() != "{" {
             return Err(format!("Zeile {}: '{{' erwartet, gefunden: {line:?}", line_no + 1));
         }
 
-        let (line_no, line) =
-            next_nonblank(&mut lines).ok_or_else(|| format!("Unerwartetes Dateiende in Group '{name}'"))?;
+        let (line_no, line) = next_nonblank(&mut lines).ok_or_else(|| format!("Unerwartetes Dateiende in Group '{name}'"))?;
         let tokens: Vec<&str> = line.split_whitespace().collect();
         if tokens.len() != 2 || tokens[0] != "Vnum" {
             return Err(format!("Zeile {}: 'Vnum <vnum>' erwartet, gefunden: {line:?}", line_no + 1));
         }
-        let vnum: i32 = tokens[1]
-            .parse()
-            .map_err(|_| format!("Zeile {}: ungültige Vnum '{}'", line_no + 1, tokens[1]))?;
+        let vnum: i32 = tokens[1].parse().map_err(|_| format!("Zeile {}: ungültige Vnum '{}'", line_no + 1, tokens[1]))?;
 
         // Optional 'Type <kind>' line - peek without consuming so a
         // group with no Type line falls straight through to entries.
@@ -141,8 +137,7 @@ pub fn parse(content: &str) -> Result<Vec<SpecialItemGroup>, String> {
 
         let mut entries = Vec::new();
         loop {
-            let (line_no, line) =
-                next_nonblank(&mut lines).ok_or_else(|| format!("Unerwartetes Dateiende in Group '{name}'"))?;
+            let (line_no, line) = next_nonblank(&mut lines).ok_or_else(|| format!("Unerwartetes Dateiende in Group '{name}'"))?;
             if line.trim() == "}" {
                 break;
             }
@@ -156,9 +151,7 @@ pub fn parse(content: &str) -> Result<Vec<SpecialItemGroup>, String> {
             // tokens[0] is the sequential index - must be numeric (that's
             // what distinguishes a real entry line from garbage) but its
             // value is never trusted; serialize() always recomputes it.
-            tokens[0]
-                .parse::<u32>()
-                .map_err(|_| format!("Zeile {}: ungültige laufende Nummer '{}'", line_no + 1, tokens[0]))?;
+            tokens[0].parse::<u32>().map_err(|_| format!("Zeile {}: ungültige laufende Nummer '{}'", line_no + 1, tokens[0]))?;
 
             let item_ref = tokens[1].to_string();
             if !is_special_keyword(&item_ref) && item_ref.parse::<u32>().is_err() {
@@ -169,18 +162,10 @@ pub fn parse(content: &str) -> Result<Vec<SpecialItemGroup>, String> {
                     SPECIAL_KEYWORDS.join(", ")
                 ));
             }
-            let count: i32 = tokens[2]
-                .parse()
-                .map_err(|_| format!("Zeile {}: ungültige Anzahl '{}'", line_no + 1, tokens[2]))?;
-            let prob: i32 = tokens[3]
-                .parse()
-                .map_err(|_| format!("Zeile {}: ungültiges Gewicht '{}'", line_no + 1, tokens[3]))?;
+            let count: i32 = tokens[2].parse().map_err(|_| format!("Zeile {}: ungültige Anzahl '{}'", line_no + 1, tokens[2]))?;
+            let prob: i32 = tokens[3].parse().map_err(|_| format!("Zeile {}: ungültiges Gewicht '{}'", line_no + 1, tokens[3]))?;
             let rare_pct = if tokens.len() == 5 {
-                Some(
-                    tokens[4]
-                        .parse::<i32>()
-                        .map_err(|_| format!("Zeile {}: ungültiger Selten-Wert '{}'", line_no + 1, tokens[4]))?,
-                )
+                Some(tokens[4].parse::<i32>().map_err(|_| format!("Zeile {}: ungültiger Selten-Wert '{}'", line_no + 1, tokens[4]))?)
             } else {
                 None
             };
@@ -264,10 +249,7 @@ mod tests {
         assert_eq!(groups[0].vnum, 50082);
         assert_eq!(groups[0].group_type, None);
         assert_eq!(groups[0].entries.len(), 3);
-        assert_eq!(
-            groups[0].entries[0],
-            SpecialItemGroupEntry { item_ref: "19".into(), count: 1, prob: 1, rare_pct: None }
-        );
+        assert_eq!(groups[0].entries[0], SpecialItemGroupEntry { item_ref: "19".into(), count: 1, prob: 1, rare_pct: None });
 
         // Group with special keywords instead of item vnums.
         assert_eq!(groups[2].name, "test3");

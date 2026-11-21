@@ -4,6 +4,7 @@
 // Bridged via a 32-bit sidecar binary (gr2-sidecar/) that loads the user's own
 // client DLL and reports mesh data back as JSON. See m2manager-gr2-reference.
 
+#![cfg_attr(not(windows), allow(dead_code, unused_imports))]
 use serde::{Deserialize, Serialize};
 use std::path::PathBuf;
 use std::process::Command;
@@ -40,9 +41,18 @@ struct SidecarOutput {
     error: Option<String>,
 }
 
+/// Sucht den GR2-Sidecar. Im ausgelieferten Build liegt er (per Tauri
+/// `externalBin`) direkt neben `M2Manager.exe`; im Entwicklungs-Build fällt die
+/// Suche auf den lokalen Cargo-Ausgabeordner des Sidecars zurück.
 fn sidecar_path() -> PathBuf {
-    // Dev-time resolution only - production builds must bundle this via
-    // Tauri's externalBin sidecar mechanism instead (not yet wired up).
+    if let Some(dir) = std::env::current_exe().ok().and_then(|p| p.parent().map(|d| d.to_path_buf())) {
+        let bundled = dir.join("gr2-sidecar.exe");
+        if bundled.exists() {
+            return bundled;
+        }
+    }
+    // Dev-Fallback: mit `cargo build --release --target i686-pc-windows-msvc`
+    // im gr2-sidecar-Ordner gebaut.
     PathBuf::from(env!("CARGO_MANIFEST_DIR"))
         .join("gr2-sidecar")
         .join("target")
@@ -51,11 +61,17 @@ fn sidecar_path() -> PathBuf {
         .join("gr2-sidecar.exe")
 }
 
+#[cfg(not(windows))]
+pub fn parse(_granny_dll_path: &str, _gr2_path: &str) -> Result<ModelInfo, String> {
+    Err("Der 3D-Viewer ist nur unter Windows verfügbar.".to_string())
+}
+
+#[cfg(windows)]
 pub fn parse(granny_dll_path: &str, gr2_path: &str) -> Result<ModelInfo, String> {
     let sidecar = sidecar_path();
     if !sidecar.exists() {
         return Err(format!(
-            "GR2-Sidecar nicht gefunden unter {}. Mit 'cargo build --release --target i686-pc-windows-msvc' im gr2-sidecar-Ordner bauen.",
+            "GR2-Sidecar nicht gefunden unter {}. Im Entwicklungs-Build mit 'cargo build --release --target i686-pc-windows-msvc' im gr2-sidecar-Ordner bauen.",
             sidecar.display()
         ));
     }
@@ -67,30 +83,22 @@ pub fn parse(granny_dll_path: &str, gr2_path: &str) -> Result<ModelInfo, String>
         use std::os::windows::process::CommandExt;
         cmd.creation_flags(crate::packtools::CREATE_NO_WINDOW);
     }
-    let output = cmd
-        .output()
-        .map_err(|e| format!("GR2-Sidecar konnte nicht gestartet werden: {e}"))?;
+    let output = cmd.output().map_err(|e| format!("GR2-Sidecar konnte nicht gestartet werden: {e}"))?;
 
     let stdout = String::from_utf8_lossy(&output.stdout);
-    let parsed: SidecarOutput = serde_json::from_str(stdout.trim())
-        .map_err(|e| format!("Ungültige Antwort vom GR2-Sidecar: {e} (stdout: {stdout})"))?;
+    let parsed: SidecarOutput =
+        serde_json::from_str(stdout.trim()).map_err(|e| format!("Ungültige Antwort vom GR2-Sidecar: {e} (stdout: {stdout})"))?;
 
     if !parsed.ok {
-        return Err(parsed
-            .error
-            .unwrap_or_else(|| "Unbekannter Fehler im GR2-Sidecar".to_string()));
+        return Err(parsed.error.unwrap_or_else(|| "Unbekannter Fehler im GR2-Sidecar".to_string()));
     }
 
-    let mut model = parsed
-        .data
-        .ok_or_else(|| "GR2-Sidecar meldete Erfolg ohne Daten".to_string())?;
+    let mut model = parsed.data.ok_or_else(|| "GR2-Sidecar meldete Erfolg ohne Daten".to_string())?;
 
     // Textures live next to the .gr2 as .dds; a model without one still renders
     // untextured, so a failed lookup must not fail the whole load.
     for mesh in &mut model.meshes {
-        mesh.texture =
-            crate::textures::load_texture_data_url(gr2_path, mesh.texture_name.as_deref())
-                .unwrap_or(None);
+        mesh.texture = crate::textures::load_texture_data_url(gr2_path, mesh.texture_name.as_deref()).unwrap_or(None);
     }
 
     Ok(model)
@@ -107,9 +115,7 @@ pub fn find_npclist(client_path: &str, override_path: Option<&str>) -> Option<Pa
         }
     }
 
-    let default = std::path::Path::new(client_path)
-        .join("root")
-        .join("npclist.txt");
+    let default = std::path::Path::new(client_path).join("root").join("npclist.txt");
     if default.is_file() {
         return Some(default);
     }
@@ -131,9 +137,7 @@ fn find_file_recursive(dir: &std::path::Path, filename: &str, max_depth: u32) ->
             return Some(path);
         }
     }
-    subdirs
-        .into_iter()
-        .find_map(|d| find_file_recursive(&d, filename, max_depth - 1))
+    subdirs.into_iter().find_map(|d| find_file_recursive(&d, filename, max_depth - 1))
 }
 
 /// Shop NPCs generally have an empty `mob_proto.folder`; the client resolves
@@ -228,12 +232,7 @@ mod tests {
 
         let dll = find_granny_dll(client).expect("granny2.dll not found");
         let parsed = parse(&dll, &model).expect("failed to parse shop NPC model");
-        println!(
-            "meshes: {}, skipped: {}, bones: {}",
-            parsed.meshes.len(),
-            parsed.skipped_meshes,
-            parsed.bone_count
-        );
+        println!("meshes: {}, skipped: {}, bones: {}", parsed.meshes.len(), parsed.skipped_meshes, parsed.bone_count);
         assert!(!parsed.meshes.is_empty(), "shop NPC should yield geometry");
         assert!(parsed.meshes.iter().all(|m| !m.vertices.is_empty()));
     }

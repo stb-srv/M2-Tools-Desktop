@@ -17,7 +17,7 @@ pub fn bounds(meshes: &[Gr2Mesh], rot: Mat4) -> Option<(Vec3, Vec3)> {
     let mut max = Vec3::splat(f32::NEG_INFINITY);
     let mut any = false;
     for m in meshes {
-        for p in m.vertices.chunks_exact(3) {
+        for p in m.vertices.as_chunks::<3>().0 {
             let v = rot.transform_point3(Vec3::new(p[0], p[1], p[2]));
             min = min.min(v);
             max = max.max(v);
@@ -81,11 +81,7 @@ pub fn grid_lines(size: f32, divisions: u32, center_color: u32, grid_color: u32)
 }
 
 pub fn hex_rgb(hex: u32) -> [f32; 3] {
-    [
-        ((hex >> 16) & 0xff) as f32 / 255.0,
-        ((hex >> 8) & 0xff) as f32 / 255.0,
-        (hex & 0xff) as f32 / 255.0,
-    ]
+    [((hex >> 16) & 0xff) as f32 / 255.0, ((hex >> 8) & 0xff) as f32 / 255.0, (hex & 0xff) as f32 / 255.0]
 }
 
 /// sRGB → linear (three.js wandelt Hex-Materialfarben genauso um).

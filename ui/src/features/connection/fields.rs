@@ -2,8 +2,8 @@
 //! den Einstellungen (Verbindung) und dem Setup-Assistenten.
 
 use crate::components::{Button, ButtonSize, ButtonVariant, Icon};
-use crate::util::connection::{mysql_complete, ssh_complete, test_mysql, test_ssh, MysqlValues, SshAuthMode, SshValues};
 use crate::tauri::{dialog_open_one, OpenDialogOptions};
+use crate::util::connection::{mysql_complete, ssh_complete, test_mysql, test_ssh, MysqlValues, SshAuthMode, SshValues};
 use leptos::html;
 use leptos::prelude::*;
 use leptos::task::spawn_local;
@@ -46,6 +46,9 @@ pub fn PasswordField(
     #[prop(into)] value: Signal<String>,
     #[prop(into)] on_change: Callback<String>,
     #[prop(into, optional)] placeholder: Option<String>,
+    /// Es ist schon ein Geheimnis gespeichert (Klartext nie im Webview).
+    #[prop(into, optional)]
+    saved: Signal<bool>,
 ) -> impl IntoView {
     let visible = RwSignal::new(false);
     view! {
@@ -54,7 +57,7 @@ pub fn PasswordField(
                 type=move || if visible.get() { "text" } else { "password" }
                 prop:value=move || value.get()
                 on:input=move |e| on_change.run(event_target_value(&e))
-                placeholder=placeholder
+                placeholder=move || saved_placeholder(saved.get(), placeholder.as_deref().unwrap_or(""))
                 class="w-full rounded-md border border-border bg-background px-3 py-2 pr-8 text-sm"
             />
             <button
@@ -73,11 +76,8 @@ pub fn PasswordField(
 pub fn SshFields(value: RwSignal<SshValues>) -> impl IntoView {
     let pick_key = move |_| {
         spawn_local(async move {
-            let opts = OpenDialogOptions {
-                title: Some("Privaten SSH-Schlüssel auswählen".into()),
-                multiple: false,
-                ..Default::default()
-            };
+            let opts =
+                OpenDialogOptions { title: Some("Privaten SSH-Schlüssel auswählen".into()), multiple: false, ..Default::default() };
             if let Ok(Some(selected)) = dialog_open_one(&opts).await {
                 value.update(|v| v.key_path = selected);
             }
@@ -137,6 +137,7 @@ pub fn SshFields(value: RwSignal<SshValues>) -> impl IntoView {
                         <PasswordField
                             value=Signal::derive(move || value.with(|v| v.password.clone()))
                             on_change=move |s: String| value.update(|v| v.password = s)
+                            saved=Signal::derive(move || value.with(|v| v.password_saved))
                             placeholder="Passwort"
                         />
                     }
@@ -158,6 +159,7 @@ pub fn SshFields(value: RwSignal<SshValues>) -> impl IntoView {
                         <PasswordField
                             value=Signal::derive(move || value.with(|v| v.key_passphrase.clone()))
                             on_change=move |s: String| value.update(|v| v.key_passphrase = s)
+                            saved=Signal::derive(move || value.with(|v| v.passphrase_saved))
                             placeholder="Passphrase (falls vorhanden)"
                         />
                     }
@@ -195,9 +197,20 @@ pub fn MysqlFields(value: RwSignal<MysqlValues>) -> impl IntoView {
             <PasswordField
                 value=Signal::derive(move || value.with(|v| v.password.clone()))
                 on_change=move |s: String| value.update(|v| v.password = s)
+                saved=Signal::derive(move || value.with(|v| v.password_saved))
                 placeholder="Passwort"
             />
         </div>
+    }
+}
+
+/// Platzhalter eines Passwortfelds: gespeicherte Geheimnisse werden nie
+/// angezeigt, nur als „gespeichert“ markiert.
+pub fn saved_placeholder(saved: bool, empty: &str) -> String {
+    if saved {
+        "gespeichert – zum Ändern neu eingeben".to_string()
+    } else {
+        empty.to_string()
     }
 }
 

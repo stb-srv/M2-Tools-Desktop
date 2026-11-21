@@ -3,9 +3,10 @@
 pub mod broadcast_quest;
 
 use crate::components::{Button, ButtonSize, ButtonVariant, Icon, PageHeader};
-use crate::util::{log_activity, use_save_shortcut};
 use crate::store::navigation::{report_section_dirty, ModuleId, Section};
 use crate::tauri::{invoke, invoke0, invoke_unit, listen, Unlisten};
+use crate::util::confirm::confirm_discard_if;
+use crate::util::{log_activity, use_save_shortcut};
 use broadcast_quest::{generate_broadcast_quest, BroadcastMessage};
 use leptos::prelude::*;
 use leptos::task::spawn_local;
@@ -22,17 +23,7 @@ struct ServerCommandResult {
     exit_status: Option<i64>,
 }
 
-/// Wie JavaScripts `Number(s)` (leer = 0, ungültig = NaN).
-fn js_number(s: &str) -> f64 {
-    let t = s.trim();
-    if t.is_empty() {
-        return 0.0;
-    }
-    if t.chars().any(|c| c.is_ascii_alphabetic() && c != 'e' && c != 'E') {
-        return f64::NAN;
-    }
-    t.parse::<f64>().unwrap_or(f64::NAN)
-}
+use crate::util::num::js_number_basic as js_number;
 
 /// Zahl als JSON-Argument (ganzzahlig, wenn möglich - wie JS es serialisiert).
 fn num_value(n: f64) -> Value {
@@ -148,15 +139,10 @@ pub fn BroadcastSystem() -> impl IntoView {
         spawn_local(async move {
             let res = match edit {
                 Some(id) => {
-                    invoke_unit(
-                        "update_broadcast_message",
-                        &json!({ "id": id, "text": trimmed, "intervalMinutes": num_value(minutes) }),
-                    )
-                    .await
+                    invoke_unit("update_broadcast_message", &json!({ "id": id, "text": trimmed, "intervalMinutes": num_value(minutes) }))
+                        .await
                 }
-                None => {
-                    invoke_unit("create_broadcast_message", &json!({ "text": trimmed, "intervalMinutes": num_value(minutes) })).await
-                }
+                None => invoke_unit("create_broadcast_message", &json!({ "text": trimmed, "intervalMinutes": num_value(minutes) })).await,
             };
             match res {
                 Ok(()) => {
@@ -199,11 +185,7 @@ pub fn BroadcastSystem() -> impl IntoView {
                     log_activity(
                         MODULE,
                         if m.enabled { "disable" } else { "enable" },
-                        &format!(
-                            "Broadcast-Nachricht '{}' {}",
-                            truncate(&m.text),
-                            if m.enabled { "deaktiviert" } else { "aktiviert" }
-                        ),
+                        &format!("Broadcast-Nachricht '{}' {}", truncate(&m.text), if m.enabled { "deaktiviert" } else { "aktiviert" }),
                         Some("broadcast-message"),
                         Some(&m.id.to_string()),
                     );
@@ -216,9 +198,8 @@ pub fn BroadcastSystem() -> impl IntoView {
     };
 
     let delete_message = move |id: i64| {
-        let target_text = messages.with_untracked(|m| {
-            m.as_ref().and_then(|m| m.iter().find(|m| m.id == id).map(|m| m.text.clone())).unwrap_or_default()
-        });
+        let target_text =
+            messages.with_untracked(|m| m.as_ref().and_then(|m| m.iter().find(|m| m.id == id).map(|m| m.text.clone())).unwrap_or_default());
         busy_id.set(Some(id));
         error.set(None);
         spawn_local(async move {
@@ -271,7 +252,8 @@ pub fn BroadcastSystem() -> impl IntoView {
                     invoke::<Option<String>>("get_setting", &json!({ "key": key })).await.ok().flatten().filter(|s| !s.is_empty())
                 };
                 let workdir = setting("server_workdir").await.unwrap_or_else(|| "/usr/home/game".into());
-                let command = setting("server_cmd_reload_quests").await.unwrap_or_else(|| format!("cd {workdir} && echo 4 | sh index.sh"));
+                let command =
+                    setting("server_cmd_reload_quests").await.unwrap_or_else(|| crate::util::shell::index_sh_command(&workdir, 4));
 
                 let result = invoke::<ServerCommandResult>("run_server_command", &json!({ "command": command })).await?;
                 match result.exit_status {
@@ -301,7 +283,7 @@ pub fn BroadcastSystem() -> impl IntoView {
         <div class="flex h-full max-w-4xl flex-col gap-4 pb-10">
             <div class="flex items-center justify-between">
                 <PageHeader module=Section::BroadcastSystem title="Broadcast-System".to_string()/>
-                <Button variant=ButtonVariant::Outline on_click=move |_| load() disabled=loading>
+                <Button variant=ButtonVariant::Outline on_click=move |_| confirm_discard_if(dirty.get_untracked(), "Ungespeicherte Änderungen verwerfen und neu laden?", load) disabled=loading>
                     <Icon name="RefreshCw" class=Signal::derive(move || if loading.get() { "size-4 animate-spin".to_string() } else { "size-4 ".to_string() })/>
                     "Neu laden"
                 </Button>
@@ -370,6 +352,7 @@ pub fn BroadcastSystem() -> impl IntoView {
                         <div class="flex items-start gap-2 border-t border-border py-2 first:border-t-0">
                             <button
                                 title=if m.enabled { "Aktiv - klicken zum Deaktivieren" } else { "Deaktiviert - klicken zum Aktivieren" }
+                                aria-label=if m.enabled { "Aktiv - klicken zum Deaktivieren" } else { "Deaktiviert - klicken zum Aktivieren" }
                                 on:click=move |_| toggle_enabled(m_toggle.clone())
                                 disabled=move || busy_id.get() == Some(id)
                                 class=if m.enabled {
@@ -424,33 +407,31 @@ pub fn BroadcastSystem() -> impl IntoView {
             </div>
 
             <Show when=move || deploy_open.get()>
-                <div class="fixed inset-0 flex items-center justify-center bg-black/50">
-                    <div class="flex max-h-[70vh] w-[36rem] flex-col gap-3 rounded-lg border border-border bg-card p-4">
-                        <div class="flex items-center justify-between">
-                            <p class="text-sm font-medium">"Broadcast-System einspielen"</p>
-                            <div class="flex items-center gap-1">
-                                <Button
-                                    variant=ButtonVariant::Ghost
-                                    size=ButtonSize::IconSm
-                                    on_click=move |_| deploy_log.set(vec![])
-                                    disabled=Signal::derive(move || deploy_log.with(|l| l.is_empty()))
-                                    title="Ausgabe leeren"
-                                >
-                                    <Icon name="Eraser" class="size-3.5"/>
-                                </Button>
-                                <button on:click=move |_| deploy_open.set(false) class="text-muted-foreground hover:text-foreground">
-                                    <Icon name="X" class="size-4"/>
-                                </button>
-                            </div>
+                <crate::components::Modal class="flex max-h-[70vh] w-[36rem] flex-col gap-3 rounded-lg border border-border bg-card p-4">
+                    <div class="flex items-center justify-between">
+                        <p class="text-sm font-medium">"Broadcast-System einspielen"</p>
+                        <div class="flex items-center gap-1">
+                            <Button
+                                variant=ButtonVariant::Ghost
+                                size=ButtonSize::IconSm
+                                on_click=move |_| deploy_log.set(vec![])
+                                disabled=Signal::derive(move || deploy_log.with(|l| l.is_empty()))
+                                title="Ausgabe leeren"
+                            >
+                                <Icon name="Eraser" class="size-3.5"/>
+                            </Button>
+                            <button on:click=move |_| deploy_open.set(false) class="text-muted-foreground hover:text-foreground">
+                                <Icon name="X" class="size-4"/>
+                            </button>
                         </div>
-                        <pre
-                            node_ref=log_ref
-                            class="min-h-0 flex-1 overflow-auto whitespace-pre-wrap rounded-md border border-border bg-muted/30 p-2 font-mono text-xs"
-                        >
-                            {move || deploy_log.with(|l| if l.is_empty() { "…".to_string() } else { l.concat() })}
-                        </pre>
                     </div>
-                </div>
+                    <pre
+                        node_ref=log_ref
+                        class="min-h-0 flex-1 overflow-auto whitespace-pre-wrap rounded-md border border-border bg-muted/30 p-2 font-mono text-xs"
+                    >
+                        {move || deploy_log.with(|l| if l.is_empty() { "…".to_string() } else { l.concat() })}
+                    </pre>
+                </crate::components::Modal>
             </Show>
         </div>
     }

@@ -8,12 +8,15 @@ mod bans;
 mod broadcast;
 mod build_deploy;
 mod client_unpack;
+mod clientfs;
 mod commands;
+mod common_drop;
 mod connection_profiles;
 mod credentials;
-mod common_drop;
 mod cube;
 mod db;
+mod db_backup;
+mod deploy_history;
 mod drop_check;
 mod drop_item_group;
 mod entity_cache;
@@ -24,6 +27,7 @@ mod imageconv;
 mod import_history;
 mod item_presets;
 mod itemdesc;
+mod known_hosts;
 mod locale;
 mod m2pkg;
 mod mapdata;
@@ -37,43 +41,85 @@ mod refine;
 mod refine_undo;
 mod regen;
 mod resource_history;
-mod db_backup;
-mod deploy_history;
 mod resources;
-mod webhook;
 mod settings;
 mod special_item_group;
 mod ssh;
 mod state;
-mod textures;
-mod weather;
 #[cfg(test)]
 mod test_support;
+mod textures;
+mod weather;
+mod webhook;
 
 use state::AppState;
-use tauri::Manager;
+use std::sync::atomic::{AtomicBool, AtomicU64, Ordering};
+use tauri::{Emitter, Manager};
+
+/// Close-Guard: Beim Schließen des Hauptfensters fragt das Frontend erst nach,
+/// wenn ungespeicherte Änderungen existieren. Antwortet es nicht (abgestürzt,
+/// noch nicht geladen), schließt das Fenster nach `CLOSE_ACK_TIMEOUT`
+/// trotzdem; ein zweiter Klick auf "Schließen" vor der Antwort schließt sofort.
+const CLOSE_ACK_TIMEOUT: std::time::Duration = std::time::Duration::from_secs(3);
+static CLOSE_PENDING: AtomicBool = AtomicBool::new(false);
+static CLOSE_SEQ: AtomicU64 = AtomicU64::new(0);
+
+/// Das Frontend hat die Schließen-Anfrage erhalten und übernimmt (Timeout entfällt).
+#[tauri::command]
+fn ack_close_request() {
+    CLOSE_PENDING.store(false, Ordering::SeqCst);
+}
+
+/// Schließt das aufrufende Fenster endgültig, ohne erneut nachzufragen.
+#[tauri::command]
+fn close_window_now(window: tauri::Window) {
+    let _ = window.destroy();
+}
 
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
+    // reqwest nutzt rustls ohne eingebauten Provider (wie der Updater); ohne
+    // Default-Provider würde z. B. der Discord-Webhook beim ersten Aufruf abbrechen.
+    let _ = rustls::crypto::ring::default_provider().install_default();
     tauri::Builder::default()
         .plugin(tauri_plugin_opener::init())
         .plugin(tauri_plugin_dialog::init())
         .plugin(tauri_plugin_updater::Builder::new().build())
         .plugin(tauri_plugin_process::init())
         .setup(|app| {
-            let app_data_dir = app
-                .path()
-                .app_data_dir()
-                .expect("app data dir should be resolvable");
-            let settings_db =
-                settings::init_db(&app_data_dir).expect("failed to initialize settings database");
-            app.manage(AppState {
-                mysql_pool: Default::default(),
-                settings_db: std::sync::Mutex::new(settings_db),
-            });
+            let app_data_dir = app.path().app_data_dir().expect("app data dir should be resolvable");
+            let settings_db = settings::init_db(&app_data_dir).expect("failed to initialize settings database");
+            known_hosts::init(&app_data_dir, app.handle().clone());
+            app.manage(AppState { mysql_pool: Default::default(), settings_db: std::sync::Mutex::new(settings_db) });
             Ok(())
         })
+        .on_window_event(|window, event| {
+            if window.label() != "main" {
+                return;
+            }
+            if let tauri::WindowEvent::CloseRequested { api, .. } = event {
+                // Zweiter Klick, solange das Frontend noch nicht geantwortet hat: schließen lassen.
+                if CLOSE_PENDING.swap(true, Ordering::SeqCst) {
+                    return;
+                }
+                api.prevent_close();
+                let seq = CLOSE_SEQ.fetch_add(1, Ordering::SeqCst) + 1;
+                if window.emit("close-requested", ()).is_err() {
+                    let _ = window.destroy();
+                    return;
+                }
+                let window = window.clone();
+                std::thread::spawn(move || {
+                    std::thread::sleep(CLOSE_ACK_TIMEOUT);
+                    if CLOSE_PENDING.load(Ordering::SeqCst) && CLOSE_SEQ.load(Ordering::SeqCst) == seq {
+                        let _ = window.destroy();
+                    }
+                });
+            }
+        })
         .invoke_handler(tauri::generate_handler![
+            ack_close_request,
+            close_window_now,
             commands::test_ssh_connection,
             commands::test_stored_ssh,
             commands::read_mob_drop_file,
@@ -101,10 +147,12 @@ pub fn run() {
             commands::list_deploy_history,
             commands::test_mysql_connection,
             commands::store_credential,
-            commands::get_credential,
+            commands::has_credential,
             commands::delete_credential,
             commands::save_connection_profile,
             commands::list_connection_profiles,
+            commands::list_known_hosts,
+            commands::forget_known_host,
             commands::get_active_connection_profile_id,
             commands::activate_connection_profile,
             commands::delete_connection_profile,

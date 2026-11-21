@@ -72,10 +72,7 @@ pub fn find_eterpack_tool(client_path: &str) -> Option<PathBuf> {
             .filter(|p| p.file_name().and_then(|n| n.to_str()).is_some_and(is_eterpack_exe))
             .collect();
         candidates.sort_by_key(|p| {
-            let exact = p
-                .file_name()
-                .and_then(|n| n.to_str())
-                .is_some_and(|n| n.eq_ignore_ascii_case("EterPackConsoleLz4.exe"));
+            let exact = p.file_name().and_then(|n| n.to_str()).is_some_and(|n| n.eq_ignore_ascii_case("EterPackConsoleLz4.exe"));
             (!exact, p.clone())
         });
         if let Some(first) = candidates.into_iter().next() {
@@ -186,7 +183,7 @@ pub async fn unpack(app: &AppHandle, client_path: &str, tool_path: &str, names: 
         let _ = app.emit(PROGRESS_EVENT, Progress { current: i + 1, total: names.len(), name });
         let outcome = match validate_name(&dir, name) {
             Err(e) => Err(e),
-            Ok(()) => crate::packtools::extract_missing_from_archive(app, OUTPUT_EVENT, tool, &dir, name).await,
+            Ok(()) => crate::packtools::extract_missing_from_archive(app, OUTPUT_EVENT, tool, &dir, name, &[]).await,
         };
         results.push(match outcome {
             Ok(Some(files_copied)) => UnpackResult { name: name.clone(), files_copied, error: None },

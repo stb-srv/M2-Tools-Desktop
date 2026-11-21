@@ -1,9 +1,8 @@
 use super::shared::{Field, FlagSelect, NumInput};
 use crate::components::Icon;
 use crate::features::item_editor::item_flags::{
-    value_hints, value_labels_by_type, weapon_attack_speed_label, weapon_display_damage,
-    weapon_effective_attack_speed, FlagOption, ANTI_FLAGS, APPLY_TYPES, IMMUNE_FLAGS, ITEM_FLAGS, LIMIT_TYPES,
-    WEAPON_SUBTYPE_TWO_HANDED, WEAR_FLAGS,
+    value_hints, value_labels_by_type, weapon_attack_speed_label, weapon_display_damage, weapon_effective_attack_speed, FlagOption,
+    ANTI_FLAGS, APPLY_TYPES, IMMUNE_FLAGS, ITEM_FLAGS, LIMIT_TYPES, WEAPON_SUBTYPE_TWO_HANDED, WEAR_FLAGS,
 };
 use crate::features::item_editor::types::{num, ItemProtoInput};
 use leptos::prelude::*;
@@ -47,20 +46,18 @@ fn FlagGroup(
 }
 
 const VALUE_KEYS: [&str; 6] = ["value0", "value1", "value2", "value3", "value4", "value5"];
-const APPLY_KEYS: [(&str, &str); 4] = [
-    ("applytype0", "applyvalue0"),
-    ("applytype1", "applyvalue1"),
-    ("applytype2", "applyvalue2"),
-    ("applytype3", "applyvalue3"),
-];
+const APPLY_KEYS: [(&str, &str); 4] =
+    [("applytype0", "applyvalue0"), ("applytype1", "applyvalue1"), ("applytype2", "applyvalue2"), ("applytype3", "applyvalue3")];
 
 #[component]
 pub fn ItemFlagsSection(
     #[prop(into)] item: Signal<ItemProtoInput>,
     /// Setzt ein Zahlenfeld (Spaltenname, Wert).
-    #[prop(into)] set: Callback<(&'static str, i64)>,
+    #[prop(into)]
+    set: Callback<(&'static str, i64)>,
     /// Schaltet ein Bit in wearflag/antiflag/immuneflag/flag um.
-    #[prop(into)] toggle_flag: Callback<(&'static str, i64)>,
+    #[prop(into)]
+    toggle_flag: Callback<(&'static str, i64)>,
 ) -> impl IntoView {
     let advanced_open = RwSignal::new(false);
     let field = move |k: &'static str| Signal::derive(move || item.with(|i| i.num(k)));

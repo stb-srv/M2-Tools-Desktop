@@ -22,7 +22,10 @@ struct FilePreview {
 
 #[derive(Clone, Debug, PartialEq)]
 pub enum Row {
-    Line { kind: PartKind, text: String },
+    Line {
+        kind: PartKind,
+        text: String,
+    },
     /// So viele unveränderte Zeilen ausgelassen.
     Skipped(usize),
 }

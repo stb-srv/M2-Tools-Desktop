@@ -3,11 +3,11 @@
 use crate::components::{Button, ButtonSize, ButtonVariant, Icon, PageHeader};
 use crate::features::shared::mob_drops_modal::rank_label;
 use crate::features::shared::{EntityBrowser, EntityKind, EntityRow, GenericRowEditor, MobBrief, MobDropsModal};
+use crate::store::navigation::{use_pending_selection, ModuleId, Section};
 use crate::tauri::invoke;
+use leptos::prelude::*;
 use leptos::task::spawn_local;
 use serde_json::json;
-use crate::store::navigation::{nav, ModuleId, Section};
-use leptos::prelude::*;
 
 /// `String(Number(s))` - so wurde die übergebene vnum im alten Frontend
 /// normalisiert (z.B. " 0101 " -> "101", ungültig -> "NaN").
@@ -80,9 +80,7 @@ pub fn MobProtoEditor() -> impl IntoView {
     let editing_vnum = RwSignal::new(None::<String>);
 
     // Globale Suche (Strg+Umschalt+F) springt hierher mit einer vnum.
-    if let Some(target_ref) = nav().consume_pending_selection(Section::MobProtoEditor) {
-        editing_vnum.set(Some(normalize_vnum(&target_ref)));
-    }
+    use_pending_selection(Section::MobProtoEditor, move |target_ref| editing_vnum.set(Some(normalize_vnum(&target_ref))));
 
     view! {
         <div class="space-y-4">

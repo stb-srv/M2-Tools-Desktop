@@ -4,6 +4,7 @@
 
 pub mod client_unpack;
 pub mod connection_profiles;
+pub mod icons;
 pub mod navigation;
 pub mod settings_section;
 pub mod theme;
@@ -15,5 +16,6 @@ pub fn init() {
     update::init();
     settings_section::init();
     connection_profiles::init();
+    icons::init();
     client_unpack::init();
 }

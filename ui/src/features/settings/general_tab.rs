@@ -1,11 +1,10 @@
 use super::shared::{SettingRow, SettingsCard, TextSetting, TextSettingDef};
 use crate::components::{Button, ButtonVariant, Icon};
-use crate::i18n::{language, set_language, t};
+use crate::i18n::t;
 use crate::store::theme::{theme_store, Theme, UI_SCALES};
 use leptos::prelude::*;
 
 const THEMES: [(Theme, &str); 3] = [(Theme::Light, "Sun"), (Theme::Dark, "Moon"), (Theme::System, "SunMoon")];
-const LANGUAGES: [(&str, &str); 2] = [("de", "Deutsch"), ("en", "English")];
 
 /// Gültig, wenn nur Ziffern (mindestens eine).
 pub fn validate_vnum_start(v: &str) -> Option<String> {
@@ -49,24 +48,6 @@ pub fn GeneralTab() -> impl IntoView {
                                         <Button variant=variant(current == value) on_click=move |_| st.set_theme(value)>
                                             <Icon name=*icon class="size-4"/>
                                             {move || t(&format!("settings.{}", value.id()))}
-                                        </Button>
-                                    }
-                                })
-                                .collect_view()
-                        }}
-                    </div>
-                </SettingRow>
-                <SettingRow label=Signal::derive(|| t("settings.language"))>
-                    <div class="flex flex-wrap gap-2">
-                        {move || {
-                            let current = language();
-                            LANGUAGES
-                                .iter()
-                                .map(|(code, label)| {
-                                    let code = *code;
-                                    view! {
-                                        <Button variant=variant(current == code) on_click=move |_| set_language(code)>
-                                            {*label}
                                         </Button>
                                     }
                                 })

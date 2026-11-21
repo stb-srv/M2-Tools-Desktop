@@ -4,7 +4,72 @@ Alle nennenswerten Änderungen an M2Manager werden hier dokumentiert. Format
 angelehnt an [Keep a Changelog](https://keepachangelog.com/), Versionierung
 nach [SemVer](https://semver.org/) (`MAJOR.MINOR.PATCH`, solange < 1.0 gilt
 `MINOR` für neue Features, `PATCH` für reine Fixes). Für die vollständige
-Feature-Historie mit allen Details siehe `STATUS.md`.
+Feature-Historie mit allen Details siehe `docs/archiv/STATUS.md`.
+
+## [Unveröffentlicht]
+
+### Hinzugefügt
+
+- **Codepage einstellbar**: Unter Einstellungen › Client wählst du die Zeichenkodierung der Client-Dateien (`item_list.txt`, `itemdesc.txt` …), unter Einstellungen › Server-Pfade die der Serverdateien (je Server-Profil). Zur Auswahl stehen Windows-1252 (Standard), 1250 (Polnisch/Tschechisch), 1254 (Türkisch), 1251 (Kyrillisch), 1253 (Griechisch), EUC-KR (Koreanisch) und UTF-8.
+- **SSH-Server-Schlüssel werden geprüft**: Beim ersten Verbinden merkt sich M2Manager den Fingerprint des Servers. Ändert er sich später, wird die Verbindung abgebrochen und beide Fingerprints werden angezeigt. Gespeicherte Schlüssel stehen unter Einstellungen › Verbindung › „SSH-Server-Schlüssel“ und lassen sich dort vergessen.
+- **Rückfrage vor dem Schließen**: Sind irgendwo ungespeicherte Änderungen offen, fragt die App vor dem Schließen des Fensters nach.
+
+### Geändert
+
+- **Oberfläche friert nicht mehr ein**: Schreiben von Icons, Modellen und Listeneinträgen, Proto-Deploy, Bildvorschauen, Einstellungen, Wetter/Broadcast und der Paket-Import (Prüfen, Einspielen, Rückgängig) laufen im Hintergrund; die App bleibt bedienbar.
+- **Sonderzeichen werden nicht mehr stillschweigend ersetzt**: Lässt sich ein Zeichen in der eingestellten Codepage nicht speichern, bricht der Vorgang mit einer Meldung ab, die das Zeichen nennt. Die Datei bleibt unverändert.
+- **Paket-Import rückgängig machen**: Danach zeigt die App an, ob der Client neu gepackt wurde.
+- **Modell-Import**: Warnungen beim Import eines Waffenmodells erscheinen als Hinweis in der Oberfläche.
+- **Rückfrage beim Moduswechsel im Item-Importer** und **beim Speichern der Verbindungseinstellungen**, wenn sonst ungespeicherte Änderungen verloren gingen.
+- **Dialoge**: Dialoge werden von Screenreadern als Dialog erkannt, der Fokus springt beim Öffnen hinein, bleibt beim Tabben im Dialog und kehrt beim Schließen zurück. Icon-Schaltflächen haben einen Namen für Screenreader; Gruppenliste (Mob-Drops) und Dateiliste (Quest-Builder) sind per Tastatur bedienbar.
+- **Item-Icons werden zwischengespeichert**: Icons werden modulübergreifend gemerkt und nach Import, Rückgängig oder Serverwechsel neu geladen.
+- **Zeilenenden bleiben erhalten**: `itemdesc.txt` und `translate.lua` behalten beim Speichern ihre Zeilenenden.
+- **Paket-Import prüft SQL streng**: Das SQL in Paketen darf nur noch Einträge in die `item_proto` schreiben. Enthält ein Paket etwas anderes (z. B. versteckte Befehle oder Kommentare), bricht der Import vor jeder Änderung mit einer Fehlermeldung ab.
+- **Passwörter bleiben verborgen**: In den Verbindungseinstellungen werden gespeicherte Passwörter nicht mehr angezeigt, sondern nur „gespeichert“. Zum Ändern einfach ein neues Passwort eingeben.
+- **Sicheres Speichern auf dem Server**: Dateien werden erst als temporäre Datei geschrieben und geprüft, das Backup wird als Kopie angelegt und erst dann ersetzt. Bricht die Verbindung ab, bleibt die Originaldatei unverändert.
+- **Zeitlimits bei Server-Zugriffen**: Hängende Dateizugriffe brechen nach 60 Sekunden, hängende Befehle nach 30 Minuten mit einer Meldung ab, statt endlos zu warten. Server-Builds und eigene Befehle sind davon ausgenommen.
+- **MySQL-Verbindung verschlüsselt**: Die Verbindung nutzt TLS, wenn der Server es anbietet. Passwörter mit Sonderzeichen wie `@`, `:` oder `#` funktionieren jetzt.
+- **Serverwechsel**: Vor dem Wechsel erscheint eine Rückfrage, wenn ungespeicherte Änderungen offen sind. Nach dem Wechsel laden alle Editoren den Stand des neuen Servers.
+- **Rückfrage vor dem Verwerfen**: „Neu laden“ in Item-Gruppen, Cube, Broadcast und Mob-Drops sowie „Neues Item“ und „Laden“ im Item Editor fragen bei ungespeicherten Änderungen nach.
+- **Drop-Prüfung schneller**: Alle Dateien werden über eine einzige Verbindung gelesen.
+- **Item-Übersicht**: Die Suche springt beim Tippen auf Seite 1 zurück und wartet kurz, bis du fertig getippt hast.
+- **Sprache**: Die Auswahl „English“ ist ausgeblendet, bis die Übersetzung vollständig ist.
+- **Sicherungen von Pack-Archiven**: Pro Ordner bleiben die letzten 5 Sicherungen der `.epk`/`.eix`-Archive erhalten, ältere werden aufgeräumt.
+
+### Behoben
+
+- **Lokale Mob-Drop-Dateien**: Dateien mit Umlauten (Windows-1252 u. a.) lassen sich im Syntax-Check öffnen und werden in ihrer Kodierung zurückgeschrieben.
+- **Paket-Import mit Windows-Zeilenenden**: Namen in `itemdesc.txt` mit CRLF-Zeilenenden werden korrekt ersetzt, ohne verwaiste Zeilenendzeichen.
+- **3D-Viewer in der installierten App**: Der Modell-Viewer funktioniert jetzt auch in der ausgelieferten Version; das nötige Hilfsprogramm wird mit dem Installer mitgeliefert (nur Windows).
+- **Paket-Import: Client-Dateien werden sicher geschrieben**: `item_list.txt` und `itemdesc.txt` werden atomar geschrieben; bei einem Abbruch bleibt keine halb geschriebene Datei zurück. Schlägt ein Import fehl, werden sie aus der Sicherung wiederhergestellt, und „zurückgenommen“ erscheint nur noch, wenn es wirklich geklappt hat.
+- **Paket-Import: Neupacken**: Das Neupacken hängt nur noch an der Option „Neu packen“ und nicht mehr an „Dateien schreiben“. Nach „Rückgängig“ wird der Client ebenfalls neu gepackt.
+- **Rückgängig machen von Importen**: Gelöschte Icons tauchen nach dem Neupacken nicht mehr wieder im Archiv auf (Item-Importer und Paket-Import).
+- **Packer hängt nicht mehr**: Der Packer belegt nicht mehr 100 % CPU, wenn er auf einem Ausgabekanal früher fertig ist. Läufe über 30 Minuten werden mit klarer Meldung abgebrochen.
+- **Sicherungen überschreiben sich nicht mehr**: Mehrere Änderungen in derselben Sekunde ergeben jetzt getrennte Sicherungen.
+- **item_list.txt**: Vorhandene Zeilenenden bleiben beim Bearbeiten erhalten.
+- **Modell-Import**: Texturpfade aus fremden Modelldateien werden geprüft; Pfade, die aus dem Client-Ordner herausführen, werden übersprungen.
+- **Umlaute in Serverdateien**: Reine ASCII-Dateien werden beim Speichern nicht mehr unbemerkt als UTF-8 abgelegt, sondern als Windows-1252. Nicht darstellbare Zeichen führen zu einer Fehlermeldung statt zu stillem Ersetzen.
+- **Serverwechsel, MySQL-Fehler**: Schlägt die MySQL-Verbindung nach dem Wechsel fehl, wird der Fehler angezeigt statt „Verbunden“.
+- **Sicherere Server-Befehle**: Pfade und Namen bei Build, Einspielen, Serversteuerung, Quest-, Wetter- und Broadcast-Neuladen werden korrekt maskiert. Der Pfad der Build-Arbeitskopie wird vor dem Abgleich geprüft (nicht leer, nicht „/“, nicht der Live-Quellbaum).
+- **Backups**: Löschen und Wiederherstellen funktioniert nur noch mit Dateien im jeweiligen Backup-Ordner.
+- **Handbuch und Notizen**: Links mit unsicheren Schemas (z. B. `javascript:`) werden nicht mehr als Link angezeigt.
+- **Ungespeichert-Markierung bei Tabs**: Im Drop-Generator und Modul-Importer löscht ein unveränderter Tab die Markierung eines anderen nicht mehr. Strg+S speichert nur im gerade sichtbaren Tab.
+- **Globale Suche**: Treffer springen auch dann an die richtige Stelle, wenn der Bereich schon offen ist.
+- **Item-Editor**: Beim schnellen Wechsel zwischen Items landet die Beschreibung nicht mehr beim falschen Item. Ladefehler und unbekannte Items werden gemeldet.
+- **Shop-Editor**: Beim schnellen Wechsel zwischen Shops werden keine Gegenstände des vorherigen Shops mehr angezeigt oder verändert. Die Shop-Liste ist per Tastatur bedienbar.
+- **Fehlermeldungen statt Stille**: Fehlgeschlagene Suchen (Item entfernen, Referenz-Item), die Drop-Prüfung, das Aufheben fälliger Sperren und das Speichern von Importer-Einstellungen zeigen Fehler jetzt an.
+
+### Entwicklung
+
+- Clippy-Warnungen in allen Crates beseitigt, Code einheitlich mit `cargo fmt` formatiert (`rustfmt.toml`, max_width 140); CI prüft Formatierung und Clippy (`-D warnings`). Der Formatierungs-Commit steht in `.git-blame-ignore-revs` (`git config blame.ignoreRevsFile .git-blame-ignore-revs`).
+- Neues Backend-Modul `clientfs` (atomares Schreiben, Backups, Locale-Suche, Codepages) ersetzt Duplikate in packtools, itemdesc und m2pkg; 46 Commands als `#[tauri::command(async)]`.
+- Frontend: gemeinsame `util/num.rs`, `store/icons.rs`, `components/modal.rs`; Import-Logik in `package_logic.rs`/`icon_logic.rs` ausgelagert und getestet.
+- Content-Security-Policy gesetzt, `get_credential` durch `has_credential` ersetzt, Capability `process:allow-restart` statt `process:default`.
+- sqlx ohne Standard-Features (nur mysql, chrono, tls-rustls), `reqwest` 0.13 mit rustls wie der Updater, `base64` 0.22.
+- CI/Release: Actions auf Commit-SHAs gepinnt, `permissions` minimal, tauri-cli fest auf 2.11.5, `rust-toolchain.toml`, Dependabot, `cargo audit` und E2E-Kompilierung in CI; der Release prüft einen grünen CI-Lauf auf master und baut den GR2-Sidecar mit.
+- Release-Tools: Versionsersetzung nur noch an der richtigen Stelle (Top-Level-`version`, `[package]`, passender `Cargo.lock`-Eintrag), Zeilenenden bleiben erhalten, Überschriften in Code-Blöcken werden ignoriert.
+- Dirty-Store nach (Bereich, Quelle) getrennt, Hooks `use_section_dirty`/`use_pending_selection`, Hilfe `util/confirm.rs`, Shell-Quoting-Helfer `util/shell.rs`.
+- Notizdateien nach `docs/archiv/`, Test-Fixture nach `src-tauri/tests/fixtures/`, README und `howtorelease.md` aktualisiert.
 
 ## [1.0.3] - 2026-11-17
 
@@ -678,4 +743,4 @@ Erste funktionsfähige Version. Wesentliche Bereiche:
 - Sidebar mit Kategorien, Favoriten/Zuletzt-verwendet und Hinweis auf
   ungespeicherte Änderungen
 
-Vollständige Detail-Historie mit allen Einzelschritten: siehe `STATUS.md`.
+Vollständige Detail-Historie mit allen Einzelschritten: siehe `docs/archiv/STATUS.md`.

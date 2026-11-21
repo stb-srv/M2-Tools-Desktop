@@ -16,9 +16,7 @@ use tauri::State;
 
 fn quest_dir(state: &State<'_, AppState>) -> Result<String, String> {
     let conn = state.settings_db.lock().map_err(|e| e.to_string())?;
-    Ok(settings::get_path(&conn, "quest_dir")?
-        .filter(|v| !v.is_empty())
-        .unwrap_or_else(|| "/usr/home/game/share/quest".to_string()))
+    Ok(settings::get_path(&conn, "quest_dir")?.filter(|v| !v.is_empty()).unwrap_or_else(|| "/usr/home/game/share/quest".to_string()))
 }
 
 #[tauri::command]
@@ -30,10 +28,7 @@ pub async fn list_quest_files(state: State<'_, AppState>) -> Result<Vec<quest::Q
 }
 
 #[tauri::command]
-pub async fn read_quest_file(
-    state: State<'_, AppState>,
-    relative_path: String,
-) -> Result<String, String> {
+pub async fn read_quest_file(state: State<'_, AppState>, relative_path: String) -> Result<String, String> {
     let relative_path = safe_relative_path(&relative_path)?;
     let (config, auth) = stored_ssh_auth(&state)?;
     let dir = quest_dir(&state)?;
@@ -41,16 +36,11 @@ pub async fn read_quest_file(
 }
 
 #[tauri::command]
-pub async fn write_quest_file(
-    state: State<'_, AppState>,
-    relative_path: String,
-    content: String,
-) -> Result<Option<String>, String> {
+pub async fn write_quest_file(state: State<'_, AppState>, relative_path: String, content: String) -> Result<Option<String>, String> {
     let relative_path = safe_relative_path(&relative_path)?;
     let (config, auth) = stored_ssh_auth(&state)?;
     let dir = quest_dir(&state)?;
-    ssh::write_remote_file_with_backup(&config, &auth, &format!("{dir}/{relative_path}"), &content)
-        .await
+    ssh::write_remote_file_with_backup(&config, &auth, &format!("{dir}/{relative_path}"), &content).await
 }
 
 /// Creates a new quest source file and registers it in `quest_list` in the
@@ -76,6 +66,9 @@ pub async fn create_quest_file(
     // server (verified in share/quest/Runs/*.quest) - qc_x64 doesn't care
     // about the extension itself, only quest_list has to list the right one.
     let extension = extension.filter(|e| !e.is_empty()).unwrap_or_else(|| "lua".to_string());
+    if !matches!(extension.as_str(), "lua" | "quest") {
+        return Err(format!("Ungültige Dateiendung '{extension}' (erlaubt: lua, quest)."));
+    }
     let relative_path = format!("{category}/{name}.{extension}");
 
     let list_path = format!("{dir}/quest_list");
@@ -84,8 +77,7 @@ pub async fn create_quest_file(
         return Err(format!("'{relative_path}' existiert bereits in quest_list."));
     }
 
-    ssh::write_remote_file_with_backup(&config, &auth, &format!("{dir}/{relative_path}"), &content)
-        .await?;
+    ssh::write_remote_file_with_backup(&config, &auth, &format!("{dir}/{relative_path}"), &content).await?;
 
     let updated_list = quest::quest_list_add(&list_content, &relative_path);
     ssh::write_remote_file_with_backup(&config, &auth, &list_path, &updated_list).await?;
@@ -96,10 +88,7 @@ pub async fn create_quest_file(
 /// Removes a quest from `quest_list` and moves its source file into the SFTP
 /// backup folder (never a hard delete - see `delete_remote_file_with_backup`).
 #[tauri::command]
-pub async fn delete_quest_file(
-    state: State<'_, AppState>,
-    relative_path: String,
-) -> Result<(), String> {
+pub async fn delete_quest_file(state: State<'_, AppState>, relative_path: String) -> Result<(), String> {
     let relative_path = safe_relative_path(&relative_path)?;
     let (config, auth) = stored_ssh_auth(&state)?;
     let dir = quest_dir(&state)?;
@@ -124,18 +113,12 @@ pub fn sanitize_quest_identifier(name: String) -> String {
 /// SSH connection per file (like the other quest commands do) would mean one
 /// handshake per quest file, far too slow across a whole catalogue.
 #[tauri::command]
-pub async fn search_quest_files(
-    state: State<'_, AppState>,
-    query: String,
-) -> Result<Vec<quest::QuestSearchMatch>, String> {
+pub async fn search_quest_files(state: State<'_, AppState>, query: String) -> Result<Vec<quest::QuestSearchMatch>, String> {
     let (config, auth) = stored_ssh_auth(&state)?;
     let dir = quest_dir(&state)?;
     let list_content = ssh::read_remote_file(&config, &auth, &format!("{dir}/quest_list")).await?;
     let files = quest::parse_quest_list(&list_content);
-    let paths: Vec<String> = files
-        .iter()
-        .map(|f| format!("{dir}/{}", f.relative_path))
-        .collect();
+    let paths: Vec<String> = files.iter().map(|f| format!("{dir}/{}", f.relative_path)).collect();
     let contents = ssh::read_remote_files(&config, &auth, &paths).await?;
     Ok(quest::search_contents(&files, &contents, &query))
 }

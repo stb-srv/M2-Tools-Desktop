@@ -44,9 +44,11 @@ pub fn FlagSelect(
     #[prop(into)] on_change: Callback<i64>,
     #[prop(into)] class: String,
     /// Zusätzliche erste Option (Wert, Beschriftung), z.B. `(0, "—")`.
-    #[prop(optional)] leading: Option<(i64, &'static str)>,
+    #[prop(optional)]
+    leading: Option<(i64, &'static str)>,
     /// `false` = nur "Label" statt "Label (Wert)".
-    #[prop(optional)] plain_labels: bool,
+    #[prop(optional)]
+    plain_labels: bool,
 ) -> impl IntoView {
     view! {
         <select on:change=move |e| on_change.run(num(&event_target_value(&e))) class=class>

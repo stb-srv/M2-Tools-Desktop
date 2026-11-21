@@ -1,6 +1,6 @@
 //! Bekannte Event-Flags. Alle Namen/Beschreibungen/Vorgabewerte direkt aus
 //! dem echten Server-Quellcode verifiziert (questmanager.cpp,
-//! item_manager.cpp, char_battle.cpp, cmd_gm.cpp) - siehe EVENT.md.
+//! item_manager.cpp, char_battle.cpp, cmd_gm.cpp) - siehe docs/archiv/EVENT.md.
 
 pub struct FlagDef {
     pub name: &'static str,

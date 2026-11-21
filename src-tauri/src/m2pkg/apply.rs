@@ -3,6 +3,7 @@
 use super::package::{sha256_file, Assumption, ManifestFile, Package, Warning};
 use super::sql;
 use super::textmerge::{self, ReplacedLine};
+use crate::clientfs::write_atomic;
 use base64::Engine;
 use serde::{Deserialize, Serialize};
 use sqlx::{MySqlPool, Row};
@@ -14,11 +15,49 @@ const BACKUP_SUBDIR: &str = "m2manager_backups/m2pkg";
 
 /// Alle 44 Spalten von `player.item_proto` (Reihenfolge wie im Paket-SQL).
 const PROTO_COLUMNS: &[&str] = &[
-    "vnum", "vnum_range", "name", "locale_name", "type", "subtype", "weight", "size", "antiflag", "flag",
-    "wearflag", "immuneflag", "gold", "shop_buy_price", "refined_vnum", "refine_set", "magic_pct", "limittype0",
-    "limitvalue0", "limittype1", "limitvalue1", "applytype0", "applyvalue0", "applytype1", "applyvalue1",
-    "applytype2", "applyvalue2", "applytype3", "applyvalue3", "value0", "value1", "value2", "value3", "value4",
-    "value5", "socket0", "socket1", "socket2", "socket3", "socket4", "socket5", "specular", "socket_pct",
+    "vnum",
+    "vnum_range",
+    "name",
+    "locale_name",
+    "type",
+    "subtype",
+    "weight",
+    "size",
+    "antiflag",
+    "flag",
+    "wearflag",
+    "immuneflag",
+    "gold",
+    "shop_buy_price",
+    "refined_vnum",
+    "refine_set",
+    "magic_pct",
+    "limittype0",
+    "limitvalue0",
+    "limittype1",
+    "limitvalue1",
+    "applytype0",
+    "applyvalue0",
+    "applytype1",
+    "applyvalue1",
+    "applytype2",
+    "applyvalue2",
+    "applytype3",
+    "applyvalue3",
+    "value0",
+    "value1",
+    "value2",
+    "value3",
+    "value4",
+    "value5",
+    "socket0",
+    "socket1",
+    "socket2",
+    "socket3",
+    "socket4",
+    "socket5",
+    "specular",
+    "socket_pct",
     "addon_type",
 ];
 /// `VARBINARY`-Spalten werden im Backup als Hex gesichert.
@@ -74,11 +113,7 @@ const ICON_PREVIEW_PX: u32 = 40;
 
 /// Icon aus den Bytes als kleines PNG (Data-URL). Verkleinert, damit die Antwort klein bleibt.
 fn thumbnail_data_url(bytes: &[u8], path: &str) -> Option<String> {
-    let format = if path.to_ascii_lowercase().ends_with(".tga") {
-        image::ImageFormat::Tga
-    } else {
-        image::guess_format(bytes).ok()?
-    };
+    let format = if path.to_ascii_lowercase().ends_with(".tga") { image::ImageFormat::Tga } else { image::guess_format(bytes).ok()? };
     let img = image::load_from_memory_with_format(bytes, format).ok()?;
     let small = img.thumbnail(ICON_PREVIEW_PX, ICON_PREVIEW_PX);
     let mut png = Vec::new();
@@ -111,7 +146,7 @@ fn sql_vnums(pkg: &Package) -> Result<BTreeSet<u32>, String> {
     let Some(bytes) = pkg.read_optional("server/item_proto_replace.sql")? else {
         return Ok(BTreeSet::new());
     };
-    Ok(sql::filter_statements(&String::from_utf8_lossy(&bytes), &|_| true).into_iter().map(|(v, _)| v).collect())
+    Ok(sql::filter_statements(&String::from_utf8_lossy(&bytes), &|_| true)?.into_iter().map(|(v, _)| v).collect())
 }
 
 pub fn inspect(pkg: &Package, zip_path: &str) -> Result<Inspect, String> {
@@ -256,28 +291,6 @@ fn client_target(client_dir: &Path, zip_path: &str) -> Result<PathBuf, String> {
     Ok(rel.split('/').fold(client_dir.to_path_buf(), |p, c| p.join(c)))
 }
 
-/// Findet eine Textdatei des Clients automatisch: in jedem `locale/<Sprache>/`,
-/// direkt in `locale/` und im Client-Ordner selbst.
-fn locale_files(client_dir: &Path, file_name: &str) -> Vec<PathBuf> {
-    let mut found = Vec::new();
-    let locale = client_dir.join("locale");
-    if let Ok(rd) = std::fs::read_dir(&locale) {
-        for e in rd.flatten() {
-            let p = e.path().join(file_name);
-            if p.is_file() {
-                found.push(p);
-            }
-        }
-    }
-    found.sort();
-    for p in [locale.join(file_name), client_dir.join(file_name)] {
-        if p.is_file() {
-            found.push(p);
-        }
-    }
-    found
-}
-
 /// Ziel(e) einer Textdatei: ein von Hand angegebener Pfad hat Vorrang und
 /// ersetzt die automatische Suche; ohne ihn wird gesucht. Leer = nicht gefunden.
 fn text_targets(client_dir: &Path, file_name: &str, custom: Option<&str>) -> Result<Vec<PathBuf>, String> {
@@ -290,7 +303,7 @@ fn text_targets(client_dir: &Path, file_name: &str, custom: Option<&str>) -> Res
                 Err(format!("Der angegebene Pfad für {file_name} existiert nicht: {c}"))
             }
         }
-        None => Ok(locale_files(client_dir, file_name)),
+        None => Ok(crate::clientfs::locale_files(client_dir, file_name)),
     }
 }
 
@@ -309,12 +322,7 @@ pub struct Preflight {
     pub notes: Vec<String>,
 }
 
-pub async fn preflight(
-    pkg: Package,
-    client_dir: PathBuf,
-    opts: ApplyOptions,
-    pool: Option<MySqlPool>,
-) -> Result<Preflight, String> {
+pub async fn preflight(pkg: Package, client_dir: PathBuf, opts: ApplyOptions, pool: Option<MySqlPool>) -> Result<Preflight, String> {
     let (pkg, client_dir, opts) = (&pkg, client_dir.as_path(), &opts);
     let vnums = selected_vnums(pkg, opts)?;
     let guessed: HashSet<&str> = opts.guessed_paths.iter().map(|s| s.as_str()).collect();
@@ -375,6 +383,10 @@ pub struct TextEdit {
     pub abs: Option<String>,
     pub added: Vec<u32>,
     pub replaced: Vec<ReplacedLine>,
+    /// SHA-256 der Datei direkt nach dem Import. Stimmt sie beim Rückgängigmachen noch, wurde die Datei
+    /// seitdem nicht verändert und die Sicherung kann 1:1 zurückkopiert werden.
+    #[serde(default)]
+    pub after_sha256: Option<String>,
 }
 
 #[derive(Debug, Clone, Default, Serialize, Deserialize)]
@@ -510,22 +522,14 @@ impl Run {
         if opts.write_db && !has_pool {
             return Err("Keine aktive MySQL-Verbindung. Bitte zuerst verbinden oder „nur SQL-Dateien“ wählen.".into());
         }
-        let sql_name: &'static str = if opts.conflict == ConflictMode::Overwrite {
-            "server/item_proto_replace.sql"
-        } else {
-            "server/item_proto_insert_ignore.sql"
-        };
-        let sql_text = String::from_utf8(
-            pkg.read_optional(sql_name)?.ok_or_else(|| format!("{sql_name} fehlt im Paket."))?,
-        )
-        .map_err(|_| format!("{sql_name} ist kein gültiger Text."))?;
-        let statements = sql::filter_statements(&sql_text, &|v| vnums.contains(&v));
+        let sql_name: &'static str =
+            if opts.conflict == ConflictMode::Overwrite { "server/item_proto_replace.sql" } else { "server/item_proto_insert_ignore.sql" };
+        let sql_text = String::from_utf8(pkg.read_optional(sql_name)?.ok_or_else(|| format!("{sql_name} fehlt im Paket."))?)
+            .map_err(|_| format!("{sql_name} ist kein gültiger Text."))?;
+        // Jedes Statement streng prüfen, bevor irgendetwas geändert wird (kein Backup, kein Client, keine DB).
+        let statements = sql::filter_statements(&sql_text, &|v| vnums.contains(&v))?;
 
-        let mut report = ApplyReport {
-            items_selected: vnums.len(),
-            client_dir: client_dir.display().to_string(),
-            ..Default::default()
-        };
+        let mut report = ApplyReport { items_selected: vnums.len(), client_dir: client_dir.display().to_string(), ..Default::default() };
         let have: HashSet<u32> = statements.iter().map(|(v, _)| *v).collect();
         let mut without_proto: Vec<u32> = vnums.iter().copied().filter(|v| !have.contains(v)).collect();
         without_proto.sort_unstable();
@@ -551,10 +555,7 @@ impl Run {
             ..Default::default()
         };
         save_journal(&backup_dir, &journal)?;
-        Ok(Run {
-            pkg, client_dir, opts, vnums, statements, sql_name, sql_text, report, journal, backup_dir,
-            existing_db: HashSet::new(),
-        })
+        Ok(Run { pkg, client_dir, opts, vnums, statements, sql_name, sql_text, report, journal, backup_dir, existing_db: HashSet::new() })
     }
 
     fn proto_vnums(&self) -> Vec<u32> {
@@ -563,20 +564,24 @@ impl Run {
 
     /// Client-Dateien und Textdateien; bei einem Fehler wird alles zurückgenommen.
     fn client_step(&mut self) -> Result<(), String> {
-        let res = apply_client(
-            &self.pkg, &self.client_dir, &self.backup_dir, &self.opts, &self.vnums, &mut self.journal, &mut self.report,
-        );
-        let _ = save_journal(&self.backup_dir, &self.journal);
-        match res {
+        let res = apply_client(&self.pkg, &self.client_dir, &self.backup_dir, &self.opts, &self.vnums, &mut self.journal, &mut self.report);
+        let saved = save_journal(&self.backup_dir, &self.journal);
+        match res.and(saved) {
             Ok(()) => Ok(()),
-            Err(e) => Err(match undo_client(&self.client_dir, &self.backup_dir, &self.journal) {
+            Err(e) => Err(match self.rollback_client() {
                 Ok(()) => format!("{e}\nBereits Geschriebenes wurde zurückgenommen."),
-                Err(e2) => format!(
-                    "{e}\nAchtung, das Zurücknehmen war nicht vollständig: {e2}\nBackup: {}",
-                    self.backup_dir.display()
-                ),
+                Err(e2) => format!("{e}\nAchtung, das Zurücknehmen war nicht vollständig: {e2}\nBackup: {}", self.backup_dir.display()),
             }),
         }
+    }
+
+    /// Automatische Rücknahme nach einem Fehler im laufenden Import: Sicherungen werden zurückkopiert.
+    /// Bei Erfolg gilt der Import als rückgängig gemacht, damit ein späteres „Rückgängig“ nichts von einem
+    /// neueren Import löscht.
+    fn rollback_client(&mut self) -> Result<(), String> {
+        undo_client(&self.client_dir, &self.backup_dir, &self.journal, true)?;
+        self.journal.undone = true;
+        save_journal(&self.backup_dir, &self.journal).map_err(|e| format!("Rücknahme erfolgt, aber im Journal nicht vermerkt: {e}"))
     }
 
     fn after_db(&mut self, result: Result<DbReport, String>) -> Result<(), String> {
@@ -593,15 +598,17 @@ impl Run {
                     }
                 }
                 self.report.db_written = Some(db);
-                let _ = save_journal(&self.backup_dir, &self.journal);
-                Ok(())
+                save_journal(&self.backup_dir, &self.journal)
             }
-            Err(e) => {
-                let _ = undo_client(&self.client_dir, &self.backup_dir, &self.journal);
-                Err(format!(
+            Err(e) => Err(match self.rollback_client() {
+                Ok(()) => format!(
                     "Schreiben in MySQL fehlgeschlagen, in der Datenbank wurde nichts geändert (Client-Änderungen sind zurückgenommen): {e}"
-                ))
-            }
+                ),
+                Err(e2) => format!(
+                    "Schreiben in MySQL fehlgeschlagen, in der Datenbank wurde nichts geändert: {e}\nAchtung, die Client-Änderungen konnten nicht vollständig zurückgenommen werden: {e2}\nBackup: {}",
+                    self.backup_dir.display()
+                ),
+            }),
         }
     }
 
@@ -657,12 +664,7 @@ async fn db_write(
 
 /// Einspielen: Prüfen → Backup (Dateien, Textzeilen, item_proto) → Client →
 /// MySQL → Server-Dateien. Scheitert ein Schritt, wird der Client zurückgenommen.
-pub async fn import(
-    pkg: Package,
-    client_dir: PathBuf,
-    opts: ApplyOptions,
-    pool: Option<MySqlPool>,
-) -> Result<ApplyReport, String> {
+pub async fn import(pkg: Package, client_dir: PathBuf, opts: ApplyOptions, pool: Option<MySqlPool>) -> Result<ApplyReport, String> {
     let mut run = Run::prepare(pkg, client_dir, opts, pool.is_some())?;
     let pool = if run.opts.write_db { pool } else { None };
     if let Some(p) = pool.clone() {
@@ -681,12 +683,7 @@ fn join_vnums(v: &[u32]) -> String {
 }
 
 fn rel_of(client_dir: &Path, p: &Path) -> String {
-    p.strip_prefix(client_dir)
-        .unwrap_or(p)
-        .components()
-        .map(|c| c.as_os_str().to_string_lossy().into_owned())
-        .collect::<Vec<_>>()
-        .join("/")
+    p.strip_prefix(client_dir).unwrap_or(p).components().map(|c| c.as_os_str().to_string_lossy().into_owned()).collect::<Vec<_>>().join("/")
 }
 
 fn backup_copy(client_dir: &Path, backup_dir: &Path, target: &Path) -> Result<String, String> {
@@ -741,8 +738,8 @@ fn apply_client(
     // Neue Dateien stehen vorab im Journal, mit einem einzigen Speichern. Das Rückgängigmachen überspringt
     // Dateien, die es nicht gibt. Vorher wurde das Journal nach jeder Datei neu geschrieben (quadratisch).
     let new_rels: Vec<String> = planned
-        .iter()
-        .filter_map(|(zip_path, _)| {
+        .keys()
+        .filter_map(|zip_path| {
             let target = client_target(client_dir, zip_path).ok()?;
             (!target.exists()).then(|| rel_of(client_dir, &target))
         })
@@ -810,9 +807,15 @@ fn apply_client(
             }
             let rel = backup_copy(client_dir, backup_dir, &target)?;
             let abs = (!target.starts_with(client_dir)).then(|| target.display().to_string());
-            journal.text_edits.push(TextEdit { rel: rel.clone(), abs, added: merged.added.clone(), replaced: merged.replaced.clone() });
-            let _ = save_journal(backup_dir, journal);
-            std::fs::write(&target, &merged.bytes).map_err(|e| format!("{}: {e}", target.display()))?;
+            journal.text_edits.push(TextEdit {
+                rel: rel.clone(),
+                abs,
+                added: merged.added.clone(),
+                replaced: merged.replaced.clone(),
+                after_sha256: Some(super::package::sha256_bytes(&merged.bytes)),
+            });
+            save_journal(backup_dir, journal)?;
+            write_atomic(&target, &merged.bytes)?;
             if is_list {
                 report.list_added += merged.added.len();
                 report.list_replaced += merged.replaced.len();
@@ -857,15 +860,15 @@ fn apply_itemdesc(
     let existing = std::fs::read(&path).map_err(|e| format!("{}: {e}", path.display()))?;
     let mut old_line: HashMap<u32, Vec<u8>> = HashMap::new();
     for l in existing.split(|b| *b == b'\n') {
-        let l = l.strip_suffix(b"
-").unwrap_or(l);
+        let l = l.strip_suffix(b"\r").unwrap_or(l);
         if let Some(v) = textmerge::line_vnum(l) {
             old_line.entry(v).or_insert_with(|| l.to_vec());
         }
     }
     let mut new_lines: Vec<(u32, Vec<u8>)> = Vec::new();
     for (vnum, name) in &names {
-        let name_cp = encoding_rs::WINDOWS_1252.encode(name).0.into_owned();
+        let name_cp =
+            crate::clientfs::encode(name, crate::clientfs::client_encoding()).map_err(|e| format!("Item {vnum} (itemdesc.txt): {e}"))?;
         let line = match old_line.get(vnum) {
             Some(old) => {
                 let mut parts: Vec<Vec<u8>> = old.split(|b| *b == b'\t').map(|p| p.to_vec()).collect();
@@ -897,20 +900,31 @@ fn apply_itemdesc(
     }
     let rel = backup_copy(client_dir, backup_dir, &path)?;
     let abs = (!path.starts_with(client_dir)).then(|| path.display().to_string());
-    journal.text_edits.push(TextEdit { rel, abs, added: merged.added.clone(), replaced: merged.replaced.clone() });
+    journal.text_edits.push(TextEdit {
+        rel,
+        abs,
+        added: merged.added.clone(),
+        replaced: merged.replaced.clone(),
+        after_sha256: Some(super::package::sha256_bytes(&merged.bytes)),
+    });
     save_journal(backup_dir, journal)?;
-    std::fs::write(&path, &merged.bytes).map_err(|e| format!("{}: {e}", path.display()))?;
+    write_atomic(&path, &merged.bytes)?;
     report.text_files_checked.push(path.display().to_string());
     Ok(())
 }
 
 /// Schreibt über eine Temp-Datei und prüft die Prüfsumme, bevor sie ans Ziel kommt.
 fn write_verified(pkg: &Package, zip_path: &str, target: &Path, expected_sha: &str) -> Result<(), String> {
-    let tmp = target.with_extension(format!(
-        "{}.m2pkg-tmp",
-        target.extension().map(|e| e.to_string_lossy().into_owned()).unwrap_or_default()
-    ));
-    let actual = pkg.extract_to(zip_path, &tmp)?;
+    let tmp =
+        target.with_extension(format!("{}.m2pkg-tmp", target.extension().map(|e| e.to_string_lossy().into_owned()).unwrap_or_default()));
+    // extract_to schreibt und synchronisiert (sync_all) die Temp-Datei; bei jedem Fehler räumen wir sie weg.
+    let actual = match pkg.extract_to(zip_path, &tmp) {
+        Ok(a) => a,
+        Err(e) => {
+            let _ = std::fs::remove_file(&tmp);
+            return Err(e);
+        }
+    };
     if actual != expected_sha.to_ascii_lowercase() {
         let _ = std::fs::remove_file(&tmp);
         return Err(format!("Prüfsumme von {zip_path} stimmt beim Entpacken nicht."));
@@ -946,13 +960,7 @@ async fn existing_db_vnums(pool: &MySqlPool, vnums: &[u32]) -> Result<Vec<u32>, 
 async fn backup_proto_rows(pool: &MySqlPool, vnums: &[u32]) -> Result<String, String> {
     let select_cols: Vec<String> = PROTO_COLUMNS
         .iter()
-        .map(|c| {
-            if BINARY_COLUMNS.contains(c) {
-                format!("HEX(`{c}`) AS `{c}`")
-            } else {
-                format!("CAST(`{c}` AS CHAR) AS `{c}`")
-            }
-        })
+        .map(|c| if BINARY_COLUMNS.contains(c) { format!("HEX(`{c}`) AS `{c}`") } else { format!("CAST(`{c}` AS CHAR) AS `{c}`") })
         .collect();
     let col_list = PROTO_COLUMNS.iter().map(|c| format!("`{c}`")).collect::<Vec<_>>().join(", ");
     let mut out = String::from("-- M2 Tools Desktop: Sicherung der item_proto-Zeilen vor dem Paket-Import\n");
@@ -990,10 +998,8 @@ async fn apply_sql(
 ) -> Result<DbReport, String> {
     let mut tx = pool.begin().await.map_err(|e| e.to_string())?;
     for (vnum, stmt) in statements {
-        sqlx::query(stmt)
-            .execute(&mut *tx)
-            .await
-            .map_err(|e| format!("Vnum {vnum}: {}", scrub_error(&e.to_string())))?;
+        // erneut streng geprüft und parametrisiert ausgeführt, nie der Originaltext
+        sql::execute_checked(&mut tx, stmt).await.map_err(|e| format!("Vnum {vnum}: {}", scrub_error(&e)))?;
     }
     tx.commit().await.map_err(|e| e.to_string())?;
     let mut rep = DbReport::default();
@@ -1015,11 +1021,12 @@ fn scrub_error(msg: &str) -> String {
 // ------------------------------------------------------------------ Server-Dateien
 
 fn safe_name(s: &str) -> String {
-    let n: String = s
-        .chars()
-        .map(|c| if c.is_alphanumeric() || c == '-' || c == '_' { c } else { '_' })
-        .collect();
-    if n.is_empty() { "paket".into() } else { n }
+    let n: String = s.chars().map(|c| if c.is_alphanumeric() || c == '-' || c == '_' { c } else { '_' }).collect();
+    if n.is_empty() {
+        "paket".into()
+    } else {
+        n
+    }
 }
 
 fn write_server_files(
@@ -1033,15 +1040,11 @@ fn write_server_files(
         Some(d) => PathBuf::from(d),
         None => Path::new(&opts.zip_path).parent().map(|p| p.to_path_buf()).unwrap_or_else(|| PathBuf::from(".")),
     };
-    let dir = base.join(format!(
-        "{}_server_{}",
-        safe_name(&pkg.manifest.collection_name()),
-        chrono::Local::now().format("%Y%m%d_%H%M%S")
-    ));
+    let dir = base.join(format!("{}_server_{}", safe_name(&pkg.manifest.collection_name()), chrono::Local::now().format("%Y%m%d_%H%M%S")));
     std::fs::create_dir_all(&dir).map_err(|e| format!("{}: {e}", dir.display()))?;
     let mut written = Vec::new();
 
-    let stmts = sql::filter_statements(sql_text, &|v| vnums.contains(&v));
+    let stmts = sql::filter_statements(sql_text, &|v| vnums.contains(&v))?;
     let mut sql_out = format!("-- m2pkg: {} Item(s), {}\n", stmts.len(), sql_name.trim_start_matches("server/"));
     for (_, s) in &stmts {
         sql_out.push_str(s);
@@ -1103,7 +1106,13 @@ pub fn list_imports(client_dir: &Path) -> Vec<ImportRecord> {
 }
 
 /// Nimmt die Client-Änderungen anhand von Journal und Backup zurück.
-fn undo_client(client_dir: &Path, backup_dir: &Path, j: &Journal) -> Result<(), String> {
+///
+/// Textdateien: Existiert unter `files/<rel>` eine Sicherung, wird sie zurückkopiert, wenn
+/// (a) `from_failed_import` gesetzt ist (die Datei stammt dann garantiert nur von diesem Import) oder
+/// (b) die Datei seit dem Import unverändert ist (SHA-256 wie im Journal). Wurde sie danach geändert
+/// (oder fehlt der Hash in alten Journalen), werden nur die eingetragenen Zeilen entfernt
+/// (`unmerge_lines`), damit spätere Änderungen erhalten bleiben.
+fn undo_client(client_dir: &Path, backup_dir: &Path, j: &Journal, from_failed_import: bool) -> Result<(), String> {
     let mut problems = Vec::new();
     let safe = |rel: &str| super::package::is_safe_zip_path(rel);
     for rel in &j.files_created {
@@ -1142,18 +1151,36 @@ fn undo_client(client_dir: &Path, backup_dir: &Path, j: &Journal) -> Result<(), 
             None if safe(&edit.rel) => edit.rel.split('/').fold(client_dir.to_path_buf(), |p, c| p.join(c)),
             None => continue,
         };
+        let backup = safe(&edit.rel).then(|| edit.rel.split('/').fold(backup_dir.join("files"), |p, c| p.join(c))).filter(|b| b.is_file());
         match std::fs::read(&target) {
             Ok(cur) => {
-                let back = textmerge::unmerge_lines(&cur, &edit.added, &edit.replaced);
-                if let Err(e) = std::fs::write(&target, back) {
+                let unchanged = edit.after_sha256.as_deref() == Some(super::package::sha256_bytes(&cur).as_str());
+                let restored = match backup {
+                    Some(b) if from_failed_import || unchanged => {
+                        std::fs::read(&b).map_err(|e| e.to_string()).and_then(|orig| write_atomic(&target, &orig))
+                    }
+                    _ => write_atomic(&target, &textmerge::unmerge_lines(&cur, &edit.added, &edit.replaced)),
+                };
+                if let Err(e) = restored {
                     problems.push(format!("{}: {e}", edit.rel));
+                }
+            }
+            Err(e) if from_failed_import && backup.is_some() => {
+                // Datei fehlt (Fehler mitten im Schreiben): Sicherung zurückkopieren
+                let orig = std::fs::read(backup.as_ref().unwrap()).map_err(|e| e.to_string());
+                if let Err(e2) = orig.and_then(|o| write_atomic(&target, &o)) {
+                    problems.push(format!("{}: {e}; {e2}", edit.rel));
                 }
             }
             Err(e) => problems.push(format!("{}: {e}", edit.rel)),
         }
     }
     crate::icons::invalidate_caches();
-    if problems.is_empty() { Ok(()) } else { Err(problems.join("; ")) }
+    if problems.is_empty() {
+        Ok(())
+    } else {
+        Err(problems.join("; "))
+    }
 }
 
 #[derive(Debug, Clone, Default, Serialize)]
@@ -1163,6 +1190,9 @@ pub struct UndoReport {
     pub text_files_edited: usize,
     pub db_deleted: usize,
     pub db_restored: usize,
+    /// Hinweise für den Anwender, z. B. das Ergebnis des Neupackens.
+    #[serde(default)]
+    pub notes: Vec<String>,
 }
 
 pub async fn undo(client_dir: PathBuf, id: String, pool: Option<MySqlPool>) -> Result<UndoReport, String> {
@@ -1196,18 +1226,15 @@ pub async fn undo(client_dir: PathBuf, id: String, pool: Option<MySqlPool>) -> R
             let before = std::fs::read_to_string(backup_dir.join("item_proto_before.sql"))
                 .map_err(|e| format!("item_proto_before.sql nicht lesbar: {e}"))?;
             let restore: HashSet<u32> = j.db_replaced_vnums.iter().copied().collect();
-            for (vnum, stmt) in sql::filter_statements(&before, &|v| restore.contains(&v)) {
-                sqlx::query(&stmt)
-                    .execute(&mut *tx)
-                    .await
-                    .map_err(|e| format!("Vnum {vnum}: {}", scrub_error(&e.to_string())))?;
+            for (vnum, stmt) in sql::filter_statements(&before, &|v| restore.contains(&v))? {
+                sql::execute_checked(&mut tx, &stmt).await.map_err(|e| format!("Vnum {vnum}: {}", scrub_error(&e)))?;
                 rep.db_restored += 1;
             }
         }
         tx.commit().await.map_err(|e| e.to_string())?;
     }
 
-    undo_client(client_dir, &backup_dir, &j)?;
+    undo_client(client_dir, &backup_dir, &j, false)?;
     j.undone = true;
     save_journal(&backup_dir, &j)?;
     Ok(rep)
@@ -1337,11 +1364,7 @@ mod tests {
         let c = client("keep");
         std::fs::create_dir_all(c.join("icon/item")).unwrap();
         std::fs::write(c.join("icon/item/00300.tga"), b"MEIN-ICON").unwrap();
-        std::fs::write(
-            c.join("locale/de/item_list.txt"),
-            b"300\tETC\ticon/item/mein.tga\r\n",
-        )
-        .unwrap();
+        std::fs::write(c.join("locale/de/item_list.txt"), b"300\tETC\ticon/item/mein.tga\r\n").unwrap();
         let mut o = opts(&zip, vec![300], ConflictMode::Keep);
         o.out_dir = Some(dir.display().to_string());
         let rep = run(import(pkg, c.clone(), o, None)).unwrap();
@@ -1461,5 +1484,3 @@ mod tests {
         assert!(i.items.iter().all(|x| x.has_proto && x.icon_file.is_some()));
     }
 }
-
-

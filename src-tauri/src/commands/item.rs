@@ -16,37 +16,25 @@ pub async fn item_vnum_exists(state: State<'_, AppState>, vnum: u32) -> Result<b
 }
 
 #[tauri::command]
-pub async fn next_free_item_vnum(
-    state: State<'_, AppState>,
-    range_start: u32,
-) -> Result<u32, String> {
+pub async fn next_free_item_vnum(state: State<'_, AppState>, range_start: u32) -> Result<u32, String> {
     let pool = require_pool(&state).await?;
     item::next_free_vnum(&pool, range_start).await
 }
 
 #[tauri::command]
-pub async fn get_item_proto(
-    state: State<'_, AppState>,
-    vnum: u32,
-) -> Result<Option<ItemProtoFull>, String> {
+pub async fn get_item_proto(state: State<'_, AppState>, vnum: u32) -> Result<Option<ItemProtoFull>, String> {
     let pool = require_pool(&state).await?;
     item::get_item_proto(&pool, vnum).await
 }
 
 #[tauri::command]
-pub async fn create_item_proto(
-    state: State<'_, AppState>,
-    item: ItemProtoInput,
-) -> Result<(), String> {
+pub async fn create_item_proto(state: State<'_, AppState>, item: ItemProtoInput) -> Result<(), String> {
     let pool = require_pool(&state).await?;
     item::create_item_proto(&pool, &item).await
 }
 
 #[tauri::command]
-pub async fn update_item_proto(
-    state: State<'_, AppState>,
-    item: ItemProtoInput,
-) -> Result<(), String> {
+pub async fn update_item_proto(state: State<'_, AppState>, item: ItemProtoInput) -> Result<(), String> {
     let pool = require_pool(&state).await?;
     item::update_item_proto(&pool, &item).await
 }
@@ -60,11 +48,8 @@ pub async fn delete_item_proto(state: State<'_, AppState>, vnum: u32) -> Result<
 /// Checks every path the item-creation pipeline depends on *before* anything
 /// destructive (including the DB insert) runs, so a misconfigured setting
 /// fails loudly upfront instead of leaving a half-created item behind.
-#[tauri::command]
-pub fn validate_item_editor_setup(
-    state: State<'_, AppState>,
-    require_icon_tool: bool,
-) -> Result<(), String> {
+#[tauri::command(async)]
+pub fn validate_item_editor_setup(state: State<'_, AppState>, require_icon_tool: bool) -> Result<(), String> {
     let mut problems = Vec::new();
 
     match item_editor_setting(&state, "client_path") {
@@ -102,12 +87,8 @@ pub fn validate_item_editor_setup(
     }
 }
 
-#[tauri::command]
-pub fn write_item_icon(
-    state: State<'_, AppState>,
-    vnum: u32,
-    source_path: String,
-) -> Result<String, String> {
+#[tauri::command(async)]
+pub fn write_item_icon(state: State<'_, AppState>, vnum: u32, source_path: String) -> Result<String, String> {
     let client_path = item_editor_setting(&state, "client_path")?;
     let path = packtools::write_icon_tga(&client_path, vnum, &source_path)?;
     Ok(path.display().to_string())
@@ -119,12 +100,8 @@ pub async fn pack_item_icons(app: AppHandle, state: State<'_, AppState>) -> Resu
     packtools::run_eterpack_pack(&app, &tool_path, "icon").await
 }
 
-#[tauri::command]
-pub fn write_item_model(
-    state: State<'_, AppState>,
-    vnum: u32,
-    source_vnum: u32,
-) -> Result<String, String> {
+#[tauri::command(async)]
+pub fn write_item_model(state: State<'_, AppState>, vnum: u32, source_vnum: u32) -> Result<String, String> {
     let client_path = item_editor_setting(&state, "client_path")?;
     let path = packtools::copy_weapon_model(&client_path, vnum, source_vnum)?;
     Ok(path.display().to_string())
@@ -136,7 +113,7 @@ pub async fn pack_item_models(app: AppHandle, state: State<'_, AppState>) -> Res
     packtools::run_eterpack_pack(&app, &tool_path, "item").await
 }
 
-#[tauri::command]
+#[tauri::command(async)]
 pub fn write_item_list_entry(
     state: State<'_, AppState>,
     vnum: u32,
@@ -145,50 +122,33 @@ pub fn write_item_list_entry(
     model_rel_path: Option<String>,
 ) -> Result<Vec<String>, String> {
     let client_path = item_editor_setting(&state, "client_path")?;
-    packtools::upsert_item_list_entries(
-        &client_path,
-        vnum,
-        item_type,
-        &icon_rel_path,
-        model_rel_path.as_deref(),
-    )
+    packtools::upsert_item_list_entries(&client_path, vnum, item_type, &icon_rel_path, model_rel_path.as_deref())
 }
 
 // ---- Item-Beschreibung (locale/<lang>/itemdesc.txt - client-seitig, keine
 // item_proto-Spalte) ----
 
-#[tauri::command]
+#[tauri::command(async)]
 pub fn get_item_desc(state: State<'_, AppState>, vnum: u32) -> Result<Option<itemdesc::ItemDescEntry>, String> {
     let client_path = item_editor_setting(&state, "client_path")?;
     itemdesc::read_entry(&client_path, vnum)
 }
 
-#[tauri::command]
-pub fn write_item_desc(
-    state: State<'_, AppState>,
-    vnum: u32,
-    description: String,
-    summary: String,
-) -> Result<(), String> {
+#[tauri::command(async)]
+pub fn write_item_desc(state: State<'_, AppState>, vnum: u32, description: String, summary: String) -> Result<(), String> {
     let client_path = item_editor_setting(&state, "client_path")?;
     itemdesc::write_entry(&client_path, vnum, &description, &summary)
 }
 
 #[tauri::command]
-pub async fn regenerate_item_proto(
-    app: AppHandle,
-    state: State<'_, AppState>,
-) -> Result<String, String> {
+pub async fn regenerate_item_proto(app: AppHandle, state: State<'_, AppState>) -> Result<String, String> {
     let tool_dir = item_editor_setting(&state, "mysql2proto_dir")?;
     let generated = packtools::run_mysql2proto(&app, &tool_dir).await?;
     Ok(generated.display().to_string())
 }
 
-#[tauri::command]
-pub fn deploy_item_proto(
-    state: State<'_, AppState>,
-    generated_proto_path: String,
-) -> Result<Vec<String>, String> {
+#[tauri::command(async)]
+pub fn deploy_item_proto(state: State<'_, AppState>, generated_proto_path: String) -> Result<Vec<String>, String> {
     let client_path = item_editor_setting(&state, "client_path")?;
     packtools::replace_client_item_proto(&client_path, &generated_proto_path)
 }

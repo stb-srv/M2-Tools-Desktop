@@ -9,79 +9,16 @@ use crate::features::item_editor::item_flags::{
     item_type_label, subtypes_by_type, value_hints, value_labels_by_type, ITEM_TYPES, WEAR_FLAGS,
 };
 use crate::features::item_editor::types::{js_number, num};
+use crate::features::module_importer::icon_logic::{self, *};
+use crate::features::module_importer::package_logic::rollback_note;
 use crate::features::module_importer::shared::*;
-use crate::util::{log_activity, use_save_shortcut};
-use crate::store::navigation::{report_section_dirty, Section};
+use crate::store::navigation::{use_section_dirty_as, Section};
 use crate::tauri::{dialog_open_one, invoke, invoke_unit, OpenDialogOptions};
+use crate::util::{log_activity, use_save_shortcut};
 use leptos::prelude::*;
 use leptos::task::spawn_local;
 use serde_json::json;
 use std::collections::HashMap;
-
-#[derive(Clone, Debug, PartialEq)]
-struct IconItemRow {
-    name: String,
-    locale_name: String,
-    description: String,
-    summary: String,
-    item_type: i64,
-    subtype: i64,
-    wearflag: i64,
-    values: [i64; 6],
-    /// Welche value0-5 pro Aufwertungs-Stufe wachsen - bewusst pro Feld,
-    /// da die Bedeutung je Typ/Subtyp variiert.
-    grow_flags: [bool; 6],
-    ref_item: Option<ItemProtoInput>,
-    chain_enabled: bool,
-    chain_max_level: i64,
-    chain_growth_percent: i64,
-}
-
-fn default_icon_item_row(suggested_name: &str) -> IconItemRow {
-    IconItemRow {
-        name: suggested_name.to_string(),
-        locale_name: suggested_name.to_string(),
-        description: String::new(),
-        summary: String::new(),
-        item_type: 2,
-        subtype: 0,
-        wearflag: 0,
-        values: [0; 6],
-        grow_flags: [false; 6],
-        ref_item: None,
-        chain_enabled: false,
-        chain_max_level: 9,
-        chain_growth_percent: 10,
-    }
-}
-
-/// Vorschlag aus dem Dateinamen: Endung weg, `_`/`-`-Folgen zu Leerzeichen.
-fn suggested_name(path: &str) -> String {
-    let file = file_name_of(path);
-    let stem = match file.rfind('.') {
-        Some(i) if i + 1 < file.len() => file[..i].to_string(),
-        _ => file.clone(),
-    };
-    let mut out = String::new();
-    let mut in_sep = false;
-    for c in stem.chars() {
-        if c == '_' || c == '-' {
-            if !in_sep {
-                out.push(' ');
-            }
-            in_sep = true;
-        } else {
-            out.push(c);
-            in_sep = false;
-        }
-    }
-    let trimmed = out.trim().to_string();
-    if trimmed.is_empty() {
-        stem
-    } else {
-        trimmed
-    }
-}
 
 const VALUE_KEYS: [&str; 6] = ["value0", "value1", "value2", "value3", "value4", "value5"];
 const IN: &str = "rounded-md border border-border bg-background px-2 py-1 text-sm";
@@ -105,8 +42,7 @@ pub fn IconItemImporter(#[prop(into)] on_imported: Callback<()>) -> impl IntoVie
     let confirm = RwSignal::new(false);
 
     let dirty = Memo::new(move |_| icon_paths.with(|p| p.is_some()) && batch_done.with(|b| b.is_none()));
-    Effect::new(move |_| report_section_dirty(Section::ModuleImporter, dirty.get()));
-    on_cleanup(|| report_section_dirty(Section::ModuleImporter, false));
+    use_section_dirty_as(Section::ModuleImporter, "icon", move || dirty.get());
 
     spawn_local(async move {
         if let Ok(v) = invoke::<Option<String>>("get_setting", &json!({ "key": "item_vnum_range_start" })).await {
@@ -116,12 +52,9 @@ pub fn IconItemImporter(#[prop(into)] on_imported: Callback<()>) -> impl IntoVie
 
     let pick_folder = move || {
         spawn_local(async move {
-            let res = dialog_open_one(&OpenDialogOptions {
-                directory: true,
-                title: Some("Icon-Ordner wählen".into()),
-                ..Default::default()
-            })
-            .await;
+            let res =
+                dialog_open_one(&OpenDialogOptions { directory: true, title: Some("Icon-Ordner wählen".into()), ..Default::default() })
+                    .await;
             if let Ok(Some(p)) = res {
                 folder_path.set(p);
                 icon_paths.set(None);
@@ -164,26 +97,10 @@ pub fn IconItemImporter(#[prop(into)] on_imported: Callback<()>) -> impl IntoVie
         });
     };
 
-    let selected_paths = move || -> Vec<String> {
-        icon_paths.with(|p| {
-            p.as_ref()
-                .map(|p| {
-                    p.iter()
-                        .filter(|x| selected.with(|s| s.get(*x).copied().unwrap_or(false)))
-                        .cloned()
-                        .collect()
-                })
-                .unwrap_or_default()
-        })
-    };
+    let selected_paths = move || -> Vec<String> { icon_paths.with(|p| selected.with(|s| icon_logic::selected_paths(p.as_deref(), s))) };
     let can_import = Memo::new(move |_| {
         let sel = selected_paths();
-        !sel.is_empty()
-            && sel.iter().all(|p| {
-                rows.with(|r| {
-                    r.get(p).is_some_and(|x| !x.name.trim().is_empty() && !x.locale_name.trim().is_empty())
-                })
-            })
+        rows.with(|r| icon_logic::can_import(&sel, r))
     });
 
     use_save_shortcut(
@@ -202,11 +119,7 @@ pub fn IconItemImporter(#[prop(into)] on_imported: Callback<()>) -> impl IntoVie
         let range_start0 = vnum_range_start.get_untracked();
         let folder = folder_path.get_untracked();
         item_status.set(sel.iter().map(|p| (p.clone(), StepStatus::Pending)).collect());
-        other_steps.set(HashMap::from([
-            ("setup", StepStatus::Pending),
-            ("pack", StepStatus::Pending),
-            ("proto", StepStatus::Pending),
-        ]));
+        other_steps.set(HashMap::from([("setup", StepStatus::Pending), ("pack", StepStatus::Pending), ("proto", StepStatus::Pending)]));
         let set_other = move |k: &'static str, s: StepStatus| {
             other_steps.update(|m| {
                 m.insert(k, s);
@@ -228,7 +141,7 @@ pub fn IconItemImporter(#[prop(into)] on_imported: Callback<()>) -> impl IntoVie
                         m.insert(path.clone(), StepStatus::Running);
                     });
 
-                    let levels = if row.chain_enabled { row.chain_max_level + 1 } else { 1 };
+                    let levels = levels_of(&row);
                     let base_vnum = find_consecutive_free_vnums(range_start, levels).await?;
                     range_start = base_vnum + levels;
 
@@ -239,41 +152,10 @@ pub fn IconItemImporter(#[prop(into)] on_imported: Callback<()>) -> impl IntoVie
                     for level in 0..levels {
                         let vnum = base_vnum + level;
                         level_vnums.push(vnum);
-                        let template = row.ref_item.clone().unwrap_or_else(|| empty_item(vnum, row.item_type));
-                        let suffix = if level > 0 { format!(" +{level}") } else { String::new() };
-                        let values: Vec<i64> = row
-                            .values
-                            .iter()
-                            .enumerate()
-                            .map(|(i, v)| if row.grow_flags[i] { scaled_value(*v, level, row.chain_growth_percent) } else { *v })
-                            .collect();
-                        let item = ItemProtoInput {
-                            vnum,
-                            vnum_range: 0,
-                            name: fit_to_byte_limit_with_suffix(
-                                &row.name,
-                                &if level > 0 { format!("_{level}") } else { String::new() },
-                                ITEM_NAME_MAX_BYTES,
-                            ),
-                            locale_name: fit_to_byte_limit_with_suffix(&row.locale_name, &suffix, ITEM_NAME_MAX_BYTES),
-                            r#type: row.item_type,
-                            subtype: row.subtype,
-                            // Zubehör ohne 3D-Modell ist immer 1 Slot groß.
-                            size: 1,
-                            wearflag: row.wearflag,
-                            value0: values[0],
-                            value1: values[1],
-                            value2: values[2],
-                            value3: values[3],
-                            value4: values[4],
-                            value5: values[5],
-                            refine_set: 0,
-                            refined_vnum: 0,
-                            ..template
-                        };
+                        let item = build_icon_item(&row, vnum, level);
                         invoke_unit("create_item_proto", &json!({ "item": item })).await?;
                         created.push(vnum);
-                        if !row.description.trim().is_empty() || !row.summary.trim().is_empty() {
+                        if has_description(&row) {
                             invoke_unit(
                                 "write_item_desc",
                                 &json!({ "vnum": vnum, "description": row.description, "summary": row.summary }),
@@ -320,6 +202,8 @@ pub fn IconItemImporter(#[prop(into)] on_imported: Callback<()>) -> impl IntoVie
                 set_other("proto", StepStatus::Done);
 
                 batch_done.set(Some(created.clone()));
+                // Neue Icons: zwischengespeicherte Icons anderer Module verwerfen.
+                crate::store::icons::clear();
                 let recorded = invoke_unit(
                     "record_import_batch",
                     &json!({
@@ -346,23 +230,14 @@ pub fn IconItemImporter(#[prop(into)] on_imported: Callback<()>) -> impl IntoVie
                             Ok(()) => log_activity(
                                 Section::ModuleImporter.into(),
                                 "rollback-item",
-                                &format!(
-                                    "Neu angelegtes Item zurückgenommen (vnum {vnum}, Rollback nach fehlgeschlagenem Import)"
-                                ),
+                                &format!("Neu angelegtes Item zurückgenommen (vnum {vnum}, Rollback nach fehlgeschlagenem Import)"),
                                 Some("item"),
                                 Some(&vnum.to_string()),
                             ),
                             Err(_) => failed.push(vnum),
                         }
                     }
-                    message.push_str(&if failed.is_empty() {
-                        format!("\n\nAlle {} bereits angelegten Einträge wurden automatisch zurückgenommen.", created.len())
-                    } else {
-                        format!(
-                            "\n\nRollback teilweise fehlgeschlagen - bitte vnums {} manuell im DB Explorer prüfen.",
-                            join_vnums(&failed)
-                        )
-                    });
+                    message.push_str(&rollback_note(created.len(), &failed, ""));
                 }
                 batch_error.set(Some(message));
             }
@@ -411,9 +286,24 @@ pub fn IconItemImporter(#[prop(into)] on_imported: Callback<()>) -> impl IntoVie
             }
         };
 
-        let name_input = text_input(|r| r.name.clone(), |x, v| x.name = v, "w-48 rounded-md border border-border bg-background px-2 py-1 text-sm", false);
-        let desc_input = text_input(|r| r.description.clone(), |x, v| x.description = v, "h-16 w-64 rounded-md border border-border bg-background px-2 py-1 text-sm", true);
-        let summary_input = text_input(|r| r.summary.clone(), |x, v| x.summary = v, "h-16 w-48 rounded-md border border-border bg-background px-2 py-1 text-sm", true);
+        let name_input = text_input(
+            |r| r.name.clone(),
+            |x, v| x.name = v,
+            "w-48 rounded-md border border-border bg-background px-2 py-1 text-sm",
+            false,
+        );
+        let desc_input = text_input(
+            |r| r.description.clone(),
+            |x, v| x.description = v,
+            "h-16 w-64 rounded-md border border-border bg-background px-2 py-1 text-sm",
+            true,
+        );
+        let summary_input = text_input(
+            |r| r.summary.clone(),
+            |x, v| x.summary = v,
+            "h-16 w-48 rounded-md border border-border bg-background px-2 py-1 text-sm",
+            true,
+        );
         let row_c = row.clone();
         let row_hint = row.clone();
         let row_ref = row.clone();
@@ -830,17 +720,5 @@ pub fn IconItemImporter(#[prop(into)] on_imported: Callback<()>) -> impl IntoVie
                 </div>
             })}
         </div>
-    }
-}
-
-#[cfg(test)]
-mod tests {
-    use super::suggested_name;
-
-    #[test]
-    fn suggests_names_from_file_names() {
-        assert_eq!(suggested_name("C:/x/my_cool--ring.tga"), "my cool ring");
-        assert_eq!(suggested_name("/x/___.png"), "___");
-        assert_eq!(suggested_name("/x/noext"), "noext");
     }
 }

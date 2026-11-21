@@ -6,9 +6,9 @@ use crate::components::{Button, ButtonSize, ButtonVariant, Icon};
 use crate::features::mob_drop_editor::components::shared::{fmt_num, js_number, num_sig, NumInput};
 use crate::features::shared::drop_chance::format_real_drop_chance;
 use crate::features::shared::{ChangePreview, EntityBrowser, EntityKind, EntityRow, RestartServerButton};
-use crate::util::{log_activity, use_save_shortcut};
-use crate::store::navigation::{report_section_dirty, Section};
+use crate::store::navigation::{use_section_dirty, Section};
 use crate::tauri::invoke;
+use crate::util::{log_activity, use_save_shortcut};
 use leptos::prelude::*;
 use leptos::task::spawn_local;
 use serde::{Deserialize, Serialize};
@@ -70,22 +70,14 @@ async fn resolve_mob_label(vnum: f64) -> String {
 /// Mob-VNUMs (> 0), die mehr als einmal vorkommen.
 pub fn duplicate_mob_vnums(groups: &[DropItemGroup]) -> HashSet<i64> {
     let vnums: Vec<f64> = groups.iter().map(|g| g.mob_vnum).collect();
-    vnums
-        .iter()
-        .enumerate()
-        .filter(|(i, v)| **v > 0.0 && vnums.iter().position(|x| x == *v) != Some(*i))
-        .map(|(_, v)| *v as i64)
-        .collect()
+    vnums.iter().enumerate().filter(|(i, v)| **v > 0.0 && vnums.iter().position(|x| x == *v) != Some(*i)).map(|(_, v)| *v as i64).collect()
 }
 
 pub fn can_save(groups: Option<&[DropItemGroup]>) -> bool {
     let Some(groups) = groups else { return false };
     !groups.is_empty()
         && groups.iter().all(|g| {
-            !g.name.trim().is_empty()
-                && g.mob_vnum > 0.0
-                && !g.items.is_empty()
-                && g.items.iter().all(|it| !it.item_ref.trim().is_empty())
+            !g.name.trim().is_empty() && g.mob_vnum > 0.0 && !g.items.is_empty() && g.items.iter().all(|it| !it.item_ref.trim().is_empty())
         })
         && duplicate_mob_vnums(groups).is_empty()
 }
@@ -106,8 +98,7 @@ pub fn DropItemGroupEditor() -> impl IntoView {
 
     let loaded_snapshot = RwSignal::new(None::<Vec<DropItemGroup>>);
     let dirty = Memo::new(move |_| groups.with(|g| g.is_some() && loaded_snapshot.with(|s| s != g)));
-    Effect::new(move |_| report_section_dirty(Section::DropGenerator, dirty.get()));
-    on_cleanup(move || report_section_dirty(Section::DropGenerator, false));
+    use_section_dirty(Section::DropGenerator, move || dirty.get());
 
     let resolve_all_labels = move |list: Vec<DropItemGroup>| async move {
         let mut seen = Vec::<f64>::new();
@@ -119,11 +110,8 @@ pub fn DropItemGroupEditor() -> impl IntoView {
         let mob_entries = join_all(seen.into_iter().map(|v| async move { (v as i64, resolve_mob_label(v).await) })).await;
         mob_labels.set(mob_entries.into_iter().collect());
 
-        let item_vnums: BTreeSet<String> = list
-            .iter()
-            .flat_map(|g| g.items.iter().map(|it| it.item_ref.trim().to_string()))
-            .filter(|s| !s.is_empty())
-            .collect();
+        let item_vnums: BTreeSet<String> =
+            list.iter().flat_map(|g| g.items.iter().map(|it| it.item_ref.trim().to_string())).filter(|s| !s.is_empty()).collect();
         let item_entries = join_all(item_vnums.into_iter().map(|v| async move {
             let label = match invoke::<Option<ItemProtoName>>("get_item_proto", &json!({ "vnum": js_number(&v) })).await {
                 Ok(Some(proto)) => format!("{} ({v})", proto.locale_name),
@@ -246,9 +234,7 @@ pub fn DropItemGroupEditor() -> impl IntoView {
     let has_groups = Memo::new(move |_| groups.with(|g| g.is_some()));
     let group_count = move || groups.with(|g| g.as_ref().map(|g| g.len()).unwrap_or(0));
     let gfield = move |gi: usize| groups.with(|g| g.as_ref().and_then(|g| g.get(gi)).map(|g| (g.name.clone(), g.mob_vnum, g.items.len())));
-    let ifield = move |gi: usize, ii: usize| {
-        groups.with(|g| g.as_ref().and_then(|g| g.get(gi)).and_then(|g| g.items.get(ii)).cloned())
-    };
+    let ifield = move |gi: usize, ii: usize| groups.with(|g| g.as_ref().and_then(|g| g.get(gi)).and_then(|g| g.items.get(ii)).cloned());
 
     let on_mob_pick = move |row: EntityRow| {
         let Some(idx) = mob_picker_for.get_untracked() else { return };
@@ -452,53 +438,47 @@ pub fn DropItemGroupEditor() -> impl IntoView {
             </Show>
 
             <Show when=move || mob_picker_for.with(|m| m.is_some())>
-                <div class="fixed inset-0 z-50 flex items-center justify-center bg-black/50">
-                    <div class="max-h-[85vh] w-[32rem] space-y-2 overflow-y-auto rounded-lg border border-border bg-card p-4">
-                        <div class="flex items-center justify-between">
-                            <p class="text-sm font-medium">"Mob wählen"</p>
-                            <Button variant=ButtonVariant::Ghost size=ButtonSize::Sm on_click=move |_| mob_picker_for.set(None)>
-                                "Schließen"
-                            </Button>
-                        </div>
-                        <EntityBrowser kind=EntityKind::Mob auto_focus=true on_pick=on_mob_pick/>
+                <crate::components::Modal class="max-h-[85vh] w-[32rem] space-y-2 overflow-y-auto rounded-lg border border-border bg-card p-4" overlay_class="z-50">
+                    <div class="flex items-center justify-between">
+                        <p class="text-sm font-medium">"Mob wählen"</p>
+                        <Button variant=ButtonVariant::Ghost size=ButtonSize::Sm on_click=move |_| mob_picker_for.set(None)>
+                            "Schließen"
+                        </Button>
                     </div>
-                </div>
+                    <EntityBrowser kind=EntityKind::Mob auto_focus=true on_pick=on_mob_pick/>
+                </crate::components::Modal>
             </Show>
 
             <Show when=move || item_picker_for.with(|m| m.is_some())>
-                <div class="fixed inset-0 z-50 flex items-center justify-center bg-black/50">
-                    <div class="max-h-[85vh] w-[32rem] space-y-2 overflow-y-auto rounded-lg border border-border bg-card p-4">
-                        <div class="flex items-center justify-between">
-                            <p class="text-sm font-medium">"Item wählen"</p>
-                            <Button variant=ButtonVariant::Ghost size=ButtonSize::Sm on_click=move |_| item_picker_for.set(None)>
-                                "Schließen"
-                            </Button>
-                        </div>
-                        <EntityBrowser kind=EntityKind::Item auto_focus=true on_pick=on_item_pick/>
+                <crate::components::Modal class="max-h-[85vh] w-[32rem] space-y-2 overflow-y-auto rounded-lg border border-border bg-card p-4" overlay_class="z-50">
+                    <div class="flex items-center justify-between">
+                        <p class="text-sm font-medium">"Item wählen"</p>
+                        <Button variant=ButtonVariant::Ghost size=ButtonSize::Sm on_click=move |_| item_picker_for.set(None)>
+                            "Schließen"
+                        </Button>
                     </div>
-                </div>
+                    <EntityBrowser kind=EntityKind::Item auto_focus=true on_pick=on_item_pick/>
+                </crate::components::Modal>
             </Show>
 
             <Show when=move || confirm_open.get()>
-                <div class="fixed inset-0 z-50 flex items-center justify-center bg-black/50">
-                    <div class="max-h-[85vh] w-[40rem] space-y-3 overflow-y-auto rounded-lg border border-border bg-card p-4">
-                        <p class="flex items-start gap-2 text-sm">
-                            <Icon name="AlertTriangle" class="mt-0.5 size-4 shrink-0 text-destructive"/>
-                            <span>
-                                "drop_item_group.txt wird komplett überschrieben (Backup wird vorher angelegt). Wirkt erst nach einem Server-Neustart."
-                            </span>
-                        </p>
-                        {groups.get_untracked().map(|d| view! {
-                            <ChangePreview kind="drop_item_group" data=serde_json::to_value(&d).unwrap_or_default()/>
-                        })}
-                        <div class="flex justify-end gap-2">
-                            <Button variant=ButtonVariant::Outline on_click=move |_| confirm_open.set(false)>
-                                "Abbrechen"
-                            </Button>
-                            <Button on_click=move |_| save()>"Speichern"</Button>
-                        </div>
+                <crate::components::Modal class="max-h-[85vh] w-[40rem] space-y-3 overflow-y-auto rounded-lg border border-border bg-card p-4" overlay_class="z-50">
+                    <p class="flex items-start gap-2 text-sm">
+                        <Icon name="AlertTriangle" class="mt-0.5 size-4 shrink-0 text-destructive"/>
+                        <span>
+                            "drop_item_group.txt wird komplett überschrieben (Backup wird vorher angelegt). Wirkt erst nach einem Server-Neustart."
+                        </span>
+                    </p>
+                    {groups.get_untracked().map(|d| view! {
+                        <ChangePreview kind="drop_item_group" data=serde_json::to_value(&d).unwrap_or_default()/>
+                    })}
+                    <div class="flex justify-end gap-2">
+                        <Button variant=ButtonVariant::Outline on_click=move |_| confirm_open.set(false)>
+                            "Abbrechen"
+                        </Button>
+                        <Button on_click=move |_| save()>"Speichern"</Button>
                     </div>
-                </div>
+                </crate::components::Modal>
             </Show>
         </div>
     }

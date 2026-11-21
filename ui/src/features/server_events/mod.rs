@@ -2,6 +2,7 @@
 //! Events) plus Tag/Nacht & Schnee als zweiter Tab.
 
 pub mod flags;
+#[allow(clippy::module_inception)] // Untermodul trägt bewusst den Namen des Features
 mod server_events;
 
 use crate::features::shared::{SectionTab, SectionTabs};

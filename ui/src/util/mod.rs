@@ -3,12 +3,15 @@
 // Allgemeine Helfer-API: nicht jede Funktion/Variante wird aktuell genutzt.
 #![allow(dead_code)]
 
+pub mod changelog;
+pub mod confirm;
 pub mod connection;
 pub mod csv;
 pub mod format;
-pub mod storage;
-pub mod changelog;
+pub mod num;
 pub mod release_notes;
+pub mod shell;
+pub mod storage;
 
 use crate::store::navigation::ModuleId;
 use serde_json::json;
@@ -56,18 +59,19 @@ pub fn open_manual(section: Option<ModuleId>) {
 }
 
 /// Strg+S / Cmd+S löst `on_save` aus, solange `enabled()` wahr ist und
-/// `section` der aktive Bereich ist (alle besuchten Bereiche bleiben
+/// `section` der aktive Bereich (und Tab) ist (alle besuchten Bereiche bleiben
 /// versteckt gemountet - ohne die Prüfung würde ein verstecktes Modul den
 /// Tastendruck abfangen).
-pub fn use_save_shortcut(
-    section: crate::store::navigation::Section,
-    enabled: impl Fn() -> bool + 'static,
-    on_save: impl Fn() + 'static,
-) {
+pub fn use_save_shortcut(section: crate::store::navigation::Section, enabled: impl Fn() -> bool + 'static, on_save: impl Fn() + 'static) {
     use leptos::prelude::*;
+    // In einem Bereich mit Tabs speichert nur der aktive Tab.
+    let tab = use_context::<crate::store::navigation::TabContext>();
     let handle = window_event_listener(leptos::ev::keydown, move |e| {
         if (e.ctrl_key() || e.meta_key()) && e.key().to_lowercase() == "s" {
             if crate::store::navigation::nav().section.get_untracked() != section {
+                return;
+            }
+            if tab.is_some_and(|t| !t.is_active()) {
                 return;
             }
             if !enabled() {

@@ -1,0 +1,22 @@
+version: 2
+updates:
+  - package-ecosystem: github-actions
+    directory: /
+    schedule:
+      interval: weekly
+    groups:
+      actions:
+        patterns: ["*"]
+
+  - package-ecosystem: cargo
+    directories:
+      - /src-tauri
+      - /src-tauri/gr2-sidecar
+      - /ui
+      - /tools/release
+      - /e2e
+    schedule:
+      interval: monthly
+    groups:
+      cargo:
+        patterns: ["*"]

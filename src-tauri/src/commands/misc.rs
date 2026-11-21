@@ -12,22 +12,22 @@ use tauri::State;
 
 use super::support::{client_path_setting, require_pool};
 
-#[tauri::command]
+#[tauri::command(async)]
 pub fn export_text_file(path: String, content: String) -> Result<(), String> {
     std::fs::write(&path, content).map_err(|e| format!("Datei konnte nicht geschrieben werden: {e}"))
 }
 
-#[tauri::command]
+#[tauri::command(async)]
 pub fn convert_image_to_tga(source_path: String, dest_path: String) -> Result<(), String> {
     crate::imageconv::convert_to_tga(&source_path, std::path::Path::new(&dest_path))
 }
 
-#[tauri::command]
+#[tauri::command(async)]
 pub fn preview_image_file(path: String) -> Result<String, String> {
     crate::imageconv::preview_as_data_url(&path)
 }
 
-#[tauri::command]
+#[tauri::command(async)]
 pub fn load_gr2_model(granny_dll_path: String, gr2_path: String) -> Result<ModelInfo, String> {
     gr2::parse(&granny_dll_path, &gr2_path)
 }
@@ -37,11 +37,8 @@ pub fn check_client_path(path: String) -> bool {
     gr2::find_granny_dll(&path).is_some()
 }
 
-#[tauri::command]
-pub fn get_item_icon(
-    state: State<'_, AppState>,
-    vnum: u32,
-) -> Result<Option<String>, String> {
+#[tauri::command(async)]
+pub fn get_item_icon(state: State<'_, AppState>, vnum: u32) -> Result<Option<String>, String> {
     let client_path = {
         let conn = state.settings_db.lock().map_err(|e| e.to_string())?;
         settings::get_path(&conn, "client_path")?
@@ -50,57 +47,42 @@ pub fn get_item_icon(
     icons::load_item_icon_data_url(&client_path, vnum)
 }
 
-#[tauri::command]
+#[tauri::command(async)]
 pub fn list_item_icon_files(state: State<'_, AppState>) -> Result<Vec<icons::IconFile>, String> {
     let client_path = client_path_setting(&state)?;
     Ok(icons::list_item_icon_files(&client_path))
 }
 
-#[tauri::command]
+#[tauri::command(async)]
 pub fn load_icon_file(absolute_path: String) -> Result<String, String> {
     icons::load_icon_file_data_url(&absolute_path)
 }
 
-#[tauri::command]
-pub fn locate_npc_model(
-    state: State<'_, AppState>,
-    npc_vnum: i32,
-    folder: Option<String>,
-) -> Result<(String, String), String> {
+#[tauri::command(async)]
+pub fn locate_npc_model(state: State<'_, AppState>, npc_vnum: i32, folder: Option<String>) -> Result<(String, String), String> {
     let (client_path, npclist_override) = {
         let conn = state.settings_db.lock().map_err(|e| e.to_string())?;
-        (
-            settings::get_path(&conn, "client_path")?,
-            settings::get_path(&conn, "npclist_path")?,
-        )
+        (settings::get_path(&conn, "client_path")?, settings::get_path(&conn, "npclist_path")?)
     };
-    let client_path = client_path.ok_or_else(|| {
-        "Kein Client-Pfad konfiguriert. Bitte in den Einstellungen setzen.".to_string()
-    })?;
+    let client_path = client_path.ok_or_else(|| "Kein Client-Pfad konfiguriert. Bitte in den Einstellungen setzen.".to_string())?;
 
-    let dll = gr2::find_granny_dll(&client_path)
-        .ok_or_else(|| format!("granny2.dll nicht gefunden unter {client_path}"))?;
+    let dll = gr2::find_granny_dll(&client_path).ok_or_else(|| format!("granny2.dll nicht gefunden unter {client_path}"))?;
 
     // npclist.txt is the client's own mapping and covers shop NPCs, whose
     // mob_proto.folder is typically empty - fall back to the DB value only if
     // the client list has no entry.
-    let from_list = gr2::find_npclist(&client_path, npclist_override.as_deref())
-        .and_then(|list| gr2::lookup_npc_folder(&list, npc_vnum));
+    let from_list = gr2::find_npclist(&client_path, npclist_override.as_deref()).and_then(|list| gr2::lookup_npc_folder(&list, npc_vnum));
 
-    let resolved = from_list
-        .or(folder)
-        .filter(|f| !f.is_empty())
-        .ok_or_else(|| {
-            format!(
-                "Kein Modell-Ordner für NPC {npc_vnum} gefunden. \
+    let resolved = from_list.or(folder).filter(|f| !f.is_empty()).ok_or_else(|| {
+        format!(
+            "Kein Modell-Ordner für NPC {npc_vnum} gefunden. \
                  npclist.txt wurde nicht gefunden oder enthält keinen Eintrag - \
                  Pfad ggf. in den Einstellungen setzen."
-            )
-        })?;
-
-    let model = gr2::find_npc_model(&client_path, &resolved).ok_or_else(|| {
-        format!("Kein .gr2-Modell für '{resolved}' im Client-Ordner gefunden")
+        )
     })?;
+
+    let model = gr2::find_npc_model(&client_path, &resolved)
+        .ok_or_else(|| format!("Kein .gr2-Modell für '{resolved}' im Client-Ordner gefunden"))?;
     Ok((dll, model))
 }
 

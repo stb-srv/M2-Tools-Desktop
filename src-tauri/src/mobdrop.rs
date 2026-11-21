@@ -86,10 +86,7 @@ pub fn check_numbering(content: &str) -> Vec<NumberingIssue> {
                     sorted.sort_unstable();
                     let expected: Vec<u32> = (1..=current.len() as u32).collect();
                     if sorted != expected {
-                        issues.push(NumberingIssue {
-                            group_index: gi,
-                            found: current.clone(),
-                        });
+                        issues.push(NumberingIssue { group_index: gi, found: current.clone() });
                     }
                 }
             }
@@ -129,47 +126,32 @@ pub fn parse(content: &str) -> Result<Vec<MobDropGroup>, String> {
     while let Some((line_no, line)) = next_nonblank(&mut lines) {
         let tokens: Vec<&str> = line.split_whitespace().collect();
         if tokens.len() != 2 || tokens[0] != "Group" {
-            return Err(format!(
-                "Zeile {}: 'Group <name>' erwartet, gefunden: {line:?}",
-                line_no + 1
-            ));
+            return Err(format!("Zeile {}: 'Group <name>' erwartet, gefunden: {line:?}", line_no + 1));
         }
         let name = tokens[1].to_string();
 
-        let (line_no, line) = next_nonblank(&mut lines)
-            .ok_or_else(|| format!("Unerwartetes Dateiende nach 'Group {name}'"))?;
+        let (line_no, line) = next_nonblank(&mut lines).ok_or_else(|| format!("Unerwartetes Dateiende nach 'Group {name}'"))?;
         if line.trim() != "{" {
             return Err(format!("Zeile {}: '{{' erwartet, gefunden: {line:?}", line_no + 1));
         }
 
-        let (line_no, line) = next_nonblank(&mut lines)
-            .ok_or_else(|| format!("Unerwartetes Dateiende in Group '{name}'"))?;
+        let (line_no, line) = next_nonblank(&mut lines).ok_or_else(|| format!("Unerwartetes Dateiende in Group '{name}'"))?;
         let tokens: Vec<&str> = line.split_whitespace().collect();
         if tokens.len() != 2 || tokens[0] != "Mob" {
-            return Err(format!(
-                "Zeile {}: 'Mob <vnum>' erwartet, gefunden: {line:?}",
-                line_no + 1
-            ));
+            return Err(format!("Zeile {}: 'Mob <vnum>' erwartet, gefunden: {line:?}", line_no + 1));
         }
-        let mob_vnum: u32 = tokens[1]
-            .parse()
-            .map_err(|_| format!("Zeile {}: ungültige Mob-VNUM '{}'", line_no + 1, tokens[1]))?;
+        let mob_vnum: u32 = tokens[1].parse().map_err(|_| format!("Zeile {}: ungültige Mob-VNUM '{}'", line_no + 1, tokens[1]))?;
 
-        let (line_no, line) = next_nonblank(&mut lines)
-            .ok_or_else(|| format!("Unerwartetes Dateiende in Group '{name}'"))?;
+        let (line_no, line) = next_nonblank(&mut lines).ok_or_else(|| format!("Unerwartetes Dateiende in Group '{name}'"))?;
         let tokens: Vec<&str> = line.split_whitespace().collect();
         if tokens.len() != 2 || tokens[0] != "Type" {
-            return Err(format!(
-                "Zeile {}: 'Type <typ>' erwartet, gefunden: {line:?}",
-                line_no + 1
-            ));
+            return Err(format!("Zeile {}: 'Type <typ>' erwartet, gefunden: {line:?}", line_no + 1));
         }
         let drop_type = tokens[1].to_string();
 
         let mut items = Vec::new();
         loop {
-            let (line_no, line) = next_nonblank(&mut lines)
-                .ok_or_else(|| format!("Unerwartetes Dateiende in Group '{name}'"))?;
+            let (line_no, line) = next_nonblank(&mut lines).ok_or_else(|| format!("Unerwartetes Dateiende in Group '{name}'"))?;
             if line.trim() == "}" {
                 break;
             }
@@ -183,31 +165,14 @@ pub fn parse(content: &str) -> Result<Vec<MobDropGroup>, String> {
             // tokens[0] is the sequential index - must be numeric (that's
             // what distinguishes a real entry line from garbage) but its
             // value is never trusted; serialize() always recomputes it.
-            tokens[0].parse::<u32>().map_err(|_| {
-                format!("Zeile {}: ungültige laufende Nummer '{}'", line_no + 1, tokens[0])
-            })?;
-            let item_vnum: u32 = tokens[1]
-                .parse()
-                .map_err(|_| format!("Zeile {}: ungültige Item-VNUM '{}'", line_no + 1, tokens[1]))?;
-            let count: u32 = tokens[2]
-                .parse()
-                .map_err(|_| format!("Zeile {}: ungültige Anzahl '{}'", line_no + 1, tokens[2]))?;
-            let percent: f64 = tokens[3].parse().map_err(|_| {
-                format!("Zeile {}: ungültiger Prozentwert '{}'", line_no + 1, tokens[3])
-            })?;
-            items.push(MobDropItem {
-                item_vnum,
-                count,
-                percent,
-            });
+            tokens[0].parse::<u32>().map_err(|_| format!("Zeile {}: ungültige laufende Nummer '{}'", line_no + 1, tokens[0]))?;
+            let item_vnum: u32 = tokens[1].parse().map_err(|_| format!("Zeile {}: ungültige Item-VNUM '{}'", line_no + 1, tokens[1]))?;
+            let count: u32 = tokens[2].parse().map_err(|_| format!("Zeile {}: ungültige Anzahl '{}'", line_no + 1, tokens[2]))?;
+            let percent: f64 = tokens[3].parse().map_err(|_| format!("Zeile {}: ungültiger Prozentwert '{}'", line_no + 1, tokens[3]))?;
+            items.push(MobDropItem { item_vnum, count, percent });
         }
 
-        groups.push(MobDropGroup {
-            name,
-            mob_vnum,
-            drop_type,
-            items,
-        });
+        groups.push(MobDropGroup { name, mob_vnum, drop_type, items });
     }
 
     Ok(groups)
@@ -218,10 +183,7 @@ fn format_percent(value: f64) -> String {
     if rounded.fract() == 0.0 {
         format!("{}", rounded as i64)
     } else {
-        format!("{rounded:.4}")
-            .trim_end_matches('0')
-            .trim_end_matches('.')
-            .to_string()
+        format!("{rounded:.4}").trim_end_matches('0').trim_end_matches('.').to_string()
     }
 }
 
@@ -233,18 +195,9 @@ pub fn serialize(groups: &[MobDropGroup]) -> String {
         if gi > 0 {
             out.push('\n');
         }
-        out.push_str(&format!(
-            "Group\t{}\n{{\n\tMob\t{}\n\tType\t{}\n",
-            group.name, group.mob_vnum, group.drop_type
-        ));
+        out.push_str(&format!("Group\t{}\n{{\n\tMob\t{}\n\tType\t{}\n", group.name, group.mob_vnum, group.drop_type));
         for (i, item) in group.items.iter().enumerate() {
-            out.push_str(&format!(
-                "\t{}\t{}\t{}\t{}\n",
-                i + 1,
-                item.item_vnum,
-                item.count,
-                format_percent(item.percent)
-            ));
+            out.push_str(&format!("\t{}\t{}\t{}\t{}\n", i + 1, item.item_vnum, item.count, format_percent(item.percent)));
         }
         out.push_str("}\n");
     }
@@ -289,14 +242,7 @@ mod tests {
         assert_eq!(groups[0].mob_vnum, 171);
         assert_eq!(groups[0].drop_type, "drop");
         assert_eq!(groups[0].items.len(), 5);
-        assert_eq!(
-            groups[0].items[0],
-            MobDropItem {
-                item_vnum: 4006,
-                count: 1,
-                percent: 10.0
-            }
-        );
+        assert_eq!(groups[0].items[0], MobDropItem { item_vnum: 4006, count: 1, percent: 10.0 });
         assert_eq!(groups[1].name, "Wildhund");
         assert_eq!(groups[1].items.len(), 8);
     }
@@ -339,7 +285,8 @@ mod tests {
         // "3" is missing - on the real server this silently drops every
         // entry after it (see doc comment on `check_numbering`), even
         // though this parses fine and shows all 4 items in this tool.
-        let broken = "Group\tWildhund\n{\n\tMob\t101\n\tType\tdrop\n\t1\t4006\t1\t10\n\t2\t46\t1\t10\n\t4\t56\t1\t10\n\t5\t1006\t1\t10\n}\n";
+        let broken =
+            "Group\tWildhund\n{\n\tMob\t101\n\tType\tdrop\n\t1\t4006\t1\t10\n\t2\t46\t1\t10\n\t4\t56\t1\t10\n\t5\t1006\t1\t10\n}\n";
         assert!(parse(broken).is_ok());
         let issues = check_numbering(broken);
         assert_eq!(issues.len(), 1);

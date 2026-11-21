@@ -11,7 +11,7 @@ pub mod logic;
 use crate::components::{Button, ButtonSize, ButtonVariant, Icon};
 use crate::features::mob_drop_editor::components::shared::{js_number, num_sig, NumInput};
 use crate::features::shared::{ChangePreview, EntityBrowser, EntityKind, EntityRow, RestartServerButton};
-use crate::store::navigation::{report_section_dirty, Section};
+use crate::store::navigation::{use_section_dirty, Section};
 use crate::tauri::invoke;
 use crate::util::{log_activity, use_save_shortcut};
 use leptos::prelude::*;
@@ -20,7 +20,10 @@ use logic::*;
 use serde_json::json;
 use std::collections::{BTreeSet, HashMap, HashSet};
 
-type IconCache = RwSignal<HashMap<u32, Option<String>>>;
+/// Änderung an den Blöcken einer Regel-Zeile.
+type BlocksUpdate = Box<dyn FnOnce(&mut Vec<Block>)>;
+
+type IconCache = RwSignal<crate::store::icons::IconMap>;
 
 /// Farbe pro Rang (Liste, Karten, Vorschau).
 const RANK_TINT: [&str; RANK_COUNT] = [
@@ -51,25 +54,16 @@ enum LineKind {
 fn ItemIcon(#[prop(into)] vnum: Signal<u32>, cache: IconCache, #[prop(optional)] large: bool) -> impl IntoView {
     Effect::new(move |_| {
         let v = vnum.get();
-        if v == 0 || cache.with_untracked(|c| c.contains_key(&v)) {
-            return;
+        if v != 0 {
+            crate::store::icons::ensure_icons([v as i64]);
         }
-        cache.update(|c| {
-            c.insert(v, None);
-        });
-        spawn_local(async move {
-            let url = invoke::<Option<String>>("get_item_icon", &json!({ "vnum": v })).await.ok().flatten();
-            cache.update(|c| {
-                c.insert(v, url);
-            });
-        });
     });
     let size = if large { "size-12" } else { "size-9" };
     view! {
         <div class=format!("flex {size} shrink-0 items-center justify-center overflow-hidden rounded-md border border-border bg-muted/40")>
             {move || {
                 let v = vnum.get();
-                match cache.with(|c| c.get(&v).cloned().flatten()).filter(|u| !u.is_empty()) {
+                match cache.with(|c| c.get(&(v as i64)).cloned().flatten()).filter(|u| !u.is_empty()) {
                     Some(url) => view! { <img src=url alt="" class="size-full object-contain"/> }.into_any(),
                     None => view! { <Icon name="Package" class="size-4 text-muted-foreground"/> }.into_any(),
                 }
@@ -101,26 +95,29 @@ pub fn CommonDropEditor() -> impl IntoView {
     let checks = RwSignal::new(HashMap::<u32, ItemCheck>::new());
     let pending_checks = StoredValue::new(HashSet::<u32>::new());
     let db_error = RwSignal::new(None::<String>);
-    let icons: IconCache = RwSignal::new(HashMap::new());
+    let icons: IconCache = crate::store::icons::icons();
     let validate_seq = StoredValue::new(0u64);
 
     let dirty = Memo::new(move |_| file.with(|f| f.is_some() && snapshot.with(|s| s != f)));
-    Effect::new(move |_| report_section_dirty(Section::DropGenerator, dirty.get()));
-    on_cleanup(move || report_section_dirty(Section::DropGenerator, false));
+    use_section_dirty(Section::DropGenerator, move || dirty.get());
 
     // ---- Prüfungen ----
     Effect::new(move |_| {
-        let Some(f) = file.get() else {
+        // Ohne Klon der ganzen Datei: gleich als Argument serialisieren.
+        let Some(args) = file.with(|f| f.as_ref().map(|f| json!({ "file": f }))) else {
             issues.set(vec![]);
             return;
         };
         let seq = validate_seq.get_value() + 1;
         validate_seq.set_value(seq);
         spawn_local(async move {
-            if let Ok(list) = invoke::<Vec<Issue>>("validate_common_drop", &json!({ "file": f })).await {
-                if validate_seq.get_value() == seq {
-                    issues.set(list);
-                }
+            let res = invoke::<Vec<Issue>>("validate_common_drop", &args).await;
+            if validate_seq.get_value() != seq {
+                return;
+            }
+            match res {
+                Ok(list) => issues.set(list),
+                Err(e) => crate::components::toast::error(&format!("Prüfung fehlgeschlagen: {e}")),
             }
         });
     });
@@ -186,7 +183,7 @@ pub fn CommonDropEditor() -> impl IntoView {
         })
     };
     let block = move |li: usize, r: usize| rule_blocks(li).and_then(|b| b.get(r).cloned());
-    let update_blocks = move |li: usize, f: Box<dyn FnOnce(&mut Vec<Block>)>| {
+    let update_blocks = move |li: usize, f: BlocksUpdate| {
         file.update(|file| {
             if let Some(Line::Rule { blocks }) = file.as_mut().and_then(|file| file.lines.get_mut(li)) {
                 f(blocks);
@@ -414,7 +411,13 @@ pub fn CommonDropEditor() -> impl IntoView {
             let Some(blocks) = rule_blocks(li) else { return String::new() };
             let b = &blocks[0];
             if is_shared(&blocks) {
-                label(b.vnum).filter(|l| !l.is_empty()).unwrap_or_else(|| if b.name.is_empty() { format!("Item {}", b.vnum) } else { b.name.clone() })
+                label(b.vnum).filter(|l| !l.is_empty()).unwrap_or_else(|| {
+                    if b.name.is_empty() {
+                        format!("Item {}", b.vnum)
+                    } else {
+                        b.name.clone()
+                    }
+                })
             } else {
                 format!("{} (+ weitere Items)", label(b.vnum).unwrap_or_else(|| format!("Item {}", b.vnum)))
             }
@@ -500,7 +503,8 @@ pub fn CommonDropEditor() -> impl IntoView {
         let b = move || block(li, r);
         let active = move || b().is_some_and(|b| b.is_active());
         let vnum = Signal::derive(move || b().map(|b| b.vnum).unwrap_or(0));
-        let rank_issues = move || all_issues.with(|l| l.iter().filter(|i| i.line_index == li && i.rank == Some(r)).cloned().collect::<Vec<_>>());
+        let rank_issues =
+            move || all_issues.with(|l| l.iter().filter(|i| i.line_index == li && i.rank == Some(r)).cloned().collect::<Vec<_>>());
         view! {
             <div class=move || format!(
                 "space-y-3 rounded-lg border p-3 transition-opacity {}",
@@ -627,7 +631,8 @@ pub fn CommonDropEditor() -> impl IntoView {
     // ---- Detail: ganze Regel ----
     let rule_detail = move |li: usize| {
         let first_vnum = Signal::derive(move || block(li, 0).map(|b| b.vnum).unwrap_or(0));
-        let rule_issues = move || all_issues.with(|l| l.iter().filter(|i| i.line_index == li && i.rank.is_none()).cloned().collect::<Vec<_>>());
+        let rule_issues =
+            move || all_issues.with(|l| l.iter().filter(|i| i.line_index == li && i.rank.is_none()).cloned().collect::<Vec<_>>());
         let copy_from = RwSignal::new(0usize);
         view! {
             <div class="space-y-3">
@@ -746,10 +751,12 @@ pub fn CommonDropEditor() -> impl IntoView {
 
     // ---- Detail: fehlerhafte Zeile ----
     let invalid_detail = move |li: usize| {
-        let error = move || file.with(|f| match f.as_ref().and_then(|f| f.lines.get(li)) {
-            Some(Line::Invalid { error, .. }) => error.clone(),
-            _ => String::new(),
-        });
+        let error = move || {
+            file.with(|f| match f.as_ref().and_then(|f| f.lines.get(li)) {
+                Some(Line::Invalid { error, .. }) => error.clone(),
+                _ => String::new(),
+            })
+        };
         view! {
             <div class="space-y-3 rounded-lg border border-destructive/60 p-3">
                 <p class="flex items-start gap-2 text-sm text-destructive">
@@ -923,77 +930,69 @@ pub fn CommonDropEditor() -> impl IntoView {
             </Show>
 
             <Show when=move || picker.get().is_some()>
-                <div class="fixed inset-0 z-50 flex items-center justify-center bg-black/50">
-                    <div class="max-h-[85vh] w-[32rem] space-y-2 overflow-y-auto rounded-lg border border-border bg-card p-4">
-                        <div class="flex items-center justify-between">
-                            <p class="text-sm font-medium">
-                                {move || match picker.get() {
-                                    Some(PickTarget::NewRule) => "Item für die neue Regel wählen".to_string(),
-                                    Some(PickTarget::Rank(_, r)) => format!("Item für {} wählen", RANKS[r].key),
-                                    _ => "Item wählen".to_string(),
-                                }}
-                            </p>
-                            <Button variant=ButtonVariant::Ghost size=ButtonSize::Sm on_click=move |_| picker.set(None)>
-                                "Schließen"
-                            </Button>
-                        </div>
-                        <EntityBrowser kind=EntityKind::Item auto_focus=true on_pick=on_pick/>
+                <crate::components::Modal class="max-h-[85vh] w-[32rem] space-y-2 overflow-y-auto rounded-lg border border-border bg-card p-4" overlay_class="z-50">
+                    <div class="flex items-center justify-between">
+                        <p class="text-sm font-medium">
+                            {move || match picker.get() {
+                                Some(PickTarget::NewRule) => "Item für die neue Regel wählen".to_string(),
+                                Some(PickTarget::Rank(_, r)) => format!("Item für {} wählen", RANKS[r].key),
+                                _ => "Item wählen".to_string(),
+                            }}
+                        </p>
+                        <Button variant=ButtonVariant::Ghost size=ButtonSize::Sm on_click=move |_| picker.set(None)>
+                            "Schließen"
+                        </Button>
                     </div>
-                </div>
+                    <EntityBrowser kind=EntityKind::Item auto_focus=true on_pick=on_pick/>
+                </crate::components::Modal>
             </Show>
 
             {move || delete_confirm.get().map(|li| view! {
-                <div class="fixed inset-0 z-50 flex items-center justify-center bg-black/50">
-                    <div class="w-80 space-y-3 rounded-lg border border-border bg-card p-4">
-                        <p class="text-sm">"Diese Zeile wirklich entfernen? Wird erst beim Speichern in die Datei übernommen."</p>
-                        <div class="flex justify-end gap-2">
-                            <Button variant=ButtonVariant::Outline on_click=move |_| delete_confirm.set(None)>"Abbrechen"</Button>
-                            <Button variant=ButtonVariant::Destructive on_click=move |_| delete_line(li)>"Entfernen"</Button>
-                        </div>
+                <crate::components::Modal class="w-80 space-y-3 rounded-lg border border-border bg-card p-4" overlay_class="z-50">
+                    <p class="text-sm">"Diese Zeile wirklich entfernen? Wird erst beim Speichern in die Datei übernommen."</p>
+                    <div class="flex justify-end gap-2">
+                        <Button variant=ButtonVariant::Outline on_click=move |_| delete_confirm.set(None)>"Abbrechen"</Button>
+                        <Button variant=ButtonVariant::Destructive on_click=move |_| delete_line(li)>"Entfernen"</Button>
                     </div>
-                </div>
+                </crate::components::Modal>
             })}
 
             <Show when=move || confirm_reload.get()>
-                <div class="fixed inset-0 z-50 flex items-center justify-center bg-black/50">
-                    <div class="w-96 space-y-3 rounded-lg border border-border bg-card p-4">
-                        <p class="text-sm">"Ungespeicherte Änderungen verwerfen und die Datei neu vom Server laden?"</p>
-                        <div class="flex justify-end gap-2">
-                            <Button variant=ButtonVariant::Outline on_click=move |_| confirm_reload.set(false)>"Abbrechen"</Button>
-                            <Button variant=ButtonVariant::Destructive on_click=move |_| load()>"Verwerfen und laden"</Button>
-                        </div>
+                <crate::components::Modal class="w-96 space-y-3 rounded-lg border border-border bg-card p-4" overlay_class="z-50">
+                    <p class="text-sm">"Ungespeicherte Änderungen verwerfen und die Datei neu vom Server laden?"</p>
+                    <div class="flex justify-end gap-2">
+                        <Button variant=ButtonVariant::Outline on_click=move |_| confirm_reload.set(false)>"Abbrechen"</Button>
+                        <Button variant=ButtonVariant::Destructive on_click=move |_| load()>"Verwerfen und laden"</Button>
                     </div>
-                </div>
+                </crate::components::Modal>
             </Show>
 
             <Show when=move || confirm_save.get()>
-                <div class="fixed inset-0 z-50 flex items-center justify-center bg-black/50">
-                    <div class="max-h-[85vh] w-[40rem] space-y-3 overflow-y-auto rounded-lg border border-border bg-card p-4">
-                        <p class="flex items-start gap-2 text-sm">
-                            <Icon name="AlertTriangle" class="mt-0.5 size-4 shrink-0 text-amber-500"/>
-                            <span>
-                                "common_drop_item.txt wird auf dem Server überschrieben (vorher wird ein Backup angelegt). Die Änderungen wirken erst nach einem Server-Neustart."
-                            </span>
+                <crate::components::Modal class="max-h-[85vh] w-[40rem] space-y-3 overflow-y-auto rounded-lg border border-border bg-card p-4" overlay_class="z-50">
+                    <p class="flex items-start gap-2 text-sm">
+                        <Icon name="AlertTriangle" class="mt-0.5 size-4 shrink-0 text-amber-500"/>
+                        <span>
+                            "common_drop_item.txt wird auf dem Server überschrieben (vorher wird ein Backup angelegt). Die Änderungen wirken erst nach einem Server-Neustart."
+                        </span>
+                    </p>
+                    {file.get_untracked().map(|f| view! {
+                        <ChangePreview kind="common_drop" data=serde_json::to_value(&f).unwrap_or_default()/>
+                    })}
+                    <Show when=move || warning_count.get() != 0>
+                        <p class="text-xs text-amber-600 dark:text-amber-400">
+                            {move || format!("Es gibt noch {} Hinweis(e) - sie blockieren das Speichern nicht.", warning_count.get())}
                         </p>
-                        {file.get_untracked().map(|f| view! {
-                            <ChangePreview kind="common_drop" data=serde_json::to_value(&f).unwrap_or_default()/>
-                        })}
-                        <Show when=move || warning_count.get() != 0>
-                            <p class="text-xs text-amber-600 dark:text-amber-400">
-                                {move || format!("Es gibt noch {} Hinweis(e) - sie blockieren das Speichern nicht.", warning_count.get())}
-                            </p>
-                        </Show>
-                        <Show when=move || db_error.get().is_some()>
-                            <p class="text-xs text-amber-600 dark:text-amber-400">
-                                "Achtung: die Items wurden nicht gegen item_proto geprüft (keine Datenbank-Verbindung)."
-                            </p>
-                        </Show>
-                        <div class="flex justify-end gap-2">
-                            <Button variant=ButtonVariant::Outline on_click=move |_| confirm_save.set(false)>"Abbrechen"</Button>
-                            <Button on_click=move |_| save()>"Speichern"</Button>
-                        </div>
+                    </Show>
+                    <Show when=move || db_error.get().is_some()>
+                        <p class="text-xs text-amber-600 dark:text-amber-400">
+                            "Achtung: die Items wurden nicht gegen item_proto geprüft (keine Datenbank-Verbindung)."
+                        </p>
+                    </Show>
+                    <div class="flex justify-end gap-2">
+                        <Button variant=ButtonVariant::Outline on_click=move |_| confirm_save.set(false)>"Abbrechen"</Button>
+                        <Button on_click=move |_| save()>"Speichern"</Button>
                     </div>
-                </div>
+                </crate::components::Modal>
             </Show>
         </div>
     }

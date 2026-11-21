@@ -7,16 +7,15 @@ pub mod logic;
 use crate::components::{Button, ButtonSize, ButtonVariant, Icon, PageHeader};
 use crate::features::regen_editor::num_input::{js_number_string, NumInput};
 use crate::features::shared::{EntityBrowser, EntityKind, EntityRow};
-use crate::util::format::de_int;
-use crate::util::{log_activity, use_save_shortcut};
 use crate::store::navigation::{nav, report_section_dirty, Section};
 use crate::tauri::{invoke, invoke0, invoke_unit};
+use crate::util::format::de_int;
+use crate::util::{log_activity, use_save_shortcut};
 use leptos::prelude::*;
 use leptos::task::spawn_local;
 use logic::{active_materials, initial_material_rows, parse_reuse_id, MaterialRow};
 use serde::{Deserialize, Serialize};
 use serde_json::json;
-use std::collections::HashMap;
 
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
 pub struct RefineMaterial {
@@ -66,7 +65,7 @@ struct ShopSource {
     count: f64,
 }
 
-type IconCache = RwSignal<HashMap<i64, Option<String>>>;
+type IconCache = RwSignal<crate::store::icons::IconMap>;
 
 fn n(v: f64) -> String {
     js_number_string(v)
@@ -75,14 +74,7 @@ fn n(v: f64) -> String {
 #[component]
 fn ItemIcon(vnum: f64, cache: IconCache) -> impl IntoView {
     let key = vnum as i64;
-    if !cache.with_untracked(|c| c.contains_key(&key)) {
-        spawn_local(async move {
-            let url = invoke::<Option<String>>("get_item_icon", &json!({ "vnum": vnum })).await.ok().flatten();
-            cache.update(|c| {
-                c.insert(key, url);
-            });
-        });
-    }
+    crate::store::icons::ensure_icons([key]);
     view! {
         <div class="flex size-10 shrink-0 items-center justify-center rounded-md border border-border bg-muted/40">
             {move || match cache.with(|c| c.get(&key).cloned().flatten()).filter(|u| !u.is_empty()) {
@@ -153,9 +145,7 @@ fn MaterialSourceHint(material: RefineMaterial, mob_drops: MobDrops) -> impl Int
             d.as_deref()
                 .unwrap_or(&[])
                 .iter()
-                .filter_map(|g| {
-                    g.items.iter().find(|it| it.item_vnum == vnum).map(|drop| (g.name.clone(), g.mob_vnum, drop.percent))
-                })
+                .filter_map(|g| g.items.iter().find(|it| it.item_vnum == vnum).map(|drop| (g.name.clone(), g.mob_vnum, drop.percent)))
                 .collect::<Vec<_>>()
         })
     });
@@ -334,12 +324,7 @@ fn RecipeEditor(node: RefineChainNode, #[prop(into)] on_cancel: Callback<()>, #[
         error.set(None);
         let target = target_vnum.get_untracked();
         spawn_local(async move {
-            match invoke_unit(
-                "set_item_refine_link",
-                &json!({ "vnum": node_vnum, "refineSet": preview.id, "refinedVnum": target }),
-            )
-            .await
-            {
+            match invoke_unit("set_item_refine_link", &json!({ "vnum": node_vnum, "refineSet": preview.id, "refinedVnum": target })).await {
                 Ok(()) => {
                     log_activity(
                         Section::RefineEditor.into(),
@@ -356,11 +341,7 @@ fn RecipeEditor(node: RefineChainNode, #[prop(into)] on_cancel: Callback<()>, #[
         });
     };
 
-    use_save_shortcut(
-        Section::RefineEditor,
-        move || dirty.get_untracked() && !saving.get_untracked(),
-        move || save_new_or_update(false),
-    );
+    use_save_shortcut(Section::RefineEditor, move || dirty.get_untracked() && !saving.get_untracked(), move || save_new_or_update(false));
 
     // "Letzte Änderung rückgängig machen" - refine_proto hat kein
     // Datei-Backup, undo_last_refine_change stellt serverseitig den
@@ -622,7 +603,7 @@ pub fn RefineEditor() -> impl IntoView {
     let loading = RwSignal::new(false);
     let error = RwSignal::new(None::<String>);
     let editing_vnum = RwSignal::new(None::<f64>);
-    let icon_cache: IconCache = RwSignal::new(HashMap::new());
+    let icon_cache: IconCache = crate::store::icons::icons();
     let mob_drops = MobDrops { drops: RwSignal::new(None), loading: RwSignal::new(false) };
 
     let load_chain = move |vnum: f64| {

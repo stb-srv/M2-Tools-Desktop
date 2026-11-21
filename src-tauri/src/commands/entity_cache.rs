@@ -27,13 +27,13 @@ pub async fn sync_entity_cache(state: State<'_, AppState>, kind: String) -> Resu
     entity_cache::get_meta(&conn, &kind)?.ok_or_else(|| "Cache-Sync fehlgeschlagen.".to_string())
 }
 
-#[tauri::command]
+#[tauri::command(async)]
 pub fn get_entity_cache_meta(state: State<'_, AppState>, kind: String) -> Result<Option<CacheMeta>, String> {
     let conn = state.settings_db.lock().map_err(|e| e.to_string())?;
     entity_cache::get_meta(&conn, &kind)
 }
 
-#[tauri::command]
+#[tauri::command(async)]
 pub fn browse_entities_cached(
     state: State<'_, AppState>,
     kind: String,

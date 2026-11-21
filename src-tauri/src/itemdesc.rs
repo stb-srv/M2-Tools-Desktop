@@ -44,21 +44,11 @@ pub fn parse(content: &str) -> Result<Vec<ItemDescEntry>, String> {
         }
         let parts: Vec<&str> = line.split('\t').collect();
         if parts.len() < 3 {
-            return Err(format!(
-                "Zeile {}: '<vnum>\\t<Beschreibung>\\t<Kurzbeschreibung>' erwartet, gefunden: {line:?}",
-                line_no + 1
-            ));
+            return Err(format!("Zeile {}: '<vnum>\\t<Beschreibung>\\t<Kurzbeschreibung>' erwartet, gefunden: {line:?}", line_no + 1));
         }
-        let vnum: u32 = parts[0]
-            .parse()
-            .map_err(|_| format!("Zeile {}: ungültige VNUM '{}'", line_no + 1, parts[0]))?;
+        let vnum: u32 = parts[0].parse().map_err(|_| format!("Zeile {}: ungültige VNUM '{}'", line_no + 1, parts[0]))?;
         let extra = if parts.len() > 3 { Some(parts[3..].join("\t")) } else { None };
-        entries.push(ItemDescEntry {
-            vnum,
-            description: parts[1].to_string(),
-            summary: parts[2].to_string(),
-            extra,
-        });
+        entries.push(ItemDescEntry { vnum, description: parts[1].to_string(), summary: parts[2].to_string(), extra });
     }
     Ok(entries)
 }
@@ -80,25 +70,16 @@ pub fn serialize(entries: &[ItemDescEntry]) -> String {
 /// module doc for why "first" instead of "every locale").
 pub fn find_file(client_path: &str) -> Result<PathBuf, String> {
     let locale_dir = Path::new(client_path).join("locale");
-    let mut subdirs: Vec<PathBuf> = std::fs::read_dir(&locale_dir)
-        .map_err(|e| format!("Locale-Ordner {locale_dir:?} nicht lesbar: {e}"))?
-        .flatten()
-        .map(|e| e.path())
-        .filter(|p| p.is_dir())
-        .collect();
-    subdirs.sort();
-
-    subdirs
+    crate::clientfs::locale_lang_files(client_path, "itemdesc.txt")?
         .into_iter()
-        .map(|dir| dir.join("itemdesc.txt"))
-        .find(|p| p.exists())
+        .next()
         .ok_or_else(|| format!("Keine itemdesc.txt unter {locale_dir:?}/<lang>/ gefunden."))
 }
 
 pub fn read_entry(client_path: &str, vnum: u32) -> Result<Option<ItemDescEntry>, String> {
     let path = find_file(client_path)?;
     let bytes = std::fs::read(&path).map_err(|e| e.to_string())?;
-    let (text, _, _) = encoding_rs::WINDOWS_1252.decode(&bytes);
+    let text = crate::clientfs::decode(&bytes, crate::clientfs::client_encoding());
     let entries = parse(&text)?;
     Ok(entries.into_iter().find(|e| e.vnum == vnum))
 }
@@ -108,7 +89,10 @@ pub fn read_entry(client_path: &str, vnum: u32) -> Result<Option<ItemDescEntry>,
 pub fn write_entry(client_path: &str, vnum: u32, description: &str, summary: &str) -> Result<(), String> {
     let path = find_file(client_path)?;
     let bytes = std::fs::read(&path).map_err(|e| e.to_string())?;
-    let (text, _, _) = encoding_rs::WINDOWS_1252.decode(&bytes);
+    let enc = crate::clientfs::client_encoding();
+    let text = crate::clientfs::decode(&bytes, enc);
+    // Zeilenenden der Datei beibehalten (die Datei kann LF oder CRLF nutzen).
+    let eol = crate::clientfs::detect_eol_or(&text, "\n");
     let mut entries = parse(&text)?;
 
     match entries.iter_mut().find(|e| e.vnum == vnum) {
@@ -116,18 +100,13 @@ pub fn write_entry(client_path: &str, vnum: u32, description: &str, summary: &st
             existing.description = description.to_string();
             existing.summary = summary.to_string();
         }
-        None => entries.push(ItemDescEntry {
-            vnum,
-            description: description.to_string(),
-            summary: summary.to_string(),
-            extra: None,
-        }),
+        None => entries.push(ItemDescEntry { vnum, description: description.to_string(), summary: summary.to_string(), extra: None }),
     }
 
-    crate::packtools::backup_file(&path)?;
-    let out = serialize(&entries);
-    let (encoded, _, _) = encoding_rs::WINDOWS_1252.encode(&out);
-    std::fs::write(&path, encoded).map_err(|e| e.to_string())
+    let out = crate::clientfs::with_eol(&serialize(&entries), eol);
+    let encoded = crate::clientfs::encode(&out, enc)?;
+    crate::clientfs::backup_file(&path)?;
+    crate::clientfs::write_atomic(&path, &encoded)
 }
 
 #[cfg(test)]
@@ -186,6 +165,26 @@ mod tests {
         let created = read_entry(client_path, 999999).unwrap().unwrap();
         assert_eq!(created.description, "Ganz neu");
 
+        std::fs::remove_dir_all(&dir).ok();
+    }
+
+    #[test]
+    fn write_entry_keeps_crlf_and_rejects_unencodable_text() {
+        let dir = std::env::temp_dir().join(format!("m2m_itemdesc_crlf_{}", std::process::id()));
+        let locale_dir = dir.join("locale").join("de");
+        std::fs::create_dir_all(&locale_dir).unwrap();
+        let file = locale_dir.join("itemdesc.txt");
+        std::fs::write(&file, b"1\tA\tB\r\n2\tC\tD\r\n").unwrap();
+        let client_path = dir.to_str().unwrap();
+
+        write_entry(client_path, 3, "Neu", "").unwrap();
+        assert_eq!(std::fs::read(&file).unwrap(), b"1\tA\tB\r\n2\tC\tD\r\n3\tNeu\t\r\n");
+
+        // ł ist in Windows-1252 nicht darstellbar: Fehler, Datei unverändert
+        let before = std::fs::read(&file).unwrap();
+        let err = write_entry(client_path, 4, "Miecz ł", "").unwrap_err();
+        assert!(err.contains("ł"), "{err}");
+        assert_eq!(std::fs::read(&file).unwrap(), before);
         std::fs::remove_dir_all(&dir).ok();
     }
 }

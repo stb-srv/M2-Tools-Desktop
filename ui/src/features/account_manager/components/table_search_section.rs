@@ -75,12 +75,8 @@ pub fn TableSearchSection(
 
     let open_tools = move |row: Row| {
         let Some(res) = result.get_untracked() else { return };
-        let label = res
-            .columns
-            .iter()
-            .position(|c| c == "name")
-            .map(|i| row.get(i).cloned().flatten().unwrap_or_default())
-            .unwrap_or_default();
+        let label =
+            res.columns.iter().position(|c| c == "name").map(|i| row.get(i).cloned().flatten().unwrap_or_default()).unwrap_or_default();
         spawn_local(async move {
             match resolve_pk(target, Some(res), row).await {
                 Ok(pk) => tools_target.set(Some((pk, label))),

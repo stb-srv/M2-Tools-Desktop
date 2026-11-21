@@ -47,6 +47,7 @@ pub const PER_SERVER_KEYS: &[&str] = &[
     "quest_dir",
     "regen_base_dir",
     "locale_file_path",
+    "server_codepage",
     "server_process_names",
     "server_disk_path",
     "server_workdir",
@@ -77,8 +78,7 @@ fn mysql_password_key(id: i64) -> String {
 /// without a passphrase has none either), a missing one just isn't copied.
 pub fn save_current_as_profile(conn: &Connection, name: &str) -> Result<i64, String> {
     let require = |key: &str| -> Result<String, String> {
-        settings::get_path(conn, key)?
-            .ok_or_else(|| format!("Einstellung '{key}' ist nicht gesetzt - erst eine Verbindung einrichten."))
+        settings::get_path(conn, key)?.ok_or_else(|| format!("Einstellung '{key}' ist nicht gesetzt - erst eine Verbindung einrichten."))
     };
 
     let ssh_host = require("ssh_host")?;
@@ -103,18 +103,12 @@ pub fn save_current_as_profile(conn: &Connection, name: &str) -> Result<i64, Str
             mysql_host = excluded.mysql_host,
             mysql_port = excluded.mysql_port,
             mysql_username = excluded.mysql_username",
-        rusqlite::params![
-            name, ssh_host, ssh_port, ssh_username, ssh_auth_mode, ssh_key_path, mysql_host, mysql_port, mysql_username
-        ],
+        rusqlite::params![name, ssh_host, ssh_port, ssh_username, ssh_auth_mode, ssh_key_path, mysql_host, mysql_port, mysql_username],
     )
     .map_err(|e| e.to_string())?;
 
     let id: i64 = conn
-        .query_row(
-            "SELECT id FROM connection_profiles WHERE name = ?1",
-            rusqlite::params![name],
-            |row| row.get(0),
-        )
+        .query_row("SELECT id FROM connection_profiles WHERE name = ?1", rusqlite::params![name], |row| row.get(0))
         .map_err(|e| e.to_string())?;
 
     if let Ok(secret) = credentials::get_secret("ssh_password") {
@@ -146,9 +140,7 @@ pub fn list(conn: &Connection) -> Result<Vec<ConnectionProfile>, String> {
              FROM connection_profiles ORDER BY name COLLATE NOCASE",
         )
         .map_err(|e| e.to_string())?;
-    let rows = stmt
-        .query_map([], row_to_profile)
-        .map_err(|e| e.to_string())?;
+    let rows = stmt.query_map([], row_to_profile).map_err(|e| e.to_string())?;
     rows.collect::<Result<Vec<_>, _>>().map_err(|e| e.to_string())
 }
 
@@ -234,12 +226,8 @@ fn set_profile_setting(conn: &Connection, id: i64, key: &str, value: &str) -> Re
 }
 
 fn profile_settings(conn: &Connection, id: i64) -> Result<Vec<(String, String)>, String> {
-    let mut stmt = conn
-        .prepare("SELECT key, value FROM connection_profile_settings WHERE profile_id = ?1")
-        .map_err(|e| e.to_string())?;
-    let rows = stmt
-        .query_map(rusqlite::params![id], |row| Ok((row.get(0)?, row.get(1)?)))
-        .map_err(|e| e.to_string())?;
+    let mut stmt = conn.prepare("SELECT key, value FROM connection_profile_settings WHERE profile_id = ?1").map_err(|e| e.to_string())?;
+    let rows = stmt.query_map(rusqlite::params![id], |row| Ok((row.get(0)?, row.get(1)?))).map_err(|e| e.to_string())?;
     rows.collect::<Result<Vec<_>, _>>().map_err(|e| e.to_string())
 }
 
@@ -268,15 +256,10 @@ pub fn active_id(conn: &Connection) -> Result<Option<i64>, String> {
 }
 
 pub fn delete(conn: &Connection, id: i64) -> Result<(), String> {
-    conn.execute("DELETE FROM connection_profiles WHERE id = ?1", rusqlite::params![id])
-        .map_err(|e| e.to_string())?;
+    conn.execute("DELETE FROM connection_profiles WHERE id = ?1", rusqlite::params![id]).map_err(|e| e.to_string())?;
     // Explicit instead of relying on ON DELETE CASCADE, which SQLite only
     // honours with `PRAGMA foreign_keys = ON`.
-    conn.execute(
-        "DELETE FROM connection_profile_settings WHERE profile_id = ?1",
-        rusqlite::params![id],
-    )
-    .map_err(|e| e.to_string())?;
+    conn.execute("DELETE FROM connection_profile_settings WHERE profile_id = ?1", rusqlite::params![id]).map_err(|e| e.to_string())?;
     let _ = credentials::delete_secret(&ssh_password_key(id));
     let _ = credentials::delete_secret(&ssh_key_passphrase_key(id));
     let _ = credentials::delete_secret(&mysql_password_key(id));
@@ -368,10 +351,7 @@ mod tests {
         let id = save_current_as_profile(&conn, "Dev-Server").unwrap();
         settings::set_path(&conn, "ssh_host", "something-else.example.com").unwrap();
         activate(&conn, id).unwrap();
-        assert_eq!(
-            settings::get_path(&conn, "ssh_host").unwrap(),
-            Some("dev.example.com".to_string())
-        );
+        assert_eq!(settings::get_path(&conn, "ssh_host").unwrap(), Some("dev.example.com".to_string()));
         let _ = delete(&conn, id);
     }
 

@@ -9,43 +9,27 @@ pub mod types;
 use crate::components::{Button, ButtonSize, ButtonVariant, Icon, Skeleton};
 use crate::features::shared::drop_chance::real_drop_chance_percent;
 use crate::features::shared::{ChangePreview, EntityRow};
+use crate::store::navigation::{nav, use_section_dirty, EmbeddedModule, Section};
+use crate::tauri::{dialog_open_one, invoke, DialogFilter, OpenDialogOptions};
+use crate::util::confirm::confirm_discard_if;
 use crate::util::csv::export_rows_as_csv;
 use crate::util::{log_activity, open_manual};
-use crate::store::navigation::{nav, report_section_dirty, EmbeddedModule, Section};
-use crate::tauri::{dialog_open_one, invoke, DialogFilter, OpenDialogOptions};
 use components::shared::{clamp_percent, fmt_num};
 use components::{
-    BulkEditPanel, BulkEditParams, CreateMobModal, DuplicatesModal, GroupSidebar, ItemPickerModal, MobDetailPanel,
-    ReverseLookupModal, ServerInfoPopover, SimulatorModal,
+    BulkEditPanel, BulkEditParams, CreateMobModal, DuplicatesModal, GroupSidebar, ItemPickerModal, MobDetailPanel, ReverseLookupModal,
+    ServerInfoPopover, SimulatorModal,
 };
 use duplicates::{find_duplicate_items_in_mobs, find_duplicate_mobs};
 use leptos::prelude::*;
 use leptos::task::spawn_local;
 use serde_json::json;
-use std::collections::{HashMap, HashSet};
 use types::{BulkMode, BulkScope, MobDropGroup, MobDropItem, MobDropLoadResult, NumberingIssue};
 
-/// Item-Icons nach vnum: `None` = kein Icon/Fehler, fehlt der Schlüssel =
-/// noch nicht geladen.
-pub type IconMap = HashMap<i64, Option<String>>;
+pub use crate::store::icons::{ensure_icons, IconMap};
 
 /// Liest reaktiv aus der Gruppe `index` (falls vorhanden).
 pub fn with_group<T>(groups: RwSignal<Option<Vec<MobDropGroup>>>, index: usize, f: impl FnOnce(&MobDropGroup) -> T) -> Option<T> {
     groups.with(|g| g.as_ref().and_then(|g| g.get(index)).map(f))
-}
-
-/// Lädt fehlende Item-Icons nach (wie `ensureIcons` im TS-Code).
-pub fn ensure_icons(icons: RwSignal<IconMap>, vnums: impl IntoIterator<Item = i64>) {
-    let unique: HashSet<i64> = vnums.into_iter().collect();
-    let missing: Vec<i64> = icons.with_untracked(|m| unique.into_iter().filter(|v| !m.contains_key(v)).collect());
-    for vnum in missing {
-        spawn_local(async move {
-            let res = invoke::<Option<String>>("get_item_icon", &json!({ "vnum": vnum })).await;
-            icons.update(|m| {
-                m.insert(vnum, res.ok().flatten());
-            });
-        });
-    }
 }
 
 #[derive(Clone, Copy, PartialEq, Eq)]
@@ -81,7 +65,7 @@ pub fn MobDropEditor() -> impl IntoView {
     let group_search = RwSignal::new(String::new());
     let selected_index = RwSignal::new(None::<usize>);
 
-    let icons = RwSignal::new(IconMap::new());
+    let icons = crate::store::icons::icons();
 
     let item_picker = RwSignal::new(false);
     let creating = RwSignal::new(false);
@@ -100,8 +84,7 @@ pub fn MobDropEditor() -> impl IntoView {
     let simulator_open = RwSignal::new(false);
 
     let dirty = RwSignal::new(false);
-    Effect::new(move |_| report_section_dirty(Section::DropGenerator, dirty.get()));
-    on_cleanup(move || report_section_dirty(Section::DropGenerator, false));
+    use_section_dirty(Section::DropGenerator, move || dirty.get());
 
     // Nur zur Diagnose, einmal beim Laden aus dem Rohinhalt ermittelt (siehe
     // mobdrop::check_numbering) - nicht aus `groups` neu berechnet wie die
@@ -210,7 +193,7 @@ pub fn MobDropEditor() -> impl IntoView {
         let Some(si) = selected_index.get() else { return };
         let vnums: Option<Vec<i64>> = with_group(groups, si, |g| g.items.iter().map(|i| i.item_vnum as i64).collect());
         if let Some(v) = vnums {
-            ensure_icons(icons, v);
+            ensure_icons(v);
         }
     });
 
@@ -362,7 +345,15 @@ pub fn MobDropEditor() -> impl IntoView {
                 .filter_map(|i| g.get(*i))
                 .flat_map(|g| {
                     if g.items.is_empty() {
-                        vec![vec![g.name.clone(), fmt_num(g.mob_vnum), g.drop_type.clone(), String::new(), String::new(), String::new(), String::new()]]
+                        vec![vec![
+                            g.name.clone(),
+                            fmt_num(g.mob_vnum),
+                            g.drop_type.clone(),
+                            String::new(),
+                            String::new(),
+                            String::new(),
+                            String::new(),
+                        ]]
                     } else {
                         g.items
                             .iter()
@@ -417,11 +408,9 @@ pub fn MobDropEditor() -> impl IntoView {
     });
     on_cleanup(move || key_handle.remove());
 
-    let on_picker_rows = move |rows: Vec<EntityRow>| ensure_icons(icons, rows.iter().map(|r| r.vnum));
+    let on_picker_rows = move |rows: Vec<EntityRow>| ensure_icons(rows.iter().map(|r| r.vnum));
 
-    let selected = Memo::new(move |_| {
-        selected_index.get().filter(|i| groups.with(|g| g.as_ref().is_some_and(|g| *i < g.len())))
-    });
+    let selected = Memo::new(move |_| selected_index.get().filter(|i| groups.with(|g| g.as_ref().is_some_and(|g| *i < g.len()))));
     let has_groups = Memo::new(move |_| groups.with(|g| g.is_some()));
     let has_raw = Memo::new(move |_| raw_recovery.with(|r| r.is_some()));
 
@@ -488,7 +477,7 @@ pub fn MobDropEditor() -> impl IntoView {
                         </Button>
                         <Button
                             variant=ButtonVariant::Outline
-                            on_click=move |_| reload()
+                            on_click=move |_| confirm_discard_if(dirty.get_untracked(), "Ungespeicherte Änderungen verwerfen und neu laden?", reload)
                             disabled=Signal::derive(move || {
                                 loading.get() || (source.get() == Source::Local && local_path.with(|p| p.is_none()))
                             })
@@ -548,7 +537,7 @@ pub fn MobDropEditor() -> impl IntoView {
                             size=ButtonSize::Sm
                             variant=ButtonVariant::Outline
                             on_click=move |_| {
-                                ensure_icons(icons, duplicate_items.get_untracked().iter().map(|f| f.item_vnum as i64));
+                                ensure_icons(duplicate_items.get_untracked().iter().map(|f| f.item_vnum as i64));
                                 duplicates_open.set(true);
                             }
                         >
@@ -687,49 +676,45 @@ pub fn MobDropEditor() -> impl IntoView {
                     </Show>
 
                     {move || delete_confirm.get().map(|dc| view! {
-                        <div class="fixed inset-0 flex items-center justify-center bg-black/50">
-                            <div class="w-80 space-y-3 rounded-lg border border-border bg-card p-4">
-                                <p class="text-sm">
-                                    "Mob "
-                                    <strong>{move || with_group(groups, dc, |g| g.name.clone()).unwrap_or_default()}</strong>
-                                    " wirklich aus der Liste entfernen? Wird erst beim Speichern in die Datei übernommen."
-                                </p>
-                                <div class="flex justify-end gap-2">
-                                    <Button variant=ButtonVariant::Outline on_click=move |_| delete_confirm.set(None)>
-                                        "Abbrechen"
-                                    </Button>
-                                    <Button variant=ButtonVariant::Destructive on_click=move |_| confirm_delete_group()>
-                                        "Entfernen"
-                                    </Button>
-                                </div>
+                        <crate::components::Modal class="w-80 space-y-3 rounded-lg border border-border bg-card p-4">
+                            <p class="text-sm">
+                                "Mob "
+                                <strong>{move || with_group(groups, dc, |g| g.name.clone()).unwrap_or_default()}</strong>
+                                " wirklich aus der Liste entfernen? Wird erst beim Speichern in die Datei übernommen."
+                            </p>
+                            <div class="flex justify-end gap-2">
+                                <Button variant=ButtonVariant::Outline on_click=move |_| delete_confirm.set(None)>
+                                    "Abbrechen"
+                                </Button>
+                                <Button variant=ButtonVariant::Destructive on_click=move |_| confirm_delete_group()>
+                                    "Entfernen"
+                                </Button>
                             </div>
-                        </div>
+                        </crate::components::Modal>
                     })}
 
                     <Show when=move || save_confirm.get()>
-                        <div class="fixed inset-0 flex items-center justify-center bg-black/50">
-                            <div class="max-h-[85vh] w-[40rem] space-y-3 overflow-y-auto rounded-lg border border-border bg-card p-4">
-                                <p class="flex items-start gap-2 text-sm">
-                                    <Icon name="AlertTriangle" class="mt-0.5 size-4 shrink-0 text-destructive"/>
-                                    <span>
-                                        {move || if source.get() == Source::Server {
-                                            "Die Datei auf dem Server wird gesichert und dann komplett mit dem aktuellen Stand überschrieben."
-                                        } else {
-                                            "Die lokale Datei wird gesichert und dann komplett mit dem aktuellen Stand überschrieben."
-                                        }}
-                                    </span>
-                                </p>
-                                {(source.get_untracked() == Source::Server).then(|| groups.get_untracked()).flatten().map(|d| view! {
-                                    <ChangePreview kind="mob_drop" data=serde_json::to_value(&d).unwrap_or_default()/>
-                                })}
-                                <div class="flex justify-end gap-2">
-                                    <Button variant=ButtonVariant::Outline on_click=move |_| save_confirm.set(false)>
-                                        "Abbrechen"
-                                    </Button>
-                                    <Button on_click=move |_| save_file()>"Speichern"</Button>
-                                </div>
+                        <crate::components::Modal class="max-h-[85vh] w-[40rem] space-y-3 overflow-y-auto rounded-lg border border-border bg-card p-4">
+                            <p class="flex items-start gap-2 text-sm">
+                                <Icon name="AlertTriangle" class="mt-0.5 size-4 shrink-0 text-destructive"/>
+                                <span>
+                                    {move || if source.get() == Source::Server {
+                                        "Die Datei auf dem Server wird gesichert und dann komplett mit dem aktuellen Stand überschrieben."
+                                    } else {
+                                        "Die lokale Datei wird gesichert und dann komplett mit dem aktuellen Stand überschrieben."
+                                    }}
+                                </span>
+                            </p>
+                            {(source.get_untracked() == Source::Server).then(|| groups.get_untracked()).flatten().map(|d| view! {
+                                <ChangePreview kind="mob_drop" data=serde_json::to_value(&d).unwrap_or_default()/>
+                            })}
+                            <div class="flex justify-end gap-2">
+                                <Button variant=ButtonVariant::Outline on_click=move |_| save_confirm.set(false)>
+                                    "Abbrechen"
+                                </Button>
+                                <Button on_click=move |_| save_file()>"Speichern"</Button>
                             </div>
-                        </div>
+                        </crate::components::Modal>
                     </Show>
                 </Show>
             </div>

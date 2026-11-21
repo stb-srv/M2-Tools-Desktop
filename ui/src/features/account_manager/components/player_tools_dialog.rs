@@ -1,7 +1,7 @@
 use super::super::shared::{js_error, num_arg, ColumnInfo, TableRows, MODULE};
 use crate::components::{Button, ButtonSize, ButtonVariant, Icon};
-use crate::util::log_activity;
 use crate::tauri::{invoke, invoke_unit};
+use crate::util::log_activity;
 use leptos::prelude::*;
 use leptos::task::spawn_local;
 use serde_json::json;
@@ -48,10 +48,7 @@ pub fn PlayerToolsDialog(
         spawn_local(async move {
             let res: Result<(String, Position), String> = async {
                 let cols = invoke::<Vec<ColumnInfo>>("get_table_columns", &json!({ "database": "player", "table": "player" })).await?;
-                let pk = cols
-                    .iter()
-                    .find(|c| c.is_primary_key)
-                    .ok_or_else(|| js_error("player.player hat keinen Primärschlüssel."))?;
+                let pk = cols.iter().find(|c| c.is_primary_key).ok_or_else(|| js_error("player.player hat keinen Primärschlüssel."))?;
                 let row = invoke::<Option<TableRows>>(
                     "get_table_row",
                     &json!({ "database": "player", "table": "player", "pkColumn": pk.name, "pkValue": player_id }),
@@ -166,93 +163,91 @@ pub fn PlayerToolsDialog(
     let title = if player_label.is_empty() { format!("#{player_id}") } else { player_label.clone() };
 
     view! {
-        <div class="fixed inset-0 z-50 flex items-center justify-center bg-black/50">
-            <div class="w-96 space-y-4 rounded-lg border border-border bg-card p-4">
-                <div class="flex items-center justify-between">
-                    <p class="text-sm font-medium">"Werkzeuge: " {title}</p>
-                    <Button variant=ButtonVariant::Ghost size=ButtonSize::Sm on_click=move |_| on_close.run(())>
-                        "Schließen"
+        <crate::components::Modal class="w-96 space-y-4 rounded-lg border border-border bg-card p-4" overlay_class="z-50">
+            <div class="flex items-center justify-between">
+                <p class="text-sm font-medium">"Werkzeuge: " {title}</p>
+                <Button variant=ButtonVariant::Ghost size=ButtonSize::Sm on_click=move |_| on_close.run(())>
+                    "Schließen"
+                </Button>
+            </div>
+
+            <section class="space-y-2 rounded-md border border-border p-3">
+                <p class="text-xs font-medium text-muted-foreground">"Yang gutschreiben/abziehen"</p>
+                <div class="flex gap-2">
+                    <input
+                        type="number"
+                        placeholder="z.B. 100000 oder -50000"
+                        prop:value=move || gold_delta.get()
+                        on:input=move |e| gold_delta.set(event_target_value(&e))
+                        class="flex-1 rounded-md border border-border bg-background px-2 py-1 text-sm"
+                    />
+                    <Button
+                        size=ButtonSize::Sm
+                        disabled=Signal::derive(move || gold_delta.with(|d| d.trim().is_empty()) || gold_busy.get())
+                        on_click=move |_| apply_gold.with_value(|f| f())
+                    >
+                        {move || if gold_busy.get() { "…" } else { "Anwenden" }}
                     </Button>
                 </div>
+                {move || gold_error.get().map(|e| view! { <p class="text-sm text-destructive">{e}</p> })}
+                {move || gold_new_value.get().map(|v| view! {
+                    <p class="flex items-center gap-1 text-sm text-green-600">
+                        <Icon name="CheckCircle2" class="size-4"/>
+                        " Neuer Yang-Betrag: "
+                        {v}
+                    </p>
+                })}
+            </section>
 
-                <section class="space-y-2 rounded-md border border-border p-3">
-                    <p class="text-xs font-medium text-muted-foreground">"Yang gutschreiben/abziehen"</p>
-                    <div class="flex gap-2">
-                        <input
-                            type="number"
-                            placeholder="z.B. 100000 oder -50000"
-                            prop:value=move || gold_delta.get()
-                            on:input=move |e| gold_delta.set(event_target_value(&e))
-                            class="flex-1 rounded-md border border-border bg-background px-2 py-1 text-sm"
-                        />
-                        <Button
-                            size=ButtonSize::Sm
-                            disabled=Signal::derive(move || gold_delta.with(|d| d.trim().is_empty()) || gold_busy.get())
-                            on_click=move |_| apply_gold.with_value(|f| f())
-                        >
-                            {move || if gold_busy.get() { "…" } else { "Anwenden" }}
-                        </Button>
+            <section class="space-y-2 rounded-md border border-border p-3">
+                <p class="text-xs font-medium text-muted-foreground">
+                    "Position setzen (entbuggen - wirkt nur, wenn der Spieler offline ist)"
+                </p>
+                {move || pos_load_error.get().map(|e| view! { <p class="text-sm text-destructive">{e}</p> })}
+                <Show when=move || position.with(|p| p.is_none()) && pos_load_error.with(|e| e.is_none())>
+                    <p class="text-sm text-muted-foreground">"Lade…"</p>
+                </Show>
+                <Show when=move || position.with(|p| p.is_some())>
+                    <div class="grid grid-cols-3 gap-2">
+                        {POSITION_FIELDS.iter().map(|f| {
+                            let f = *f;
+                            view! {
+                                <label class="flex flex-col gap-0.5 text-xs">
+                                    <span class="font-mono text-muted-foreground">{f}</span>
+                                    <input
+                                        type="number"
+                                        prop:value=move || position.with(|p| p.as_ref().and_then(|p| p.get(f).cloned().flatten()).unwrap_or_default())
+                                        on:input=move |e| {
+                                            let v = event_target_value(&e);
+                                            position.update(|p| {
+                                                if let Some(p) = p {
+                                                    p.insert(f, Some(v));
+                                                }
+                                            });
+                                            pos_save_ok.set(false);
+                                        }
+                                        class="rounded-md border border-border bg-background px-2 py-1 text-sm"
+                                    />
+                                </label>
+                            }
+                        }).collect_view()}
                     </div>
-                    {move || gold_error.get().map(|e| view! { <p class="text-sm text-destructive">{e}</p> })}
-                    {move || gold_new_value.get().map(|v| view! {
+                    {move || pos_save_error.get().map(|e| view! { <p class="text-sm text-destructive">{e}</p> })}
+                    <Show when=move || pos_save_ok.get()>
                         <p class="flex items-center gap-1 text-sm text-green-600">
                             <Icon name="CheckCircle2" class="size-4"/>
-                            " Neuer Yang-Betrag: "
-                            {v}
+                            " Gespeichert."
                         </p>
-                    })}
-                </section>
-
-                <section class="space-y-2 rounded-md border border-border p-3">
-                    <p class="text-xs font-medium text-muted-foreground">
-                        "Position setzen (entbuggen - wirkt nur, wenn der Spieler offline ist)"
-                    </p>
-                    {move || pos_load_error.get().map(|e| view! { <p class="text-sm text-destructive">{e}</p> })}
-                    <Show when=move || position.with(|p| p.is_none()) && pos_load_error.with(|e| e.is_none())>
-                        <p class="text-sm text-muted-foreground">"Lade…"</p>
                     </Show>
-                    <Show when=move || position.with(|p| p.is_some())>
-                        <div class="grid grid-cols-3 gap-2">
-                            {POSITION_FIELDS.iter().map(|f| {
-                                let f = *f;
-                                view! {
-                                    <label class="flex flex-col gap-0.5 text-xs">
-                                        <span class="font-mono text-muted-foreground">{f}</span>
-                                        <input
-                                            type="number"
-                                            prop:value=move || position.with(|p| p.as_ref().and_then(|p| p.get(f).cloned().flatten()).unwrap_or_default())
-                                            on:input=move |e| {
-                                                let v = event_target_value(&e);
-                                                position.update(|p| {
-                                                    if let Some(p) = p {
-                                                        p.insert(f, Some(v));
-                                                    }
-                                                });
-                                                pos_save_ok.set(false);
-                                            }
-                                            class="rounded-md border border-border bg-background px-2 py-1 text-sm"
-                                        />
-                                    </label>
-                                }
-                            }).collect_view()}
-                        </div>
-                        {move || pos_save_error.get().map(|e| view! { <p class="text-sm text-destructive">{e}</p> })}
-                        <Show when=move || pos_save_ok.get()>
-                            <p class="flex items-center gap-1 text-sm text-green-600">
-                                <Icon name="CheckCircle2" class="size-4"/>
-                                " Gespeichert."
-                            </p>
-                        </Show>
-                        <Button
-                            size=ButtonSize::Sm
-                            disabled=Signal::derive(move || position_changed.with(|c| c.is_empty()) || pos_saving.get())
-                            on_click=move |_| save_position.with_value(|f| f())
-                        >
-                            {move || if pos_saving.get() { "Speichere…" } else { "Position speichern" }}
-                        </Button>
-                    </Show>
-                </section>
-            </div>
-        </div>
+                    <Button
+                        size=ButtonSize::Sm
+                        disabled=Signal::derive(move || position_changed.with(|c| c.is_empty()) || pos_saving.get())
+                        on_click=move |_| save_position.with_value(|f| f())
+                    >
+                        {move || if pos_saving.get() { "Speichere…" } else { "Position speichern" }}
+                    </Button>
+                </Show>
+            </section>
+        </crate::components::Modal>
     }
 }

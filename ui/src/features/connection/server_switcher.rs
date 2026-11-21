@@ -3,10 +3,10 @@
 
 use super::new_profile_dialog::NewProfileDialog;
 use crate::components::{toast, Button, ButtonSize, ButtonVariant, Icon};
-use crate::util::connection::get_setting;
 use crate::store::connection_profiles::{connection_profiles, ConnectionProfile};
 use crate::store::settings_section::{open_settings, SettingsSection};
 use crate::tauri::invoke_unit;
+use crate::util::connection::get_setting;
 use leptos::prelude::*;
 use leptos::task::spawn_local;
 use serde_json::json;
@@ -14,10 +14,9 @@ use serde_json::json;
 /// Zeile unter der Auswahl: Zugangsdaten des aktiven Profils.
 pub fn profile_summary(active: Option<&ConnectionProfile>) -> String {
     match active {
-        Some(a) => format!(
-            "SSH {}@{}:{} · MySQL {}@{}:{}",
-            a.ssh_username, a.ssh_host, a.ssh_port, a.mysql_username, a.mysql_host, a.mysql_port
-        ),
+        Some(a) => {
+            format!("SSH {}@{}:{} · MySQL {}@{}:{}", a.ssh_username, a.ssh_host, a.ssh_port, a.mysql_username, a.mysql_host, a.mysql_port)
+        }
         None => "Kein Profil aktiv - wähle einen Server aus der Liste.".to_string(),
     }
 }
@@ -37,14 +36,13 @@ pub fn ServerSwitcher() -> impl IntoView {
         if Some(id) == store.active_id.get_untracked() {
             return;
         }
-        let name = store
-            .profiles
-            .with_untracked(|p| p.iter().find(|x| x.id == id).map(|x| x.name.clone()))
-            .unwrap_or_else(|| id.to_string());
+        let name =
+            store.profiles.with_untracked(|p| p.iter().find(|x| x.id == id).map(|x| x.name.clone())).unwrap_or_else(|| id.to_string());
         switching.set(true);
         spawn_local(async move {
             match store.activate(id).await {
-                Ok(()) => toast::success(&format!("Verbunden mit „{name}“")),
+                Ok(true) => toast::success(&format!("Verbunden mit „{name}“")),
+                Ok(false) => {}
                 Err(e) => toast::error(&e),
             }
             switching.set(false);
