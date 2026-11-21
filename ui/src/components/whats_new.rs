@@ -83,33 +83,31 @@ pub fn WhatsNewDialog() -> impl IntoView {
 
     view! {
         <Show when=move || version.with(|v| v.is_some())>
-            <div class="fixed inset-0 z-50 flex items-center justify-center bg-black/50">
-                <div class="flex max-h-[80vh] w-[40rem] max-w-[90vw] flex-col rounded-lg border border-border bg-card">
-                    <div class="flex items-center justify-between border-b border-border px-4 py-3">
-                        <div class="flex items-center gap-2">
-                            <Icon name="Sparkles" class="size-4 text-primary"/>
-                            <h2 class="text-sm font-semibold">
-                                {move || format!("Was ist neu in v{}", version.get().unwrap_or_default())}
-                            </h2>
-                        </div>
-                        <Button variant=ButtonVariant::Ghost size=ButtonSize::IconSm on_click=move |_| dismiss() title="Schließen">
-                            <Icon name="X" class="size-4"/>
-                        </Button>
+            <crate::components::Modal class="flex max-h-[80vh] w-[40rem] max-w-[90vw] flex-col rounded-lg border border-border bg-card" overlay_class="z-50">
+                <div class="flex items-center justify-between border-b border-border px-4 py-3">
+                    <div class="flex items-center gap-2">
+                        <Icon name="Sparkles" class="size-4 text-primary"/>
+                        <h2 class="text-sm font-semibold">
+                            {move || format!("Was ist neu in v{}", version.get().unwrap_or_default())}
+                        </h2>
                     </div>
-                    <div class="overflow-y-auto p-4">
-                        {move || match notes.get().filter(|n| !n.is_empty()) {
-                            Some(n) => view! { <Markdown content=n style=COMPACT_STYLE/> }.into_any(),
-                            None => view! {
-                                <p class="text-sm text-muted-foreground">"Keine Release-Notes für diese Version verfügbar."</p>
-                            }
-                            .into_any(),
-                        }}
-                    </div>
-                    <div class="flex justify-end border-t border-border px-4 py-3">
-                        <Button on_click=move |_| dismiss()>"Verstanden"</Button>
-                    </div>
+                    <Button variant=ButtonVariant::Ghost size=ButtonSize::IconSm on_click=move |_| dismiss() title="Schließen">
+                        <Icon name="X" class="size-4"/>
+                    </Button>
                 </div>
-            </div>
+                <div class="overflow-y-auto p-4">
+                    {move || match notes.get().filter(|n| !n.is_empty()) {
+                        Some(n) => view! { <Markdown content=n style=COMPACT_STYLE/> }.into_any(),
+                        None => view! {
+                            <p class="text-sm text-muted-foreground">"Keine Release-Notes für diese Version verfügbar."</p>
+                        }
+                        .into_any(),
+                    }}
+                </div>
+                <div class="flex justify-end border-t border-border px-4 py-3">
+                    <Button on_click=move |_| dismiss()>"Verstanden"</Button>
+                </div>
+            </crate::components::Modal>
         </Show>
     }
 }

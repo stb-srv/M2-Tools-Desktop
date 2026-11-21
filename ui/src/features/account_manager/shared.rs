@@ -47,23 +47,7 @@ pub struct BanRecord {
 // guessed as "id".
 pub const PLAYER_TABLE: TableTarget = TableTarget { database: "player", table: "player" };
 
-/// Entspricht JavaScripts `Number(s)`: Leerraum wird ignoriert, leer = 0,
-/// ungültig = NaN.
-pub fn js_number(s: &str) -> f64 {
-    let t = s.trim();
-    if t.is_empty() {
-        return 0.0;
-    }
-    match t {
-        "Infinity" | "+Infinity" => return f64::INFINITY,
-        "-Infinity" => return f64::NEG_INFINITY,
-        _ => {}
-    }
-    if t.chars().any(|c| c.is_ascii_alphabetic() && c != 'e' && c != 'E') {
-        return f64::NAN;
-    }
-    t.parse::<f64>().unwrap_or(f64::NAN)
-}
+pub use crate::util::num::js_number_basic as js_number;
 
 /// `Number(s)` als Kommando-Argument - wie `JSON.stringify` wird NaN/Infinity
 /// zu `null`, ganze Zahlen bleiben ganzzahlig.

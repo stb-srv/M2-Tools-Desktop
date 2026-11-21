@@ -21,22 +21,7 @@ pub fn clamp_percent(value: f64) -> f64 {
     0f64.max(MAX_DROP_PERCENT.min(js_round(value * 10000.0) / 10000.0))
 }
 
-/// `Number(s)` aus JS: leer/Leerzeichen = 0, sonst Zahl oder NaN.
-pub fn js_number(s: &str) -> f64 {
-    let t = s.trim();
-    if t.is_empty() {
-        return 0.0;
-    }
-    match t {
-        "Infinity" | "+Infinity" => return f64::INFINITY,
-        "-Infinity" => return f64::NEG_INFINITY,
-        _ => {}
-    }
-    if t.chars().any(|c| c.is_ascii_alphabetic() && c != 'e' && c != 'E') {
-        return f64::NAN;
-    }
-    t.parse::<f64>().unwrap_or(f64::NAN)
-}
+pub use crate::util::num::js_number_basic as js_number;
 
 /// `Number(s) || fallback` aus JS (NaN und 0 fallen auf `fallback` zurück).
 pub fn js_number_or(s: &str, fallback: f64) -> f64 {
@@ -80,16 +65,19 @@ pub fn Modal(
 ) -> impl IntoView {
     let width = width_class.unwrap_or_else(|| "w-96".into());
     view! {
-        <div class="fixed inset-0 flex items-center justify-center bg-black/50">
-            <div class=format!("{width} rounded-lg border border-border bg-card p-4")>
-                <div class="mb-2 flex justify-end">
-                    <button on:click=move |_| on_close.run(()) class="text-muted-foreground hover:text-foreground">
-                        <Icon name="X" class="size-4"/>
-                    </button>
-                </div>
-                {children()}
+        <crate::components::Modal class=format!("{width} rounded-lg border border-border bg-card p-4") on_close=on_close>
+            <div class="mb-2 flex justify-end">
+                <button
+                    on:click=move |_| on_close.run(())
+                    class="text-muted-foreground hover:text-foreground"
+                    title="Schließen"
+                    aria-label="Schließen"
+                >
+                    <Icon name="X" class="size-4"/>
+                </button>
             </div>
-        </div>
+            {children()}
+        </crate::components::Modal>
     }
 }
 

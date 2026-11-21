@@ -264,84 +264,80 @@ pub fn GuildManager() -> impl IntoView {
             })}
 
             <Show when=move || wars_loading.get() || wars_for.with(|w| w.is_some()) || wars_error.with(|e| e.is_some())>
-                <div class="fixed inset-0 z-40 flex items-center justify-center bg-black/50">
-                    <div class="max-h-[70vh] w-[36rem] space-y-3 overflow-y-auto rounded-lg border border-border bg-card p-4">
-                        <div class="flex items-center justify-between">
-                            <p class="text-sm font-medium">
-                                "Gildenkriege"
-                                {move || wars_for.with(|w| w.as_ref().map(|w| format!(" — {}", w.name)))}
-                            </p>
-                            <Button
-                                variant=ButtonVariant::Ghost
-                                size=ButtonSize::Sm
-                                on_click=move |_| {
-                                    wars_for.set(None);
-                                    wars_error.set(None);
-                                }
-                            >
-                                "Schließen"
-                            </Button>
-                        </div>
-                        <Show when=move || wars_loading.get()>
-                            <div class="space-y-1.5">
-                                <Skeleton class="h-6 w-full"/>
-                                <Skeleton class="h-6 w-full"/>
-                                <Skeleton class="h-6 w-2/3"/>
-                            </div>
-                        </Show>
-                        {move || wars_error.get().map(|e| view! {
-                            <p class="flex items-start gap-2 text-sm text-destructive">
-                                <Icon name="AlertTriangle" class="mt-0.5 size-4 shrink-0"/>
-                                <span>{e}</span>
-                            </p>
-                        })}
-                        {move || wars_for.get().map(|w| {
-                            if w.rows.rows.is_empty() {
-                                return view! { <p class="text-sm text-muted-foreground">"Keine Kriege gefunden."</p> }.into_any();
+                <crate::components::Modal class="max-h-[70vh] w-[36rem] space-y-3 overflow-y-auto rounded-lg border border-border bg-card p-4" overlay_class="z-40">
+                    <div class="flex items-center justify-between">
+                        <p class="text-sm font-medium">
+                            "Gildenkriege"
+                            {move || wars_for.with(|w| w.as_ref().map(|w| format!(" — {}", w.name)))}
+                        </p>
+                        <Button
+                            variant=ButtonVariant::Ghost
+                            size=ButtonSize::Sm
+                            on_click=move |_| {
+                                wars_for.set(None);
+                                wars_error.set(None);
                             }
-                            view! {
-                                <table class="w-full text-xs">
-                                    <thead class="bg-muted/40">
-                                        <tr>
-                                            {w.rows.columns.iter().map(|c| view! { <th class="px-2 py-1 text-left font-medium">{c.clone()}</th> }).collect_view()}
-                                        </tr>
-                                    </thead>
-                                    <tbody>
-                                        {w.rows.rows.iter().map(|row| view! {
-                                            <tr class="border-t border-border">
-                                                {row.iter().map(|c| view! { <td class="max-w-32 truncate px-2 py-1">{cell_view(c)}</td> }).collect_view()}
-                                            </tr>
-                                        }).collect_view()}
-                                    </tbody>
-                                </table>
-                            }
-                            .into_any()
-                        })}
+                        >
+                            "Schließen"
+                        </Button>
                     </div>
-                </div>
+                    <Show when=move || wars_loading.get()>
+                        <div class="space-y-1.5">
+                            <Skeleton class="h-6 w-full"/>
+                            <Skeleton class="h-6 w-full"/>
+                            <Skeleton class="h-6 w-2/3"/>
+                        </div>
+                    </Show>
+                    {move || wars_error.get().map(|e| view! {
+                        <p class="flex items-start gap-2 text-sm text-destructive">
+                            <Icon name="AlertTriangle" class="mt-0.5 size-4 shrink-0"/>
+                            <span>{e}</span>
+                        </p>
+                    })}
+                    {move || wars_for.get().map(|w| {
+                        if w.rows.rows.is_empty() {
+                            return view! { <p class="text-sm text-muted-foreground">"Keine Kriege gefunden."</p> }.into_any();
+                        }
+                        view! {
+                            <table class="w-full text-xs">
+                                <thead class="bg-muted/40">
+                                    <tr>
+                                        {w.rows.columns.iter().map(|c| view! { <th class="px-2 py-1 text-left font-medium">{c.clone()}</th> }).collect_view()}
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    {w.rows.rows.iter().map(|row| view! {
+                                        <tr class="border-t border-border">
+                                            {row.iter().map(|c| view! { <td class="max-w-32 truncate px-2 py-1">{cell_view(c)}</td> }).collect_view()}
+                                        </tr>
+                                    }).collect_view()}
+                                </tbody>
+                            </table>
+                        }
+                        .into_any()
+                    })}
+                </crate::components::Modal>
             </Show>
 
             {move || disband_target.get().map(|(id, name)| view! {
-                <div class="fixed inset-0 z-50 flex items-center justify-center bg-black/50">
-                    <div class="w-96 space-y-3 rounded-lg border border-border bg-card p-4">
-                        <p class="flex items-start gap-2 text-sm">
-                            <Icon name="AlertTriangle" class="mt-0.5 size-4 shrink-0 text-destructive"/>
-                            <span>
-                                "Gilde " <strong>{name}</strong> " (" {id}
-                                ") wirklich auflösen? Löscht die Gilde, ihre Rangstufen, Mitglieder und Kommentare unwiderruflich in der Live-Datenbank, ohne Backup (DB-Zeilen, keine Datei)."
-                            </span>
-                        </p>
-                        {move || disband_error.get().map(|e| view! { <p class="text-sm text-destructive">{e}</p> })}
-                        <div class="flex justify-end gap-2">
-                            <Button variant=ButtonVariant::Outline on_click=move |_| disband_target.set(None) disabled=disbanding>
-                                "Abbrechen"
-                            </Button>
-                            <Button variant=ButtonVariant::Destructive on_click=move |_| confirm_disband() disabled=disbanding>
-                                {move || if disbanding.get() { "Löse auf…" } else { "Auflösen" }}
-                            </Button>
-                        </div>
+                <crate::components::Modal class="w-96 space-y-3 rounded-lg border border-border bg-card p-4" overlay_class="z-50">
+                    <p class="flex items-start gap-2 text-sm">
+                        <Icon name="AlertTriangle" class="mt-0.5 size-4 shrink-0 text-destructive"/>
+                        <span>
+                            "Gilde " <strong>{name}</strong> " (" {id}
+                            ") wirklich auflösen? Löscht die Gilde, ihre Rangstufen, Mitglieder und Kommentare unwiderruflich in der Live-Datenbank, ohne Backup (DB-Zeilen, keine Datei)."
+                        </span>
+                    </p>
+                    {move || disband_error.get().map(|e| view! { <p class="text-sm text-destructive">{e}</p> })}
+                    <div class="flex justify-end gap-2">
+                        <Button variant=ButtonVariant::Outline on_click=move |_| disband_target.set(None) disabled=disbanding>
+                            "Abbrechen"
+                        </Button>
+                        <Button variant=ButtonVariant::Destructive on_click=move |_| confirm_disband() disabled=disbanding>
+                            {move || if disbanding.get() { "Löse auf…" } else { "Auflösen" }}
+                        </Button>
                     </div>
-                </div>
+                </crate::components::Modal>
             })}
         </div>
     }

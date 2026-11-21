@@ -40,8 +40,13 @@ async fn next_free_item_vnum(start: i64) -> Result<i64, String> {
     invoke::<i64>("next_free_item_vnum", &json!({ "rangeStart": start })).await
 }
 
+/// Frisch abfragen und den geteilten Cache aktualisieren (Icon kann sich geändert haben).
 async fn get_item_icon(vnum: i64) -> Option<String> {
-    invoke::<Option<String>>("get_item_icon", &json!({ "vnum": vnum })).await.ok().flatten()
+    let icon = crate::store::icons::fetch_icon(vnum).await;
+    crate::store::icons::icons().update(|m| {
+        m.insert(vnum, icon.clone());
+    });
+    icon
 }
 
 type Steps = RwSignal<HashMap<&'static str, StepStatus>>;

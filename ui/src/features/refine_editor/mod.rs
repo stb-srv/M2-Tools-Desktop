@@ -16,7 +16,6 @@ use leptos::task::spawn_local;
 use logic::{active_materials, initial_material_rows, parse_reuse_id, MaterialRow};
 use serde::{Deserialize, Serialize};
 use serde_json::json;
-use std::collections::HashMap;
 
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
 pub struct RefineMaterial {
@@ -66,7 +65,7 @@ struct ShopSource {
     count: f64,
 }
 
-type IconCache = RwSignal<HashMap<i64, Option<String>>>;
+type IconCache = RwSignal<crate::store::icons::IconMap>;
 
 fn n(v: f64) -> String {
     js_number_string(v)
@@ -75,14 +74,7 @@ fn n(v: f64) -> String {
 #[component]
 fn ItemIcon(vnum: f64, cache: IconCache) -> impl IntoView {
     let key = vnum as i64;
-    if !cache.with_untracked(|c| c.contains_key(&key)) {
-        spawn_local(async move {
-            let url = invoke::<Option<String>>("get_item_icon", &json!({ "vnum": vnum })).await.ok().flatten();
-            cache.update(|c| {
-                c.insert(key, url);
-            });
-        });
-    }
+    crate::store::icons::ensure_icons([key]);
     view! {
         <div class="flex size-10 shrink-0 items-center justify-center rounded-md border border-border bg-muted/40">
             {move || match cache.with(|c| c.get(&key).cloned().flatten()).filter(|u| !u.is_empty()) {
@@ -622,7 +614,7 @@ pub fn RefineEditor() -> impl IntoView {
     let loading = RwSignal::new(false);
     let error = RwSignal::new(None::<String>);
     let editing_vnum = RwSignal::new(None::<f64>);
-    let icon_cache: IconCache = RwSignal::new(HashMap::new());
+    let icon_cache: IconCache = crate::store::icons::icons();
     let mob_drops = MobDrops { drops: RwSignal::new(None), loading: RwSignal::new(false) };
 
     let load_chain = move |vnum: f64| {

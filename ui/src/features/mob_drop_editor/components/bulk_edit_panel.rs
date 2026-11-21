@@ -200,28 +200,26 @@ pub fn BulkEditPanel(
             </p>
 
             <Show when=move || confirming.get()>
-                <div class="fixed inset-0 flex items-center justify-center bg-black/50">
-                    <div class="w-96 space-y-3 rounded-lg border border-border bg-card p-4">
-                        <p class="text-sm">
-                            {move || {
-                                let target = if scope.get() == BulkScope::Global {
-                                    "aller Mobs".to_string()
-                                } else {
-                                    format!("von \"{}\"", selected_name.get().unwrap_or_else(|| "undefined".into()))
-                                };
-                                format!(
-                                    "Prozentwerte {target} jetzt ändern? Das betrifft nur die geladenen Daten, bis du speicherst."
-                                )
-                            }}
-                        </p>
-                        <div class="flex justify-end gap-2">
-                            <Button variant=ButtonVariant::Outline on_click=move |_| confirming.set(false)>
-                                "Abbrechen"
-                            </Button>
-                            <Button on_click=move |_| confirm_apply()>"Anwenden"</Button>
-                        </div>
+                <crate::components::Modal class="w-96 space-y-3 rounded-lg border border-border bg-card p-4">
+                    <p class="text-sm">
+                        {move || {
+                            let target = if scope.get() == BulkScope::Global {
+                                "aller Mobs".to_string()
+                            } else {
+                                format!("von \"{}\"", selected_name.get().unwrap_or_else(|| "undefined".into()))
+                            };
+                            format!(
+                                "Prozentwerte {target} jetzt ändern? Das betrifft nur die geladenen Daten, bis du speicherst."
+                            )
+                        }}
+                    </p>
+                    <div class="flex justify-end gap-2">
+                        <Button variant=ButtonVariant::Outline on_click=move |_| confirming.set(false)>
+                            "Abbrechen"
+                        </Button>
+                        <Button on_click=move |_| confirm_apply()>"Anwenden"</Button>
                     </div>
-                </div>
+                </crate::components::Modal>
             </Show>
         </div>
     }

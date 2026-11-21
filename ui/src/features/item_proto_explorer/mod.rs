@@ -15,7 +15,6 @@ use leptos::prelude::*;
 use leptos::task::spawn_local;
 use serde::Deserialize;
 use serde_json::json;
-use std::collections::{HashMap, HashSet};
 
 #[derive(Clone, Debug, PartialEq, Deserialize)]
 struct ItemProtoSummary {
@@ -67,7 +66,7 @@ pub fn ItemProtoExplorer() -> impl IntoView {
     let data = RwSignal::new(None::<ItemProtoPage>);
     let loading = RwSignal::new(false);
     let error = RwSignal::new(None::<String>);
-    let icons = RwSignal::new(HashMap::<i64, Option<String>>::new());
+    let icons = crate::store::icons::icons();
 
     let exporting = RwSignal::new(false);
     let export_error = RwSignal::new(None::<String>);
@@ -117,22 +116,7 @@ pub fn ItemProtoExplorer() -> impl IntoView {
         let Some(vnums) = data.with(|d| d.as_ref().map(|d| d.rows.iter().map(|r| r.vnum).collect::<Vec<_>>())) else {
             return;
         };
-        let mut seen = HashSet::new();
-        for vnum in vnums {
-            if !seen.insert(vnum) || icons.with_untracked(|i| i.contains_key(&vnum)) {
-                continue;
-            }
-            // Als "in Arbeit" vormerken, damit parallele Läufe nicht doppelt fragen.
-            icons.update_untracked(|i| {
-                i.insert(vnum, None);
-            });
-            spawn_local(async move {
-                let url = invoke::<Option<String>>("get_item_icon", &json!({ "vnum": vnum })).await.ok().flatten();
-                icons.update(|i| {
-                    i.insert(vnum, url);
-                });
-            });
-        }
+        crate::store::icons::ensure_icons(vnums);
     });
 
     let run_search = move || {

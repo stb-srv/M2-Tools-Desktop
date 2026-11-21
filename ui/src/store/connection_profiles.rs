@@ -48,6 +48,7 @@ pub fn connection_profiles() -> ConnectionProfiles {
 
 impl ConnectionProfiles {
     fn bump(&self) {
+        crate::store::icons::clear();
         self.revision.update(|r| *r += 1);
     }
 

@@ -16,7 +16,6 @@ use leptos::task::spawn_local;
 use logic::{js_number, js_number_json, place_items, update_columns, update_rows, ShopItem, MAX_SLOTS};
 use serde::Deserialize;
 use serde_json::json;
-use std::collections::{HashMap, HashSet};
 use std::sync::Arc;
 
 #[derive(Clone, Debug, PartialEq, Deserialize)]
@@ -71,8 +70,7 @@ pub fn ShopEditor() -> impl IntoView {
     let rows = RwSignal::new(8i64);
     let mode = RwSignal::new(Mode::Global);
     let max_value = RwSignal::new(200i64);
-    let icons = RwSignal::new(HashMap::<i64, Option<String>>::new());
-    let icons_requested = StoredValue::new(HashSet::<i64>::new());
+    let icons = crate::store::icons::icons();
 
     let npc_model = RwSignal::new(None::<Arc<Gr2ModelInfo>>);
     let npc_model_error = RwSignal::new(None::<String>);
@@ -202,26 +200,7 @@ pub fn ShopEditor() -> impl IntoView {
         });
     });
 
-    let ensure_icons = move |vnums: Vec<i64>| {
-        let mut seen = HashSet::new();
-        for vnum in vnums {
-            if !seen.insert(vnum) {
-                continue;
-            }
-            if icons.with_untracked(|i| i.contains_key(&vnum)) || icons_requested.with_value(|r| r.contains(&vnum)) {
-                continue;
-            }
-            icons_requested.update_value(|r| {
-                r.insert(vnum);
-            });
-            spawn_local(async move {
-                let res = invoke::<Option<String>>("get_item_icon", &json!({ "vnum": vnum })).await;
-                icons.update(|i| {
-                    i.insert(vnum, res.ok().flatten());
-                });
-            });
-        }
-    };
+    let ensure_icons = move |vnums: Vec<i64>| crate::store::icons::ensure_icons(vnums);
 
     Effect::new(move |_| {
         let vnums: Vec<i64> = shop_items.with(|items| items.iter().map(|i| i.item_vnum).collect());
@@ -853,36 +832,34 @@ pub fn ShopEditor() -> impl IntoView {
     let sync_dialog = move || {
         sync_confirm.get().then(|| {
             view! {
-                <div class="fixed inset-0 flex items-center justify-center bg-black/50">
-                    <div class="w-96 space-y-3 rounded-lg border border-border bg-card p-4">
-                        <p class="text-sm">
-                            "Alle vorhandenen Gegenstände "
-                            {move || if mode.get() == Mode::ProShop {
-                                view! {
-                                    "in "
-                                    <strong>{move || selected_shop.with(|s| s.as_ref().map(|s| s.name.clone()))}</strong>
-                                }
-                                .into_any()
-                            } else {
-                                "in allen Shops".into_any()
-                            }}
-                            " auf Stapelgröße " <strong>{move || max_value.get()}</strong>
-                            " setzen? Das überschreibt die aktuellen Mengen und kann nicht rückgängig gemacht werden."
-                        </p>
-                        <div class="flex justify-end gap-2">
-                            <Button
-                                variant=ButtonVariant::Outline
-                                on_click=move |_| sync_confirm.set(false)
-                                disabled=syncing
-                            >
-                                {move || t("common.cancel")}
-                            </Button>
-                            <Button on_click=move |_| confirm_sync() disabled=syncing>
-                                {move || if syncing.get() { "Synchronisiere…" } else { "Synchronisieren" }}
-                            </Button>
-                        </div>
+                <crate::components::Modal class="w-96 space-y-3 rounded-lg border border-border bg-card p-4">
+                    <p class="text-sm">
+                        "Alle vorhandenen Gegenstände "
+                        {move || if mode.get() == Mode::ProShop {
+                            view! {
+                                "in "
+                                <strong>{move || selected_shop.with(|s| s.as_ref().map(|s| s.name.clone()))}</strong>
+                            }
+                            .into_any()
+                        } else {
+                            "in allen Shops".into_any()
+                        }}
+                        " auf Stapelgröße " <strong>{move || max_value.get()}</strong>
+                        " setzen? Das überschreibt die aktuellen Mengen und kann nicht rückgängig gemacht werden."
+                    </p>
+                    <div class="flex justify-end gap-2">
+                        <Button
+                            variant=ButtonVariant::Outline
+                            on_click=move |_| sync_confirm.set(false)
+                            disabled=syncing
+                        >
+                            {move || t("common.cancel")}
+                        </Button>
+                        <Button on_click=move |_| confirm_sync() disabled=syncing>
+                            {move || if syncing.get() { "Synchronisiere…" } else { "Synchronisieren" }}
+                        </Button>
                     </div>
-                </div>
+                </crate::components::Modal>
             }
         })
     };
@@ -890,22 +867,20 @@ pub fn ShopEditor() -> impl IntoView {
     let delete_dialog = move || {
         delete_confirm.get().map(|d| {
             view! {
-                <div class="fixed inset-0 flex items-center justify-center bg-black/50">
-                    <div class="w-80 space-y-3 rounded-lg border border-border bg-card p-4">
-                        <p class="text-sm">
-                            "Shop " <strong>{d.name.clone()}</strong>
-                            " wirklich löschen? Das kann nicht rückgängig gemacht werden."
-                        </p>
-                        <div class="flex justify-end gap-2">
-                            <Button variant=ButtonVariant::Outline on_click=move |_| delete_confirm.set(None)>
-                                {move || t("common.cancel")}
-                            </Button>
-                            <Button variant=ButtonVariant::Destructive on_click=move |_| confirm_delete()>
-                                {move || t("common.delete")}
-                            </Button>
-                        </div>
+                <crate::components::Modal class="w-80 space-y-3 rounded-lg border border-border bg-card p-4">
+                    <p class="text-sm">
+                        "Shop " <strong>{d.name.clone()}</strong>
+                        " wirklich löschen? Das kann nicht rückgängig gemacht werden."
+                    </p>
+                    <div class="flex justify-end gap-2">
+                        <Button variant=ButtonVariant::Outline on_click=move |_| delete_confirm.set(None)>
+                            {move || t("common.cancel")}
+                        </Button>
+                        <Button variant=ButtonVariant::Destructive on_click=move |_| confirm_delete()>
+                            {move || t("common.delete")}
+                        </Button>
                     </div>
-                </div>
+                </crate::components::Modal>
             }
         })
     };
@@ -1009,15 +984,13 @@ fn Stepper(
 #[component]
 fn Modal(on_close: Callback<()>, children: Children) -> impl IntoView {
     view! {
-        <div class="fixed inset-0 flex items-center justify-center bg-black/50">
-            <div class="w-96 rounded-lg border border-border bg-card p-4">
-                <div class="mb-2 flex justify-end">
-                    <button on:click=move |_| on_close.run(()) class="text-muted-foreground hover:text-foreground">
-                        <Icon name="X" class="size-4"/>
-                    </button>
-                </div>
-                {children()}
+        <crate::components::Modal class="w-96 rounded-lg border border-border bg-card p-4">
+            <div class="mb-2 flex justify-end">
+                <button on:click=move |_| on_close.run(()) class="text-muted-foreground hover:text-foreground">
+                    <Icon name="X" class="size-4"/>
+                </button>
             </div>
-        </div>
+            {children()}
+        </crate::components::Modal>
     }
 }

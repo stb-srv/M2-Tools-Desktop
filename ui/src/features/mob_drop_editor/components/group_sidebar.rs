@@ -31,7 +31,15 @@ pub fn GroupSidebar(
             <div class="flex-1 space-y-1 overflow-y-auto">
                 <For each=move || filtered_groups.get() key=|i| *i let:index>
                     <div
+                        role="button"
+                        tabindex="0"
                         on:click=move |_| selected_index.set(Some(index))
+                        on:keydown=move |e| {
+                            if e.key() == "Enter" || e.key() == " " {
+                                e.prevent_default();
+                                selected_index.set(Some(index));
+                            }
+                        }
                         class=move || {
                             if selected_index.get() == Some(index) {
                                 "cursor-pointer rounded-md border border-border p-2 text-sm hover:bg-muted bg-muted"

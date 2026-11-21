@@ -399,53 +399,51 @@ pub fn AccountSection() -> impl IntoView {
                     let login_ref = NodeRef::<leptos::html::Input>::new();
                     focus_on_mount(login_ref);
                     view! {
-                        <div class="fixed inset-0 z-50 flex items-center justify-center bg-black/50">
-                            <div class="w-96 space-y-3 rounded-lg border border-border bg-card p-4">
-                                <p class="text-sm font-medium">"Neuer Account"</p>
-                                <label class="flex flex-col gap-1 text-xs text-muted-foreground">
-                                    "Login"
-                                    <input
-                                        node_ref=login_ref
-                                        prop:value=move || new_login.get()
-                                        on:input=move |e| new_login.set(event_target_value(&e))
-                                        class="rounded-md border border-border bg-background px-2 py-1 text-sm"
-                                    />
-                                </label>
-                                <label class="flex flex-col gap-1 text-xs text-muted-foreground">
-                                    "Passwort"
-                                    <input
-                                        type="text"
-                                        prop:value=move || new_password.get()
-                                        on:input=move |e| new_password.set(event_target_value(&e))
-                                        class="rounded-md border border-border bg-background px-2 py-1 text-sm"
-                                    />
-                                </label>
-                                <label class="flex flex-col gap-1 text-xs text-muted-foreground">
-                                    "Reich (optional, sonst wählt der Spieler beim ersten Login)"
-                                    <select
-                                        prop:value=move || new_empire.get()
-                                        on:change=move |e| new_empire.set(event_target_value(&e))
-                                        class="rounded-md border border-border bg-background px-2 py-1 text-sm"
-                                    >
-                                        {EMPIRE_LABELS.iter().map(|(v, l)| {
-                                            let v = v.to_string();
-                                            let v2 = v.clone();
-                                            view! { <option value=v selected=move || new_empire.with(|e| *e == v2)>{*l}</option> }
-                                        }).collect_view()}
-                                    </select>
-                                </label>
-                                {move || create_error.get().map(|e| view! { <p class="text-sm text-destructive">{e}</p> })}
-                                <div class="flex justify-end gap-2">
-                                    <Button variant=ButtonVariant::Outline on_click=move |_| creating.set(false)>"Abbrechen"</Button>
-                                    <Button
-                                        disabled=Signal::derive(move || !can_create() || create_busy.get())
-                                        on_click=move |_| submit_create()
-                                    >
-                                        {move || if create_busy.get() { "Lege an…" } else { "Anlegen" }}
-                                    </Button>
-                                </div>
+                        <crate::components::Modal class="w-96 space-y-3 rounded-lg border border-border bg-card p-4" overlay_class="z-50">
+                            <p class="text-sm font-medium">"Neuer Account"</p>
+                            <label class="flex flex-col gap-1 text-xs text-muted-foreground">
+                                "Login"
+                                <input
+                                    node_ref=login_ref
+                                    prop:value=move || new_login.get()
+                                    on:input=move |e| new_login.set(event_target_value(&e))
+                                    class="rounded-md border border-border bg-background px-2 py-1 text-sm"
+                                />
+                            </label>
+                            <label class="flex flex-col gap-1 text-xs text-muted-foreground">
+                                "Passwort"
+                                <input
+                                    type="text"
+                                    prop:value=move || new_password.get()
+                                    on:input=move |e| new_password.set(event_target_value(&e))
+                                    class="rounded-md border border-border bg-background px-2 py-1 text-sm"
+                                />
+                            </label>
+                            <label class="flex flex-col gap-1 text-xs text-muted-foreground">
+                                "Reich (optional, sonst wählt der Spieler beim ersten Login)"
+                                <select
+                                    prop:value=move || new_empire.get()
+                                    on:change=move |e| new_empire.set(event_target_value(&e))
+                                    class="rounded-md border border-border bg-background px-2 py-1 text-sm"
+                                >
+                                    {EMPIRE_LABELS.iter().map(|(v, l)| {
+                                        let v = v.to_string();
+                                        let v2 = v.clone();
+                                        view! { <option value=v selected=move || new_empire.with(|e| *e == v2)>{*l}</option> }
+                                    }).collect_view()}
+                                </select>
+                            </label>
+                            {move || create_error.get().map(|e| view! { <p class="text-sm text-destructive">{e}</p> })}
+                            <div class="flex justify-end gap-2">
+                                <Button variant=ButtonVariant::Outline on_click=move |_| creating.set(false)>"Abbrechen"</Button>
+                                <Button
+                                    disabled=Signal::derive(move || !can_create() || create_busy.get())
+                                    on_click=move |_| submit_create()
+                                >
+                                    {move || if create_busy.get() { "Lege an…" } else { "Anlegen" }}
+                                </Button>
                             </div>
-                        </div>
+                        </crate::components::Modal>
                     }
                 }
             </Show>

@@ -481,49 +481,45 @@ pub fn ServerControl() -> impl IntoView {
                 let action = id.action();
                 let label_key = action.label_key;
                 view! {
-                    <div class="fixed inset-0 flex items-center justify-center bg-black/50">
-                        <div class="w-96 space-y-3 rounded-lg border border-border bg-card p-4">
-                            <p class="text-sm font-medium">{move || t(label_key)}</p>
-                            <p class="text-sm text-muted-foreground">{action.confirm.unwrap_or_default()}</p>
-                            <pre class="overflow-x-auto rounded-md bg-muted/50 p-2 font-mono text-xs">{move || cmd(id)}</pre>
-                            <div class="flex justify-end gap-2">
-                                <Button variant=ButtonVariant::Outline on_click=move |_| confirm_action.set(None)>
-                                    {move || t("common.cancel")}
-                                </Button>
-                                <Button variant=ButtonVariant::Destructive on_click=move |_| execute(id)>
-                                    "Ausführen"
-                                </Button>
-                            </div>
+                    <crate::components::Modal class="w-96 space-y-3 rounded-lg border border-border bg-card p-4">
+                        <p class="text-sm font-medium">{move || t(label_key)}</p>
+                        <p class="text-sm text-muted-foreground">{action.confirm.unwrap_or_default()}</p>
+                        <pre class="overflow-x-auto rounded-md bg-muted/50 p-2 font-mono text-xs">{move || cmd(id)}</pre>
+                        <div class="flex justify-end gap-2">
+                            <Button variant=ButtonVariant::Outline on_click=move |_| confirm_action.set(None)>
+                                {move || t("common.cancel")}
+                            </Button>
+                            <Button variant=ButtonVariant::Destructive on_click=move |_| execute(id)>
+                                "Ausführen"
+                            </Button>
                         </div>
-                    </div>
+                    </crate::components::Modal>
                 }
             })}
 
             <Show when=move || restart_confirm.get()>
-                <div class="fixed inset-0 flex items-center justify-center bg-black/50">
-                    <div class="w-96 space-y-3 rounded-lg border border-border bg-card p-4">
-                        <p class="text-sm font-medium">"Neustarten"</p>
-                        <p class="text-sm text-muted-foreground">
-                            "Der Server wird heruntergefahren, alle Spieler werden getrennt, und nach "
-                            {move || {
-                                let d = restart_delay.get();
-                                if d.is_empty() { "0".to_string() } else { d }
-                            }}
-                            "s wieder gestartet."
-                        </p>
-                        <pre class="overflow-x-auto rounded-md bg-muted/50 p-2 font-mono text-xs">
-                            {move || format!("{}\n{}", cmd(ActionId::Stop), cmd(ActionId::Start))}
-                        </pre>
-                        <div class="flex justify-end gap-2">
-                            <Button variant=ButtonVariant::Outline on_click=move |_| restart_confirm.set(false)>
-                                {move || t("common.cancel")}
-                            </Button>
-                            <Button variant=ButtonVariant::Destructive on_click=move |_| execute_restart()>
-                                "Ausführen"
-                            </Button>
-                        </div>
+                <crate::components::Modal class="w-96 space-y-3 rounded-lg border border-border bg-card p-4">
+                    <p class="text-sm font-medium">"Neustarten"</p>
+                    <p class="text-sm text-muted-foreground">
+                        "Der Server wird heruntergefahren, alle Spieler werden getrennt, und nach "
+                        {move || {
+                            let d = restart_delay.get();
+                            if d.is_empty() { "0".to_string() } else { d }
+                        }}
+                        "s wieder gestartet."
+                    </p>
+                    <pre class="overflow-x-auto rounded-md bg-muted/50 p-2 font-mono text-xs">
+                        {move || format!("{}\n{}", cmd(ActionId::Stop), cmd(ActionId::Start))}
+                    </pre>
+                    <div class="flex justify-end gap-2">
+                        <Button variant=ButtonVariant::Outline on_click=move |_| restart_confirm.set(false)>
+                            {move || t("common.cancel")}
+                        </Button>
+                        <Button variant=ButtonVariant::Destructive on_click=move |_| execute_restart()>
+                            "Ausführen"
+                        </Button>
                     </div>
-                </div>
+                </crate::components::Modal>
             </Show>
         </div>
     }

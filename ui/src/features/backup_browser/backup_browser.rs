@@ -300,70 +300,66 @@ pub fn BackupBrowser() -> impl IntoView {
             </div>
 
             {move || diff_path.get().map(|path| view! {
-                <div class="fixed inset-0 flex items-center justify-center bg-black/50">
-                    <div class="flex max-h-[80vh] w-[52rem] flex-col gap-3 rounded-lg border border-border bg-card p-4">
-                        <div class="flex items-center justify-between">
-                            <p class="text-sm font-medium">"Diff: "{last_segment(&path)}</p>
-                            <button on:click=move |_| diff_path.set(None) class="text-muted-foreground hover:text-foreground">
-                                <Icon name="X" class="size-4"/>
-                            </button>
-                        </div>
-                        <Show when=move || diff_loading.get()>
-                            <p class="text-sm text-muted-foreground">"Lade…"</p>
-                        </Show>
-                        {move || diff_error.get().map(|e| view! { <p class="text-sm text-destructive">{e}</p> })}
-                        {move || diff_data.get().map(|d| view! {
-                            <p class="text-xs text-muted-foreground">
-                                "Zielort: "<code>{d.target_path.clone()}</code>
-                                {d.current_content.is_none().then_some(" - existiert dort aktuell nicht (würde neu angelegt).")}
-                            </p>
-                            {if d.is_binary {
-                                view! {
-                                    <p class="rounded-md border border-dashed border-border p-3 text-sm text-muted-foreground">
-                                        "Binärdatei - kein Text-Diff möglich. Wiederherstellen kopiert den Inhalt trotzdem unverändert (Byte für Byte)."
-                                    </p>
-                                }.into_any()
-                            } else {
-                                view! { <DiffView old_text=d.current_content.clone().unwrap_or_default() new_text=d.backup_content.clone()/> }.into_any()
-                            }}
-                        })}
-                        <div class="flex justify-end gap-2">
-                            <Button variant=ButtonVariant::Outline on_click=move |_| diff_path.set(None)>
-                                "Schließen"
-                            </Button>
-                            <Show when=move || diff_data.with(|d| d.is_some())>
-                                <Button on_click=move |_| {
-                                    restore_confirm.set(diff_path.get_untracked());
-                                    diff_path.set(None);
-                                }>
-                                    "Wiederherstellen…"
-                                </Button>
-                            </Show>
-                        </div>
+                <crate::components::Modal class="flex max-h-[80vh] w-[52rem] flex-col gap-3 rounded-lg border border-border bg-card p-4">
+                    <div class="flex items-center justify-between">
+                        <p class="text-sm font-medium">"Diff: "{last_segment(&path)}</p>
+                        <button on:click=move |_| diff_path.set(None) class="text-muted-foreground hover:text-foreground">
+                            <Icon name="X" class="size-4"/>
+                        </button>
                     </div>
-                </div>
+                    <Show when=move || diff_loading.get()>
+                        <p class="text-sm text-muted-foreground">"Lade…"</p>
+                    </Show>
+                    {move || diff_error.get().map(|e| view! { <p class="text-sm text-destructive">{e}</p> })}
+                    {move || diff_data.get().map(|d| view! {
+                        <p class="text-xs text-muted-foreground">
+                            "Zielort: "<code>{d.target_path.clone()}</code>
+                            {d.current_content.is_none().then_some(" - existiert dort aktuell nicht (würde neu angelegt).")}
+                        </p>
+                        {if d.is_binary {
+                            view! {
+                                <p class="rounded-md border border-dashed border-border p-3 text-sm text-muted-foreground">
+                                    "Binärdatei - kein Text-Diff möglich. Wiederherstellen kopiert den Inhalt trotzdem unverändert (Byte für Byte)."
+                                </p>
+                            }.into_any()
+                        } else {
+                            view! { <DiffView old_text=d.current_content.clone().unwrap_or_default() new_text=d.backup_content.clone()/> }.into_any()
+                        }}
+                    })}
+                    <div class="flex justify-end gap-2">
+                        <Button variant=ButtonVariant::Outline on_click=move |_| diff_path.set(None)>
+                            "Schließen"
+                        </Button>
+                        <Show when=move || diff_data.with(|d| d.is_some())>
+                            <Button on_click=move |_| {
+                                restore_confirm.set(diff_path.get_untracked());
+                                diff_path.set(None);
+                            }>
+                                "Wiederherstellen…"
+                            </Button>
+                        </Show>
+                    </div>
+                </crate::components::Modal>
             })}
 
             {move || restore_confirm.get().map(|path| view! {
-                <div class="fixed inset-0 flex items-center justify-center bg-black/50">
-                    <div class="w-96 space-y-3 rounded-lg border border-border bg-card p-4">
-                        <p class="flex items-start gap-2 text-sm">
-                            <Icon name="AlertTriangle" class="mt-0.5 size-4 shrink-0 text-destructive"/>
-                            <span>
-                                <code>{last_segment(&path)}</code>
-                                " wird an ihren ursprünglichen Ort zurückgeschrieben. Die aktuell dort liegende Datei wird dabei selbst zuerst gesichert, nicht einfach überschrieben."
-                            </span>
-                        </p>
-                        <div class="flex justify-end gap-2">
-                            <Button variant=ButtonVariant::Outline on_click=move |_| restore_confirm.set(None)>
-                                "Abbrechen"
-                            </Button>
-                            <Button on_click=move |_| confirm_restore() disabled=restoring>
-                                {move || if restoring.get() { "Stelle wieder her…" } else { "Wiederherstellen" }}
-                            </Button>
-                        </div>
+                <crate::components::Modal class="w-96 space-y-3 rounded-lg border border-border bg-card p-4">
+                    <p class="flex items-start gap-2 text-sm">
+                        <Icon name="AlertTriangle" class="mt-0.5 size-4 shrink-0 text-destructive"/>
+                        <span>
+                            <code>{last_segment(&path)}</code>
+                            " wird an ihren ursprünglichen Ort zurückgeschrieben. Die aktuell dort liegende Datei wird dabei selbst zuerst gesichert, nicht einfach überschrieben."
+                        </span>
+                    </p>
+                    <div class="flex justify-end gap-2">
+                        <Button variant=ButtonVariant::Outline on_click=move |_| restore_confirm.set(None)>
+                            "Abbrechen"
+                        </Button>
+                        <Button on_click=move |_| confirm_restore() disabled=restoring>
+                            {move || if restoring.get() { "Stelle wieder her…" } else { "Wiederherstellen" }}
+                        </Button>
                     </div>
-                </div>
+                </crate::components::Modal>
             })}
         </div>
     }

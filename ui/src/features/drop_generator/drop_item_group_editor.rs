@@ -451,53 +451,47 @@ pub fn DropItemGroupEditor() -> impl IntoView {
             </Show>
 
             <Show when=move || mob_picker_for.with(|m| m.is_some())>
-                <div class="fixed inset-0 z-50 flex items-center justify-center bg-black/50">
-                    <div class="max-h-[85vh] w-[32rem] space-y-2 overflow-y-auto rounded-lg border border-border bg-card p-4">
-                        <div class="flex items-center justify-between">
-                            <p class="text-sm font-medium">"Mob wählen"</p>
-                            <Button variant=ButtonVariant::Ghost size=ButtonSize::Sm on_click=move |_| mob_picker_for.set(None)>
-                                "Schließen"
-                            </Button>
-                        </div>
-                        <EntityBrowser kind=EntityKind::Mob auto_focus=true on_pick=on_mob_pick/>
+                <crate::components::Modal class="max-h-[85vh] w-[32rem] space-y-2 overflow-y-auto rounded-lg border border-border bg-card p-4" overlay_class="z-50">
+                    <div class="flex items-center justify-between">
+                        <p class="text-sm font-medium">"Mob wählen"</p>
+                        <Button variant=ButtonVariant::Ghost size=ButtonSize::Sm on_click=move |_| mob_picker_for.set(None)>
+                            "Schließen"
+                        </Button>
                     </div>
-                </div>
+                    <EntityBrowser kind=EntityKind::Mob auto_focus=true on_pick=on_mob_pick/>
+                </crate::components::Modal>
             </Show>
 
             <Show when=move || item_picker_for.with(|m| m.is_some())>
-                <div class="fixed inset-0 z-50 flex items-center justify-center bg-black/50">
-                    <div class="max-h-[85vh] w-[32rem] space-y-2 overflow-y-auto rounded-lg border border-border bg-card p-4">
-                        <div class="flex items-center justify-between">
-                            <p class="text-sm font-medium">"Item wählen"</p>
-                            <Button variant=ButtonVariant::Ghost size=ButtonSize::Sm on_click=move |_| item_picker_for.set(None)>
-                                "Schließen"
-                            </Button>
-                        </div>
-                        <EntityBrowser kind=EntityKind::Item auto_focus=true on_pick=on_item_pick/>
+                <crate::components::Modal class="max-h-[85vh] w-[32rem] space-y-2 overflow-y-auto rounded-lg border border-border bg-card p-4" overlay_class="z-50">
+                    <div class="flex items-center justify-between">
+                        <p class="text-sm font-medium">"Item wählen"</p>
+                        <Button variant=ButtonVariant::Ghost size=ButtonSize::Sm on_click=move |_| item_picker_for.set(None)>
+                            "Schließen"
+                        </Button>
                     </div>
-                </div>
+                    <EntityBrowser kind=EntityKind::Item auto_focus=true on_pick=on_item_pick/>
+                </crate::components::Modal>
             </Show>
 
             <Show when=move || confirm_open.get()>
-                <div class="fixed inset-0 z-50 flex items-center justify-center bg-black/50">
-                    <div class="max-h-[85vh] w-[40rem] space-y-3 overflow-y-auto rounded-lg border border-border bg-card p-4">
-                        <p class="flex items-start gap-2 text-sm">
-                            <Icon name="AlertTriangle" class="mt-0.5 size-4 shrink-0 text-destructive"/>
-                            <span>
-                                "drop_item_group.txt wird komplett überschrieben (Backup wird vorher angelegt). Wirkt erst nach einem Server-Neustart."
-                            </span>
-                        </p>
-                        {groups.get_untracked().map(|d| view! {
-                            <ChangePreview kind="drop_item_group" data=serde_json::to_value(&d).unwrap_or_default()/>
-                        })}
-                        <div class="flex justify-end gap-2">
-                            <Button variant=ButtonVariant::Outline on_click=move |_| confirm_open.set(false)>
-                                "Abbrechen"
-                            </Button>
-                            <Button on_click=move |_| save()>"Speichern"</Button>
-                        </div>
+                <crate::components::Modal class="max-h-[85vh] w-[40rem] space-y-3 overflow-y-auto rounded-lg border border-border bg-card p-4" overlay_class="z-50">
+                    <p class="flex items-start gap-2 text-sm">
+                        <Icon name="AlertTriangle" class="mt-0.5 size-4 shrink-0 text-destructive"/>
+                        <span>
+                            "drop_item_group.txt wird komplett überschrieben (Backup wird vorher angelegt). Wirkt erst nach einem Server-Neustart."
+                        </span>
+                    </p>
+                    {groups.get_untracked().map(|d| view! {
+                        <ChangePreview kind="drop_item_group" data=serde_json::to_value(&d).unwrap_or_default()/>
+                    })}
+                    <div class="flex justify-end gap-2">
+                        <Button variant=ButtonVariant::Outline on_click=move |_| confirm_open.set(false)>
+                            "Abbrechen"
+                        </Button>
+                        <Button on_click=move |_| save()>"Speichern"</Button>
                     </div>
-                </div>
+                </crate::components::Modal>
             </Show>
         </div>
     }

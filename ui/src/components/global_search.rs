@@ -239,6 +239,9 @@ pub fn GlobalSearch() -> impl IntoView {
                 on:click=move |_| open.set(false)
             >
                 <div
+                    role="dialog"
+                    aria-modal="true"
+                    aria-label="Suche"
                     class="w-full max-w-lg overflow-hidden rounded-lg border border-border bg-card shadow-xl"
                     on:click=|e| e.stop_propagation()
                 >
