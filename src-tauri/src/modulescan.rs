@@ -423,7 +423,8 @@ mod tests {
     #[test]
     fn scans_real_frostedge_module() {
         let root = Path::new(env!("CARGO_MANIFEST_DIR"))
-            .join("..")
+            .join("tests")
+            .join("fixtures")
             .join("beispiel_neues_modul")
             .join("FrostEdge");
         if !root.is_dir() {

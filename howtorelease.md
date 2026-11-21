@@ -28,18 +28,16 @@ Sicherungen:
 
 Ein von Hand gepushter Tag `vX.Y.Z` startet weiterhin nur den Bau. Dann musst du vorher selbst die Version in allen Dateien setzen und den Changelog-Abschnitt umbenennen, sonst bricht die Pipeline ab (Prüfschritt seit 0.17.1). Lieber den Knopf nehmen.
 
-**Einmalige Einrichtung, bevor das zum ersten Mal läuft** (siehe `~/.claude/plans/immutable-mapping-snowglobe.md` für die volle Herleitung):
+**Einmalige Einrichtung** (bereits erledigt, nur bei einem neuen Repo nötig):
 - (Seit 0.17.1 nicht mehr nötig: das Repo ist öffentlich, die App braucht keinen eingebetteten `GH_RELEASE_TOKEN` mehr. Das Secret kann gelöscht werden.)
 - Tauri-Signierschlüssel als Secrets `TAURI_SIGNING_PRIVATE_KEY`/`TAURI_SIGNING_PRIVATE_KEY_PASSWORD` hinterlegt, öffentlicher Teil in `tauri.conf.json` eingetragen
-
-**Wichtig für den allerersten Tag:** noch nicht live getestet (kein vorheriger echter Release zum Gegenprüfen) - beim ersten Mal das Actions-Log genau beobachten, und danach mit einer älteren lokal installierten Version einmal "Nach Updates suchen" → "Installieren" wirklich durchklicken, bevor du dich darauf verlässt.
 
 ## Manuell (Fallback, falls die Pipeline mal ausfällt)
 
 Lokal mit der Tauri-CLI bauen:
 
 ```
-cd C:\Users\DevSteven\Documents\OpenCode\M2-Tools-Desktop
+cd <Pfad-zum-Repo>\M2-Tools-Desktop
 cargo tauri build
 ```
 
@@ -50,8 +48,8 @@ Macht automatisch alles in einem Rutsch:
 
 Wo die Ergebnisse landen (unter `src-tauri/target/release/`):
 - `m2manager.exe` — die rohe, portable Exe direkt zum Doppelklicken, keine Installation nötig
-- `bundle/nsis/M2Manager Community_<version>_x64-setup.exe` — Installer
-- `bundle/msi/M2Manager Community_<version>_x64_en-US.msi` — alternativer Installer
+- `bundle/nsis/M2Manager_<version>_x64-setup.exe` — Installer
+- `bundle/msi/M2Manager_<version>_x64_en-US.msi` — alternativer Installer
 
 Bei diesem Weg musst du die Dateien selbst verteilen - die automatische Update-Erkennung in der App greift nur bei Releases, die über die GitHub-Actions-Pipeline oben entstanden sind (nur die schreiben `updater/latest.json` fort).
 
