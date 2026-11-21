@@ -47,7 +47,7 @@ pub struct ActivityFeedPage {
     pub total: i64,
 }
 
-#[tauri::command]
+#[tauri::command(async)]
 pub fn log_activity(
     state: State<'_, AppState>,
     module: String,
@@ -75,7 +75,7 @@ fn note_suffix(note: &Option<String>) -> String {
     }
 }
 
-#[tauri::command]
+#[tauri::command(async)]
 pub fn list_activity_feed(
     state: State<'_, AppState>,
     module: Option<String>,

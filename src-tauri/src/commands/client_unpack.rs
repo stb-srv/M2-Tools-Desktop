@@ -25,7 +25,7 @@ fn resolve_client_path(state: &State<'_, AppState>, client_path: Option<String>)
     }
 }
 
-#[tauri::command]
+#[tauri::command(async)]
 pub fn get_client_unpack_status(
     state: State<'_, AppState>,
     client_path: Option<String>,

@@ -293,7 +293,7 @@ pub fn PackageImporter(#[prop(into)] on_imported: Callback<()>) -> impl IntoView
                     if let Some(icon) = &row.icon {
                         invoke_unit("write_item_icon", &json!({ "vnum": base_vnum, "sourcePath": icon })).await?;
                     }
-                    let (_, virtual_model_path) = invoke::<(String, String)>(
+                    let (_, virtual_model_path, model_warnings) = invoke::<(String, String, Vec<String>)>(
                         "import_weapon_model",
                         &json!({
                             "moduleName": scan.module_name,
@@ -303,6 +303,9 @@ pub fn PackageImporter(#[prop(into)] on_imported: Callback<()>) -> impl IntoView
                         }),
                     )
                     .await?;
+                    for w in &model_warnings {
+                        crate::components::toast::warning(&format!("Modell-Import {base_vnum}: {w}"));
+                    }
                     let icon_rel_path = icon_rel_path(base_vnum);
 
                     let mut level_vnums = vec![];

@@ -12,7 +12,7 @@ use tauri::{AppHandle, State};
 
 use super::support::{item_editor_setting, require_pool};
 
-#[tauri::command]
+#[tauri::command(async)]
 pub fn scan_module(path: String) -> Result<ScannedModule, String> {
     modulescan::scan_module(std::path::Path::new(&path))
 }
@@ -20,7 +20,7 @@ pub fn scan_module(path: String) -> Result<ScannedModule, String> {
 /// Scan for the icon-only importer (accessories with no 3D model at all -
 /// shoes, necklaces, shields, earrings, bracelets, ...): just every image
 /// file under the folder, no weapon/armor detection.
-#[tauri::command]
+#[tauri::command(async)]
 pub fn scan_icon_folder(path: String) -> Result<Vec<String>, String> {
     modulescan::scan_icon_folder(std::path::Path::new(&path))
 }
@@ -32,7 +32,7 @@ pub async fn import_weapon_model(
     vnum: u32,
     source_abs: String,
     texture_sources: Vec<String>,
-) -> Result<(String, String), String> {
+) -> Result<(String, String, Vec<String>), String> {
     let client_path = item_editor_setting(&state, "client_path")?;
     let (dest, virtual_path, warnings) = tokio::task::spawn_blocking(move || {
         packtools::import_custom_weapon_model(
@@ -48,7 +48,7 @@ pub async fn import_weapon_model(
     for w in &warnings {
         eprintln!("Modell-Import {vnum}: {w}");
     }
-    Ok((dest.display().to_string(), virtual_path))
+    Ok((dest.display().to_string(), virtual_path, warnings))
 }
 
 /// Allocates a single fresh `value3`/`ShapeIndex` for a whole armor piece -
@@ -127,7 +127,7 @@ pub async fn pack_item_effects(app: AppHandle, state: State<'_, AppState>) -> Re
 
 // ---- Item-Importer: Verlauf & Rückgängig-machen ----
 
-#[tauri::command]
+#[tauri::command(async)]
 pub fn record_import_batch(
     state: State<'_, AppState>,
     module_name: String,
@@ -139,7 +139,7 @@ pub fn record_import_batch(
     import_history::record_batch(&conn, &module_name, item_type, &vnums, had_effects)
 }
 
-#[tauri::command]
+#[tauri::command(async)]
 pub fn list_import_batches(state: State<'_, AppState>) -> Result<Vec<import_history::ImportBatch>, String> {
     let conn = state.settings_db.lock().map_err(|e| e.to_string())?;
     import_history::list_batches(&conn)

@@ -60,7 +60,7 @@ pub async fn delete_item_proto(state: State<'_, AppState>, vnum: u32) -> Result<
 /// Checks every path the item-creation pipeline depends on *before* anything
 /// destructive (including the DB insert) runs, so a misconfigured setting
 /// fails loudly upfront instead of leaving a half-created item behind.
-#[tauri::command]
+#[tauri::command(async)]
 pub fn validate_item_editor_setup(
     state: State<'_, AppState>,
     require_icon_tool: bool,
@@ -102,7 +102,7 @@ pub fn validate_item_editor_setup(
     }
 }
 
-#[tauri::command]
+#[tauri::command(async)]
 pub fn write_item_icon(
     state: State<'_, AppState>,
     vnum: u32,
@@ -119,7 +119,7 @@ pub async fn pack_item_icons(app: AppHandle, state: State<'_, AppState>) -> Resu
     packtools::run_eterpack_pack(&app, &tool_path, "icon").await
 }
 
-#[tauri::command]
+#[tauri::command(async)]
 pub fn write_item_model(
     state: State<'_, AppState>,
     vnum: u32,
@@ -136,7 +136,7 @@ pub async fn pack_item_models(app: AppHandle, state: State<'_, AppState>) -> Res
     packtools::run_eterpack_pack(&app, &tool_path, "item").await
 }
 
-#[tauri::command]
+#[tauri::command(async)]
 pub fn write_item_list_entry(
     state: State<'_, AppState>,
     vnum: u32,
@@ -157,13 +157,13 @@ pub fn write_item_list_entry(
 // ---- Item-Beschreibung (locale/<lang>/itemdesc.txt - client-seitig, keine
 // item_proto-Spalte) ----
 
-#[tauri::command]
+#[tauri::command(async)]
 pub fn get_item_desc(state: State<'_, AppState>, vnum: u32) -> Result<Option<itemdesc::ItemDescEntry>, String> {
     let client_path = item_editor_setting(&state, "client_path")?;
     itemdesc::read_entry(&client_path, vnum)
 }
 
-#[tauri::command]
+#[tauri::command(async)]
 pub fn write_item_desc(
     state: State<'_, AppState>,
     vnum: u32,
@@ -184,7 +184,7 @@ pub async fn regenerate_item_proto(
     Ok(generated.display().to_string())
 }
 
-#[tauri::command]
+#[tauri::command(async)]
 pub fn deploy_item_proto(
     state: State<'_, AppState>,
     generated_proto_path: String,

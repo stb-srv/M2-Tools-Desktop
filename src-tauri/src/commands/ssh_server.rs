@@ -308,7 +308,7 @@ pub async fn run_rollback(
     deploy_history::get_deploy(&conn, rollback_id)?.ok_or_else(|| "Rollback-Eintrag nicht gefunden".to_string())
 }
 
-#[tauri::command]
+#[tauri::command(async)]
 pub fn list_deploy_history(state: State<'_, AppState>) -> Result<Vec<deploy_history::DeployRecord>, String> {
     let conn = state.settings_db.lock().map_err(|e| e.to_string())?;
     deploy_history::list_deploys(&conn)

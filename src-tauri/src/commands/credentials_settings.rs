@@ -7,14 +7,14 @@ use crate::settings;
 use crate::state::AppState;
 use tauri::State;
 
-#[tauri::command]
+#[tauri::command(async)]
 pub fn store_credential(account: String, secret: String) -> Result<(), String> {
     credentials::store_secret(&account, &secret)
 }
 
 /// Verrät dem Webview nur, OB ein (nicht leeres) Geheimnis gespeichert ist,
 /// nie den Klartext. Das Backend holt Passwörter bei Bedarf selbst.
-#[tauri::command]
+#[tauri::command(async)]
 pub fn has_credential(account: String) -> Result<bool, String> {
     Ok(credentials::get_secret(&account).map(|s| !s.is_empty()).unwrap_or(false))
 }
@@ -28,18 +28,18 @@ fn resolve_password(password: String, account: &str) -> String {
     }
 }
 
-#[tauri::command]
+#[tauri::command(async)]
 pub fn delete_credential(account: String) -> Result<(), String> {
     credentials::delete_secret(&account)
 }
 
-#[tauri::command]
+#[tauri::command(async)]
 pub fn get_setting(state: State<'_, AppState>, key: String) -> Result<Option<String>, String> {
     let conn = state.settings_db.lock().map_err(|e| e.to_string())?;
     settings::get_path(&conn, &key)
 }
 
-#[tauri::command]
+#[tauri::command(async)]
 pub fn set_setting(
     state: State<'_, AppState>,
     key: String,
