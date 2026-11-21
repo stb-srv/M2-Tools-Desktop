@@ -9,6 +9,9 @@ on:
   push:
     branches: [master]
 
+permissions:
+  contents: read
+
 concurrency:
   group: ci-${{ github.ref }}
   cancel-in-progress: true
@@ -20,11 +23,13 @@ jobs:
     # "Was ist neu" in der App, der Update-Hinweis und der GitHub-Release-Text.
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
 
-      - uses: dtolnay/rust-toolchain@stable
+      - uses: dtolnay/rust-toolchain@39008827e6b4319a349e9a42dfc90579dd25f1ca # stable-Branch
+        with:
+          toolchain: 1.100.0 # gleich wie rust-toolchain.toml
 
-      - uses: Swatinem/rust-cache@v2
+      - uses: Swatinem/rust-cache@d1527c8f67ef9af357290475d4af4b0fab8f12e0 # v2.9.3
         with:
           workspaces: "tools/release -> target"
 
@@ -39,17 +44,18 @@ jobs:
     name: Frontend (Rust/Leptos, Tests + WASM-Build)
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
 
-      - uses: dtolnay/rust-toolchain@stable
+      - uses: dtolnay/rust-toolchain@39008827e6b4319a349e9a42dfc90579dd25f1ca # stable-Branch
         with:
+          toolchain: 1.100.0 # gleich wie rust-toolchain.toml
           targets: wasm32-unknown-unknown
 
-      - uses: Swatinem/rust-cache@v2
+      - uses: Swatinem/rust-cache@d1527c8f67ef9af357290475d4af4b0fab8f12e0 # v2.9.3
         with:
           workspaces: "ui -> target"
 
-      - uses: taiki-e/install-action@v2
+      - uses: taiki-e/install-action@25f51f6b1bf4e18876107cece836f4f77ac17c8c # v2.90.7
         with:
           tool: trunk
 
@@ -67,11 +73,13 @@ jobs:
     # Schlüsselbund-Test (Windows Credential Manager) mit.
     runs-on: windows-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
 
-      - uses: dtolnay/rust-toolchain@stable
+      - uses: dtolnay/rust-toolchain@39008827e6b4319a349e9a42dfc90579dd25f1ca # stable-Branch
+        with:
+          toolchain: 1.100.0 # gleich wie rust-toolchain.toml
 
-      - uses: Swatinem/rust-cache@v2
+      - uses: Swatinem/rust-cache@d1527c8f67ef9af357290475d4af4b0fab8f12e0 # v2.9.3
         with:
           workspaces: "src-tauri -> target"
 
@@ -83,3 +91,41 @@ jobs:
       - name: cargo test
         working-directory: src-tauri
         run: cargo test --lib
+
+  e2e-build:
+    name: E2E-Test kompiliert (cargo check)
+    # Der E2E-Smoke-Test läuft nicht in CI (braucht tauri-driver und die gebaute
+    # App), soll aber nicht unbemerkt veralten.
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
+
+      - uses: dtolnay/rust-toolchain@39008827e6b4319a349e9a42dfc90579dd25f1ca # stable-Branch
+        with:
+          toolchain: 1.100.0 # gleich wie rust-toolchain.toml
+
+      - uses: Swatinem/rust-cache@d1527c8f67ef9af357290475d4af4b0fab8f12e0 # v2.9.3
+        with:
+          workspaces: "e2e -> target"
+
+      - name: cargo check
+        working-directory: e2e
+        run: cargo check --locked
+
+  audit:
+    name: Sicherheitsprüfung der Abhängigkeiten (cargo audit)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
+
+      - uses: taiki-e/install-action@25f51f6b1bf4e18876107cece836f4f77ac17c8c # v2.90.7
+        with:
+          tool: cargo-audit
+
+      - name: cargo audit (src-tauri)
+        working-directory: src-tauri
+        run: cargo audit
+
+      - name: cargo audit (ui)
+        working-directory: ui
+        run: cargo audit

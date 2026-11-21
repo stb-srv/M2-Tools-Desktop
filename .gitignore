@@ -27,3 +27,7 @@ dist
 /ui/target
 /e2e/target
 /tools/release/target
+
+# GR2-Sidecar: Build-Ausgaben und bereitgestellte Kopie fuer Tauri externalBin
+/src-tauri/gr2-sidecar/target
+/src-tauri/binaries/

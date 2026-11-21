@@ -4,6 +4,7 @@
 // Bridged via a 32-bit sidecar binary (gr2-sidecar/) that loads the user's own
 // client DLL and reports mesh data back as JSON. See m2manager-gr2-reference.
 
+#![cfg_attr(not(windows), allow(dead_code, unused_imports))]
 use serde::{Deserialize, Serialize};
 use std::path::PathBuf;
 use std::process::Command;
@@ -40,9 +41,18 @@ struct SidecarOutput {
     error: Option<String>,
 }
 
+/// Sucht den GR2-Sidecar. Im ausgelieferten Build liegt er (per Tauri
+/// `externalBin`) direkt neben `M2Manager.exe`; im Entwicklungs-Build fällt die
+/// Suche auf den lokalen Cargo-Ausgabeordner des Sidecars zurück.
 fn sidecar_path() -> PathBuf {
-    // Dev-time resolution only - production builds must bundle this via
-    // Tauri's externalBin sidecar mechanism instead (not yet wired up).
+    if let Some(dir) = std::env::current_exe().ok().and_then(|p| p.parent().map(|d| d.to_path_buf())) {
+        let bundled = dir.join("gr2-sidecar.exe");
+        if bundled.exists() {
+            return bundled;
+        }
+    }
+    // Dev-Fallback: mit `cargo build --release --target i686-pc-windows-msvc`
+    // im gr2-sidecar-Ordner gebaut.
     PathBuf::from(env!("CARGO_MANIFEST_DIR"))
         .join("gr2-sidecar")
         .join("target")
@@ -51,11 +61,17 @@ fn sidecar_path() -> PathBuf {
         .join("gr2-sidecar.exe")
 }
 
+#[cfg(not(windows))]
+pub fn parse(_granny_dll_path: &str, _gr2_path: &str) -> Result<ModelInfo, String> {
+    Err("Der 3D-Viewer ist nur unter Windows verfügbar.".to_string())
+}
+
+#[cfg(windows)]
 pub fn parse(granny_dll_path: &str, gr2_path: &str) -> Result<ModelInfo, String> {
     let sidecar = sidecar_path();
     if !sidecar.exists() {
         return Err(format!(
-            "GR2-Sidecar nicht gefunden unter {}. Mit 'cargo build --release --target i686-pc-windows-msvc' im gr2-sidecar-Ordner bauen.",
+            "GR2-Sidecar nicht gefunden unter {}. Im Entwicklungs-Build mit 'cargo build --release --target i686-pc-windows-msvc' im gr2-sidecar-Ordner bauen.",
             sidecar.display()
         ));
     }
