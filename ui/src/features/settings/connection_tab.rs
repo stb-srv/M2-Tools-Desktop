@@ -38,7 +38,8 @@ pub fn ConnectionTab() -> impl IntoView {
         busy_id.set(Some(profile.id));
         spawn_local(async move {
             match store.activate(profile.id).await {
-                Ok(()) => toast::success(&format!("Verbunden mit „{}“", profile.name)),
+                Ok(true) => toast::success(&format!("Verbunden mit „{}“", profile.name)),
+                Ok(false) => {}
                 Err(e) => toast::error(&e),
             }
             busy_id.set(None);

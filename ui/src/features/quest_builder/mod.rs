@@ -19,7 +19,7 @@ pub use wiki::QuestWiki;
 
 use crate::components::{toast, Button, ButtonSize, ButtonVariant, Icon, PageHeader};
 use crate::util::log_activity;
-use crate::store::navigation::{nav, report_section_dirty, Section};
+use crate::store::navigation::{nav, report_section_dirty, use_pending_selection, Section};
 use crate::tauri::{invoke, invoke0, invoke_unit, listen, Unlisten};
 use code_editor::{CodeEditor, CodeEditorHandle};
 use components::CreateQuestModal;
@@ -170,9 +170,7 @@ pub fn QuestBuilder() -> impl IntoView {
     load_files();
     // Globale Suche (Strg+Umschalt+F) springt hierher mit dem relative_path
     // eines Quest-Treffers.
-    if let Some(target) = nav().consume_pending_selection(Section::QuestBuilder) {
-        open_file(target);
-    }
+    use_pending_selection(Section::QuestBuilder, move |target| open_file(target));
 
     // Ausgabe des Kompilier-Befehls mitschreiben.
     let unlisten = StoredValue::new_local(None::<Unlisten>);

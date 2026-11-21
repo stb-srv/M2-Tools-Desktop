@@ -2,6 +2,7 @@
 //! Jeder Tab bleibt nach dem ersten Öffnen gemountet und wird nur versteckt,
 //! damit beim Wechsel keine ungespeicherten Eingaben verloren gehen.
 
+use crate::store::navigation::TabContext;
 use leptos::prelude::*;
 
 pub struct SectionTab {
@@ -60,7 +61,10 @@ pub fn SectionTabs(tabs: Vec<SectionTab>) -> impl IntoView {
             view! {
                 <Show when=move || visited.with(|v| v.contains(&id))>
                     <div class=move || if active.get() == id { "h-full" } else { "h-full hidden" }>
-                        {content.run()}
+                        {
+                            provide_context(TabContext { id, active });
+                            content.run()
+                        }
                     </div>
                 </Show>
             }

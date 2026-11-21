@@ -11,7 +11,7 @@ pub mod logic;
 use crate::components::{Button, ButtonSize, ButtonVariant, Icon};
 use crate::features::mob_drop_editor::components::shared::{js_number, num_sig, NumInput};
 use crate::features::shared::{ChangePreview, EntityBrowser, EntityKind, EntityRow, RestartServerButton};
-use crate::store::navigation::{report_section_dirty, Section};
+use crate::store::navigation::{use_section_dirty, Section};
 use crate::tauri::invoke;
 use crate::util::{log_activity, use_save_shortcut};
 use leptos::prelude::*;
@@ -105,8 +105,7 @@ pub fn CommonDropEditor() -> impl IntoView {
     let validate_seq = StoredValue::new(0u64);
 
     let dirty = Memo::new(move |_| file.with(|f| f.is_some() && snapshot.with(|s| s != f)));
-    Effect::new(move |_| report_section_dirty(Section::DropGenerator, dirty.get()));
-    on_cleanup(move || report_section_dirty(Section::DropGenerator, false));
+    use_section_dirty(Section::DropGenerator, move || dirty.get());
 
     // ---- Prüfungen ----
     Effect::new(move |_| {

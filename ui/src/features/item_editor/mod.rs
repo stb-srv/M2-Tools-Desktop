@@ -10,7 +10,8 @@ pub mod types;
 use crate::components::{Button, ButtonSize, ButtonVariant, Icon, PageHeader};
 use crate::features::shared::{EntityBrowser, EntityKind, EntityRow, ItemUsageModal};
 use crate::util::{log_activity, use_save_shortcut};
-use crate::store::navigation::{nav, report_section_dirty, Section};
+use crate::store::navigation::{report_section_dirty, use_pending_selection, Section};
+use crate::util::confirm::confirm_discard_if;
 use crate::tauri::{dialog_open_one, invoke, invoke_unit, listen, DialogFilter, OpenDialogOptions, Unlisten};
 use components::confirm_pipeline_dialog::ConfirmPipelineDialog;
 use crate::features::icon_browser::IconBrowserModal;
@@ -195,9 +196,7 @@ pub fn ItemEditor() -> impl IntoView {
 
     // Globale Suche (Strg+Umschalt+F) springt mit einer vnum hierher -
     // Konsumieren-beim-Lesen verhindert erneutes Auslösen.
-    if let Some(target) = nav().consume_pending_selection(Section::ItemEditor) {
-        load_for_edit(js_number(&target) as i64);
-    }
+    use_pending_selection(Section::ItemEditor, move |target| load_for_edit(js_number(&target) as i64));
 
     // Ausgabe der Pipeline-Werkzeuge mitschreiben.
     let unlisten = StoredValue::new_local(None::<Unlisten>);
@@ -505,7 +504,7 @@ pub fn ItemEditor() -> impl IntoView {
         <section class="space-y-2 rounded-lg border border-border p-4">
             <div class="flex overflow-hidden rounded-md border border-border text-sm w-fit">
                 <button
-                    on:click=move |_| start_create_mode()
+                    on:click=move |_| confirm_discard_if(dirty.get_untracked(), "Ungespeicherte Änderungen verwerfen und ein neues Item anlegen?", start_create_mode)
                     class=move || if is_create() { "px-3 py-1 bg-primary text-primary-foreground" } else { "px-3 py-1 " }
                 >
                     "Neues Item"
@@ -519,7 +518,7 @@ pub fn ItemEditor() -> impl IntoView {
             </div>
 
             <Show when=move || !is_create() && original_item.with(|o| o.is_none())>
-                <EntityBrowser kind=EntityKind::Item pick_label="Laden" on_pick=Callback::new(move |r: EntityRow| load_for_edit(r.vnum))/>
+                <EntityBrowser kind=EntityKind::Item pick_label="Laden" on_pick=Callback::new(move |r: EntityRow| confirm_discard_if(dirty.get_untracked(), "Ungespeicherte Änderungen verwerfen und das Item laden?", move || load_for_edit(r.vnum)))/>
             </Show>
 
             <Show when=move || !is_create() && original_item.with(|o| o.is_some())>

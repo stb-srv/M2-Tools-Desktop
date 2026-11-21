@@ -195,6 +195,37 @@ pub struct PendingSelection {
     pub target_ref: String,
 }
 
+/// "Ungespeichert"-Markierungen je (Bereich, Quelle). Die Quelle ist z.B. die
+/// Tab-Kennung in einem Bereich mit mehreren Tabs; so löscht ein sauberer Tab
+/// nicht die Markierung eines anderen. Ein Bereich ist ungespeichert, sobald
+/// irgendeine Quelle es meldet. Reine Datenstruktur (ohne Signale, testbar).
+#[derive(Clone, Debug, Default, PartialEq)]
+pub struct DirtyMap(HashMap<(Section, &'static str), bool>);
+
+impl DirtyMap {
+    /// Setzt die Markierung; `false` entfernt den Eintrag. Liefert `true`, wenn sich etwas geändert hat.
+    pub fn set(&mut self, section: Section, source: &'static str, dirty: bool) -> bool {
+        if dirty {
+            self.0.insert((section, source), true).is_none()
+        } else {
+            self.0.remove(&(section, source)).is_some()
+        }
+    }
+
+    pub fn section_dirty(&self, section: Section) -> bool {
+        self.0.keys().any(|(s, _)| *s == section)
+    }
+
+    pub fn any(&self) -> bool {
+        !self.0.is_empty()
+    }
+
+    /// Alle Bereiche mit ungespeicherten Änderungen (ohne Dopplungen, in Sidebar-Reihenfolge).
+    pub fn dirty_sections(&self) -> Vec<Section> {
+        Section::ALL.iter().copied().filter(|s| self.section_dirty(*s)).collect()
+    }
+}
+
 #[derive(Clone, Copy)]
 pub struct NavStore {
     pub section: RwSignal<Section>,
@@ -202,7 +233,7 @@ pub struct NavStore {
     pub rail_collapsed: RwSignal<bool>,
     pub favorites: RwSignal<Vec<Section>>,
     pub recent: RwSignal<Vec<Section>>,
-    pub dirty: RwSignal<HashMap<Section, bool>>,
+    pub dirty: RwSignal<DirtyMap>,
     pub pending_selection: RwSignal<Option<PendingSelection>>,
 }
 
@@ -233,7 +264,7 @@ pub(super) fn init() {
         rail_collapsed: RwSignal::new(storage::get_json(RAIL_COLLAPSED_KEY).unwrap_or(false)),
         favorites: RwSignal::new(load_sections(FAVORITES_KEY)),
         recent: RwSignal::new(load_sections(RECENT_KEY)),
-        dirty: RwSignal::new(HashMap::new()),
+        dirty: RwSignal::new(DirtyMap::default()),
         pending_selection: RwSignal::new(None),
     });
 }
@@ -289,16 +320,34 @@ impl NavStore {
     }
 
     pub fn set_section_dirty(&self, s: Section, dirty: bool) {
-        if self.dirty.with_untracked(|m| m.get(&s).copied().unwrap_or(false)) == dirty {
+        self.set_dirty(s, "", dirty);
+    }
+
+    /// Meldet den Zustand einer Quelle (z.B. eines Tabs) innerhalb eines Bereichs.
+    pub fn set_dirty(&self, s: Section, source: &'static str, dirty: bool) {
+        if self.dirty.with_untracked(|m| m.0.contains_key(&(s, source))) == dirty {
             return;
         }
         self.dirty.update(|m| {
-            m.insert(s, dirty);
+            m.set(s, source, dirty);
         });
     }
 
     pub fn is_dirty(&self, s: Section) -> bool {
-        self.dirty.with(|m| m.get(&s).copied().unwrap_or(false))
+        self.dirty.with(|m| m.section_dirty(s))
+    }
+
+    pub fn is_dirty_untracked(&self, s: Section) -> bool {
+        self.dirty.with_untracked(|m| m.section_dirty(s))
+    }
+
+    /// Meldet irgendein Bereich ungespeicherte Änderungen?
+    pub fn any_dirty(&self) -> bool {
+        self.dirty.with_untracked(|m| m.any())
+    }
+
+    pub fn dirty_sections(&self) -> Vec<Section> {
+        self.dirty.with_untracked(|m| m.dirty_sections())
     }
 
     /// Wechselt zu `section` und hinterlegt `target_ref` (z.B. eine vnum),
@@ -323,6 +372,88 @@ impl NavStore {
 }
 
 /// Spiegelt einen lokalen "ungespeichert"-Zustand in die Sidebar.
+/// Für Bereiche mit mehreren Tabs stattdessen [`use_section_dirty`] nehmen.
 pub fn report_section_dirty(section: Section, dirty: bool) {
     nav().set_section_dirty(section, dirty);
+}
+
+/// Aktiver-Tab-Kontext, den `SectionTabs` jedem Tab-Inhalt bereitstellt.
+#[derive(Clone, Copy)]
+pub struct TabContext {
+    pub id: &'static str,
+    pub active: RwSignal<&'static str>,
+}
+
+impl TabContext {
+    pub fn is_active(&self) -> bool {
+        self.active.get_untracked() == self.id
+    }
+}
+
+/// Meldet `dirty` für `section`, getrennt je Tab (Kennung aus dem
+/// `TabContext`), und räumt beim Entfernen der Komponente auf.
+pub fn use_section_dirty(section: Section, dirty: impl Fn() -> bool + 'static) {
+    let key = use_context::<TabContext>().map(|c| c.id).unwrap_or("");
+    use_section_dirty_as(section, key, dirty);
+}
+
+/// Wie [`use_section_dirty`] mit ausdrücklicher Quelle (für Umschalter
+/// innerhalb eines Bereichs, die keine `SectionTabs` sind).
+pub fn use_section_dirty_as(section: Section, key: &'static str, dirty: impl Fn() -> bool + 'static) {
+    Effect::new(move |_| nav().set_dirty(section, key, dirty()));
+    on_cleanup(move || nav().set_dirty(section, key, false));
+}
+
+/// Führt `handler` mit der per `go_to_with_selection` hinterlegten Auswahl aus
+/// - beim Mounten und auch, wenn der Bereich schon gemountet ist. Hat der
+/// Bereich ungespeicherte Änderungen, wird vorher nachgefragt.
+pub fn use_pending_selection(section: Section, handler: impl Fn(String) + Clone + 'static) {
+    Effect::new(move |_| {
+        let Some(target) = nav().pending_selection.get().filter(|p| p.section == section) else {
+            return;
+        };
+        let handler = handler.clone();
+        nav().pending_selection.set(None);
+        if nav().is_dirty_untracked(section) {
+            crate::util::confirm::confirm_discard("Die Auswahl aus der Suche öffnen? Ungespeicherte Änderungen in diesem Bereich gehen verloren.", move || handler(target.target_ref));
+        } else {
+            handler(target.target_ref);
+        }
+    });
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn clean_tab_does_not_clear_other_tab() {
+        let mut m = DirtyMap::default();
+        assert!(m.set(Section::DropGenerator, "mob", true));
+        assert!(!m.set(Section::DropGenerator, "common", false));
+        assert!(m.section_dirty(Section::DropGenerator));
+        assert!(m.set(Section::DropGenerator, "mob", false));
+        assert!(!m.section_dirty(Section::DropGenerator));
+        assert!(!m.any());
+    }
+
+    #[test]
+    fn set_reports_changes_only() {
+        let mut m = DirtyMap::default();
+        assert!(m.set(Section::ItemEditor, "", true));
+        assert!(!m.set(Section::ItemEditor, "", true));
+        assert!(m.set(Section::ItemEditor, "", false));
+        assert!(!m.set(Section::ItemEditor, "", false));
+    }
+
+    #[test]
+    fn dirty_sections_are_or_over_sources_in_order() {
+        let mut m = DirtyMap::default();
+        m.set(Section::CubeEditor, "", true);
+        m.set(Section::DropGenerator, "a", true);
+        m.set(Section::DropGenerator, "b", true);
+        m.set(Section::ItemEditor, "", true);
+        assert_eq!(m.dirty_sections(), vec![Section::ItemEditor, Section::CubeEditor, Section::DropGenerator]);
+        assert!(!m.section_dirty(Section::Settings));
+    }
 }

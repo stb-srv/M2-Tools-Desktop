@@ -7,7 +7,7 @@ use crate::features::mob_drop_editor::components::shared::{fmt_num, js_number, n
 use crate::features::shared::drop_chance::format_real_drop_chance;
 use crate::features::shared::{ChangePreview, EntityBrowser, EntityKind, EntityRow, RestartServerButton};
 use crate::util::{log_activity, use_save_shortcut};
-use crate::store::navigation::{report_section_dirty, Section};
+use crate::store::navigation::{use_section_dirty, Section};
 use crate::tauri::invoke;
 use leptos::prelude::*;
 use leptos::task::spawn_local;
@@ -106,8 +106,7 @@ pub fn DropItemGroupEditor() -> impl IntoView {
 
     let loaded_snapshot = RwSignal::new(None::<Vec<DropItemGroup>>);
     let dirty = Memo::new(move |_| groups.with(|g| g.is_some() && loaded_snapshot.with(|s| s != g)));
-    Effect::new(move |_| report_section_dirty(Section::DropGenerator, dirty.get()));
-    on_cleanup(move || report_section_dirty(Section::DropGenerator, false));
+    use_section_dirty(Section::DropGenerator, move || dirty.get());
 
     let resolve_all_labels = move |list: Vec<DropItemGroup>| async move {
         let mut seen = Vec::<f64>::new();

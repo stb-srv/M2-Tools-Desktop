@@ -6,7 +6,7 @@ use crate::features::mob_drop_editor::components::shared::{js_number, num_sig, N
 use crate::features::shared::drop_chance::format_real_drop_chance;
 use crate::features::shared::{ChangePreview, EntityBrowser, EntityKind, EntityRow, RestartServerButton};
 use crate::util::{log_activity, use_save_shortcut};
-use crate::store::navigation::{report_section_dirty, Section};
+use crate::store::navigation::{use_section_dirty, Section};
 use crate::tauri::invoke;
 use leptos::prelude::*;
 use leptos::task::spawn_local;
@@ -45,8 +45,7 @@ pub fn EtcDropEditor() -> impl IntoView {
 
     let loaded_snapshot = RwSignal::new(None::<Vec<EtcDropEntry>>);
     let dirty = Memo::new(move |_| entries.with(|e| e.is_some() && loaded_snapshot.with(|s| s != e)));
-    Effect::new(move |_| report_section_dirty(Section::DropGenerator, dirty.get()));
-    on_cleanup(move || report_section_dirty(Section::DropGenerator, false));
+    use_section_dirty(Section::DropGenerator, move || dirty.get());
 
     let resolve_labels = move |list: Vec<EtcDropEntry>| async move {
         let resolved = join_all(list.into_iter().map(|e| async move {

@@ -4,6 +4,7 @@ pub mod broadcast_quest;
 
 use crate::components::{Button, ButtonSize, ButtonVariant, Icon, PageHeader};
 use crate::util::{log_activity, use_save_shortcut};
+use crate::util::confirm::confirm_discard_if;
 use crate::store::navigation::{report_section_dirty, ModuleId, Section};
 use crate::tauri::{invoke, invoke0, invoke_unit, listen, Unlisten};
 use broadcast_quest::{generate_broadcast_quest, BroadcastMessage};
@@ -301,7 +302,7 @@ pub fn BroadcastSystem() -> impl IntoView {
         <div class="flex h-full max-w-4xl flex-col gap-4 pb-10">
             <div class="flex items-center justify-between">
                 <PageHeader module=Section::BroadcastSystem title="Broadcast-System".to_string()/>
-                <Button variant=ButtonVariant::Outline on_click=move |_| load() disabled=loading>
+                <Button variant=ButtonVariant::Outline on_click=move |_| confirm_discard_if(dirty.get_untracked(), "Ungespeicherte Änderungen verwerfen und neu laden?", load) disabled=loading>
                     <Icon name="RefreshCw" class=Signal::derive(move || if loading.get() { "size-4 animate-spin".to_string() } else { "size-4 ".to_string() })/>
                     "Neu laden"
                 </Button>

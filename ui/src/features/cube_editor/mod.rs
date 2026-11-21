@@ -5,6 +5,7 @@ use crate::components::{toast, Button, ButtonSize, ButtonVariant, Icon, PageHead
 use crate::features::regen_editor::num_input::{js_number_string, NumInput};
 use crate::features::shared::{EntityBrowser, EntityKind, EntityRow};
 use crate::util::{log_activity, use_save_shortcut};
+use crate::util::confirm::confirm_discard_if;
 use crate::store::navigation::{report_section_dirty, Section};
 use crate::tauri::{invoke, invoke0};
 use leptos::prelude::*;
@@ -340,7 +341,7 @@ pub fn CubeEditor() -> impl IntoView {
             </p>
 
             <div class="flex items-center gap-2">
-                <Button variant=ButtonVariant::Outline on_click=move |_| load() disabled=loading>
+                <Button variant=ButtonVariant::Outline on_click=move |_| confirm_discard_if(dirty.get_untracked(), "Ungespeicherte Änderungen verwerfen und neu laden?", load) disabled=loading>
                     <Icon
                         name="RefreshCw"
                         class=Signal::derive(move || format!("size-4 {}", if loading.get() { "animate-spin" } else { "" }))

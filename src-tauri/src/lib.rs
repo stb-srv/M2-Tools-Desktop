@@ -51,7 +51,28 @@ mod weather;
 mod test_support;
 
 use state::AppState;
-use tauri::Manager;
+use std::sync::atomic::{AtomicBool, AtomicU64, Ordering};
+use tauri::{Emitter, Manager};
+
+/// Close-Guard: Beim Schließen des Hauptfensters fragt das Frontend erst nach,
+/// wenn ungespeicherte Änderungen existieren. Antwortet es nicht (abgestürzt,
+/// noch nicht geladen), schließt das Fenster nach `CLOSE_ACK_TIMEOUT`
+/// trotzdem; ein zweiter Klick auf "Schließen" vor der Antwort schließt sofort.
+const CLOSE_ACK_TIMEOUT: std::time::Duration = std::time::Duration::from_secs(3);
+static CLOSE_PENDING: AtomicBool = AtomicBool::new(false);
+static CLOSE_SEQ: AtomicU64 = AtomicU64::new(0);
+
+/// Das Frontend hat die Schließen-Anfrage erhalten und übernimmt (Timeout entfällt).
+#[tauri::command]
+fn ack_close_request() {
+    CLOSE_PENDING.store(false, Ordering::SeqCst);
+}
+
+/// Schließt das aufrufende Fenster endgültig, ohne erneut nachzufragen.
+#[tauri::command]
+fn close_window_now(window: tauri::Window) {
+    let _ = window.destroy();
+}
 
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
@@ -73,7 +94,33 @@ pub fn run() {
             });
             Ok(())
         })
+        .on_window_event(|window, event| {
+            if window.label() != "main" {
+                return;
+            }
+            if let tauri::WindowEvent::CloseRequested { api, .. } = event {
+                // Zweiter Klick, solange das Frontend noch nicht geantwortet hat: schließen lassen.
+                if CLOSE_PENDING.swap(true, Ordering::SeqCst) {
+                    return;
+                }
+                api.prevent_close();
+                let seq = CLOSE_SEQ.fetch_add(1, Ordering::SeqCst) + 1;
+                if window.emit("close-requested", ()).is_err() {
+                    let _ = window.destroy();
+                    return;
+                }
+                let window = window.clone();
+                std::thread::spawn(move || {
+                    std::thread::sleep(CLOSE_ACK_TIMEOUT);
+                    if CLOSE_PENDING.load(Ordering::SeqCst) && CLOSE_SEQ.load(Ordering::SeqCst) == seq {
+                        let _ = window.destroy();
+                    }
+                });
+            }
+        })
         .invoke_handler(tauri::generate_handler![
+            ack_close_request,
+            close_window_now,
             commands::test_ssh_connection,
             commands::test_stored_ssh,
             commands::read_mob_drop_file,

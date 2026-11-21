@@ -11,7 +11,8 @@ use crate::features::shared::drop_chance::real_drop_chance_percent;
 use crate::features::shared::{ChangePreview, EntityRow};
 use crate::util::csv::export_rows_as_csv;
 use crate::util::{log_activity, open_manual};
-use crate::store::navigation::{nav, report_section_dirty, EmbeddedModule, Section};
+use crate::util::confirm::confirm_discard_if;
+use crate::store::navigation::{nav, use_section_dirty, EmbeddedModule, Section};
 use crate::tauri::{dialog_open_one, invoke, DialogFilter, OpenDialogOptions};
 use components::shared::{clamp_percent, fmt_num};
 use components::{
@@ -100,8 +101,7 @@ pub fn MobDropEditor() -> impl IntoView {
     let simulator_open = RwSignal::new(false);
 
     let dirty = RwSignal::new(false);
-    Effect::new(move |_| report_section_dirty(Section::DropGenerator, dirty.get()));
-    on_cleanup(move || report_section_dirty(Section::DropGenerator, false));
+    use_section_dirty(Section::DropGenerator, move || dirty.get());
 
     // Nur zur Diagnose, einmal beim Laden aus dem Rohinhalt ermittelt (siehe
     // mobdrop::check_numbering) - nicht aus `groups` neu berechnet wie die
@@ -488,7 +488,7 @@ pub fn MobDropEditor() -> impl IntoView {
                         </Button>
                         <Button
                             variant=ButtonVariant::Outline
-                            on_click=move |_| reload()
+                            on_click=move |_| confirm_discard_if(dirty.get_untracked(), "Ungespeicherte Änderungen verwerfen und neu laden?", reload)
                             disabled=Signal::derive(move || {
                                 loading.get() || (source.get() == Source::Local && local_path.with(|p| p.is_none()))
                             })

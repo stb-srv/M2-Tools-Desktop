@@ -9,7 +9,7 @@ use crate::features::item_editor::item_flags::{subtypes_by_type, WEAR_FLAGS};
 use crate::features::item_editor::types::{js_number, num};
 use crate::features::module_importer::shared::*;
 use crate::util::{log_activity, use_save_shortcut};
-use crate::store::navigation::{report_section_dirty, Section};
+use crate::store::navigation::{use_section_dirty_as, Section};
 use crate::tauri::{dialog_open_one, invoke, invoke_unit, listen, OpenDialogOptions, Unlisten};
 use leptos::html;
 use leptos::prelude::*;
@@ -192,8 +192,7 @@ pub fn PackageImporter(#[prop(into)] on_imported: Callback<()>) -> impl IntoView
 
     // Gescanntes, noch nicht importiertes Paket = ungespeicherte Arbeit.
     let dirty = Memo::new(move |_| scan_result.with(|s| s.is_some()) && batch_done.with(|b| b.is_none()));
-    Effect::new(move |_| report_section_dirty(Section::ModuleImporter, dirty.get()));
-    on_cleanup(|| report_section_dirty(Section::ModuleImporter, false));
+    use_section_dirty_as(Section::ModuleImporter, "package", move || dirty.get());
 
     let log_ref = NodeRef::<html::Pre>::new();
 
