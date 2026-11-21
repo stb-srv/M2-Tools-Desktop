@@ -58,7 +58,7 @@ pub async fn write_regen_file(
 // Reuses the existing, already-validated `client_path` setting (see
 // check_client_path) rather than adding a separate one.
 
-#[tauri::command]
+#[tauri::command(async)]
 pub fn list_client_map_folders(
     state: State<'_, AppState>,
 ) -> Result<Vec<mapdata::MapFolderInfo>, String> {
@@ -66,7 +66,7 @@ pub fn list_client_map_folders(
     mapdata::list_map_folders(&client_path)
 }
 
-#[tauri::command]
+#[tauri::command(async)]
 pub fn get_regen_map_image(
     app: AppHandle,
     state: State<'_, AppState>,

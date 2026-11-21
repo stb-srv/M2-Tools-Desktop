@@ -114,7 +114,7 @@ pub async fn unban_account(state: State<'_, AppState>, account_id: i32, ban_id: 
     Ok(())
 }
 
-#[tauri::command]
+#[tauri::command(async)]
 pub fn list_account_bans(state: State<'_, AppState>) -> Result<Vec<bans::BanRecord>, String> {
     let conn = state.settings_db.lock().map_err(|e| e.to_string())?;
     bans::list_bans(&conn)

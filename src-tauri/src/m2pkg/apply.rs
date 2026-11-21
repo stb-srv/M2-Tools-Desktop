@@ -1243,6 +1243,9 @@ pub struct UndoReport {
     pub text_files_edited: usize,
     pub db_deleted: usize,
     pub db_restored: usize,
+    /// Hinweise für den Anwender, z. B. das Ergebnis des Neupackens.
+    #[serde(default)]
+    pub notes: Vec<String>,
 }
 
 pub async fn undo(client_dir: PathBuf, id: String, pool: Option<MySqlPool>) -> Result<UndoReport, String> {

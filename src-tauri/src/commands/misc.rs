@@ -12,22 +12,22 @@ use tauri::State;
 
 use super::support::{client_path_setting, require_pool};
 
-#[tauri::command]
+#[tauri::command(async)]
 pub fn export_text_file(path: String, content: String) -> Result<(), String> {
     std::fs::write(&path, content).map_err(|e| format!("Datei konnte nicht geschrieben werden: {e}"))
 }
 
-#[tauri::command]
+#[tauri::command(async)]
 pub fn convert_image_to_tga(source_path: String, dest_path: String) -> Result<(), String> {
     crate::imageconv::convert_to_tga(&source_path, std::path::Path::new(&dest_path))
 }
 
-#[tauri::command]
+#[tauri::command(async)]
 pub fn preview_image_file(path: String) -> Result<String, String> {
     crate::imageconv::preview_as_data_url(&path)
 }
 
-#[tauri::command]
+#[tauri::command(async)]
 pub fn load_gr2_model(granny_dll_path: String, gr2_path: String) -> Result<ModelInfo, String> {
     gr2::parse(&granny_dll_path, &gr2_path)
 }
@@ -37,7 +37,7 @@ pub fn check_client_path(path: String) -> bool {
     gr2::find_granny_dll(&path).is_some()
 }
 
-#[tauri::command]
+#[tauri::command(async)]
 pub fn get_item_icon(
     state: State<'_, AppState>,
     vnum: u32,
@@ -50,18 +50,18 @@ pub fn get_item_icon(
     icons::load_item_icon_data_url(&client_path, vnum)
 }
 
-#[tauri::command]
+#[tauri::command(async)]
 pub fn list_item_icon_files(state: State<'_, AppState>) -> Result<Vec<icons::IconFile>, String> {
     let client_path = client_path_setting(&state)?;
     Ok(icons::list_item_icon_files(&client_path))
 }
 
-#[tauri::command]
+#[tauri::command(async)]
 pub fn load_icon_file(absolute_path: String) -> Result<String, String> {
     icons::load_icon_file_data_url(&absolute_path)
 }
 
-#[tauri::command]
+#[tauri::command(async)]
 pub fn locate_npc_model(
     state: State<'_, AppState>,
     npc_vnum: i32,

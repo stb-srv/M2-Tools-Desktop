@@ -237,19 +237,19 @@ pub async fn find_item_by_internal_name(state: State<'_, AppState>, name: String
 
 // ---- Mob Drop Editor: local file variant (syntax check/repair tab) ----
 
-#[tauri::command]
+#[tauri::command(async)]
 pub fn read_local_text_file(path: String) -> Result<String, String> {
     std::fs::read_to_string(&path).map_err(|e| format!("Datei konnte nicht gelesen werden: {e}"))
 }
 
-#[tauri::command]
+#[tauri::command(async)]
 pub fn parse_mob_drop_text(content: String) -> Result<MobDropLoadResult, String> {
     let groups = mobdrop::parse(&content)?;
     let numbering_issues = mobdrop::check_numbering(&content);
     Ok(MobDropLoadResult { groups, numbering_issues })
 }
 
-#[tauri::command]
+#[tauri::command(async)]
 pub fn write_local_mob_drop_file(
     path: String,
     groups: Vec<mobdrop::MobDropGroup>,

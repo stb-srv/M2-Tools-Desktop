@@ -132,6 +132,8 @@ struct UndoReport {
     files_restored: usize,
     db_deleted: usize,
     db_restored: usize,
+    #[serde(default)]
+    notes: Vec<String>,
 }
 
 const KEY_DB: &str = "m2pkg_write_db";
@@ -415,6 +417,13 @@ pub fn M2PkgImporter(#[prop(into)] on_imported: Callback<()>) -> impl IntoView {
                         "Rückgängig gemacht: {} Datei(en) entfernt, {} wiederhergestellt, {} Datenbankzeile(n) gelöscht, {} wiederhergestellt",
                         u.files_removed, u.files_restored, u.db_deleted, u.db_restored
                     ));
+                    for n in &u.notes {
+                        if n.contains("NICHT") {
+                            toast::warning(n);
+                        } else {
+                            toast::info(n);
+                        }
+                    }
                     report.set(None);
                     refresh_history();
                 }

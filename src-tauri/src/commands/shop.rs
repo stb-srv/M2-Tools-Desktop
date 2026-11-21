@@ -157,7 +157,7 @@ pub async fn create_shop(
     shop::create_shop(&pool, &name, npc_vnum).await
 }
 
-#[tauri::command]
+#[tauri::command(async)]
 pub fn get_shop_default_max(
     state: State<'_, AppState>,
     shop_vnum: Option<i32>,
@@ -172,7 +172,7 @@ pub fn get_shop_default_max(
     Ok(global.and_then(|v| v.parse().ok()).unwrap_or(200))
 }
 
-#[tauri::command]
+#[tauri::command(async)]
 pub fn set_shop_default_max(
     state: State<'_, AppState>,
     shop_vnum: Option<i32>,

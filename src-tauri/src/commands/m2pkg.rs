@@ -15,6 +15,19 @@ async fn open_package(zip_path: String) -> Result<Package, String> {
         .map_err(|e| e.to_string())?
 }
 
+/// Führt eine Future mit schwerer Datei-/Hash-Arbeit auf einem Blocking-Thread
+/// aus, damit sie die Async-Worker nicht belegt.
+async fn off_thread<T, F>(fut: F) -> Result<T, String>
+where
+    F: std::future::Future<Output = Result<T, String>> + Send + 'static,
+    T: Send + 'static,
+{
+    let handle = tokio::runtime::Handle::current();
+    tokio::task::spawn_blocking(move || handle.block_on(fut))
+        .await
+        .map_err(|e| e.to_string())?
+}
+
 async fn optional_pool(state: &State<'_, AppState>) -> Option<sqlx::MySqlPool> {
     state.mysql_pool.lock().await.clone()
 }
@@ -46,7 +59,7 @@ pub async fn m2pkg_preflight(state: State<'_, AppState>, options: ApplyOptions) 
     let client_dir = PathBuf::from(client_path_setting(&state)?);
     let pkg = open_package(options.zip_path.clone()).await?;
     let pool = optional_pool(&state).await;
-    m2pkg::preflight(pkg, client_dir, options, pool).await
+    off_thread(m2pkg::preflight(pkg, client_dir, options, pool)).await
 }
 
 /// Packt die angegebenen `pack/<Ordner>` neu (`.epk`), mit dem Packer aus dem Client.
@@ -81,7 +94,7 @@ pub async fn m2pkg_import(app: AppHandle, state: State<'_, AppState>, options: A
     } else {
         Vec::new()
     };
-    let mut report = m2pkg::import(pkg, client_dir.clone(), options, pool).await?;
+    let mut report = off_thread(m2pkg::import(pkg, client_dir.clone(), options, pool)).await?;
     if !folders.is_empty() {
         match repack_folders(&app, &client_dir, &folders, &Default::default()).await {
             Ok(done) => report.notes.push(format!("Client neu gepackt: {}. Das Spiel muss neu gestartet werden.", done.join(", "))),
@@ -103,7 +116,7 @@ pub async fn m2pkg_import(app: AppHandle, state: State<'_, AppState>, options: A
     Ok(report)
 }
 
-#[tauri::command]
+#[tauri::command(async)]
 pub fn m2pkg_list_imports(state: State<'_, AppState>) -> Result<Vec<ImportRecord>, String> {
     let client_dir = PathBuf::from(client_path_setting(&state)?);
     Ok(m2pkg::list_imports(&client_dir))
@@ -142,17 +155,18 @@ pub async fn m2pkg_undo(app: AppHandle, state: State<'_, AppState>, id: String) 
             .await
             .map_err(|e| e.to_string())?
     };
-    let report = m2pkg::undo(client_dir.clone(), id.clone(), pool).await?;
+    let mut report = off_thread(m2pkg::undo(client_dir.clone(), id.clone(), pool)).await?;
     // Neupacken, damit die entfernten Dateien auch aus den .epk verschwinden.
-    // UndoReport hat kein Notizfeld; das Ergebnis steht im Aktivitätsprotokoll.
     let mut repack_note = String::new();
     if !created.is_empty() {
         let mut folders: Vec<String> = created.keys().cloned().collect();
         folders.sort();
-        repack_note = match repack_folders(&app, &client_dir, &folders, &created).await {
-            Ok(done) => format!(" - Client neu gepackt: {}", done.join(", ")),
-            Err(e) => format!(" - Client NICHT neu gepackt ({e}); Ordner pack im Client-Werkzeug neu packen"),
+        let note = match repack_folders(&app, &client_dir, &folders, &created).await {
+            Ok(done) => format!("Client neu gepackt: {}. Das Spiel muss neu gestartet werden.", done.join(", ")),
+            Err(e) => format!("Client NICHT neu gepackt ({e}). Bitte den Ordner pack im Client-Werkzeug neu packen."),
         };
+        repack_note = format!(" - {note}");
+        report.notes.push(note);
     }
     if let Ok(conn) = state.settings_db.lock() {
         let _ = activity_log::record(
