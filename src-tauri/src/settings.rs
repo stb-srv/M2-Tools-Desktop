@@ -122,6 +122,11 @@ pub fn init_db(app_data_dir: &Path) -> Result<Connection, String> {
         );",
     )
     .map_err(|e| e.to_string())?;
+    for key in [crate::clientfs::CLIENT_CODEPAGE_KEY, crate::clientfs::SERVER_CODEPAGE_KEY] {
+        if let Some(value) = get_path(&conn, key)? {
+            crate::clientfs::on_setting_changed(key, &value);
+        }
+    }
     Ok(conn)
 }
 
@@ -136,6 +141,7 @@ pub fn get_path(conn: &Connection, key: &str) -> Result<Option<String>, String> 
 pub fn delete_path(conn: &Connection, key: &str) -> Result<(), String> {
     conn.execute("DELETE FROM paths WHERE key = ?1", [key])
         .map_err(|e| e.to_string())?;
+    crate::clientfs::on_setting_changed(key, "");
     Ok(())
 }
 
@@ -146,5 +152,6 @@ pub fn set_path(conn: &Connection, key: &str, value: &str) -> Result<(), String>
         rusqlite::params![key, value],
     )
     .map_err(|e| e.to_string())?;
+    crate::clientfs::on_setting_changed(key, value);
     Ok(())
 }

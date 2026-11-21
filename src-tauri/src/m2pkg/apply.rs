@@ -2,6 +2,7 @@
 
 use super::package::{sha256_file, Assumption, ManifestFile, Package, Warning};
 use super::sql;
+use crate::clientfs::write_atomic;
 use super::textmerge::{self, ReplacedLine};
 use base64::Engine;
 use serde::{Deserialize, Serialize};
@@ -256,28 +257,6 @@ fn client_target(client_dir: &Path, zip_path: &str) -> Result<PathBuf, String> {
     Ok(rel.split('/').fold(client_dir.to_path_buf(), |p, c| p.join(c)))
 }
 
-/// Findet eine Textdatei des Clients automatisch: in jedem `locale/<Sprache>/`,
-/// direkt in `locale/` und im Client-Ordner selbst.
-fn locale_files(client_dir: &Path, file_name: &str) -> Vec<PathBuf> {
-    let mut found = Vec::new();
-    let locale = client_dir.join("locale");
-    if let Ok(rd) = std::fs::read_dir(&locale) {
-        for e in rd.flatten() {
-            let p = e.path().join(file_name);
-            if p.is_file() {
-                found.push(p);
-            }
-        }
-    }
-    found.sort();
-    for p in [locale.join(file_name), client_dir.join(file_name)] {
-        if p.is_file() {
-            found.push(p);
-        }
-    }
-    found
-}
-
 /// Ziel(e) einer Textdatei: ein von Hand angegebener Pfad hat Vorrang und
 /// ersetzt die automatische Suche; ohne ihn wird gesucht. Leer = nicht gefunden.
 fn text_targets(client_dir: &Path, file_name: &str, custom: Option<&str>) -> Result<Vec<PathBuf>, String> {
@@ -290,7 +269,7 @@ fn text_targets(client_dir: &Path, file_name: &str, custom: Option<&str>) -> Res
                 Err(format!("Der angegebene Pfad für {file_name} existiert nicht: {c}"))
             }
         }
-        None => Ok(locale_files(client_dir, file_name)),
+        None => Ok(crate::clientfs::locale_files(client_dir, file_name)),
     }
 }
 
@@ -379,28 +358,6 @@ pub struct TextEdit {
     /// seitdem nicht verändert und die Sicherung kann 1:1 zurückkopiert werden.
     #[serde(default)]
     pub after_sha256: Option<String>,
-}
-
-/// Schreibt atomar: Temp-Datei im selben Ordner, `sync_all`, dann `rename`. Bei jedem Fehler wird die
-/// Temp-Datei entfernt, die Zieldatei bleibt unverändert.
-fn write_atomic(path: &Path, bytes: &[u8]) -> Result<(), String> {
-    use std::io::Write;
-    let mut name = path.file_name().map(|f| f.to_os_string()).unwrap_or_default();
-    name.push(".m2pkg-tmp");
-    let tmp = path.with_file_name(name);
-    let res = (|| -> std::io::Result<()> {
-        let mut f = std::fs::File::create(&tmp)?;
-        f.write_all(bytes)?;
-        f.flush()?;
-        f.sync_all()?;
-        drop(f);
-        std::fs::rename(&tmp, path)
-    })();
-    if let Err(e) = res {
-        let _ = std::fs::remove_file(&tmp);
-        return Err(format!("{}: {e}", path.display()));
-    }
-    Ok(())
 }
 
 #[derive(Debug, Clone, Default, Serialize, Deserialize)]
@@ -902,15 +859,15 @@ fn apply_itemdesc(
     let existing = std::fs::read(&path).map_err(|e| format!("{}: {e}", path.display()))?;
     let mut old_line: HashMap<u32, Vec<u8>> = HashMap::new();
     for l in existing.split(|b| *b == b'\n') {
-        let l = l.strip_suffix(b"
-").unwrap_or(l);
+        let l = l.strip_suffix(b"\r").unwrap_or(l);
         if let Some(v) = textmerge::line_vnum(l) {
             old_line.entry(v).or_insert_with(|| l.to_vec());
         }
     }
     let mut new_lines: Vec<(u32, Vec<u8>)> = Vec::new();
     for (vnum, name) in &names {
-        let name_cp = encoding_rs::WINDOWS_1252.encode(name).0.into_owned();
+        let name_cp = crate::clientfs::encode(name, crate::clientfs::client_encoding())
+            .map_err(|e| format!("Item {vnum} (itemdesc.txt): {e}"))?;
         let line = match old_line.get(vnum) {
             Some(old) => {
                 let mut parts: Vec<Vec<u8>> = old.split(|b| *b == b'\t').map(|p| p.to_vec()).collect();
@@ -1306,21 +1263,6 @@ mod tests {
         std::fs::write(c.join("locale/de/item_list.txt"), b"100\tETC\ticon/item/00100.tga\r\n").unwrap();
         std::fs::write(c.join("locale/de/itemdesc.txt"), b"100\tAlt\tBeschreibung\n").unwrap();
         c
-    }
-
-    #[test]
-    fn write_atomic_replaces_and_leaves_no_temp() {
-        let dir = temp_dir("atomic");
-        let f = dir.join("a.txt");
-        std::fs::write(&f, b"alt").unwrap();
-        write_atomic(&f, b"neu").unwrap();
-        assert_eq!(std::fs::read(&f).unwrap(), b"neu");
-        assert!(!dir.join("a.txt.m2pkg-tmp").exists());
-        // Ziel ist ein Ordner: Fehler, Temp-Datei wird aufgeräumt
-        let d = dir.join("ordner");
-        std::fs::create_dir_all(&d).unwrap();
-        assert!(write_atomic(&d, b"x").is_err());
-        assert!(!dir.join("ordner.m2pkg-tmp").exists());
     }
 
     fn opts(zip: &Path, vnums: Vec<u32>, conflict: ConflictMode) -> ApplyOptions {

@@ -360,45 +360,9 @@ pub fn import_effect_bundle(
 /// aufbewahrt werden (die neuesten).
 const PACK_BACKUPS_KEEP: usize = 5;
 
-/// Copies `path` into a `m2manager_backups` folder next to it, timestamped
-/// (millisecond-precise, with a counter on collisions - an existing backup
-/// is never overwritten), before it gets overwritten. Returns `None` if
-/// there was nothing to back up.
+/// Siehe `clientfs::backup_file` (eindeutige Namen, nie überschreiben).
 pub fn backup_file(path: &Path) -> Result<Option<PathBuf>, String> {
-    if !path.exists() {
-        return Ok(None);
-    }
-    let parent = path.parent().ok_or("Datei hat kein übergeordnetes Verzeichnis")?;
-    let backup_dir = parent.join("m2manager_backups");
-    std::fs::create_dir_all(&backup_dir).map_err(|e| e.to_string())?;
-
-    let filename = path
-        .file_name()
-        .and_then(|f| f.to_str())
-        .ok_or("Ungültiger Dateiname")?;
-    let timestamp = chrono::Local::now().format("%Y%m%d_%H%M%S_%3f").to_string();
-
-    // Den Namen per create_new reservieren, damit nie etwas überschrieben wird.
-    let mut counter = 0u32;
-    let dest = loop {
-        let name = if counter == 0 {
-            format!("{filename}.{timestamp}.bak")
-        } else {
-            format!("{filename}.{timestamp}-{counter}.bak")
-        };
-        let candidate = backup_dir.join(name);
-        match std::fs::OpenOptions::new().write(true).create_new(true).open(&candidate) {
-            Ok(_) => break candidate,
-            Err(e) if e.kind() == std::io::ErrorKind::AlreadyExists => counter += 1,
-            Err(e) => return Err(e.to_string()),
-        }
-    };
-
-    if let Err(e) = std::fs::copy(path, &dest) {
-        let _ = std::fs::remove_file(&dest);
-        return Err(e.to_string());
-    }
-    Ok(Some(dest))
+    crate::clientfs::backup_file(path)
 }
 
 /// Behält von den Sicherungen `<filename>.*.bak` in `m2manager_backups`
@@ -798,16 +762,9 @@ pub fn replace_client_item_proto(
     generated_proto_path: &str,
 ) -> Result<Vec<String>, String> {
     let locale_dir = Path::new(client_path).join("locale");
-    let entries = std::fs::read_dir(&locale_dir)
-        .map_err(|e| format!("Locale-Ordner {locale_dir:?} nicht lesbar: {e}"))?;
-
     let mut updated = Vec::new();
-    for entry in entries.flatten() {
-        let path = entry.path();
-        if !path.is_dir() {
-            continue;
-        }
-        let target = path.join("item_proto");
+    for dir in crate::clientfs::locale_dirs(client_path)? {
+        let target = dir.join("item_proto");
         if !target.exists() {
             continue;
         }
@@ -864,23 +821,16 @@ pub fn remove_item_list_entries_batch(client_path: &str, vnums: &[u32]) -> Resul
         return Ok(Vec::new());
     }
     let wanted: std::collections::HashSet<u32> = vnums.iter().copied().collect();
-    let locale_dir = Path::new(client_path).join("locale");
-    let entries = std::fs::read_dir(&locale_dir)
-        .map_err(|e| format!("Locale-Ordner {locale_dir:?} nicht lesbar: {e}"))?;
-
+    let enc = crate::clientfs::client_encoding();
     let mut updated = Vec::new();
-    for entry in entries.flatten() {
-        let path = entry.path();
-        if !path.is_dir() {
-            continue;
-        }
-        let target = path.join("item_list.txt");
+    for dir in crate::clientfs::locale_dirs(client_path)? {
+        let target = dir.join("item_list.txt");
         if !target.exists() {
             continue;
         }
 
         let bytes = std::fs::read(&target).map_err(|e| e.to_string())?;
-        let (text, _, _) = encoding_rs::WINDOWS_1252.decode(&bytes);
+        let text = crate::clientfs::decode(&bytes, enc);
         let eol = detect_eol(&text);
 
         let mut found = false;
@@ -902,30 +852,19 @@ pub fn remove_item_list_entries_batch(client_path: &str, vnums: &[u32]) -> Resul
             continue;
         }
 
-        backup_file(&target)?;
         let mut out = lines.join(eol);
         if !lines.is_empty() {
             out.push_str(eol);
         }
-        let (encoded, _, _) = encoding_rs::WINDOWS_1252.encode(&out);
-        std::fs::write(&target, encoded).map_err(|e| e.to_string())?;
+        let encoded = crate::clientfs::encode(&out, enc)?;
+        backup_file(&target)?;
+        crate::clientfs::write_atomic(&target, &encoded)?;
         updated.push(target.display().to_string());
     }
     Ok(updated)
 }
 
-/// Zeilenende der Datei erkennen, damit beim Schreiben nicht die ganze
-/// Datei umgestellt wird: CRLF, wenn es irgendwo vorkommt, sonst LF; eine
-/// Datei ohne Zeilenumbruch bekommt CRLF (Windows-Client-Standard).
-fn detect_eol(text: &str) -> &'static str {
-    if text.contains("\r\n") {
-        "\r\n"
-    } else if text.contains('\n') {
-        "\n"
-    } else {
-        "\r\n"
-    }
-}
+use crate::clientfs::detect_eol;
 
 fn item_type_label(item_type: u32) -> &'static str {
     match item_type {
@@ -954,8 +893,8 @@ pub fn upsert_item_list_entries(
     // Icon-Zuordnung/-Dateien ändern sich - zwischengespeicherte Icons verwerfen.
     crate::icons::invalidate_caches();
     let locale_dir = Path::new(client_path).join("locale");
-    let entries = std::fs::read_dir(&locale_dir)
-        .map_err(|e| format!("Locale-Ordner {locale_dir:?} nicht lesbar: {e}"))?;
+    let dirs = crate::clientfs::locale_dirs(client_path)?;
+    let enc = crate::clientfs::client_encoding();
 
     let mut new_line = format!("{vnum}\t{}\t{icon_rel_path}", item_type_label(item_type));
     if let Some(model) = model_rel_path {
@@ -964,19 +903,14 @@ pub fn upsert_item_list_entries(
     }
 
     let mut updated = Vec::new();
-    for entry in entries.flatten() {
-        let path = entry.path();
-        if !path.is_dir() {
-            continue;
-        }
-        let target = path.join("item_list.txt");
+    for dir in dirs {
+        let target = dir.join("item_list.txt");
         if !target.exists() {
             continue;
         }
-        backup_file(&target)?;
 
         let bytes = std::fs::read(&target).map_err(|e| e.to_string())?;
-        let (text, _, _) = encoding_rs::WINDOWS_1252.decode(&bytes);
+        let text = crate::clientfs::decode(&bytes, enc);
         let eol = detect_eol(&text);
 
         let mut found = false;
@@ -1002,8 +936,9 @@ pub fn upsert_item_list_entries(
 
         let mut out = lines.join(eol);
         out.push_str(eol);
-        let (encoded, _, _) = encoding_rs::WINDOWS_1252.encode(&out);
-        std::fs::write(&target, encoded).map_err(|e| e.to_string())?;
+        let encoded = crate::clientfs::encode(&out, enc)?;
+        backup_file(&target)?;
+        crate::clientfs::write_atomic(&target, &encoded)?;
         updated.push(target.display().to_string());
     }
 

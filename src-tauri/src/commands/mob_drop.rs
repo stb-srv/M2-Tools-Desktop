@@ -12,7 +12,6 @@ use crate::db::item::{self, ItemBrief};
 use crate::drop_item_group;
 use crate::etc_drop;
 use crate::mobdrop;
-use crate::packtools;
 use crate::settings;
 use crate::ssh;
 use crate::state::AppState;
@@ -239,7 +238,9 @@ pub async fn find_item_by_internal_name(state: State<'_, AppState>, name: String
 
 #[tauri::command(async)]
 pub fn read_local_text_file(path: String) -> Result<String, String> {
-    std::fs::read_to_string(&path).map_err(|e| format!("Datei konnte nicht gelesen werden: {e}"))
+    // Wie die Remote-Variante: UTF-8, sonst die eingestellte Serverdatei-Codepage.
+    let bytes = std::fs::read(&path).map_err(|e| format!("Datei konnte nicht gelesen werden: {e}"))?;
+    Ok(ssh::decode_bytes(bytes))
 }
 
 #[tauri::command(async)]
@@ -258,7 +259,40 @@ pub fn write_local_mob_drop_file(
     // Same sanity check as the server write path - never write something we
     // couldn't parse back ourselves.
     mobdrop::parse(&content)?;
-    let backup = packtools::backup_file(std::path::Path::new(&path))?;
-    std::fs::write(&path, content).map_err(|e| format!("Datei konnte nicht geschrieben werden: {e}"))?;
+    // In der Kodierung der bisherigen Datei zurückschreiben (UTF-8 bleibt
+    // UTF-8, sonst eingestellte Codepage); nicht darstellbare Zeichen sind ein Fehler.
+    let original = std::fs::read(&path).ok();
+    let bytes = ssh::encode_matching(&content, original.as_deref())?;
+    let backup = crate::clientfs::backup_file(std::path::Path::new(&path))?;
+    crate::clientfs::write_atomic(std::path::Path::new(&path), &bytes)
+        .map_err(|e| format!("Datei konnte nicht geschrieben werden: {e}"))?;
     Ok(backup.map(|p| p.display().to_string()))
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn local_mob_drop_file_reads_and_writes_cp1252() {
+        let dir = std::env::temp_dir().join(format!("m2m_mobdrop_local_{}", std::process::id()));
+        std::fs::create_dir_all(&dir).unwrap();
+        let file = dir.join("mob_drop_item.txt");
+        // "Käfer" mit 0xE4 (Windows-1252), kein gültiges UTF-8
+        let mut bytes = b"Group\tK".to_vec();
+        bytes.push(0xE4);
+        bytes.extend_from_slice(b"fer\n{\n\tMob\t171\n\tType\tdrop\n\t1\t4006\t1\t10\n}\n");
+        std::fs::write(&file, &bytes).unwrap();
+        let path = file.display().to_string();
+
+        let text = read_local_text_file(path.clone()).unwrap();
+        assert!(text.contains("Käfer"));
+        let loaded = parse_mob_drop_text(text).unwrap();
+
+        write_local_mob_drop_file(path.clone(), loaded.groups).unwrap();
+        let written = std::fs::read(&file).unwrap();
+        assert!(written.contains(&0xE4) && !written.contains(&0xC3), "muss in Windows-1252 bleiben");
+        assert!(dir.join("m2manager_backups").is_dir());
+        std::fs::remove_dir_all(&dir).ok();
+    }
 }
