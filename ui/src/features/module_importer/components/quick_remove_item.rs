@@ -24,8 +24,9 @@ pub fn QuickRemoveItem() -> impl IntoView {
         }
         searching.set(true);
         spawn_local(async move {
-            if let Ok(r) = invoke::<Vec<ItemSearchResult>>("search_items", &json!({ "query": q })).await {
-                results.set(r);
+            match invoke::<Vec<ItemSearchResult>>("search_items", &json!({ "query": q })).await {
+                Ok(r) => results.set(r),
+                Err(e) => crate::components::toast::error(&format!("Suche fehlgeschlagen: {e}")),
             }
             searching.set(false);
         });

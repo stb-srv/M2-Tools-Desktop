@@ -169,11 +169,29 @@ pub fn ItemEditor() -> impl IntoView {
         });
     };
 
+    let load_seq = StoredValue::new(0u64);
     let load_for_edit = move |vnum: i64| {
+        let seq = load_seq.get_value() + 1;
+        load_seq.set_value(seq);
         spawn_local(async move {
-            let Ok(Some(full)) = invoke::<Option<ItemProtoInput>>("get_item_proto", &json!({ "vnum": vnum })).await else {
-                return;
+            let full = match invoke::<Option<ItemProtoInput>>("get_item_proto", &json!({ "vnum": vnum })).await {
+                Ok(Some(full)) => full,
+                Ok(None) => {
+                    if load_seq.get_value() == seq {
+                        crate::components::toast::error(&format!("Item {vnum} wurde nicht gefunden."));
+                    }
+                    return;
+                }
+                Err(e) => {
+                    if load_seq.get_value() == seq {
+                        crate::components::toast::error(&format!("Item {vnum} konnte nicht geladen werden: {e}"));
+                    }
+                    return;
+                }
             };
+            if load_seq.get_value() != seq {
+                return;
+            }
             mode.set(Mode::Edit);
             item.set(full.clone());
             original_item.set(Some(full));
@@ -182,8 +200,19 @@ pub fn ItemEditor() -> impl IntoView {
             done.set(false);
             pipeline_error.set(None);
             steps.set(HashMap::new());
-            icon_preview.set(get_item_icon(vnum).await);
-            let desc = invoke::<Option<ItemDescEntry>>("get_item_desc", &json!({ "vnum": vnum })).await.ok().flatten();
+            let icon = get_item_icon(vnum).await;
+            let desc = invoke::<Option<ItemDescEntry>>("get_item_desc", &json!({ "vnum": vnum })).await;
+            if load_seq.get_value() != seq {
+                return;
+            }
+            icon_preview.set(icon);
+            let desc = match desc {
+                Ok(d) => d,
+                Err(e) => {
+                    crate::components::toast::error(&format!("Beschreibung konnte nicht geladen werden: {e}"));
+                    None
+                }
+            };
             let (d, s) = desc.map(|d| (d.description, d.summary)).unwrap_or_default();
             description.set(d.clone());
             summary.set(s.clone());

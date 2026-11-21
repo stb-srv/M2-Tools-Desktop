@@ -147,7 +147,9 @@ async fn load_setting(key: &str) -> Option<String> {
 
 fn save_setting(key: &'static str, value: String) {
     spawn_local(async move {
-        let _ = invoke_unit("set_setting", &json!({ "key": key, "value": value })).await;
+        if let Err(e) = invoke_unit("set_setting", &json!({ "key": key, "value": value })).await {
+            crate::components::toast::error(&format!("Einstellung konnte nicht gespeichert werden: {e}"));
+        }
     });
 }
 

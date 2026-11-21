@@ -22,8 +22,17 @@ fn en() -> &'static Value {
 /// Muss einmal vor dem Mounten aufgerufen werden (außerhalb eines Owners,
 /// damit das Signal nie entsorgt wird).
 pub fn init() {
-    let stored = crate::util::storage::get(STORAGE_KEY).unwrap_or_else(|| "de".into());
-    let _ = LANG.set(RwSignal::new(stored));
+    let stored = crate::util::storage::get(STORAGE_KEY);
+    let _ = LANG.set(RwSignal::new(sanitize_language(stored.as_deref())));
+}
+
+/// Englisch ist noch nicht vollständig übersetzt und daher nicht wählbar;
+/// eine früher gespeicherte Auswahl "en" fällt auf Deutsch zurück.
+fn sanitize_language(stored: Option<&str>) -> String {
+    match stored {
+        Some("de") | None => "de".into(),
+        Some(_) => "de".into(),
+    }
 }
 
 /// Aktuelle Sprache ("de"/"en"), reaktiv.
@@ -31,6 +40,7 @@ pub fn language() -> String {
     LANG.get().map(|s| s.get()).unwrap_or_else(|| "de".into())
 }
 
+#[allow(dead_code)]
 pub fn set_language(lang: &str) {
     if let Some(s) = LANG.get() {
         s.set(lang.to_string());
@@ -65,4 +75,36 @@ pub fn t_with(key: &str, vars: &[(&str, &str)]) -> String {
         s = s.replace(&format!("{{{{{k}}}}}"), v);
     }
     s
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn keys(v: &Value, prefix: &str, out: &mut Vec<String>) {
+        match v {
+            Value::Object(m) => {
+                for (k, v) in m {
+                    keys(v, &format!("{prefix}{k}."), out);
+                }
+            }
+            _ => out.push(prefix.trim_end_matches('.').to_string()),
+        }
+    }
+
+    #[test]
+    fn de_und_en_haben_dieselben_schluessel() {
+        let (mut a, mut b) = (vec![], vec![]);
+        keys(de(), "", &mut a);
+        keys(en(), "", &mut b);
+        a.sort();
+        b.sort();
+        assert_eq!(a, b);
+    }
+
+    #[test]
+    fn gespeichertes_englisch_faellt_auf_deutsch() {
+        assert_eq!(sanitize_language(Some("en")), "de");
+        assert_eq!(sanitize_language(None), "de");
+    }
 }
